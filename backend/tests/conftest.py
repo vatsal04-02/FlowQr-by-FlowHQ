@@ -127,3 +127,11 @@ def admin():
         assert r.status_code == 201, r.text
     s.csrf = r.json()["csrf_token"]
     return s
+
+
+def owner_query(sql: str, **params):
+    """Inspect raw DB state as the table owner with RLS explicitly bypassed (test-only helper)."""
+    eng = create_engine(settings.migration_database_url)
+    with eng.begin() as c:
+        c.execute(text("SELECT set_config('app.bypass_rls','on',true)"))
+        return c.execute(text(sql), params).all()

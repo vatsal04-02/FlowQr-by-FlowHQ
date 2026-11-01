@@ -68,9 +68,8 @@ def test_login_rate_limited_per_email():
 
 def test_password_hash_is_argon2id():
     s = make_user()
-    eng = create_engine(settings.migration_database_url)
-    with eng.connect() as c:
-        h = c.execute(text("SELECT password_hash FROM users WHERE email=:e"), {"e": s.email}).scalar()
+    from tests.conftest import owner_query
+    h = owner_query("SELECT password_hash FROM users WHERE email=:e", e=s.email)[0][0]
     assert h.startswith("$argon2id$")
 
 
