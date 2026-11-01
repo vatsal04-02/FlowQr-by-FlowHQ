@@ -5,7 +5,7 @@ Legend: **PASS** = executed and passed here · **BLOCKED** = needs credentials/i
 ## Automated results (this repository, this session)
 | Check | Result |
 |---|---|
-| Backend tests (pytest, real PostgreSQL 16 + migrations from scratch) | **PASS** 109/109 |
+| Backend tests (pytest, real PostgreSQL 16 + migrations from scratch) | **PASS** 139/139 |
 | Tenant isolation (HTTP, all major resources) + PostgreSQL RLS raw-SQL tests | **PASS** |
 | QR decode round-trip (OpenCV decodes PNG → exact card URL) | **PASS** |
 | Public redirect / card resolution / fallbacks / rate limit / bot filter | **PASS** |
@@ -17,9 +17,10 @@ Legend: **PASS** = executed and passed here · **BLOCKED** = needs credentials/i
 | Browser E2E (Playwright, desktop + 390 px mobile): register → verify email → onboarding → assign card → public page → pricing/subscription/payments/analytics/profile → suspension → admin console → access denial for business users | **PASS** (`e2e/smoke.js`) |
 | Live Celery worker consumed `billing_refresh`, `retry_failed_replies`, `sync_due_locations` from Redis | **PASS** |
 | `docker compose config` (base + prod overlay) | **PASS** |
+| Staging readiness (isolated stack, real SMTP *protocol* vs sink, config guard, card-URL audit, dependency audit) | See [STAGING_READINESS.md](STAGING_READINESS.md) |
 | `caddy validate` of `deploy/Caddyfile` (real Caddy 2.8.4 binary) | **PASS** |
-| Docker image builds / `docker compose up` | **BLOCKED** (no Docker daemon in sandbox) |
-| Backup/restore scripts | **NOT TESTED** (need a running compose stack) |
+| Docker image builds / full `docker compose up` (8 services healthy, persistence, crash recovery, Caddy 4-domain routing) | **PASS**: see [STAGING_READINESS.md](STAGING_READINESS.md) |
+| Backup/restore with real data (14-table checksum snapshot identical) | **PASS** (same-host; off-site/other-cluster restore NOT TESTED) |
 
 ## External services (never called for real)
 | Integration | Status |

@@ -104,7 +104,7 @@ BACKEND_URL=http://localhost:8000 npm run dev         # http://localhost:3000
 ## Tests
 
 ```bash
-cd backend && . .venv/bin/activate && pytest -q       # 109 tests; needs the flowqr_test database above + Postgres running
+cd backend && . .venv/bin/activate && pytest -q       # 139 tests; needs the flowqr_test database above + Postgres running
 cd frontend && npx tsc --noEmit && npm run build      # typecheck + production build
 ```
 
@@ -129,7 +129,7 @@ node e2e/smoke.js     # registers a business, onboards, assigns a card, opens th
 
 ## Documentation
 
-[Architecture](docs/ARCHITECTURE.md) · [Database](docs/DATABASE.md) · [API reference](docs/API.md) · [Deployment](docs/DEPLOYMENT.md) · [Security checklist](docs/SECURITY.md) · [Implementation checklist](docs/CHECKLIST.md)
+[Architecture](docs/ARCHITECTURE.md) · [Database](docs/DATABASE.md) · [API reference](docs/API.md) · [Deployment](docs/DEPLOYMENT.md) · [Security checklist](docs/SECURITY.md) · [Implementation checklist](docs/CHECKLIST.md) · [**Staging readiness**](docs/STAGING_READINESS.md) · [Google setup & approval](docs/GOOGLE_SETUP.md)
 
 ---
 FlowQR is a product of FlowHQ and is not affiliated with, endorsed by, or sponsored by Google. Google and Google Business Profile are trademarks of Google LLC.

@@ -1,6 +1,8 @@
 # Deployment guide (single VPS with Docker Compose + Caddy)
 
-> The Compose files validate with `docker compose config`, but **images were not built or started in the authoring environment (no Docker daemon)**. Do a staging run first and report anything that needs adjusting.
+> The stack was built and run end-to-end in an isolated staging project (see STAGING_READINESS.md). `APP_ENV` must be `staging` or `production`: the app refuses to start with unsafe configuration.
+
+> **Staging first.** Follow [STAGING_READINESS.md](STAGING_READINESS.md) §6 (exact commands) and run the evidence scripts in `deploy/staging/` on a real staging host before production. Compose overlays: `docker-compose.prod.yml` (Caddy, hardened mode), optional `docker-compose.mail-sink.yml` (Mailpit, staging only), optional `docker-compose.local-tls.yml` (non-public hostnames only). Before printing any card run `python -m app.cli card-url-audit --live --expect-domain go.<domain>`.
 
 ## 1. Prerequisites
 * A Linux server (2 vCPU / 4 GB RAM is plenty to start), Docker Engine + Compose v2.
@@ -15,7 +17,7 @@
 git clone <repo> /opt/flowqr && cd /opt/flowqr
 cp .env.example .env && chmod 600 .env
 ```
-Set at least: `APP_ENV=production`, `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY` (**back this key up; losing it makes stored Google tokens unreadable**), `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `FRONTEND_URL=https://app.…`, `PUBLIC_CARD_BASE_URL=https://go.…`, `CORS_ORIGINS=https://app.…`, `COOKIE_SECURE=true`, `GOOGLE_REDIRECT_URI=https://app.…/api/v1/google/callback`, `PLATFORM_ADMIN_EMAILS`, `MARKETING_DOMAIN`, `APP_DOMAIN`, `API_DOMAIN`, `CARD_DOMAIN`, `ACME_EMAIL`, SMTP_*, and (when ready) `RAZORPAY_*`.
+Set at least: `APP_ENV=production` (or `staging`), real `SMTP_*`, **`CARD_PRICE_PAISE` (no default)**, `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY` (**back this key up; losing it makes stored Google tokens unreadable**), `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `FRONTEND_URL=https://app.…`, `PUBLIC_CARD_BASE_URL=https://go.…`, `CORS_ORIGINS=https://app.…`, `COOKIE_SECURE=true`, `GOOGLE_REDIRECT_URI=https://app.…/api/v1/google/callback`, `PLATFORM_ADMIN_EMAILS`, `MARKETING_DOMAIN`, `APP_DOMAIN`, `API_DOMAIN`, `CARD_DOMAIN`, `ACME_EMAIL`, SMTP_*, and (when ready) `RAZORPAY_*`.
 
 ## 4. Start
 ```bash
