@@ -1,7 +1,18 @@
 # Production overlay: Caddy terminates TLS (automatic HTTPS) and is the only public entry point.
+x-hardened: &hardened
+  REQUIRE_HARDENED: "true"  # app refuses to start unless APP_ENV is staging|production (strict config guard)
+  APP_ENV: ${APP_ENV:?set APP_ENV=staging or production}
+
 services:
+  migrate:
+    environment: *hardened
   api:
+    environment: *hardened
     ports: !reset []
+  worker:
+    environment: *hardened
+  beat:
+    environment: *hardened
   frontend:
     ports: !reset []
   caddy:
@@ -21,7 +32,14 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [frontend, api]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      frontend: { condition: service_healthy }
+      api: { condition: service_healthy }
 volumes:
   caddy_data:
   caddy_config:

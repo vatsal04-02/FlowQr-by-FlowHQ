@@ -4,7 +4,7 @@
 name: flowqr
 
 x-backend-env: &backend-env
-  APP_ENV: ${APP_ENV:-development}
+  APP_ENV: ${APP_ENV:-development}  # development | staging | production (staging/production run the strict config guard)
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
   TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?set TOKEN_ENCRYPTION_KEY in .env}
   DATABASE_URL: postgresql+psycopg://flowqr_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD}@db:5432/flowqr
@@ -17,6 +17,7 @@ x-backend-env: &backend-env
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/api/v1/google/callback}
+  APP_DB_ROLE: flowqr_app
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
   REVIEW_SYNC_INTERVAL_MINUTES: ${REVIEW_SYNC_INTERVAL_MINUTES:-30}
@@ -24,13 +25,14 @@ x-backend-env: &backend-env
   RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
   RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
   TRIAL_DAYS: ${TRIAL_DAYS:-14}
-  CARD_PRICE_PAISE: ${CARD_PRICE_PAISE:-24900}
+  CARD_PRICE_PAISE: ${CARD_PRICE_PAISE:-}  # no default: unset disables card ordering
   REQUIRE_VERIFIED_EMAIL: ${REQUIRE_VERIFIED_EMAIL:-true}
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM: ${SMTP_FROM:-FlowQR <no-reply@localhost>}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
 
 services:
   db:
@@ -64,6 +66,7 @@ services:
 
   migrate:  # one-shot: applies Alembic migrations as the table-owner role, then exits
     build: ./backend
+    image: flowqr-backend:${FLOWQR_TAG:-local}
     command: ["alembic", "upgrade", "head"]
     environment:
       <<: *backend-env
@@ -74,6 +77,7 @@ services:
 
   api:
     build: ./backend
+    image: flowqr-backend:${FLOWQR_TAG:-local}
     restart: unless-stopped
     environment: *backend-env
     depends_on:
@@ -88,23 +92,37 @@ services:
 
   worker:
     build: ./backend
+    image: flowqr-backend:${FLOWQR_TAG:-local}
     restart: unless-stopped
     command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
     environment: *backend-env
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.workers.celery_app inspect ping -d celery@$$HOSTNAME -t 8 | grep -q pong"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
   beat:  # periodic review sync scheduler
     build: ./backend
+    image: flowqr-backend:${FLOWQR_TAG:-local}
     restart: unless-stopped
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
     environment: *backend-env
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+    healthcheck:  # beat has no ping; verify its process is alive
+      test: ["CMD", "python", "-c", "import glob,sys; sys.exit(0 if any(b'beat' in open(p,'rb').read() for p in glob.glob('/proc/[0-9]*/cmdline')) else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   frontend:
+    image: flowqr-frontend:${FLOWQR_TAG:-local}
     build:
       context: ./frontend
       args:
@@ -113,6 +131,12 @@ services:
     depends_on:
       api: { condition: service_healthy }
     ports: ["127.0.0.1:3000:3000"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/pricing || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   pgdata:

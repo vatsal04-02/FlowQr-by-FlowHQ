@@ -6,17 +6,18 @@ const rnd = Math.random().toString(36).slice(2, 8);
 const log = (...a) => console.log(...a);
 
 async function apiCtx(browser, email, name) {
-  const ctx = await browser.newContext({ baseURL: BASE });
-  const r = await ctx.request.post('/api/v1/auth/register', { data: { email, password: 'Str0ngPassw0rd!', full_name: name } });
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS, baseURL: BASE });
+  const r = await ctx.request.post('/api/v1/auth/register', { data: { email, password: process.env.ADMIN_PASSWORD || 'Str0ngPassw0rd!', full_name: name } });
   if (r.status() === 409) {
-    const l = await ctx.request.post('/api/v1/auth/login', { data: { email, password: 'Str0ngPassw0rd!' } });
+    const l = await ctx.request.post('/api/v1/auth/login', { data: { email, password: process.env.ADMIN_PASSWORD || 'Str0ngPassw0rd!' } });
     return { ctx, csrf: (await l.json()).csrf_token };
   }
   return { ctx, csrf: (await r.json()).csrf_token };
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const HOST_RULES = process.env.HOST_RULES; // e.g. 'MAP *.flowqr-staging.dev 127.0.0.1' (staging with local TLS)
+  const browser = await chromium.launch(HOST_RULES ? { args: [`--host-resolver-rules=${HOST_RULES}`] } : {});
   const errors = [];
 
   // ---- Platform admin creates a batch ----
@@ -27,7 +28,7 @@ async function apiCtx(browser, email, name) {
   const batch = await r.json();
 
   // ---- Business owner goes through the real UI ----
-  const ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1280, height: 800 } });
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS, baseURL: BASE, viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('response', (r) => { if (r.status() >= 400 && r.status() !== 401) console.log('HTTP', r.status(), r.url()); });
@@ -35,7 +36,7 @@ async function apiCtx(browser, email, name) {
 
   await page.goto('/'); await page.screenshot({ path: `${OUT}/01-landing.png`, fullPage: true });
   await page.goto('/register');
-  await page.getByLabel('Your name').fill('Geeta Krishna');
+  await page.getByLabel('Your name').fill('E2E Demo Owner');
   await page.getByLabel('Work email').fill(`owner-${rnd}@example.com`);
   await page.getByLabel('Password').fill('weak');
   await page.getByLabel('Password').blur();
@@ -44,7 +45,7 @@ async function apiCtx(browser, email, name) {
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.waitForURL('**/onboarding');
 
-  await page.getByLabel('Business name').fill('Geeta Krishna Physiotherapy');
+  await page.getByLabel('Business name').fill('E2E Demo Physiotherapy');
   await page.getByLabel('Phone').fill('98765 43210');
   await page.screenshot({ path: `${OUT}/03-onboarding-business.png`, fullPage: true });
   await page.getByRole('button', { name: 'Continue' }).click();
@@ -71,7 +72,7 @@ async function apiCtx(browser, email, name) {
   const token = cards[0].public_token; log('card url', cards[0].url);
 
   // ---- Customer on a phone ----
-  const phone = await browser.newContext({ baseURL: BASE, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' });
+  const phone = await browser.newContext({ ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS, baseURL: BASE, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' });
   const m = await phone.newPage();
   m.on('pageerror', (e) => errors.push('mobile pageerror: ' + e.message));
   await m.goto(`/c/${token}`);
@@ -101,7 +102,7 @@ async function apiCtx(browser, email, name) {
   await page.keyboard.press('Escape');
 
   // mobile dashboard
-  const mctx = await browser.newContext({ baseURL: BASE, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const mctx = await browser.newContext({ ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS, baseURL: BASE, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await mctx.addCookies(await ctx.cookies());
   const md = await mctx.newPage(); await md.goto('/dashboard'); await md.waitForTimeout(1000);
   await md.screenshot({ path: `${OUT}/22-dashboard-mobile.png`, fullPage: false });
@@ -109,7 +110,7 @@ async function apiCtx(browser, email, name) {
   await md.screenshot({ path: `${OUT}/23-mobile-menu.png` });
 
   // admin UI
-  const actx = await browser.newContext({ baseURL: BASE, viewport: { width: 1280, height: 800 } });
+  const actx = await browser.newContext({ ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS, baseURL: BASE, viewport: { width: 1280, height: 800 } });
   await actx.addCookies(await admin.ctx.cookies());
   const ap = await actx.newPage(); ap.on('pageerror', (e) => errors.push('admin pageerror: ' + e.message));
   await ap.goto('/admin/cards'); await ap.waitForTimeout(1200);
@@ -122,7 +123,13 @@ async function apiCtx(browser, email, name) {
   const fs = require('fs');
   const ownerEmail = `owner-${rnd}@example.com`;
   const logTxt = fs.existsSync(process.env.API_LOG || '/tmp/uvicorn.log') ? fs.readFileSync(process.env.API_LOG || '/tmp/uvicorn.log', 'utf8') : '';
-  const m1 = [...logTxt.matchAll(new RegExp(`to=${ownerEmail.replace('.', '\\.')}[\\s\\S]*?verify-email\\?token=([\\w-]+)`, 'g'))].pop();
+  let mailTok = null;
+  if (process.env.MAILPIT_URL) {
+    const list = await (await fetch(`${process.env.MAILPIT_URL}/api/v1/messages?limit=200`)).json();
+    const hit = list.messages.find((m) => m.To.some((t) => t.Address === ownerEmail) && m.Subject.includes('Verify'));
+    if (hit) { const body = (await (await fetch(`${process.env.MAILPIT_URL}/api/v1/message/${hit.ID}`)).json()).Text; mailTok = body.match(/token=([\w-]+)/)[1]; }
+  }
+  const m1 = mailTok ? [null, mailTok] : [...logTxt.matchAll(new RegExp(`to=${ownerEmail.replace('.', '\\.')}[\\s\\S]*?verify-email\\?token=([\\w-]+)`, 'g'))].pop();
   if (m1) {
     await page.goto('/dashboard'); await page.waitForTimeout(800);
     await page.screenshot({ path: `${OUT}/40-unverified-banner.png` });

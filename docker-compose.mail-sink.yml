@@ -1,0 +1,18 @@
+# OPTIONAL overlay: local SMTP *sink* (Mailpit) for functional testing of email flows without a mail provider.
+# NOT a real mail provider: nothing is delivered to anyone. The production guard refuses SMTP_HOST=mailpit when APP_ENV=production.
+#   .env:  SMTP_HOST=mailpit  SMTP_PORT=1025  SMTP_STARTTLS=false
+services:
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+    ports: ["127.0.0.1:8025:8025"]   # web UI + API, loopback only
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+  api:
+    depends_on:
+      mailpit: { condition: service_healthy }

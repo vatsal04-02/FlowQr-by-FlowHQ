@@ -1,5 +1,7 @@
 {
 	email {$ACME_EMAIL}
+	# staging mounts deploy/staging/tls_mode/ (local_certs); production mounts nothing => real ACME certificates
+	import tls_mode/*
 }
 
 (security_headers) {

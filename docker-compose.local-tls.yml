@@ -1,0 +1,13 @@
+# OPTIONAL overlay for hostnames that are NOT publicly resolvable (laptop / CI / sandbox): Caddy issues certificates from its own
+# internal CA instead of Let's Encrypt. NEVER use on a real public domain (browsers will not trust the certificates).
+services:
+  caddy:
+    volumes:
+      - ./deploy/staging/tls_mode:/etc/caddy/tls_mode:ro
+    networks:
+      default:
+        aliases:  # lets containers (e.g. the URL audit) reach the four hostnames through Caddy
+          - ${MARKETING_DOMAIN}
+          - ${APP_DOMAIN}
+          - ${API_DOMAIN}
+          - ${CARD_DOMAIN}
