@@ -1,6 +1,5 @@
 import { BarChart3, Check, MessageSquareReply, Nfc, QrCode, ShieldCheck, Sparkles, Store } from "lucide-react";
-import Link from "next/link";
-import { Logo } from "@/components/ui/Brand";
+import { MarketingFooter, MarketingHeader } from "@/components/MarketingChrome";
 import { LinkButton } from "@/components/ui/Button";
 import { GoogleDots } from "@/components/ui/Card";
 
@@ -16,17 +15,7 @@ const features = [
 export default function Landing() {
   return (
     <div className="bg-white">
-      <header className="sticky top-0 z-30 border-b border-ink-100 bg-white/90 backdrop-blur">
-        <div className="container-page flex items-center justify-between py-3">
-          <Logo />
-          <nav className="flex items-center gap-1 sm:gap-2" aria-label="Site">
-            <a href="#how" className="tap hidden items-center rounded-xl px-3 text-sm font-semibold text-ink-700 hover:bg-ink-50 sm:inline-flex">How it works</a>
-            <a href="#features" className="tap hidden items-center rounded-xl px-3 text-sm font-semibold text-ink-700 hover:bg-ink-50 sm:inline-flex">Features</a>
-            <Link href="/login" className="tap inline-flex items-center rounded-xl px-3 text-sm font-semibold text-ink-700 hover:bg-ink-50">Log in</Link>
-            <LinkButton href="/register" size="sm">Get started</LinkButton>
-          </nav>
-        </div>
-      </header>
+      <MarketingHeader />
 
       <main>
         <section className="relative overflow-hidden">
@@ -90,6 +79,13 @@ export default function Landing() {
           </div>
         </section>
 
+        <section className="container-page pb-16">
+          <div className="grid items-center gap-6 rounded-3xl border border-ink-100 p-8 shadow-card sm:grid-cols-[1fr_auto]">
+            <div><h2 className="text-2xl font-semibold">Plans from ₹399 / month</h2><p className="mt-1 text-ink-500">14-day free trial with Growth features. Cards are ordered separately. Pay by UPI, card or netbanking.</p></div>
+            <LinkButton href="/pricing" variant="secondary" size="lg">See pricing</LinkButton>
+          </div>
+        </section>
+
         <section className="container-page pb-20">
           <div className="rounded-3xl bg-brand-900 px-6 py-12 text-center text-white sm:px-12">
             <h2 className="!text-white text-3xl font-semibold">Ready to hear from more happy customers?</h2>
@@ -99,12 +95,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="border-t border-ink-100 py-8">
-        <div className="container-page flex flex-col gap-3 text-sm text-ink-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} FlowHQ. FlowQR is a FlowHQ product.</p>
-          <p className="max-w-xl">FlowQR is not affiliated with, endorsed by or sponsored by Google. Google and Google Business Profile are trademarks of Google LLC.</p>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }

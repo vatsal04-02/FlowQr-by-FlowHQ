@@ -126,7 +126,7 @@ function BatchModal({ onClose, onCreated }: { onClose: () => void; onCreated: (n
 }
 
 function AssignModal({ card, onClose, onDone }: { card: CardT; onClose: () => void; onDone: () => void }) {
-  const tenants = useFetch<TenantRow[]>("/admin/tenants");
+  const tenants = useFetch<{ items: TenantRow[] }>("/admin/tenants");
   const [tenant, setTenant] = useState(card.tenant_id ?? "");
   const locs = useFetch<Loc[]>(tenant ? `/admin/tenants/${tenant}/locations` : null);
   const [loc, setLoc] = useState("");
@@ -141,7 +141,7 @@ function AssignModal({ card, onClose, onDone }: { card: CardT; onClose: () => vo
     <Modal open onClose={onClose} title={`Assign ${card.card_code}`} footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!tenant || !loc} onClick={() => void save()}>Assign card</Button></>}>
       <div className="space-y-4">
         {err && <Alert tone="error">{err}</Alert>}
-        <Select label="Business" value={tenant} onChange={(e) => { setTenant(e.target.value); setLoc(""); }}><option value="">Choose a business…</option>{tenants.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>
+        <Select label="Business" value={tenant} onChange={(e) => { setTenant(e.target.value); setLoc(""); }}><option value="">Choose a business…</option>{tenants.data?.items.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>
         <Select label="Location" value={loc} disabled={!tenant} onChange={(e) => setLoc(e.target.value)}><option value="">Choose a location…</option>{locs.data?.map((l) => <option key={l.id} value={l.id}>{l.name}{l.city ? ` – ${l.city}` : ""}</option>)}</Select>
         <Input label="Label (optional)" placeholder="e.g. Reception desk" value={label} onChange={(e) => setLabel(e.target.value)} />
         {card.tenant_id && <Alert tone="warning">This card is already assigned. Reassigning keeps its scan history but future scans count for the new location.</Alert>}

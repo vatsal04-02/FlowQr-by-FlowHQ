@@ -32,14 +32,14 @@ function csrfToken(): string | undefined {
   return document.cookie.split("; ").find((c) => c.startsWith("flowqr_csrf="))?.split("=")[1];
 }
 
-type Opts = { method?: string; body?: unknown; params?: Record<string, string | number | undefined | null>; signal?: AbortSignal };
+type Opts = { method?: string; body?: unknown; headers?: Record<string, string>; params?: Record<string, string | number | undefined | null>; signal?: AbortSignal };
 
 export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
   const method = opts.method ?? "GET";
   const qs = opts.params
     ? "?" + new URLSearchParams(Object.entries(opts.params).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [k, String(v)])).toString()
     : "";
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET") {
     const t = csrfToken();

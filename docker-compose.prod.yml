@@ -8,7 +8,9 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
+      MARKETING_DOMAIN: ${MARKETING_DOMAIN:?e.g. flowqr.co.in}
       APP_DOMAIN: ${APP_DOMAIN:?e.g. app.flowqr.co.in}
+      API_DOMAIN: ${API_DOMAIN:?e.g. api.flowqr.co.in}
       CARD_DOMAIN: ${CARD_DOMAIN:?e.g. go.flowqr.co.in}
       ACME_EMAIL: ${ACME_EMAIL:?your email for certificate notices}
     ports:

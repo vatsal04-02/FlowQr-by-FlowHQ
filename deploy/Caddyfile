@@ -12,7 +12,24 @@
 	}
 }
 
-# Main application (dashboard, API, Google OAuth callback)
+# flowqr.co.in : marketing site (home + pricing). Everything else lives on the app domain.
+{$MARKETING_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	@marketing path / /pricing /_next/* /favicon.ico
+	handle @marketing {
+		reverse_proxy frontend:3000
+	}
+	handle {
+		redir https://{$APP_DOMAIN}{uri} 302
+	}
+}
+www.{$MARKETING_DOMAIN} {
+	redir https://{$MARKETING_DOMAIN}{uri} 301
+}
+
+# app.flowqr.co.in : customer dashboard + platform admin. The browser calls /api/* on THIS origin
+# (first-party session cookies, no CORS); Next.js/Caddy forward it to the API.
 {$APP_DOMAIN} {
 	import security_headers
 	encode zstd gzip
@@ -27,7 +44,22 @@
 	}
 }
 
-# Short domain printed on physical cards / written to NFC tags. Serves ONLY the public card flow.
+# api.flowqr.co.in : API for server-to-server callers (Razorpay webhooks) and external integrations.
+{$API_DOMAIN} {
+	import security_headers
+	request_body {
+		max_size 1MB
+	}
+	@api path /api/*
+	handle @api {
+		reverse_proxy api:8000
+	}
+	handle {
+		respond "FlowQR API" 200
+	}
+}
+
+# go.flowqr.co.in : short domain printed on cards / written to NFC tags. Serves ONLY the public card flow.
 {$CARD_DOMAIN} {
 	import security_headers
 	encode zstd gzip
