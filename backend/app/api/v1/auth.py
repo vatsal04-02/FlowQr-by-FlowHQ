@@ -1,0 +1,191 @@
+from datetime import timedelta
+
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.db import get_db, set_rls_context
+from app.core.deps import CSRF_COOKIE, SESSION_COOKIE, AuthContext, get_auth_context
+from app.core.rate_limit import client_ip, hit, limit_by_ip
+from app.core.security import (
+    DUMMY_HASH, hash_password, hash_token, needs_rehash, new_token, verify_password,
+)
+from app.models import AuthSession, Membership, PasswordResetToken, Tenant, User
+from app.models.base import utcnow
+from app.schemas.auth import (
+    ChangePasswordIn, LoginIn, MeOut, MembershipOut, PasswordResetConfirmIn, PasswordResetRequestIn,
+    ProfileUpdateIn, RegisterIn, TenantOut, UserOut,
+)
+from app.services.audit import audit
+from app.services.mailer import send_email
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _start_session(db: Session, user: User, request: Request, response: Response) -> AuthSession:
+    token = new_token()
+    now = utcnow()
+    set_rls_context(db, bypass=True)
+    memberships = list(db.scalars(select(Membership).where(Membership.user_id == user.id)))
+    sess = AuthSession(
+        user_id=user.id,
+        token_hash=hash_token(token),
+        csrf_token=new_token(24),
+        active_tenant_id=memberships[0].tenant_id if memberships else None,
+        ip=client_ip(request),
+        user_agent=(request.headers.get("user-agent") or "")[:300],
+        created_at=now,
+        expires_at=now + timedelta(hours=settings.session_ttl_hours),
+    )
+    db.add(sess)
+    db.flush()
+    max_age = settings.session_ttl_hours * 3600
+    common = dict(max_age=max_age, secure=settings.cookie_secure, samesite="lax", path="/",
+                  domain=settings.cookie_domain or None)
+    response.set_cookie(SESSION_COOKIE, token, httponly=True, **common)
+    response.set_cookie(CSRF_COOKIE, sess.csrf_token, httponly=False, **common)
+    return sess
+
+
+def build_me(db: Session, user: User, sess: AuthSession) -> MeOut:
+    set_rls_context(db, bypass=True)
+    rows = db.execute(
+        select(Membership, Tenant).join(Tenant, Tenant.id == Membership.tenant_id).where(Membership.user_id == user.id)
+    ).all()
+    set_rls_context(db)
+    return MeOut(
+        user=UserOut.model_validate(user),
+        memberships=[MembershipOut(tenant=TenantOut.model_validate(t), role=m.role) for m, t in rows],
+        active_tenant_id=sess.active_tenant_id,
+        csrf_token=sess.csrf_token,
+        integrations={
+            "google_configured": settings.google_configured,
+            "ai_configured": settings.ai_configured,
+            "public_card_base_url": settings.public_card_base_url,
+        },
+    )
+
+
+@router.post("/register", response_model=MeOut, status_code=201, dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60))])
+def register(body: RegisterIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    email = body.email.lower()
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+    user = User(
+        email=email, password_hash=hash_password(body.password), full_name=body.full_name.strip(),
+        phone=body.phone, is_platform_admin=email in settings.platform_admin_email_set,
+    )
+    db.add(user)
+    db.flush()
+    sess = _start_session(db, user, request, response)
+    set_rls_context(db, bypass=True)
+    audit(db, action="auth.register", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request))
+    db.commit()
+    return build_me(db, user, sess)
+
+
+@router.post("/login", response_model=MeOut, dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60))])
+def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    email = body.email.lower()
+    if not hit(f"login-email:{email}", 10, 900):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again in a few minutes.")
+    user = db.scalar(select(User).where(User.email == email))
+    ok = verify_password(body.password, user.password_hash if user else DUMMY_HASH)
+    if not user or not ok or not user.is_active:
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_password(body.password)
+    user.last_login_at = utcnow()
+    sess = _start_session(db, user, request, response)
+    set_rls_context(db, bypass=True)
+    audit(db, action="auth.login", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request))
+    db.commit()
+    return build_me(db, user, sess)
+
+
+@router.post("/logout", status_code=204)
+def logout(response: Response, ctx: AuthContext = Depends(get_auth_context)):
+    ctx.session.revoked_at = utcnow()
+    set_rls_context(ctx.db, bypass=True)
+    audit(ctx.db, action="auth.logout", user_id=ctx.user.id)
+    ctx.db.commit()
+    response.delete_cookie(SESSION_COOKIE, path="/", domain=settings.cookie_domain or None)
+    response.delete_cookie(CSRF_COOKIE, path="/", domain=settings.cookie_domain or None)
+
+
+@router.get("/me", response_model=MeOut)
+def me(ctx: AuthContext = Depends(get_auth_context)):
+    return build_me(ctx.db, ctx.user, ctx.session)
+
+
+@router.patch("/profile", response_model=UserOut)
+def update_profile(body: ProfileUpdateIn, ctx: AuthContext = Depends(get_auth_context)):
+    data = body.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(ctx.user, k, v)
+    ctx.db.commit()
+    return ctx.user
+
+
+@router.post("/select-tenant", status_code=204)
+def select_tenant(tenant_id: str, ctx: AuthContext = Depends(get_auth_context)):
+    import uuid as _uuid
+
+    try:
+        tid = _uuid.UUID(tenant_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid tenant")
+    set_rls_context(ctx.db, bypass=True)
+    m = ctx.db.scalar(select(Membership).where(Membership.user_id == ctx.user.id, Membership.tenant_id == tid))
+    if not m:
+        raise HTTPException(status_code=403, detail="No access to this business")
+    ctx.session.active_tenant_id = tid
+    ctx.db.commit()
+
+
+@router.post("/change-password", status_code=204)
+def change_password(body: ChangePasswordIn, request: Request, ctx: AuthContext = Depends(get_auth_context)):
+    if not verify_password(body.current_password, ctx.user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    ctx.user.password_hash = hash_password(body.new_password)
+    # revoke every other session
+    ctx.db.execute(
+        update(AuthSession)
+        .where(AuthSession.user_id == ctx.user.id, AuthSession.id != ctx.session.id, AuthSession.revoked_at.is_(None))
+        .values(revoked_at=utcnow())
+    )
+    set_rls_context(ctx.db, bypass=True)
+    audit(ctx.db, action="auth.password_changed", user_id=ctx.user.id, ip=client_ip(request))
+    ctx.db.commit()
+
+
+@router.post("/password-reset/request", status_code=202, dependencies=[Depends(limit_by_ip("pwreset", 5, 300))])
+def password_reset_request(body: PasswordResetRequestIn, db: Session = Depends(get_db)):
+    """Always answers 202 so account existence is not revealed."""
+    user = db.scalar(select(User).where(User.email == body.email.lower()))
+    if user and user.is_active:
+        token = new_token()
+        now = utcnow()
+        db.add(PasswordResetToken(
+            user_id=user.id, token_hash=hash_token(token), created_at=now,
+            expires_at=now + timedelta(minutes=settings.password_reset_ttl_minutes),
+        ))
+        db.commit()
+        link = f"{settings.frontend_url}/reset-password?token={token}"
+        send_email(user.email, "Reset your FlowQR password", f"Open this link to choose a new password:\n{link}")
+    return {"detail": "If that email exists, a reset link has been sent."}
+
+
+@router.post("/password-reset/confirm", status_code=204, dependencies=[Depends(limit_by_ip("pwreset", 10, 300))])
+def password_reset_confirm(body: PasswordResetConfirmIn, db: Session = Depends(get_db)):
+    row = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == hash_token(body.token)))
+    if not row or row.used_at or row.expires_at < utcnow():
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired")
+    user = db.get(User, row.user_id)
+    user.password_hash = hash_password(body.new_password)
+    row.used_at = utcnow()
+    db.execute(update(AuthSession).where(AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None)).values(revoked_at=utcnow()))
+    set_rls_context(db, bypass=True)
+    audit(db, action="auth.password_reset", user_id=user.id, entity_type="user", entity_id=user.id)
+    db.commit()
