@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.api.v1 import admin, analytics, billing, auth, cards, google, locations, public, reviews, tenants
+from app.api.v1 import admin, analytics, billing, gbp, auth, cards, google, locations, public, reviews, tenants
 from app.core.config import assert_production_safe, settings
 from app.core.db import engine
 
@@ -55,5 +55,5 @@ def health():
 
 
 API = "/api/v1"
-for module in (auth, tenants, locations, cards, admin, public, google, reviews, analytics, billing):
+for module in (auth, tenants, locations, cards, admin, public, google, reviews, analytics, billing, gbp):
     app.include_router(module.router, prefix=API)

@@ -11,6 +11,8 @@ from app.core.deps import TenantContext, get_tenant_context
 from app.models import (
     AIGenerationLog, GoogleLocation, Location, QRCard, ReplyDraft, ReplyStatus, Review, ScanEvent, ScanEventType, Subscription,
 )
+from app.services import entitlements as ent
+from app.services import insights as insights_svc
 from app.services.ai_usage import month_start, usage_this_month
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -151,3 +153,28 @@ def overview(
                "in_range_by_kind": ai_by_kind, "month_started": month_start().isoformat()},
         "sync": sync,
     }
+
+
+@router.get("/insights")
+def insights(
+    ctx: TenantContext = Depends(get_tenant_context),
+    start: date | None = Query(None, alias="from"),
+    end: date | None = Query(None, alias="to"),
+    location_id: uuid.UUID | None = None,
+):
+    """Sentiment mix and recurring topics across synced reviews (plan feature: insights)."""
+    ent.require_feature(ctx.db, ctx.tenant_id, "insights")
+    start, end, lo, hi, tz = _range(ctx, start, end)
+    if location_id and not ctx.db.scalar(select(Location.id).where(Location.id == location_id, Location.tenant_id == ctx.tenant_id)):
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    def fetch(a, b):
+        q = select(Review.rating, Review.text).where(Review.tenant_id == ctx.tenant_id, Review.review_created_at >= a, Review.review_created_at < b)
+        if location_id:
+            q = q.where(Review.location_id == location_id)
+        return [(r, t) for r, t in ctx.db.execute(q).all()]
+
+    span = hi - lo
+    result = insights_svc.analyse(fetch(lo, hi), fetch(lo - span, lo))
+    result["range"] = {"from": start.isoformat(), "to": end.isoformat()}
+    return result
