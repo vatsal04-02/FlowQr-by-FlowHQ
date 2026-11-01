@@ -193,3 +193,14 @@ def test_audit_logs_are_append_only_for_app_role(biz_a):
         with pytest.raises(Exception):
             c.execute(text("SELECT set_config('app.bypass_rls','on',false)"))
             c.execute(text("DELETE FROM audit_logs"))
+
+
+def test_production_refuses_unsafe_config():
+    from app.core.config import Settings, assert_production_safe
+    with pytest.raises(RuntimeError) as e:
+        assert_production_safe(Settings(app_env="production", secret_key="change-me-x", token_encryption_key="",
+                                        cookie_secure=False, public_card_base_url="http://localhost:3000"))
+    msg = str(e.value)
+    assert "SECRET_KEY" in msg and "TOKEN_ENCRYPTION_KEY" in msg and "COOKIE_SECURE" in msg and "PUBLIC_CARD_BASE_URL" in msg
+    assert_production_safe(Settings(app_env="production", secret_key="x" * 40, token_encryption_key="k", cookie_secure=True,
+                                    public_card_base_url="https://go.flowqr.co.in"))

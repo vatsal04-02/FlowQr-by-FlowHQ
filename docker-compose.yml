@@ -1,0 +1,113 @@
+# FlowQR by FlowHQ - modular monolith: Next.js + FastAPI + Celery worker/beat + PostgreSQL + Redis.
+# Local:      docker compose up --build
+# Production: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+name: flowqr
+
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-development}
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?set TOKEN_ENCRYPTION_KEY in .env}
+  DATABASE_URL: postgresql+psycopg://flowqr_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD}@db:5432/flowqr
+  REDIS_URL: redis://redis:6379/0
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+  PUBLIC_CARD_BASE_URL: ${PUBLIC_CARD_BASE_URL:-http://localhost:3000}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/api/v1/google/callback}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+  REVIEW_SYNC_INTERVAL_MINUTES: ${REVIEW_SYNC_INTERVAL_MINUTES:-30}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-FlowQR <no-reply@localhost>}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowqr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: flowqr
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowqr -d flowqr"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:  # one-shot: applies Alembic migrations as the table-owner role, then exits
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *backend-env
+      MIGRATION_DATABASE_URL: postgresql+psycopg://flowqr:${POSTGRES_PASSWORD}@db:5432/flowqr
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  beat:  # periodic review sync scheduler
+    build: ./backend
+    restart: unless-stopped
+    command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://api:8000
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    ports: ["127.0.0.1:3000:3000"]
+
+volumes:
+  pgdata:
+  redisdata:

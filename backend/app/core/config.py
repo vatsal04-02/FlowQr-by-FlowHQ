@@ -55,6 +55,14 @@ class Settings(BaseSettings):
 
     default_trial_ai_generations_per_month: int = 500
 
+    # Outbound email (invitations, password reset). Leave smtp_host empty to disable sending.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "FlowQR <no-reply@localhost>"
+    smtp_starttls: bool = True
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
@@ -82,3 +90,20 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+def assert_production_safe(s: Settings) -> None:
+    """Refuse to boot a production server with unsafe/default configuration."""
+    if not s.is_production:
+        return
+    problems = []
+    if s.secret_key.startswith("change-me") or len(s.secret_key) < 32:
+        problems.append("SECRET_KEY must be a random value of at least 32 characters")
+    if not s.token_encryption_key:
+        problems.append("TOKEN_ENCRYPTION_KEY is required")
+    if not s.cookie_secure:
+        problems.append("COOKIE_SECURE must be true")
+    if "localhost" in s.public_card_base_url:
+        problems.append("PUBLIC_CARD_BASE_URL must be your real card domain (it is printed on physical cards)")
+    if problems:
+        raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))

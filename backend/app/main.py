@@ -6,10 +6,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.v1 import admin, analytics, auth, cards, google, locations, public, reviews, tenants
-from app.core.config import settings
+from app.core.config import assert_production_safe, settings
 from app.core.db import engine
 
 log = logging.getLogger("flowqr")
+assert_production_safe(settings)
 
 app = FastAPI(
     title="FlowQR by FlowHQ API",

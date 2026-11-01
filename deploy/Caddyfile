@@ -1,0 +1,48 @@
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Main application (dashboard, API, Google OAuth callback)
+{$APP_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	request_body {
+		max_size 2MB
+	}
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+# Short domain printed on physical cards / written to NFC tags. Serves ONLY the public card flow.
+{$CARD_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	request_body {
+		max_size 64KB
+	}
+	@card path /c/* /_next/* /favicon.ico
+	handle @card {
+		reverse_proxy frontend:3000
+	}
+	@cardapi path /api/v1/public/*
+	handle @cardapi {
+		reverse_proxy api:8000
+	}
+	handle {
+		redir https://{$APP_DOMAIN}{uri} 302
+	}
+}

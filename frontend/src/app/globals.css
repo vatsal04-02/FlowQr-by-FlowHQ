@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply bg-white text-ink font-sans antialiased; font-size: 16px; line-height: 1.55; }
+  h1, h2, h3, h4 { @apply font-display text-ink; letter-spacing: -0.01em; text-wrap: balance; }
+  :focus-visible { @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white; }
+  button, [role="button"], a, select, summary { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+}
+
+@layer components {
+  .container-page { @apply mx-auto w-full max-w-6xl px-4 sm:px-6; }
+  .tap { min-height: 44px; min-width: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+@keyframes fq-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fq-enter { animation: fq-fade-up .22s ease-out both; }
+@keyframes fq-spin { to { transform: rotate(360deg); } }
+.fq-spin { animation: fq-spin .8s linear infinite; }
+@keyframes fq-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.fq-skeleton { background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 37%, #eef2f7 63%); background-size: 200% 100%; animation: fq-shimmer 1.4s ease infinite; }
