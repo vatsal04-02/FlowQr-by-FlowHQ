@@ -28,8 +28,8 @@ export default function PaymentsPage() {
   return (
     <>
       <PageHeader title="Payments" subtitle="Software subscription payments and physical card orders are tracked separately."
-        actions={role === "owner" ? <Button icon={<Package className="h-4 w-4" />} onClick={() => setOrderOpen(true)} disabled={!plans.data?.billing.configured}>Order cards</Button> : undefined} />
-      {plans.data && !plans.data.billing.configured && <div className="mb-5"><Alert tone="warning" title="Online payments: configuration pending">Card ordering opens once Razorpay is configured on this server.</Alert></div>}
+        actions={role === "owner" ? <Button icon={<Package className="h-4 w-4" />} onClick={() => setOrderOpen(true)} disabled={!plans.data?.card_ordering_enabled}>Order cards</Button> : undefined} />
+      {plans.data && !plans.data.card_ordering_enabled && <div className="mb-5"><Alert tone="warning" title="Card ordering: configuration pending">{!plans.data.billing.configured ? "Card ordering opens once Razorpay is configured on this server." : "Card pricing hasn't been set yet. Please contact FlowQR."}</Alert></div>}
 
       <Card className="mb-6" pad={false}>
         <div className="p-5 sm:p-6"><CardHeader title="Card orders" subtitle="Physical QR/NFC cards. Shipped by the FlowQR team after payment is confirmed." /></div>
@@ -65,7 +65,7 @@ export default function PaymentsPage() {
           </table></div>
         )}
       </Card>
-      {orderOpen && plans.data && <OrderModal unit={plans.data.card_price_paise} onClose={() => setOrderOpen(false)} onDone={() => { setOrderOpen(false); void orders.reload(); void pays.reload(); }} toast={toast} />}
+      {orderOpen && plans.data?.card_price_paise && <OrderModal unit={plans.data.card_price_paise} onClose={() => setOrderOpen(false)} onDone={() => { setOrderOpen(false); void orders.reload(); void pays.reload(); }} toast={toast} />}
     </>
   );
 }

@@ -114,9 +114,11 @@ def invite_staff(body: InviteIn, request: Request, ctx: TenantContext = Depends(
     audit(ctx.db, action="staff.invite", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="invitation",
           entity_id=inv.id, meta={"email": email, "role": body.role.value}, ip=client_ip(request))
     ctx.db.commit()
-    send_email(email, f"You're invited to {ctx.tenant.name} on FlowQR",
-               f"Accept the invitation:\n{settings.frontend_url}/accept-invite?token={token}")
-    return inv
+    sent = send_email(email, f"You're invited to {ctx.tenant.name} on FlowQR",
+                      f"Accept the invitation:\n{settings.frontend_url}/accept-invite?token={token}")
+    out = InvitationOut.model_validate(inv)
+    out.email_sent = sent  # never claim delivery we can't confirm
+    return out
 
 
 @router.delete("/staff/invitations/{invitation_id}", status_code=204)

@@ -26,7 +26,7 @@ export default function StaffPage() {
     e.preventDefault(); f.setServerError(null);
     if (!f.validateAll()) return;
     setBusy(true);
-    try { await api("/staff/invitations", { method: "POST", body: { email: f.values.email.trim(), role: f.values.role } }); f.setValues({ email: "", role: "staff" }); toast("Invitation sent."); void reload(); }
+    try { const inv = await api<{ email_sent: boolean | null }>("/staff/invitations", { method: "POST", body: { email: f.values.email.trim(), role: f.values.role } }); f.setValues({ email: "", role: "staff" }); if (inv.email_sent === false) toast("Invitation created, but the email could not be delivered. Check the email settings or ask your FlowQR admin.", "error"); else toast("Invitation sent."); void reload(); }
     catch (err) { f.fail(errorMessage(err)); } finally { setBusy(false); }
   }
   const run = async (fn: () => Promise<unknown>, msg: string) => { try { await fn(); toast(msg); void reload(); } catch (e) { toast(errorMessage(e), "error"); } };

@@ -46,7 +46,7 @@ function Banners() {
       {me && !me.user.email_verified_at && (
         <Alert tone="warning" title="Verify your email" action={
           <button className="tap rounded-xl border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-900 hover:bg-amber-100" onClick={async () => {
-            try { await api("/auth/resend-verification", { method: "POST" }); setSent("Verification email sent. Check your inbox."); void refresh(); } catch (e) { setSent(errorMessage(e)); }
+            try { const r = await api<{ email_sent: boolean; detail: string }>("/auth/resend-verification", { method: "POST" }); setSent(r.email_sent ? "Verification email sent. Check your inbox." : r.detail); void refresh(); } catch (e) { setSent(errorMessage(e)); }
           }}>Resend email</button>}>
           {sent ?? "Confirm your email to invite staff, connect Google and manage billing."}
         </Alert>

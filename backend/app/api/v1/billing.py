@@ -45,7 +45,7 @@ def plans(db: Session = Depends(get_db)):
     set_rls_context(db, bypass=True)
     rows = db.scalars(select(BillingPlan).where(BillingPlan.is_active.is_(True)).order_by(BillingPlan.sort_order)).all()
     return {"plans": [PlanOut.model_validate(p) for p in rows], "trial_days": settings.trial_days,
-            "billing": _config(), "card_price_paise": settings.card_price_paise}
+            "billing": _config(), "card_price_paise": settings.card_price_paise, "card_ordering_enabled": bool(settings.card_price_paise) and settings.razorpay_configured}
 
 
 @router.get("/subscription")
@@ -211,6 +211,8 @@ def card_orders(ctx: TenantContext = Depends(get_tenant_context)):
 def create_card_order(body: CardOrderIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner)),
                       idempotency_key: str | None = Header(default=None, max_length=80)):
     ensure_verified(ctx.user)
+    if not settings.card_price_paise:
+        raise HTTPException(status_code=503, detail={"code": "card_pricing_not_configured", "message": "Card ordering isn't open yet: card pricing hasn't been configured."})
     if not (settings.card_order_min_qty <= body.quantity <= settings.card_order_max_qty):
         raise HTTPException(status_code=422, detail=f"Order between {settings.card_order_min_qty} and {settings.card_order_max_qty} cards")
     if idempotency_key:

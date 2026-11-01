@@ -19,3 +19,9 @@ out/
 backups/
 design-system/
 e2e/shots/
+
+# local runtime artefacts
+dump.rdb
+*.rdb
+*.log
+.env.staging

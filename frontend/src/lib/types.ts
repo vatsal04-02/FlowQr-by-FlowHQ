@@ -57,7 +57,7 @@ export interface Overview {
 }
 
 export interface Plan { code: string; name: string; price_paise: number; currency: string; interval: string; max_locations: number; monthly_ai_generations: number; max_staff: number; features: string[] }
-export interface PlansResponse { plans: Plan[]; trial_days: number; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null }; card_price_paise: number }
+export interface PlansResponse { plans: Plan[]; trial_days: number; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null }; card_price_paise: number | null; card_ordering_enabled: boolean }
 export interface SubscriptionInfo {
   billing: PlansResponse["billing"]; status: string; active: boolean; inactive_reason: string | null; plan: string | null; plan_name: string | null; price_paise: number | null;
   trial_ends_at: string | null; trial_days_left: number | null; current_period_end: string | null; cancel_at_period_end: boolean; pending_plan: string | null;

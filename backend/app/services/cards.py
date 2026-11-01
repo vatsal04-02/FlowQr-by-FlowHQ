@@ -37,7 +37,8 @@ def new_public_token() -> str:
 
 
 def create_batch(db: Session, *, name: str, quantity: int, prefix: str, created_by: uuid.UUID, notes: str | None) -> CardBatch:
-    batch = CardBatch(name=name, prefix=prefix, quantity=quantity, created_by=created_by, notes=notes)
+    batch = CardBatch(name=name, prefix=prefix, quantity=quantity, created_by=created_by, notes=notes,
+                      base_url=settings.public_card_base_url.rstrip("/"))
     db.add(batch)
     db.flush()
     nums = db.scalars(text("SELECT nextval('card_code_seq') FROM generate_series(1, :n)"), {"n": quantity}).all()

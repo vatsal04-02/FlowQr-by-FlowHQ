@@ -154,3 +154,14 @@ def test_public_scan_rate_limited(admin, batch, client):
     codes = [client.get(f"/api/v1/public/c/{card['public_token']}", headers={"user-agent": "Mozilla/5.0 Safari"}).status_code
              for _ in range(70)]
     assert 429 in codes
+
+
+def test_batch_records_base_url_and_audit_detects_mismatch(admin, monkeypatch, capsys):
+    from app.core.config import settings
+    from app import cli
+    b = admin.post("/admin/batches", json={"name": "audit batch", "quantity": 1}).json()
+    assert b["base_url"] == "https://go.test.flowqr.example"
+    monkeypatch.setattr(settings, "public_card_base_url", "https://go.other-domain.in")
+    assert cli.card_url_audit(live=False, expect_domain=None) == 1  # a batch printed with another domain => FAIL
+    out = capsys.readouterr().out
+    assert "existing batches were generated with the current base URL" in out and "AUDIT FAILED" in out

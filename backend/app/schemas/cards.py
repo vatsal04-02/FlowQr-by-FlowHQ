@@ -21,6 +21,7 @@ class BatchOut(ORM):
     quantity: int
     created_at: datetime
     notes: str | None
+    base_url: str | None = None
 
 
 class AssignIn(BaseModel):

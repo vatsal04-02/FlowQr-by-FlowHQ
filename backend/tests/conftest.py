@@ -11,13 +11,14 @@ os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://flowqr_app:flowqr_app_dev@localhost:5432/flowqr_test")
 os.environ["MIGRATION_DATABASE_URL"] = os.environ.get(
     "TEST_MIGRATION_DATABASE_URL", "postgresql+psycopg://flowqr:flowqr_dev@localhost:5432/flowqr_test")
-os.environ["REDIS_URL"] = ""  # tests use the in-memory limiter
+os.environ["REDIS_URL"] = "redis://127.0.0.1:1/0"  # unreachable on purpose: tests use the in-memory limiter and inline sync
 os.environ["TOKEN_ENCRYPTION_KEY"] = "Zm9yLXRlc3RzLW9ubHktMzItYnl0ZS1rZXktMTIzNDU="  # TEST ONLY
 os.environ["PUBLIC_CARD_BASE_URL"] = "https://go.test.flowqr.example"
 os.environ["GOOGLE_CLIENT_ID"] = "test-client-id"
 os.environ["GOOGLE_CLIENT_SECRET"] = "test-client-secret"
 os.environ["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/v1/google/callback"
 os.environ["GEMINI_API_KEY"] = ""
+os.environ["CARD_PRICE_PAISE"] = "24900"  # TEST ONLY price
 os.environ["PLATFORM_ADMIN_EMAILS"] = "root@flowhq-admin.example.com"
 
 from fastapi.testclient import TestClient  # noqa: E402

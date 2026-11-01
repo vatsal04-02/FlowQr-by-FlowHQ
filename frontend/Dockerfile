@@ -1,7 +1,9 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=secret,id=proxyca,required=false \
+    if [ -f /run/secrets/proxyca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxyca; fi; \
+    npm ci
 
 FROM node:22-alpine AS build
 WORKDIR /app

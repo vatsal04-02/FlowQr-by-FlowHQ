@@ -30,7 +30,7 @@ def send_email(to: str, subject: str, body: str) -> bool:
         except (smtplib.SMTPException, OSError) as exc:
             log.error("SMTP delivery to %s failed: %s", to, type(exc).__name__)  # no body/links in logs
             return False
-    if settings.is_production:
+    if settings.hardened:
         log.warning("Email not sent to %s (%s): SMTP is not configured (SMTP_HOST)", to, subject)
         return False
     log.info("[DEV EMAIL - not delivered] to=%s subject=%s\n%s", to, subject, body)

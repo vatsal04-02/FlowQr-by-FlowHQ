@@ -26,6 +26,7 @@ class CardBatch(IdMixin, TimestampMixin, Base):
     quantity: Mapped[int] = mapped_column(Integer)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     notes: Mapped[str | None] = mapped_column(Text)
+    base_url: Mapped[str | None] = mapped_column(String(300))  # PUBLIC_CARD_BASE_URL at generation time (printed on the cards)
 
 
 class QRCard(IdMixin, TimestampMixin, Base):

@@ -374,3 +374,15 @@ def test_auto_retry_only_transient_approved_failures(monkeypatch, rzp):
     states = {d["id"]: d["status"] for r in ids for d in [biz.get(f"/reviews/{r}").json()["drafts"][0]]}
     assert states[drafts[0]] == "published" and states[drafts[1]] == "failed"
     assert retry_failed_replies() == {"retried": 0}
+
+
+def test_payment_id_never_crosses_tenants(rzp, client, biz_a, biz_b):
+    """A webhook payload for tenant B reusing tenant A's payment id must not rewrite A's payment."""
+    sid_a, _ = activate(biz_a, rzp)
+    sid_b, _ = activate(biz_b, rzp)
+    pay = lambda amt: {"id": "pay_shared_id_1", "amount": amt, "currency": "INR", "status": "captured", "created_at": int(time.time())}
+    webhook(client, sub_event("subscription.charged", {"id": sid_a, "status": "active", "plan_id": rzp.subs[sid_a]["plan_id"]}, payment=pay(79900)))
+    webhook(client, sub_event("subscription.charged", {"id": sid_b, "status": "active", "plan_id": rzp.subs[sid_b]["plan_id"]}, payment=pay(1)))
+    a = biz_a.get("/billing/payments").json()
+    assert [(p["razorpay_payment_id"], p["amount_paise"]) for p in a] == [("pay_shared_id_1", 79900)]
+    assert biz_b.get("/billing/payments").json() == []

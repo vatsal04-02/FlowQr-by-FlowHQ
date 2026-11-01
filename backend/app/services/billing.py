@@ -101,6 +101,10 @@ def upsert_payment(db: Session, *, tenant_id: uuid.UUID, kind: str, entity: dict
                    subscription_id: str | None = None) -> Payment:
     pid = entity.get("id")
     row = db.scalar(select(Payment).where(Payment.razorpay_payment_id == pid)) if pid else None
+    if row is not None and row.tenant_id != tenant_id:
+        # A payment id must belong to exactly one tenant. Never let an event for tenant B rewrite tenant A's payment.
+        log.error("Payment %s already belongs to another tenant; ignoring conflicting event", pid)
+        return row
     status = {"captured": "captured", "authorized": "authorized", "failed": "failed", "refunded": "refunded", "created": "created"}.get(entity.get("status"), "created")
     if row is None:
         row = Payment(tenant_id=tenant_id, kind=kind, created_at=utcnow(), razorpay_payment_id=pid, amount_paise=entity.get("amount", 0),

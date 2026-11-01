@@ -67,14 +67,14 @@ def build_me(db: Session, user: User, sess: AuthSession) -> MeOut:
     )
 
 
-def send_verification(db: Session, user: User) -> None:
+def send_verification(db: Session, user: User) -> bool:
     token = new_token()
     now = utcnow()
     db.add(EmailVerificationToken(user_id=user.id, token_hash=hash_token(token), created_at=now,
                                   expires_at=now + timedelta(hours=settings.email_verification_ttl_hours)))
     db.flush()
     link = f"{settings.frontend_url}/verify-email?token={token}"
-    send_email(user.email, "Verify your FlowQR email", f"Welcome to FlowQR! Confirm your email address:\n{link}\n\nIf you didn't create an account, ignore this message.")
+    return send_email(user.email, "Verify your FlowQR email", f"Welcome to FlowQR! Confirm your email address:\n{link}\n\nIf you didn't create an account, ignore this message.")
 
 
 @router.post("/register", response_model=MeOut, status_code=201, dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60))])
@@ -218,7 +218,7 @@ def verify_email(body: VerifyEmailIn, db: Session = Depends(get_db)):
 @router.post("/resend-verification", status_code=202, dependencies=[Depends(limit_by_ip("verify", 5, 300))])
 def resend_verification(ctx: AuthContext = Depends(get_auth_context)):
     if ctx.user.email_verified_at:
-        return {"detail": "Already verified"}
-    send_verification(ctx.db, ctx.user)
+        return {"detail": "Already verified", "email_sent": True}
+    sent = send_verification(ctx.db, ctx.user)
     ctx.db.commit()
-    return {"detail": "Verification email sent"}
+    return {"detail": "Verification email sent" if sent else "We couldn't send the email right now. Please try again later or contact support.", "email_sent": sent}

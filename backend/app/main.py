@@ -11,15 +11,15 @@ from app.core.db import engine
 
 log = logging.getLogger("flowqr")
 if not logging.getLogger().handlers:
-    logging.basicConfig(level=logging.INFO if not settings.is_production else logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
+    logging.basicConfig(level=logging.INFO if not settings.hardened else logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
 assert_production_safe(settings)
 
 app = FastAPI(
     title="FlowQR by FlowHQ API",
     version="0.1.0",
-    docs_url=None if settings.is_production else "/api/docs",
+    docs_url=None if settings.hardened else "/api/docs",
     redoc_url=None,
-    openapi_url=None if settings.is_production else "/api/openapi.json",
+    openapi_url=None if settings.hardened else "/api/openapi.json",
 )
 
 app.add_middleware(

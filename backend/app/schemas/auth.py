@@ -174,3 +174,4 @@ class InvitationOut(ORM):
     role: Role
     expires_at: datetime
     accepted_at: datetime | None
+    email_sent: bool | None = None  # False => invitation exists but the email could not be delivered

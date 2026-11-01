@@ -6,9 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
 
-    app_env: str = "development"  # development | test | production
+    # Set by docker-compose.prod.yml: the process must then run hardened, so a forgotten APP_ENV can never skip the guard.
+    require_hardened: bool = False
+    app_env: str = "development"  # development | test | staging | production  (staging/production are "hardened")
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
     # Fernet key (urlsafe base64, 32 bytes) used to encrypt Google tokens at rest.
     token_encryption_key: str = ""
@@ -60,7 +62,8 @@ class Settings(BaseSettings):
     trial_days: int = 14
     trial_plan: str = "growth"  # trial grants this plan's limits/features
     past_due_grace_days: int = 7
-    card_price_paise: int = 24900  # per physical card, INR paise. PLACEHOLDER: set your real price
+    # Per physical card, INR paise. Deliberately NO default: unset => card ordering is disabled (never a silent placeholder price).
+    card_price_paise: int | None = None
     card_order_min_qty: int = 10
     card_order_max_qty: int = 1000
     email_verification_ttl_hours: int = 72
@@ -77,6 +80,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def hardened(self) -> bool:
+        """staging and production share every safety rule (no dev email logging, docs off, strict config guard)."""
+        return self.app_env in ("staging", "production")
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -113,18 +121,95 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
-def assert_production_safe(s: Settings) -> None:
-    """Refuse to boot a production server with unsafe/default configuration."""
-    if not s.is_production:
-        return
-    problems = []
+_LOCAL_SUFFIXES = (".localhost", ".local", ".test", ".example", ".invalid", ".internal", ".lan")
+_DEV_SECRET_MARKERS = ("flowqr_app_dev", "flowqr_dev", "change-me", "password", "changeme")
+_SINK_SMTP_HOSTS = {"localhost", "127.0.0.1", "mailpit", "mailhog", "maildev", "smtp4dev"}
+
+
+def _bad_host(url: str) -> str | None:
+    """Return a reason if `url` is not a real public https URL."""
+    import ipaddress
+    from urllib.parse import urlparse
+
+    u = urlparse(url)
+    host = (u.hostname or "").lower()
+    if u.scheme != "https":
+        return "must be https://"
+    if not host or host == "localhost" or host.endswith(_LOCAL_SUFFIXES) or "." not in host:
+        return f"host '{host}' is not a public domain"
+    try:
+        ipaddress.ip_address(host)
+        return "must be a domain name, not an IP address"
+    except ValueError:
+        return None
+
+
+def config_problems(s: Settings) -> list[str]:
+    """Everything that must be true before a staging/production server may start. Returns human-readable problems."""
+    if s.require_hardened and not s.hardened:
+        return [f"APP_ENV is '{s.app_env}' but this deployment (docker-compose.prod.yml) requires APP_ENV=staging or APP_ENV=production"]
+    if not s.hardened:
+        return []
+    p: list[str] = []
     if s.secret_key.startswith("change-me") or len(s.secret_key) < 32:
-        problems.append("SECRET_KEY must be a random value of at least 32 characters")
+        p.append("SECRET_KEY must be a random value of at least 32 characters")
     if not s.token_encryption_key:
-        problems.append("TOKEN_ENCRYPTION_KEY is required")
+        p.append("TOKEN_ENCRYPTION_KEY is required")
+    else:
+        try:
+            from cryptography.fernet import Fernet
+
+            Fernet(s.token_encryption_key.encode())
+        except Exception:
+            p.append("TOKEN_ENCRYPTION_KEY is not a valid Fernet key")
+        if s.token_encryption_key == s.secret_key:
+            p.append("TOKEN_ENCRYPTION_KEY must differ from SECRET_KEY")
     if not s.cookie_secure:
-        problems.append("COOKIE_SECURE must be true")
-    if "localhost" in s.public_card_base_url:
-        problems.append("PUBLIC_CARD_BASE_URL must be your real card domain (it is printed on physical cards)")
+        p.append("COOKIE_SECURE must be true")
+    if not s.require_verified_email:
+        p.append("REQUIRE_VERIFIED_EMAIL must be true")
+    for name, url in (("PUBLIC_CARD_BASE_URL (printed on physical cards)", s.public_card_base_url), ("FRONTEND_URL", s.frontend_url)):
+        why = _bad_host(url)
+        if why:
+            p.append(f"{name} {why}")
+    if s.google_configured:
+        why = _bad_host(s.google_redirect_uri)
+        if why:
+            p.append(f"GOOGLE_REDIRECT_URI {why}")
+    for o in s.cors_origin_list:
+        why = _bad_host(o)
+        if why:
+            p.append(f"CORS_ORIGINS entry '{o}' {why}")
+    if any(m in s.database_url for m in _DEV_SECRET_MARKERS):
+        p.append("DATABASE_URL still contains a development password")
+    if not s.platform_admin_email_set:
+        p.append("PLATFORM_ADMIN_EMAILS must list at least one FlowHQ admin")
+    # Email must really leave the building (no dev log sink, no local mail catcher in production)
+    if not s.smtp_host:
+        p.append("SMTP_HOST is required (invitations and password resets must be deliverable)")
+    elif s.is_production and s.smtp_host.lower() in _SINK_SMTP_HOSTS:
+        p.append(f"SMTP_HOST '{s.smtp_host}' is a local mail sink, not a real provider")
+    # Razorpay: key pair + webhook secret together; test keys never in production, live keys never in staging
+    if s.razorpay_key_id or s.razorpay_key_secret:
+        if not (s.razorpay_key_id and s.razorpay_key_secret):
+            p.append("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must both be set")
+        if not s.razorpay_webhook_secret:
+            p.append("RAZORPAY_WEBHOOK_SECRET is required when Razorpay keys are set (webhooks are the source of truth)")
+        if s.is_production and s.razorpay_key_id.startswith("rzp_test_"):
+            p.append("Razorpay TEST keys (rzp_test_) cannot be used in production")
+        if s.app_env == "staging" and s.razorpay_key_id.startswith("rzp_live_"):
+            p.append("Razorpay LIVE keys (rzp_live_) cannot be used in staging; use rzp_test_ keys")
+        if not s.razorpay_key_id.startswith(("rzp_test_", "rzp_live_")):
+            p.append("RAZORPAY_KEY_ID does not look like a Razorpay key")
+    elif s.razorpay_webhook_secret:
+        p.append("RAZORPAY_WEBHOOK_SECRET is set without Razorpay keys")
+    if s.card_price_paise is not None and s.card_price_paise <= 0:
+        p.append("CARD_PRICE_PAISE must be a positive number of paise (or unset to disable card ordering)")
+    return p
+
+
+def assert_production_safe(s: Settings) -> None:
+    """Refuse to boot a staging/production server with unsafe/default configuration."""
+    problems = config_problems(s)
     if problems:
-        raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
+        raise RuntimeError("Unsafe " + s.app_env + " configuration:\n  - " + "\n  - ".join(problems))
