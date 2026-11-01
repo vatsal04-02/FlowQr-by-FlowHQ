@@ -6,7 +6,9 @@ import uuid
 import zipfile
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from sqlalchemy import func, or_, select
+from datetime import timedelta
+
+from sqlalchemy import func, or_, select, update
 
 from app.api.v1.cards import card_out
 from app.core.deps import AuthContext, require_platform_admin
@@ -14,6 +16,14 @@ from app.core.rate_limit import client_ip
 from app.models import (
     CardAssignment, CardBatch, CardStatus, Location, Membership, QRCard, Review, ScanEvent, ScanEventType, Tenant,
 )
+from app.models import (
+    AIGenerationLog, AuditLog, AuthSession, BillingPlan, CardOrder, Payment, Subscription, User,
+)
+from app.models.base import utcnow
+from app.models.tenancy import Membership as _M, Role as _R
+from app.schemas.admin import CardOrderAdminIn, SubscriptionAdminIn, SuspendIn, SupportIn, UserActiveIn
+from app.services import billing as billing_svc
+from app.services.ai_usage import month_start
 from app.schemas.cards import AssignIn, BatchCreateIn, BatchOut, CardOut, StatusIn
 from app.services import cards as svc
 from app.services.audit import audit
@@ -203,21 +213,33 @@ def admin_card_qr(card_id: uuid.UUID, fmt: str, ctx: AuthContext = Depends(requi
     raise HTTPException(status_code=404, detail="Unsupported format")
 
 
+def _tenant_row(db, t: Tenant, sub: Subscription | None, owner_email: str | None) -> dict:
+    return {
+        "id": t.id, "name": t.name, "category": t.category, "created_at": t.created_at, "is_active": t.is_active,
+        "suspended_at": t.suspended_at, "suspension_reason": t.suspension_reason, "support_status": t.support_status,
+        "owner_email": owner_email, "plan": sub.plan if sub else None, "subscription_status": sub.status if sub else None,
+        "locations": db.scalar(select(func.count()).select_from(Location).where(Location.tenant_id == t.id)),
+        "cards": db.scalar(select(func.count()).select_from(QRCard).where(QRCard.tenant_id == t.id)),
+        "members": db.scalar(select(func.count()).select_from(Membership).where(Membership.tenant_id == t.id)),
+    }
+
+
 @router.get("/tenants")
-def list_tenants(ctx: AuthContext = Depends(require_platform_admin), search: str | None = None):
+def list_tenants(ctx: AuthContext = Depends(require_platform_admin), search: str | None = None, status: str | None = None,
+                 limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
     q = select(Tenant)
     if search:
         q = q.where(Tenant.name.ilike(f"%{search.strip()}%"))
-    tenants = ctx.db.scalars(q.order_by(Tenant.created_at.desc()).limit(200)).all()
-    out = []
-    for t in tenants:
-        out.append({
-            "id": t.id, "name": t.name, "category": t.category, "created_at": t.created_at, "is_active": t.is_active,
-            "locations": ctx.db.scalar(select(func.count()).select_from(Location).where(Location.tenant_id == t.id)),
-            "cards": ctx.db.scalar(select(func.count()).select_from(QRCard).where(QRCard.tenant_id == t.id)),
-            "members": ctx.db.scalar(select(func.count()).select_from(Membership).where(Membership.tenant_id == t.id)),
-        })
-    return out
+    if status == "suspended":
+        q = q.where(Tenant.is_active.is_(False))
+    elif status in ("trialing", "active", "past_due", "halted", "expired", "canceled", "pending"):
+        q = q.where(Tenant.id.in_(select(Subscription.tenant_id).where(Subscription.status == status)))
+    total = ctx.db.scalar(select(func.count()).select_from(q.subquery()))
+    tenants = ctx.db.scalars(q.order_by(Tenant.created_at.desc()).limit(limit).offset(offset)).all()
+    subs = {x.tenant_id: x for x in ctx.db.scalars(select(Subscription).where(Subscription.tenant_id.in_([t.id for t in tenants])))}
+    owners = dict(ctx.db.execute(select(_M.tenant_id, User.email).join(User, User.id == _M.user_id).where(_M.role == _R.owner, _M.tenant_id.in_([t.id for t in tenants]))).all())
+    rows = [_tenant_row(ctx.db, t, subs.get(t.id), owners.get(t.id)) for t in tenants]
+    return {"total": total, "items": rows}
 
 
 @router.get("/tenants/{tenant_id}/locations")
@@ -226,15 +248,194 @@ def tenant_locations(tenant_id: uuid.UUID, ctx: AuthContext = Depends(require_pl
     return [{"id": l.id, "name": l.name, "city": l.city} for l in locs]
 
 
+def _tenant_or_404(ctx: AuthContext, tenant_id: uuid.UUID) -> Tenant:
+    t = ctx.db.get(Tenant, tenant_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Business not found")
+    return t
+
+
+@router.get("/tenants/{tenant_id}")
+def tenant_detail(tenant_id: uuid.UUID, ctx: AuthContext = Depends(require_platform_admin)):
+    t = _tenant_or_404(ctx, tenant_id)
+    db = ctx.db
+    sub = db.scalar(select(Subscription).where(Subscription.tenant_id == t.id))
+    members = db.execute(select(_M, User).join(User, User.id == _M.user_id).where(_M.tenant_id == t.id)).all()
+    locs = db.scalars(select(Location).where(Location.tenant_id == t.id)).all()
+    cards = db.scalars(select(QRCard).where(QRCard.tenant_id == t.id).order_by(QRCard.card_code)).all()
+    pays = db.scalars(select(Payment).where(Payment.tenant_id == t.id).order_by(Payment.created_at.desc()).limit(25)).all()
+    audit_rows = db.scalars(select(AuditLog).where(AuditLog.tenant_id == t.id).order_by(AuditLog.created_at.desc()).limit(25)).all()
+    ai_month = db.scalar(select(func.count()).select_from(AIGenerationLog).where(AIGenerationLog.tenant_id == t.id, AIGenerationLog.created_at >= month_start())) or 0
+    return {
+        "tenant": _tenant_row(db, t, sub, next((u.email for m, u in members if m.role == _R.owner), None)) | {"support_note": t.support_note, "email": t.email, "phone": t.phone},
+        "subscription": None if not sub else {c: getattr(sub, c) for c in ("plan", "status", "source", "max_locations", "monthly_ai_generations", "max_staff", "features",
+                                                                           "trial_ends_at", "current_period_end", "cancel_at_period_end", "past_due_since", "razorpay_subscription_id")},
+        "members": [{"user_id": u.id, "email": u.email, "full_name": u.full_name, "role": m.role.value, "is_active": u.is_active, "email_verified": bool(u.email_verified_at)} for m, u in members],
+        "locations": [{"id": l.id, "name": l.name, "city": l.city, "is_active": l.is_active, "has_review_link": bool(l.review_url)} for l in locs],
+        "cards": [{"id": c.id, "card_code": c.card_code, "status": c.status.value, "location_id": c.location_id} for c in cards],
+        "payments": [{"id": p.id, "kind": p.kind, "status": p.status, "amount_paise": p.amount_paise, "created_at": p.created_at} for p in pays],
+        "audit": [{"action": a.action, "created_at": a.created_at, "user_id": a.user_id, "meta": a.meta} for a in audit_rows],
+        "ai_generations_this_month": ai_month,
+    }
+
+
+@router.post("/tenants/{tenant_id}/suspend", status_code=204)
+def suspend(tenant_id: uuid.UUID, body: SuspendIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    t = _tenant_or_404(ctx, tenant_id)
+    t.is_active, t.suspended_at, t.suspension_reason = False, utcnow(), body.reason
+    audit(ctx.db, action="admin.tenant_suspend", tenant_id=t.id, user_id=ctx.user.id, entity_type="tenant", entity_id=t.id, meta={"reason": body.reason}, ip=client_ip(request))
+    ctx.db.commit()
+
+
+@router.post("/tenants/{tenant_id}/unsuspend", status_code=204)
+def unsuspend(tenant_id: uuid.UUID, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    t = _tenant_or_404(ctx, tenant_id)
+    t.is_active, t.suspended_at, t.suspension_reason = True, None, None
+    audit(ctx.db, action="admin.tenant_unsuspend", tenant_id=t.id, user_id=ctx.user.id, entity_type="tenant", entity_id=t.id, ip=client_ip(request))
+    ctx.db.commit()
+
+
+@router.patch("/tenants/{tenant_id}/support", status_code=204)
+def support(tenant_id: uuid.UUID, body: SupportIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    t = _tenant_or_404(ctx, tenant_id)
+    t.support_status, t.support_note = body.status, body.note
+    audit(ctx.db, action="admin.support_status", tenant_id=t.id, user_id=ctx.user.id, entity_type="tenant", entity_id=t.id, meta={"status": body.status}, ip=client_ip(request))
+    ctx.db.commit()
+
+
+@router.patch("/users/{user_id}", status_code=204)
+def set_user_active(user_id: uuid.UUID, body: UserActiveIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    u = ctx.db.get(User, user_id)
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if u.id == ctx.user.id:
+        raise HTTPException(status_code=400, detail="You can't deactivate yourself")
+    u.is_active = body.is_active
+    if not body.is_active:  # kill live sessions immediately
+        ctx.db.execute(update(AuthSession).where(AuthSession.user_id == u.id, AuthSession.revoked_at.is_(None)).values(revoked_at=utcnow()))
+    audit(ctx.db, action="admin.user_active", user_id=ctx.user.id, entity_type="user", entity_id=u.id, meta={"is_active": body.is_active}, ip=client_ip(request))
+    ctx.db.commit()
+
+
+@router.post("/tenants/{tenant_id}/subscription")
+def manage_subscription(tenant_id: uuid.UUID, body: SubscriptionAdminIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    """Manual override (comps, extended trials, corrections). Does not touch Razorpay: a live Razorpay subscription keeps billing."""
+    t = _tenant_or_404(ctx, tenant_id)
+    sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == t.id).with_for_update())
+    if not sub:
+        raise HTTPException(status_code=404, detail="No subscription")
+    if body.plan:
+        plan = ctx.db.get(BillingPlan, body.plan)
+        billing_svc.apply_plan(sub, plan)
+    if body.status:
+        sub.status = body.status
+        if body.status in ("manual", "active") and not sub.razorpay_subscription_id:
+            sub.source = "manual"
+        if body.status != "trialing":
+            sub.past_due_since = None
+    if body.extend_trial_days:
+        base = max(sub.trial_ends_at or utcnow(), utcnow())
+        sub.trial_ends_at = base + timedelta(days=body.extend_trial_days)
+        sub.status = "trialing" if not body.status else body.status
+    audit(ctx.db, action="admin.subscription_override", tenant_id=t.id, user_id=ctx.user.id, entity_type="subscription", entity_id=sub.id,
+          meta={"plan": body.plan, "status": body.status, "extend_trial_days": body.extend_trial_days, "note": body.note,
+                "razorpay_live": bool(sub.razorpay_subscription_id)}, ip=client_ip(request))
+    ctx.db.commit()
+    return {"plan": sub.plan, "status": sub.status, "trial_ends_at": sub.trial_ends_at, "source": sub.source}
+
+
+@router.get("/subscriptions")
+def subscriptions(ctx: AuthContext = Depends(require_platform_admin), status: str | None = None, plan: str | None = None,
+                  limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
+    q = select(Subscription, Tenant.name).join(Tenant, Tenant.id == Subscription.tenant_id)
+    if status:
+        q = q.where(Subscription.status == status)
+    if plan:
+        q = q.where(Subscription.plan == plan)
+    rows = ctx.db.execute(q.order_by(Subscription.created_at.desc()).limit(limit).offset(offset)).all()
+    return [{"tenant_id": s.tenant_id, "tenant": name, "plan": s.plan, "status": s.status, "source": s.source, "trial_ends_at": s.trial_ends_at,
+             "current_period_end": s.current_period_end, "cancel_at_period_end": s.cancel_at_period_end, "razorpay_subscription_id": s.razorpay_subscription_id} for s, name in rows]
+
+
+@router.get("/payments")
+def all_payments(ctx: AuthContext = Depends(require_platform_admin), kind: str | None = None, status: str | None = None,
+                 tenant_id: uuid.UUID | None = None, limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
+    q = select(Payment, Tenant.name).join(Tenant, Tenant.id == Payment.tenant_id)
+    if kind:
+        q = q.where(Payment.kind == kind)
+    if status:
+        q = q.where(Payment.status == status)
+    if tenant_id:
+        q = q.where(Payment.tenant_id == tenant_id)
+    rows = ctx.db.execute(q.order_by(Payment.created_at.desc()).limit(limit).offset(offset)).all()
+    return [{"id": p.id, "tenant_id": p.tenant_id, "tenant": name, "kind": p.kind, "status": p.status, "amount_paise": p.amount_paise,
+             "razorpay_payment_id": p.razorpay_payment_id, "error_description": p.error_description, "created_at": p.created_at, "paid_at": p.paid_at} for p, name in rows]
+
+
+@router.get("/card-orders")
+def all_card_orders(ctx: AuthContext = Depends(require_platform_admin), status: str | None = None, limit: int = Query(100, ge=1, le=200)):
+    q = select(CardOrder, Tenant.name).join(Tenant, Tenant.id == CardOrder.tenant_id)
+    if status:
+        q = q.where(CardOrder.status == status)
+    rows = ctx.db.execute(q.order_by(CardOrder.created_at.desc()).limit(limit)).all()
+    return [{"id": o.id, "tenant_id": o.tenant_id, "tenant": name, "quantity": o.quantity, "amount_paise": o.amount_paise, "status": o.status,
+             "shipping": o.shipping, "tracking_note": o.tracking_note, "created_at": o.created_at} for o, name in rows]
+
+
+@router.patch("/card-orders/{order_id}")
+def update_card_order(order_id: uuid.UUID, body: CardOrderAdminIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    o = ctx.db.get(CardOrder, order_id)
+    if not o:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if o.status not in ("paid", "processing", "shipped") and body.status != "cancelled":
+        raise HTTPException(status_code=409, detail="Only paid orders can be fulfilled")  # never ship before Razorpay confirmed payment
+    o.status = body.status
+    o.tracking_note = body.tracking_note or o.tracking_note
+    audit(ctx.db, action="admin.card_order_update", tenant_id=o.tenant_id, user_id=ctx.user.id, entity_type="card_order", entity_id=o.id, meta={"status": body.status}, ip=client_ip(request))
+    ctx.db.commit()
+    return {"status": o.status}
+
+
+@router.get("/ai-usage")
+def ai_usage(ctx: AuthContext = Depends(require_platform_admin)):
+    rows = ctx.db.execute(
+        select(Tenant.id, Tenant.name, func.count(AIGenerationLog.id), func.count(AIGenerationLog.id).filter(AIGenerationLog.status != "ok"), Subscription.monthly_ai_generations)
+        .select_from(Tenant).outerjoin(AIGenerationLog, (AIGenerationLog.tenant_id == Tenant.id) & (AIGenerationLog.created_at >= month_start()))
+        .outerjoin(Subscription, Subscription.tenant_id == Tenant.id).group_by(Tenant.id, Tenant.name, Subscription.monthly_ai_generations)
+        .order_by(func.count(AIGenerationLog.id).desc())).all()
+    return [{"tenant_id": i, "tenant": n, "generations": c, "errors": int(e), "monthly_limit": lim} for i, n, c, e, lim in rows]
+
+
+@router.get("/audit")
+def audit_history(ctx: AuthContext = Depends(require_platform_admin), tenant_id: uuid.UUID | None = None, action: str | None = Query(None, max_length=64),
+                  limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)):
+    q = select(AuditLog, User.email, Tenant.name).outerjoin(User, User.id == AuditLog.user_id).outerjoin(Tenant, Tenant.id == AuditLog.tenant_id)
+    if tenant_id:
+        q = q.where(AuditLog.tenant_id == tenant_id)
+    if action:
+        q = q.where(AuditLog.action.ilike(f"{action}%"))
+    rows = ctx.db.execute(q.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)).all()
+    return [{"id": a.id, "action": a.action, "created_at": a.created_at, "user": email, "tenant": tname, "tenant_id": a.tenant_id, "entity_type": a.entity_type, "meta": a.meta} for a, email, tname in rows]
+
+
 @router.get("/stats")
 def platform_stats(ctx: AuthContext = Depends(require_platform_admin)):
-    by_status = dict(ctx.db.execute(select(QRCard.status, func.count()).group_by(QRCard.status)).all())
-    scans = dict(ctx.db.execute(
-        select(ScanEvent.event_type, func.count()).where(ScanEvent.is_bot.is_(False)).group_by(ScanEvent.event_type)).all())
+    db = ctx.db
+    by_status = dict(db.execute(select(QRCard.status, func.count()).group_by(QRCard.status)).all())
+    events = dict(db.execute(select(ScanEvent.event_type, func.count()).where(ScanEvent.is_bot.is_(False)).group_by(ScanEvent.event_type)).all())
+    subs = dict(db.execute(select(Subscription.status, func.count()).group_by(Subscription.status)).all())
+    prices = {p.code: p.price_paise for p in db.scalars(select(BillingPlan))}
+    mrr = sum(prices.get(s.plan, 0) for s in db.scalars(select(Subscription).where(Subscription.status == "active", Subscription.source == "razorpay")))
+    since = utcnow() - timedelta(days=30)
+    signups = dict(db.execute(select(func.date(Tenant.created_at), func.count()).where(Tenant.created_at >= since).group_by(func.date(Tenant.created_at))).all())
+    revenue = dict(db.execute(select(Payment.kind, func.coalesce(func.sum(Payment.amount_paise), 0)).where(Payment.status == "captured").group_by(Payment.kind)).all())
     return {
-        "tenants": ctx.db.scalar(select(func.count()).select_from(Tenant)),
-        "locations": ctx.db.scalar(select(func.count()).select_from(Location)),
-        "cards_by_status": {k.value: v for k, v in by_status.items()},
-        "events": {k.value: v for k, v in scans.items()},
-        "synced_reviews": ctx.db.scalar(select(func.count()).select_from(Review)),
+        "tenants": db.scalar(select(func.count()).select_from(Tenant)), "suspended_tenants": db.scalar(select(func.count()).select_from(Tenant).where(Tenant.is_active.is_(False))),
+        "open_support": db.scalar(select(func.count()).select_from(Tenant).where(Tenant.support_status.in_(["open", "waiting"]))),
+        "locations": db.scalar(select(func.count()).select_from(Location)), "synced_reviews": db.scalar(select(func.count()).select_from(Review)),
+        "cards_by_status": {k.value: v for k, v in by_status.items()}, "events": {k.value: v for k, v in events.items()},
+        "subscriptions_by_status": subs, "mrr_paise": mrr,
+        "revenue_paise": {"subscription": int(revenue.get("subscription", 0)), "card_order": int(revenue.get("card_order", 0))},
+        "signups_30d": [{"date": (since + timedelta(days=i + 1)).date().isoformat(), "count": signups.get((since + timedelta(days=i + 1)).date(), 0)} for i in range(30)],
+        "ai_generations_this_month": db.scalar(select(func.count()).select_from(AIGenerationLog).where(AIGenerationLog.created_at >= month_start())),
     }

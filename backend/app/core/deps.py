@@ -108,7 +108,7 @@ def get_tenant_context(
     tenant = db.get(Tenant, chosen.tenant_id)
     if not tenant or not tenant.is_active:
         set_rls_context(db)
-        raise HTTPException(status_code=403, detail="Business is disabled")
+        raise HTTPException(status_code=403, detail={"code": "account_suspended", "message": "This business account is suspended. Contact FlowQR support."})
     set_rls_context(db, tenant_id=tenant.id)  # from here on, RLS confines the session to this tenant
     return TenantContext(db=db, user=auth.user, session=auth.session, tenant=tenant, membership=chosen)
 

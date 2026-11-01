@@ -13,5 +13,7 @@ celery_app.conf.update(
             "task": "flowqr.sync_due_locations",
             "schedule": settings.review_sync_interval_minutes * 60 / 2,  # check twice per interval
         },
+        "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
+        "retry-failed-replies": {"task": "flowqr.retry_failed_replies", "schedule": 900.0},
     },
 )

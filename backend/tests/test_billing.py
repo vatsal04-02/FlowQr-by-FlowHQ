@@ -340,3 +340,37 @@ def test_billing_data_isolated_between_tenants(rzp, biz_a, biz_b):
     assert biz_b.post("/billing/subscription/cancel", json={}).status_code == 409
     rows = owner_query("SELECT count(*) FROM payments")  # RLS: owner without bypass context sees data only with bypass
     assert rows[0][0] >= 0
+
+
+def test_auto_retry_only_transient_approved_failures(monkeypatch, rzp):
+    """Celery task re-publishes approved drafts that failed with 429/5xx; never touches others."""
+    from app.models import ReplyDraft, ReplyLog, ReplyStatus
+    from app.services import google as g
+    from app.workers.tasks import retry_failed_replies
+    from tests.test_google_and_reviews import FakeGoogleProvider, greview, connect, callback, sync_select
+
+    fake = FakeGoogleProvider()
+    monkeypatch.setattr(g, "get_google_provider", lambda: fake)
+    biz = make_business("Retry Co")
+    callback(biz, connect(biz, fake))
+    biz.conn_id = biz.get("/google/status").json()["connections"][0]["id"]
+    biz.glocs = biz.get(f"/google/connections/{biz.conn_id}/locations").json()
+    fake.reviews = [greview(1, 5, "Great"), greview(2, 4, "Good")]
+    sync_select(biz, fake)
+    ids = [r["id"] for r in biz.get("/reviews").json()["items"]]
+    drafts = []
+    for rid in ids:
+        d = biz.post(f"/reviews/{rid}/drafts", json={"body": "Thank you for visiting us!"}).json()
+        biz.post(f"/reply-drafts/{d['id']}/approve", json={})
+        drafts.append(d["id"])
+    fake.reply_error = g.GoogleAPIError(503, "down")
+    for d in drafts:
+        assert biz.post(f"/reply-drafts/{d}/publish").json()["status"] == "failed"
+    # make the second one a permanent (4xx) failure
+    from tests.conftest import owner_exec
+    owner_exec("UPDATE reply_logs SET http_status = 400 WHERE draft_id = :d", d=drafts[1])
+    fake.reply_error = None
+    assert retry_failed_replies() == {"retried": 1}
+    states = {d["id"]: d["status"] for r in ids for d in [biz.get(f"/reviews/{r}").json()["drafts"][0]]}
+    assert states[drafts[0]] == "published" and states[drafts[1]] == "failed"
+    assert retry_failed_replies() == {"retried": 0}

@@ -148,3 +148,11 @@ def owner_query(sql: str, **params):
     with eng.begin() as c:
         c.execute(text("SELECT set_config('app.bypass_rls','on',true)"))
         return c.execute(text(sql), params).all()
+
+
+def owner_exec(sql: str, **params) -> None:
+    """Run a write as the table owner with RLS bypassed (test-only; the app role cannot UPDATE append-only tables)."""
+    eng = create_engine(settings.migration_database_url)
+    with eng.begin() as c:
+        c.execute(text("SELECT set_config('app.bypass_rls','on',true)"))
+        c.execute(text(sql), params)

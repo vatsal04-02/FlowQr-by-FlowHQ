@@ -83,6 +83,9 @@ class TenantOut(ORM):
     brand_tone: str | None
     ai_instructions: str | None
     onboarding_completed: bool
+    suspended_at: datetime | None = None
+    suspension_reason: str | None = None
+    support_status: str = "none"
 
 
 class MembershipOut(BaseModel):
