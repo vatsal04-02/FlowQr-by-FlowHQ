@@ -4,7 +4,7 @@
 
 ## 1. Prerequisites
 * A Linux server (2 vCPU / 4 GB RAM is plenty to start), Docker Engine + Compose v2.
-* DNS A/AAAA records for `APP_DOMAIN` (e.g. `app.flowqr.co.in`) **and** `CARD_DOMAIN` (e.g. `go.flowqr.co.in`) → the server. Ports 80/443/udp443 open.
+* DNS A/AAAA records for `MARKETING_DOMAIN` (`flowqr.co.in`, plus `www`), `APP_DOMAIN` (`app.`), `API_DOMAIN` (`api.`) and `CARD_DOMAIN` (`go.`) → the server. Ports 80/443/udp443 open.
 * An SMTP provider (invitations & password resets) and, when ready, Google + Gemini credentials.
 
 ## 2. Choose the card domain carefully
@@ -15,7 +15,7 @@
 git clone <repo> /opt/flowqr && cd /opt/flowqr
 cp .env.example .env && chmod 600 .env
 ```
-Set at least: `APP_ENV=production`, `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY` (**back this key up; losing it makes stored Google tokens unreadable**), `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `FRONTEND_URL=https://app.…`, `PUBLIC_CARD_BASE_URL=https://go.…`, `CORS_ORIGINS=https://app.…`, `COOKIE_SECURE=true`, `GOOGLE_REDIRECT_URI=https://app.…/api/v1/google/callback`, `PLATFORM_ADMIN_EMAILS`, `APP_DOMAIN`, `CARD_DOMAIN`, `ACME_EMAIL`, SMTP_*.
+Set at least: `APP_ENV=production`, `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY` (**back this key up; losing it makes stored Google tokens unreadable**), `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `FRONTEND_URL=https://app.…`, `PUBLIC_CARD_BASE_URL=https://go.…`, `CORS_ORIGINS=https://app.…`, `COOKIE_SECURE=true`, `GOOGLE_REDIRECT_URI=https://app.…/api/v1/google/callback`, `PLATFORM_ADMIN_EMAILS`, `MARKETING_DOMAIN`, `APP_DOMAIN`, `API_DOMAIN`, `CARD_DOMAIN`, `ACME_EMAIL`, SMTP_*, and (when ready) `RAZORPAY_*`.
 
 ## 4. Start
 ```bash
@@ -33,7 +33,16 @@ The first start creates the non-superuser `flowqr_app` role (`db/init/01-app-rol
 2. OAuth consent screen (external; scope `https://www.googleapis.com/auth/business.manage`; your privacy-policy URL), then an OAuth client (Web). Authorised redirect URI = `GOOGLE_REDIRECT_URI`.
 3. Put `GOOGLE_CLIENT_ID/SECRET` in `.env`, `docker compose up -d api worker beat`. The "Configuration pending" banner disappears. Until Google approves API access, Google itself returns 403 and sync shows an error. Manual-link mode keeps working.
 
+## 5b. Razorpay setup
+1. Create a Razorpay account; start with **Test mode** keys (`rzp_test_…`) → `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`. The UI shows a "test mode" badge.
+2. Dashboard → Settings → Webhooks → add `https://api.flowqr.co.in/api/v1/billing/razorpay/webhook`, choose a secret (→ `RAZORPAY_WEBHOOK_SECRET`) and enable: `subscription.authenticated|activated|charged|pending|halted|cancelled|completed|paused|resumed|updated`, `payment.captured`, `payment.failed`, `order.paid`.
+3. Enable **Subscriptions** on the account (Razorpay may require activation). FlowQR creates the three Razorpay plans lazily on first checkout and stores their ids.
+4. Set `CARD_PRICE_PAISE` to your real per-card price (default 24900 is a placeholder).
+5. Test with Razorpay's test cards/UPI; confirm a charge appears in *Payments* only after the webhook/API confirms. Switch to live keys only after a full test-mode run, then re-create the webhook with live credentials.
+6. Taxes/GST invoicing is **not** implemented; Razorpay's invoices/receipts are referenced by id only.
+
 ## 6. Operations
+* **Isolation from other FlowHQ clients**: this stack has its own compose project name (`flowqr`), database, Redis, volumes (`flowqr_pgdata`, `flowqr_redisdata`, `flowqr_caddy_*`), `.env` and `backups/`; nothing is shared. Run each client from its own directory/server.
 * **Backups**: `0 2 * * * cd /opt/flowqr && ./deploy/backup.sh >> backups/backup.log 2>&1`; copy `backups/` to off-site storage; rehearse `deploy/restore.sh`.
 * **Updates**: `git pull && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` (migrations run automatically via the `migrate` service).
 * **Scaling**: raise `--concurrency` on `worker`; API `--workers`. Redis/Postgres are single instances: move them to managed services when needed (`DATABASE_URL`, `MIGRATION_DATABASE_URL`, `REDIS_URL`).

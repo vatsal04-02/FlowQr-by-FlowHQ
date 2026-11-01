@@ -10,6 +10,8 @@ from app.core.config import assert_production_safe, settings
 from app.core.db import engine
 
 log = logging.getLogger("flowqr")
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO if not settings.is_production else logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
 assert_production_safe(settings)
 
 app = FastAPI(

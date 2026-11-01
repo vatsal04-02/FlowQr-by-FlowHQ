@@ -11,10 +11,10 @@ Base path `/api/v1`. Interactive OpenAPI at `/api/docs` when `APP_ENV != product
 | `PATCH /auth/profile` · `POST /auth/change-password` | session | profile; password change revokes other sessions |
 | `POST /auth/password-reset/request` · `/confirm` | public | always `202` on request; token valid 30 min, single use, revokes sessions |
 | `POST /auth/select-tenant?tenant_id=` | session | switch active business (membership verified) |
+| `POST /auth/verify-email` · `POST /auth/resend-verification` | public / session | email verification (72 h single-use token); required for billing, staff invites, Google connect |
 | `POST /tenants` | session | onboarding: create business (+Owner membership, trial subscription) |
 | `GET/PATCH /tenant` | S / A | business profile, AI tone & instructions |
 | `POST /tenant/complete-onboarding` | A | requires ≥1 location |
-| `GET /tenant/subscription` | S | plan, quotas (no billing yet) |
 | `GET /staff` · `POST /staff/invitations` · `DELETE /staff/invitations/{id}` | S / A / A | team & invitations (only Owner invites admins) |
 | `PATCH /staff/{user_id}` · `DELETE /staff/{user_id}` | O / A | change role / remove (last owner protected) |
 | `POST /invitations/accept` | session | accept invite (email must match) |
@@ -41,3 +41,25 @@ Base path `/api/v1`. Interactive OpenAPI at `/api/docs` when `APP_ENV != product
 | `POST /reply-drafts/{id}/publish?replace_existing=` | A | calls Google; `published` only on success, else `failed` with reason (retry = call again) |
 | `GET /analytics/overview?from=&to=&location_id=` | S | reviews, engagement funnel + definitions, per card/location, AI usage, sync status |
 | `GET /api/health` | public | liveness + DB check |
+
+## Billing (Razorpay) — `/billing`
+| Method & path | Who | Purpose |
+|---|---|---|
+| `GET /billing/plans` | public | plans (INR paise), trial days, `billing.configured/mode`, card price |
+| `GET /billing/subscription` | S | status, entitlements (`active`, `inactive_reason`), limits, live usage, trial/grace dates |
+| `POST /billing/subscription/checkout` `{plan}` | O (verified) | creates/reuses a Razorpay subscription (idempotent per tenant+plan; first charge deferred to end of trial). `503 billing_config_pending` without keys |
+| `POST /billing/subscription/verify` | O | checkout callback: verifies HMAC signature, then **fetches the real status from Razorpay** before changing anything |
+| `POST /billing/subscription/cancel` `{at_cycle_end}` | O | cancel via Razorpay; local flag set only after Razorpay accepts |
+| `POST /billing/subscription/change-plan` `{plan}` | O | upgrade now / downgrade at cycle end; downgrade blocked if usage exceeds the smaller plan |
+| `GET /billing/payments?kind=` | S | payment/invoice history (`subscription` and `card_order` are separate kinds) |
+| `GET/POST /billing/card-orders` · `POST /billing/card-orders/verify` | S / O | physical card purchase via Razorpay Orders (`Idempotency-Key` header supported) |
+| `POST /billing/razorpay/webhook` | Razorpay | `X-Razorpay-Signature` HMAC over the raw body; `X-Razorpay-Event-Id` stored for idempotency; non-2xx on processing error so Razorpay retries |
+
+## Google Business Profile management — `/gbp/{google_location_id}` (plan-gated, tenant-scoped)
+`GET|PATCH /info` (description, hours, primary category, phone, website) · `GET /categories?q=` · `GET|POST|DELETE /posts` · `GET|POST|DELETE /media` · `GET /performance?from&to`. Responses always reflect what Google returned; Google errors map to 403/409/429/502 with "nothing was changed".
+
+## Insights
+`GET /analytics/insights?from&to&location_id` — sentiment mix and recurring topics (keyword heuristic; plan feature `insights`).
+
+## Platform admin additions — `/admin` (PA only)
+`GET /admin/tenants` (search/status, paged `{total,items}`) · `GET /admin/tenants/{id}` · `POST .../suspend|unsuspend` · `PATCH .../support` · `POST .../subscription` (manual override, reason required) · `PATCH /admin/users/{id}` (deactivate + kill sessions) · `GET /admin/subscriptions|payments|card-orders|ai-usage|audit|stats` · `PATCH /admin/card-orders/{id}` (fulfilment; refuses unpaid orders).

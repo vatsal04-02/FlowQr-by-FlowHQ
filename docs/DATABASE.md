@@ -1,6 +1,6 @@
 # Database architecture
 
-PostgreSQL 16, SQLAlchemy 2 models in `backend/app/models`, schema owned by Alembic (`0001` tables, `0002` RLS + grants, `0003` card-code sequence). All primary keys are UUIDs.
+PostgreSQL 16, SQLAlchemy 2 models in `backend/app/models`, schema owned by Alembic (`0001` tables, `0002` RLS + grants, `0003` card-code sequence, `0004` billing/verification/suspension + plan seeds + RLS for `payments`/`card_orders`). All primary keys are UUIDs.
 
 ```
 tenants ─┬─ memberships ── users            (role: owner|admin|staff; unique tenant+user)
@@ -13,13 +13,18 @@ tenants ─┬─ memberships ── users            (role: owner|admin|staff; 
          ├─ ai_generation_logs (kind, provider, model, sizes, status — never text)
          └─ audit_logs       (append-only for the app role)
 card_batches ── qr_cards  (tenant_id NULL while unassigned)
+billing_plans (seeded: essential 39900 / growth 79900 / multi 149900 paise)
+subscriptions (plan, status, limits, features, trial/period dates, razorpay_subscription_id unique)
+payments (kind: subscription | card_order — separate; razorpay_payment_id unique) ── card_orders (physical cards; idempotency key)
+webhook_events (provider+event_id unique: webhook idempotency; not tenant scoped)
+email_verification_tokens
 auth_sessions, password_reset_tokens   (not tenant scoped; token hashes only)
 ```
 
 ## Tenant isolation
 1. Every tenant-owned row has `tenant_id` + FK (`ON DELETE CASCADE` from `tenants`).
 2. Endpoints filter by the server-derived tenant.
-3. **RLS**: `ENABLE` + `FORCE ROW LEVEL SECURITY` and policy `tenant_isolation` on 14 tables + `tenants`:
+3. **RLS**: `ENABLE` + `FORCE ROW LEVEL SECURITY` and policy `tenant_isolation` on 16 tables (incl. `payments`, `card_orders`) + `tenants`:
    `USING/WITH CHECK (app.bypass_rls = 'on' OR tenant_id = nullif(app.tenant_id,'')::uuid)`. The context is set per transaction by the `after_begin` hook (`core/db.py`). The runtime role `flowqr_app` is `NOSUPERUSER NOBYPASSRLS`; migrations run as owner `flowqr`.
 4. Tests assert RLS with raw SQL on the real app role: no context → 0 rows; tenant A context → only A rows; inserting a row for tenant B fails `WITH CHECK`.
 

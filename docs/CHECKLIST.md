@@ -1,44 +1,53 @@
-# Implementation progress
+# Implementation & verification status
 
-Honest status. ✅ = built **and** verified as stated. 🟡 = built, with a stated verification gap. ⬜ = not built.
+Legend: **PASS** = executed and passed here · **BLOCKED** = needs credentials/infrastructure unavailable in the build sandbox · **NOT TESTED** = built, never executed · **NOT BUILT**.
 
-## Milestone 1 — foundation, auth, tenancy
-- ✅ Monorepo, Docker Compose (+prod overlay with Caddy), PostgreSQL, Redis, FastAPI, Next.js, Alembic migrations (applied from scratch in every test run)
-- ✅ Registration, login, logout, Argon2id, sessions, CSRF, profile, change password
-- ✅ Password-reset flow (token architecture + SMTP sender) 🟡 SMTP delivery not exercised against a real mail server
-- ✅ Tenant creation, onboarding wizard (business → location → Google-or-manual), staff invitations/roles
-- ✅ Cross-tenant isolation tests + RLS tests (58 backend tests passing)
+## Automated results (this repository, this session)
+| Check | Result |
+|---|---|
+| Backend tests (pytest, real PostgreSQL 16 + migrations from scratch) | **PASS** 109/109 |
+| Tenant isolation (HTTP, all major resources) + PostgreSQL RLS raw-SQL tests | **PASS** |
+| QR decode round-trip (OpenCV decodes PNG → exact card URL) | **PASS** |
+| Public redirect / card resolution / fallbacks / rate limit / bot filter | **PASS** |
+| Auth: Argon2id, sessions, CSRF, rate limits, reset, **email verification** | **PASS** |
+| Billing: signature checks, webhook validation + idempotency, out-of-order, failed payment/grace, cancel, upgrade/downgrade, limits, trial expiry, card orders (fake Razorpay, real HMACs) | **PASS** |
+| GBP management, sentiment/topics, platform admin API, auto-retry task | **PASS** |
+| Frontend `tsc --noEmit` | **PASS** |
+| Frontend production build (29 routes) | **PASS** |
+| Browser E2E (Playwright, desktop + 390 px mobile): register → verify email → onboarding → assign card → public page → pricing/subscription/payments/analytics/profile → suspension → admin console → access denial for business users | **PASS** (`e2e/smoke.js`) |
+| Live Celery worker consumed `billing_refresh`, `retry_failed_replies`, `sync_due_locations` from Redis | **PASS** |
+| `docker compose config` (base + prod overlay) | **PASS** |
+| `caddy validate` of `deploy/Caddyfile` (real Caddy 2.8.4 binary) | **PASS** |
+| Docker image builds / `docker compose up` | **BLOCKED** (no Docker daemon in sandbox) |
+| Backup/restore scripts | **NOT TESTED** (need a running compose stack) |
 
-## Milestone 2 — locations & card engine
-- ✅ Locations CRUD (plan limit), editable Google review URL (host-validated)
-- ✅ Batches, unique `FQR-####` codes (DB sequence), 144-bit tokens, QR PNG/SVG (error correction H, quiet zone), **decode round-trip verified with OpenCV**
-- ✅ ZIP export (PNG+SVG+manifest.csv), printable A4 sheet, inventory search/filter, assign/reassign/unassign/status, assignment history
-- ✅ Public resolve: active check, scan event, fallback pages for unassigned/inactive/unknown, history survives reassignment, rate limit, bot filter
-- 🟡 NFC: the same URL is what you write to NTAG tags (instructions in the UI); no NFC hardware was available to test writing.
+## External services (never called for real)
+| Integration | Status |
+|---|---|
+| Google OAuth + Business Profile (reviews, replies, info, hours, categories, posts, media, performance) | **BLOCKED**: needs OAuth client **and** Google-approved API access. Logic verified with a labelled fake; HTTP shapes follow Google's documented v1/v4 APIs and may need small adjustments on first contact. UI shows "Configuration pending" without credentials. |
+| Gemini (review assist + reply drafts) | **BLOCKED**: needs `GEMINI_API_KEY`. Without it the public page honestly says writing help is unavailable. |
+| Razorpay (subscriptions, orders, webhooks) | **BLOCKED**: needs test keys + webhook secret. Without keys the UI shows "configuration pending"; no payment is ever simulated. |
+| SMTP email | **NOT TESTED** against a real server (the sender is used in tests via an in-memory outbox). |
+| NFC tag writing | **NOT TESTED** (the card URL is plain NDEF text/URL; no hardware). |
 
-## Milestone 3 — public page & AI assistant
-- ✅ Mobile-first landing page (browser-tested at 390 px), copy, continue-to-Google, honest fallbacks, EN/HI/Hinglish copy and detection
-- ✅ AI assist with anti-fabrication prompt, length guard, no sentiment gating, per-IP + per-tenant limits, usage log
-- 🟡 **Gemini provider has not been called against the real API (no key).** Tested with a labelled stub; with no key the UI honestly says writing help is unavailable.
+## Feature status
+| Area | Status |
+|---|---|
+| Auth, onboarding, roles, staff invites, password reset, email verification, audit logs | Built |
+| Multi-tenant isolation (API + PostgreSQL RLS) | Built, tested |
+| Cards: batches, unique tokens, QR PNG/SVG, ZIP, print sheet, assign/reassign/deactivate/lost, per-card analytics | Built, tested |
+| Public mobile review page, EN/HI/Hinglish, no gating/auto-post | Built, tested (AI via stub) |
+| Google OAuth, sync, duplicate detection, backoff/quota handling, AI replies, approval, publish, history, retry | Built, tested (fake provider) |
+| GBP management: info, description, hours, categories, posts, media, performance | Built, tested (fake provider) |
+| Analytics: reviews, trends, reply coverage, pending, scans/visits/clicks, locations, cards, AI usage, sentiment & topics | Built, tested |
+| Billing: plans ₹399/₹799/₹1,499, trial, checkout, verify, webhooks, renewal/failed payment handling, cancel, change plan, limits, payment history, admin override | Built, tested (fake Razorpay) |
+| Physical card orders (separate from subscriptions) + admin fulfilment | Built, tested |
+| Platform admin console (customers, suspension, support status, subscriptions, payments, card inventory/batches/assignments, AI usage, platform stats, audit) | Built, tested |
+| Deployment: Dockerfiles, compose (+prod), Caddy (4 hosts), health checks, backup/restore, `.env.example` | Built; images unbuilt |
 
-## Milestone 4 — Google
-- ✅ Server-side OAuth with signed state + nonce cookie, encrypted tokens, discovery, location selection/mapping, disconnect, revoked handling, "configuration pending" state
-- ✅ Sync: idempotent upsert, update tracking, backoff/rate-limit/revocation handling, status display, Celery worker + beat (a real worker consumed a task from Redis)
-- ✅ Reviews inbox with filters; AI reply drafts; sensitive-content flags; edit voids approval; approve (+ack) → publish → logs → retry; "published" only after provider success
-- 🟡 **`HttpGoogleProvider` has never talked to Google** (no credentials / API approval). Endpoints follow Google's documented v1/v4 shapes; expect to adjust field names on first contact. All logic was tested with a labelled fake provider.
-- ⬜ Google push notifications for reviews (design leaves room; polling only)
-
-## Milestone 5 — analytics & hardening
-- ✅ Dashboard + card analytics: date range, location filter, accessible charts, funnel definitions, response-time & reply-rate
-- ✅ Security headers, rate limits, production config guard, audit logs, backups scripts, deployment guide
-- 🟡 Dockerfiles/Compose **not built or run** (no Docker daemon in the authoring sandbox); `docker compose config` passes for base and prod
-- ⬜ Frontend unit/component tests (only the Playwright smoke test and TypeScript/`next build` checks)
-- ⬜ Razorpay/billing (by design: `Subscription` entity only)
-
-## Known limitations / next tasks
-1. Staging deploy with real Docker + a real domain; fix whatever the first build reveals.
-2. Obtain Google OAuth credentials + Business Profile API approval; run the connect → sync → reply flow for real; adjust the provider.
-3. Provide `GEMINI_API_KEY`; review output quality in Hindi/Hinglish with native speakers.
-4. Card self-activation (claim code printed under the QR) so owners can activate cards without FlowHQ staff.
-5. Email verification, MFA, privacy policy/terms pages, data-retention job for `scan_events`.
-6. Component tests for forms; CI pipeline (pytest, tsc, build, audit).
+## Known limitations / next
+1. Staging deploy with Docker and real domains; first-contact adjustments for Google, Gemini and Razorpay with real credentials.
+2. GST invoices/tax handling, refunds UI, dunning emails, MFA, privacy policy/terms pages (needed for Google OAuth verification).
+3. Card self-activation (claim code), data-retention job for `scan_events`.
+4. Frontend component tests and CI pipeline.
+5. Google push notifications for new reviews (polling only today).

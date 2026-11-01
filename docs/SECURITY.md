@@ -23,6 +23,14 @@ Legend: ✅ implemented & covered by a test · 🟡 implemented, not automatical
 - ✅ Least-privilege scope: only `business.manage` (+ `openid email` to display the connected account).
 - ✅ Gemini key in a header (not URL); `.env` git-ignored; backend refuses unsafe production config (tested).
 
+## Billing & payments
+- ✅ Razorpay webhook: HMAC-SHA256 over the **raw body** with the webhook secret (constant-time compare); bad/missing signature → 400 (tested incl. tampering).
+- ✅ Idempotency: `webhook_events.event_id` unique (duplicate delivery → no-op); `payments.razorpay_payment_id` unique (same payment via two events never double-counts); checkout re-uses an open Razorpay subscription; card orders honour `Idempotency-Key`; reply publishing uses a row lock so a double click cannot publish twice.
+- ✅ Nothing is marked paid on the browser's say-so: checkout callbacks are signature-verified **and** confirmed by fetching the subscription/order from Razorpay; local status otherwise changes only from verified webhooks. Out-of-order events are ignored.
+- ✅ Owner-only money actions; verified email required; plan limits and feature gates enforced server-side; card orders can't be fulfilled before payment is confirmed.
+- ✅ Subscription payments and physical-card payments are separate `kind`s and reported separately everywhere.
+- 🟡 Razorpay keys are server-side only (never sent to the browser except the public `key_id`).
+
 ## Public surface
 - ✅ Card tokens 144-bit random; public payload exposes no internal IDs (tested); unknown tokens aren't stored; per-IP limits on resolve (60/min), events (120/min), AI (6/10 min per IP+card, 30/h per IP) plus per-tenant monthly AI quota.
 - ✅ Bot filtering (UA heuristics) excluded from analytics; 20 s scan dedupe.

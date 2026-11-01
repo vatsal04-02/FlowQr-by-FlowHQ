@@ -30,6 +30,7 @@ async function apiCtx(browser, email, name) {
   const ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  page.on('response', (r) => { if (r.status() >= 400 && r.status() !== 401) console.log('HTTP', r.status(), r.url()); });
   page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 
   await page.goto('/'); await page.screenshot({ path: `${OUT}/01-landing.png`, fullPage: true });
@@ -115,6 +116,54 @@ async function apiCtx(browser, email, name) {
   await ap.screenshot({ path: `${OUT}/30-admin-cards.png`, fullPage: true });
   await ap.goto('/admin'); await ap.waitForTimeout(1000);
   await ap.screenshot({ path: `${OUT}/31-admin-home.png`, fullPage: true });
+
+
+  // ================= v2: verification, billing, analytics, profile, suspension, admin console =================
+  const fs = require('fs');
+  const ownerEmail = `owner-${rnd}@example.com`;
+  const logTxt = fs.existsSync(process.env.API_LOG || '/tmp/uvicorn.log') ? fs.readFileSync(process.env.API_LOG || '/tmp/uvicorn.log', 'utf8') : '';
+  const m1 = [...logTxt.matchAll(new RegExp(`to=${ownerEmail.replace('.', '\\.')}[\\s\\S]*?verify-email\\?token=([\\w-]+)`, 'g'))].pop();
+  if (m1) {
+    await page.goto('/dashboard'); await page.waitForTimeout(800);
+    await page.screenshot({ path: `${OUT}/40-unverified-banner.png` });
+    await page.goto(`/verify-email?token=${m1[1]}`); await page.getByText('Email verified').waitFor();
+    log('email verified via UI link');
+  } else log('SKIP verification step: no dev email found in API_LOG');
+
+  await page.goto('/pricing'); await page.getByText('Simple pricing in rupees').waitFor();
+  await page.getByText('₹399').first().waitFor(); await page.getByText('₹799').first().waitFor(); await page.getByText('₹1,499').first().waitFor();
+  await page.screenshot({ path: `${OUT}/41-pricing.png`, fullPage: true });
+
+  await page.goto('/subscription'); await page.getByText('Configuration pending').first().waitFor().catch(() => {});
+  await page.waitForTimeout(800); await page.screenshot({ path: `${OUT}/42-subscription.png`, fullPage: true });
+  await page.goto('/payments'); await page.waitForTimeout(800); await page.screenshot({ path: `${OUT}/43-payments.png`, fullPage: true });
+  await page.goto('/analytics'); await page.waitForTimeout(1200); await page.screenshot({ path: `${OUT}/44-analytics.png`, fullPage: true });
+  await page.goto('/profile'); await page.waitForTimeout(800); await page.screenshot({ path: `${OUT}/45-profile-not-connected.png`, fullPage: true });
+
+  // mobile pricing + subscription
+  const mp = await mctx.newPage(); await mp.goto('/subscription'); await mp.waitForTimeout(1000);
+  const sw = await mp.evaluate(() => [document.documentElement.scrollWidth, innerWidth]);
+  log('mobile /subscription scrollWidth vs viewport:', sw.join(' / ')); if (sw[0] > sw[1]) errors.push('horizontal overflow on mobile /subscription');
+  await mp.screenshot({ path: `${OUT}/46-subscription-mobile.png`, fullPage: true });
+
+  // suspension: admin suspends the business, owner sees the suspended screen, then restore
+  r = await admin.ctx.request.post(`/api/v1/admin/tenants/${tenant.id}/suspend`, { data: { reason: 'E2E suspension test' }, headers: H(admin.csrf) }); log('suspend', r.status());
+  await page.goto('/dashboard'); await page.getByText('This account is suspended').waitFor();
+  await page.screenshot({ path: `${OUT}/47-suspended.png` });
+  const pub = await phone.newPage(); await pub.goto(`/c/${token}`); await pub.getByText('This card is no longer active').waitFor(); log('public card shows inactive while suspended');
+  r = await admin.ctx.request.post(`/api/v1/admin/tenants/${tenant.id}/unsuspend`, { headers: H(admin.csrf) }); log('unsuspend', r.status());
+  await page.goto('/dashboard'); await page.getByText('Hello,').waitFor();
+
+  // admin console (separate shell)
+  await ap.goto('/admin/customers'); await ap.getByText('Customers').first().waitFor(); await ap.waitForTimeout(800);
+  await ap.screenshot({ path: `${OUT}/50-admin-customers.png`, fullPage: true });
+  await ap.goto(`/admin/customers/${tenant.id}`); await ap.getByText('Subscription').first().waitFor(); await ap.waitForTimeout(600);
+  await ap.screenshot({ path: `${OUT}/51-admin-customer-detail.png`, fullPage: true });
+  await ap.goto('/admin/billing'); await ap.waitForTimeout(900); await ap.screenshot({ path: `${OUT}/52-admin-billing.png`, fullPage: true });
+  await ap.goto('/admin/audit'); await ap.waitForTimeout(900); await ap.screenshot({ path: `${OUT}/53-admin-audit.png`, fullPage: true });
+  // an ordinary business user must not get admin data
+  const denied = await ctx.request.get('/api/v1/admin/stats'); log('business user -> /admin/stats status', denied.status()); if (denied.status() !== 403) errors.push('business user reached admin API');
+  const dp = await ctx.newPage(); await dp.goto('/admin'); await dp.getByText('Platform admins only').waitFor(); log('business user sees admin denial page');
 
   log('ERRORS:', JSON.stringify(errors, null, 1));
   await browser.close();

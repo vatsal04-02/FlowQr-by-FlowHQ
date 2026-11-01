@@ -36,7 +36,7 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
   const yMax = useMemo(() => yMaxProp ?? niceMax(Math.max(0, ...data.flatMap((d) => series.map((s) => Number(d[s.key]) || 0)))), [data, series, yMaxProp]);
   const x = (i: number) => pad.l + (data.length <= 1 ? iw / 2 : (i / (data.length - 1)) * iw);
   const y = (v: number) => pad.t + ih - (v / yMax) * ih;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(t * yMax * 10) / 10);
+  const ticks = yMax <= 6 ? Array.from({ length: yMax + 1 }, (_, i) => i) : [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(t * yMax));
   const xStep = Math.max(1, Math.ceil(data.length / Math.max(2, Math.floor(iw / 80))));
   const label = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 

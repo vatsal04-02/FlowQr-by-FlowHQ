@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, PageHeader } from "@/components/ui/Card";
 import { ErrorSummary, Input, Select, Textarea } from "@/components/ui/Form";
 import { useToast } from "@/components/ui/Toast";
@@ -8,12 +8,13 @@ import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { CATEGORIES, fmtDate, LANGS, TIMEZONES } from "@/lib/format";
 import { emailRule, passwordRule, phoneRule, required, useForm } from "@/lib/form";
+import type { SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 export default function SettingsPage() {
   const { tenant, me, isAdmin, refresh } = useAuth();
   const toast = useToast();
-  const sub = useFetch<{ plan: string; status: string; currency: string; monthly_ai_generations: number; max_locations: number; current_period_end: string | null }>("/tenant/subscription");
+  const sub = useFetch<SubscriptionInfo>("/billing/subscription");
   const [busy, setBusy] = useState(false);
   const f = useForm({
     name: tenant?.name ?? "", category: tenant?.category ?? CATEGORIES[0], email: tenant?.email ?? "", phone: tenant?.phone ?? "", address: tenant?.address ?? "", website: tenant?.website ?? "",
@@ -63,11 +64,11 @@ export default function SettingsPage() {
         {isAdmin && <div className="flex justify-end"><Button type="submit" size="lg" loading={busy}>Save settings</Button></div>}
       </form>
 
-      <Card className="mt-5"><CardHeader title="Plan" subtitle="Billing isn't enabled yet. Pricing will be in INR." />
+      <Card className="mt-5"><CardHeader title="Plan" subtitle="Manage billing on the Subscription page." action={<LinkButton href="/subscription" size="sm" variant="secondary">Subscription</LinkButton>} />
         {sub.data && <dl className="grid gap-3 text-sm sm:grid-cols-4">
-          {[["Plan", <Badge key="p" tone="orange">{sub.data.plan}</Badge>], ["Status", sub.data.status], ["AI uses / month", sub.data.monthly_ai_generations], ["Locations", `up to ${sub.data.max_locations}`]].map(([k, v]) => <div key={k as string} className="rounded-xl bg-ink-50 p-3"><dt className="text-ink-500">{k}</dt><dd className="mt-0.5 font-semibold">{v}</dd></div>)}
+          {[["Plan", <Badge key="p" tone="orange">{sub.data.plan_name ?? sub.data.plan}</Badge>], ["Status", sub.data.status.replace("_", " ")], ["AI uses / month", sub.data.limits.ai_generations.toLocaleString("en-IN")], ["Locations", `up to ${sub.data.limits.locations}`]].map(([k, v]) => <div key={k as string} className="rounded-xl bg-ink-50 p-3"><dt className="text-ink-500">{k}</dt><dd className="mt-0.5 font-semibold">{v}</dd></div>)}
         </dl>}
-        {sub.data?.current_period_end && <p className="mt-3 text-xs text-ink-500">Trial runs until {fmtDate(sub.data.current_period_end)}.</p>}
+        {sub.data?.status === "trialing" && sub.data.trial_ends_at && <p className="mt-3 text-xs text-ink-500">Free trial runs until {fmtDate(sub.data.trial_ends_at)}.</p>}
       </Card>
       <ProfileCard email={me?.user.email ?? ""} name={me?.user.full_name ?? ""} phone={me?.user.phone ?? ""} onSaved={refresh} />
     </>
