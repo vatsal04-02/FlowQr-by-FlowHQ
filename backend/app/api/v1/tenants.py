@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.core.db import set_rls_context
-from app.core.deps import AuthContext, TenantContext, get_auth_context, get_tenant_context, require_role
+from app.core.deps import AuthContext, ensure_verified, TenantContext, get_auth_context, get_tenant_context, require_role
 from app.core.rate_limit import client_ip
 from app.core.security import hash_token, new_token
 from app.models import Invitation, Location, Membership, Role, Subscription, Tenant, User
@@ -15,6 +15,8 @@ from app.models.base import utcnow
 from app.schemas.auth import (
     InvitationAcceptIn, InvitationOut, InviteIn, MemberOut, RoleUpdateIn, TenantCreateIn, TenantOut, TenantUpdateIn,
 )
+from app.services import billing as billing_svc
+from app.services import entitlements as ent
 from app.services.audit import audit
 from app.services.mailer import send_email
 
@@ -40,11 +42,7 @@ def create_tenant(body: TenantCreateIn, request: Request, ctx: AuthContext = Dep
     db.add(tenant)
     db.flush()
     db.add(Membership(tenant_id=tenant.id, user_id=ctx.user.id, role=Role.owner))
-    db.add(Subscription(
-        tenant_id=tenant.id, plan="trial", status="trialing", currency="INR",
-        monthly_ai_generations=settings.default_trial_ai_generations_per_month, max_locations=3,
-        current_period_end=utcnow() + timedelta(days=14),
-    ))
+    billing_svc.start_trial(db, tenant.id)
     ctx.session.active_tenant_id = tenant.id
     audit(db, action="tenant.create", tenant_id=tenant.id, user_id=ctx.user.id, entity_type="tenant",
           entity_id=tenant.id, ip=client_ip(request))
@@ -79,16 +77,6 @@ def complete_onboarding(ctx: TenantContext = Depends(require_role(Role.admin))):
     return ctx.tenant
 
 
-@router.get("/tenant/subscription")
-def get_subscription(ctx: TenantContext = Depends(get_tenant_context)):
-    sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
-    return {
-        "plan": sub.plan, "status": sub.status, "currency": sub.currency,
-        "monthly_ai_generations": sub.monthly_ai_generations, "max_locations": sub.max_locations,
-        "current_period_end": sub.current_period_end,
-    } if sub else None
-
-
 # ---------------- Staff ----------------
 
 @router.get("/staff")
@@ -112,6 +100,10 @@ def list_staff(ctx: TenantContext = Depends(get_tenant_context)):
 def invite_staff(body: InviteIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     if body.role == Role.owner or (body.role == Role.admin and ctx.role != Role.owner):
         raise HTTPException(status_code=403, detail="Only an owner can invite admins; owners cannot be invited")
+    ensure_verified(ctx.user)
+    e = ent.require_active(ctx.db, ctx.tenant_id)
+    if ent.seats_used(ctx.db, ctx.tenant_id) >= e.max_staff:
+        raise HTTPException(status_code=402, detail={"code": "plan_limit", "message": f"Your plan allows up to {e.max_staff} team members."})
     email = body.email.lower()
     token = new_token()
     inv = Invitation(

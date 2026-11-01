@@ -89,6 +89,11 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
     if not conn or conn.status != GoogleConnectionStatus.active or not gloc.selected:
         result["status"] = "skipped"
         return result
+    from app.services import entitlements as ent
+
+    if not ent.for_tenant(db, gloc.tenant_id).has("review_sync"):
+        result["status"] = "skipped"  # subscription inactive / plan without sync: keep data, stop calling Google
+        return result
     provider = provider or g.get_google_provider()
     gloc.last_sync_status = "running"
     db.commit()

@@ -11,11 +11,11 @@ from app.core.rate_limit import client_ip, hit, limit_by_ip
 from app.core.security import (
     DUMMY_HASH, hash_password, hash_token, needs_rehash, new_token, verify_password,
 )
-from app.models import AuthSession, Membership, PasswordResetToken, Tenant, User
+from app.models import AuthSession, EmailVerificationToken, Membership, PasswordResetToken, Tenant, User
 from app.models.base import utcnow
 from app.schemas.auth import (
     ChangePasswordIn, LoginIn, MeOut, MembershipOut, PasswordResetConfirmIn, PasswordResetRequestIn,
-    ProfileUpdateIn, RegisterIn, TenantOut, UserOut,
+    ProfileUpdateIn, RegisterIn, TenantOut, UserOut, VerifyEmailIn,
 )
 from app.services.audit import audit
 from app.services.mailer import send_email
@@ -67,6 +67,16 @@ def build_me(db: Session, user: User, sess: AuthSession) -> MeOut:
     )
 
 
+def send_verification(db: Session, user: User) -> None:
+    token = new_token()
+    now = utcnow()
+    db.add(EmailVerificationToken(user_id=user.id, token_hash=hash_token(token), created_at=now,
+                                  expires_at=now + timedelta(hours=settings.email_verification_ttl_hours)))
+    db.flush()
+    link = f"{settings.frontend_url}/verify-email?token={token}"
+    send_email(user.email, "Verify your FlowQR email", f"Welcome to FlowQR! Confirm your email address:\n{link}\n\nIf you didn't create an account, ignore this message.")
+
+
 @router.post("/register", response_model=MeOut, status_code=201, dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60))])
 def register(body: RegisterIn, request: Request, response: Response, db: Session = Depends(get_db)):
     email = body.email.lower()
@@ -80,6 +90,7 @@ def register(body: RegisterIn, request: Request, response: Response, db: Session
     db.flush()
     sess = _start_session(db, user, request, response)
     set_rls_context(db, bypass=True)
+    send_verification(db, user)
     audit(db, action="auth.register", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request))
     db.commit()
     return build_me(db, user, sess)
@@ -189,3 +200,25 @@ def password_reset_confirm(body: PasswordResetConfirmIn, db: Session = Depends(g
     set_rls_context(db, bypass=True)
     audit(db, action="auth.password_reset", user_id=user.id, entity_type="user", entity_id=user.id)
     db.commit()
+
+
+@router.post("/verify-email", status_code=204, dependencies=[Depends(limit_by_ip("verify", 20, 300))])
+def verify_email(body: VerifyEmailIn, db: Session = Depends(get_db)):
+    row = db.scalar(select(EmailVerificationToken).where(EmailVerificationToken.token_hash == hash_token(body.token)))
+    if not row or row.used_at or row.expires_at < utcnow():
+        raise HTTPException(status_code=400, detail="This verification link is invalid or has expired")
+    user = db.get(User, row.user_id)
+    row.used_at = utcnow()
+    user.email_verified_at = user.email_verified_at or utcnow()
+    set_rls_context(db, bypass=True)
+    audit(db, action="auth.email_verified", user_id=user.id, entity_type="user", entity_id=user.id)
+    db.commit()
+
+
+@router.post("/resend-verification", status_code=202, dependencies=[Depends(limit_by_ip("verify", 5, 300))])
+def resend_verification(ctx: AuthContext = Depends(get_auth_context)):
+    if ctx.user.email_verified_at:
+        return {"detail": "Already verified"}
+    send_verification(ctx.db, ctx.user)
+    ctx.db.commit()
+    return {"detail": "Verification email sent"}

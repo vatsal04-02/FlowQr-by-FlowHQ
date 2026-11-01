@@ -81,13 +81,26 @@ class Session:
     def delete(self, url, **kw): return self.request("DELETE", url, **kw)
 
 
-def make_user(email=None, name="Test User", register=True) -> Session:
+def latest_token(to: str, marker: str) -> str:
+    """Pull the token out of the most recent test-outbox email sent to `to` containing `marker`."""
+    from app.services.mailer import OUTBOX
+
+    for m in reversed(OUTBOX):
+        if m["to"] == to and marker in m["body"]:
+            return m["body"].split("token=")[1].split()[0].strip()
+    raise AssertionError(f"no email to {to} with {marker}")
+
+
+def make_user(email=None, name="Test User", register=True, verify=True) -> Session:
     email = email or f"user-{uuid.uuid4().hex[:8]}@example.com"
     s = Session(None, email)
     if register:
         r = s.http.post("/api/v1/auth/register", json={"email": email, "password": s.password, "full_name": name})
         assert r.status_code == 201, r.text
         s.csrf = r.json()["csrf_token"]
+        if verify:
+            r = s.http.post("/api/v1/auth/verify-email", json={"token": latest_token(email, "verify-email")})
+            assert r.status_code == 204, r.text
     return s
 
 

@@ -22,9 +22,11 @@ def usage_this_month(db: Session, tenant_id: uuid.UUID) -> int:
 
 
 def quota_exceeded(db: Session, tenant_id: uuid.UUID) -> bool:
-    sub = db.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id))
-    limit = sub.monthly_ai_generations if sub else 100
-    return usage_this_month(db, tenant_id) >= limit
+    """True when AI must not be used: subscription inactive or monthly quota consumed."""
+    from app.services import entitlements as ent
+
+    e = ent.for_tenant(db, tenant_id)
+    return (not e.active) or usage_this_month(db, tenant_id) >= e.monthly_ai_generations
 
 
 def log_generation(db: Session, *, tenant_id, kind, provider, model, language, input_chars, output_chars, status,

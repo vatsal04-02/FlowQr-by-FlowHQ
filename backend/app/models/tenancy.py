@@ -37,6 +37,10 @@ class Tenant(IdMixin, TimestampMixin, Base):
     ai_instructions: Mapped[str | None] = mapped_column(Text)  # business-specific reply instructions
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    suspension_reason: Mapped[str | None] = mapped_column(String(300))
+    support_status: Mapped[str] = mapped_column(String(16), default="none")  # none | open | waiting | resolved
+    support_note: Mapped[str | None] = mapped_column(Text)
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="tenant")
 
@@ -50,6 +54,7 @@ class User(IdMixin, TimestampMixin, Base):
     phone: Mapped[str | None] = mapped_column(String(32))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
@@ -99,6 +104,16 @@ class Invitation(IdMixin, TimestampMixin, Base):
 
 class PasswordResetToken(IdMixin, Base):
     __tablename__ = "password_reset_tokens"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EmailVerificationToken(IdMixin, Base):
+    __tablename__ = "email_verification_tokens"
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)

@@ -53,7 +53,18 @@ class Settings(BaseSettings):
     # Bootstrap: comma separated emails that become platform admins on registration.
     platform_admin_emails: str = ""
 
-    default_trial_ai_generations_per_month: int = 500
+    # Billing (Razorpay). Test keys (rzp_test_...) => test mode. Empty => billing shows "configuration pending".
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
+    trial_days: int = 14
+    trial_plan: str = "growth"  # trial grants this plan's limits/features
+    past_due_grace_days: int = 7
+    card_price_paise: int = 24900  # per physical card, INR paise. PLACEHOLDER: set your real price
+    card_order_min_qty: int = 10
+    card_order_max_qty: int = 1000
+    email_verification_ttl_hours: int = 72
+    require_verified_email: bool = True
 
     # Outbound email (invitations, password reset). Leave smtp_host empty to disable sending.
     smtp_host: str = ""
@@ -78,6 +89,16 @@ class Settings(BaseSettings):
     @property
     def google_configured(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret)
+
+    @property
+    def razorpay_configured(self) -> bool:
+        return bool(self.razorpay_key_id and self.razorpay_key_secret)
+
+    @property
+    def razorpay_mode(self) -> str | None:
+        if not self.razorpay_configured:
+            return None
+        return "test" if self.razorpay_key_id.startswith("rzp_test_") else "live"
 
     @property
     def ai_configured(self) -> bool:

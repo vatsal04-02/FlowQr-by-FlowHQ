@@ -7,6 +7,7 @@ from app.core.deps import TenantContext, get_tenant_context, require_role
 from app.core.rate_limit import client_ip
 from app.models import Location, Role, Subscription
 from app.schemas.locations import LocationIn, LocationOut, LocationUpdate
+from app.services import entitlements as ent
 from app.services.audit import audit
 
 router = APIRouter(prefix="/locations", tags=["locations"])
@@ -26,10 +27,9 @@ def list_locations(ctx: TenantContext = Depends(get_tenant_context)):
 
 @router.post("", response_model=LocationOut, status_code=201)
 def create_location(body: LocationIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
-    sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
-    count = ctx.db.scalar(select(func.count()).select_from(Location).where(Location.tenant_id == ctx.tenant_id))
-    if sub and count >= sub.max_locations:
-        raise HTTPException(status_code=402, detail=f"Your plan allows up to {sub.max_locations} locations")
+    e = ent.require_active(ctx.db, ctx.tenant_id)
+    if ent.locations_used(ctx.db, ctx.tenant_id) >= e.max_locations:
+        raise HTTPException(status_code=402, detail={"code": "plan_limit", "message": f"Your plan allows up to {e.max_locations} locations. Upgrade to add more."})
     loc = Location(tenant_id=ctx.tenant_id, **body.model_dump())
     ctx.db.add(loc)
     ctx.db.flush()

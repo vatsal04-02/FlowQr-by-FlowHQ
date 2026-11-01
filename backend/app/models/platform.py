@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,8 +42,18 @@ class Subscription(IdMixin, TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     monthly_ai_generations: Mapped[int] = mapped_column(Integer, default=500)
     max_locations: Mapped[int] = mapped_column(Integer, default=3)
+    max_staff: Mapped[int] = mapped_column(Integer, default=10)
+    features: Mapped[list] = mapped_column(JSONB, default=list)  # e.g. ["gbp_posts", "gbp_media", "gbp_performance"]
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    razorpay_subscription_id: Mapped[str | None] = mapped_column(String(64))
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    past_due_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pending_plan: Mapped[str | None] = mapped_column(String(32))  # scheduled downgrade/upgrade at cycle end
+    source: Mapped[str] = mapped_column(String(16), default="trial")  # trial | razorpay | manual
+    razorpay_subscription_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    last_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuditLog(IdMixin, Base):

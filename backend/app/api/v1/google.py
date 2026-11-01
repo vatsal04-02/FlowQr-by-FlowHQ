@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db, set_rls_context
-from app.core.deps import SESSION_COOKIE, TenantContext, get_tenant_context, require_role, _load_session
+from app.core.deps import SESSION_COOKIE, TenantContext, ensure_verified, get_tenant_context, require_role, _load_session
 from app.core.rate_limit import client_ip
 from app.core.security import get_cipher, new_token, sign_state, verify_state
 from app.models import (
@@ -20,6 +20,7 @@ from app.models.base import utcnow
 from app.models.tenancy import ROLE_RANK, User
 from app.schemas.google import ConnectionOut, GoogleLocationOut, SelectionIn
 from app.services import google as g
+from app.services import entitlements as ent
 from app.services.audit import audit
 from app.services.google.queue import enqueue_sync
 from app.services.google.tokens import get_access_token, store_tokens
@@ -51,6 +52,8 @@ def status(ctx: TenantContext = Depends(get_tenant_context)):
 
 @router.post("/connect")
 def connect(response: Response, ctx: TenantContext = Depends(require_role(Role.admin))):
+    ensure_verified(ctx.user)
+    ent.require_feature(ctx.db, ctx.tenant_id, "review_sync")
     if not settings.google_configured:
         raise HTTPException(status_code=503, detail={"code": "google_config_pending",
                             "message": "Google integration is awaiting configuration on the server."})
@@ -178,10 +181,11 @@ def refresh_locations(connection_id: uuid.UUID, ctx: TenantContext = Depends(req
 @router.put("/connections/{connection_id}/selection", response_model=list[GoogleLocationOut])
 def select_locations(connection_id: uuid.UUID, body: SelectionIn, request: Request,
                      ctx: TenantContext = Depends(require_role(Role.admin))):
+    ent.require_feature(ctx.db, ctx.tenant_id, "review_sync")
     conn = _conn_or_404(ctx, connection_id)
     if conn.status in (GoogleConnectionStatus.revoked, GoogleConnectionStatus.disconnected):
         raise HTTPException(status_code=409, detail="This connection is not active. Reconnect Google first.")
-    sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
+    sub = None
     changed: list[GoogleLocation] = []
     for item in body.selections:
         gl = ctx.db.scalar(select(GoogleLocation).where(
@@ -196,9 +200,9 @@ def select_locations(connection_id: uuid.UUID, body: SelectionIn, request: Reque
                 if not loc:
                     raise HTTPException(status_code=404, detail="FlowQR location not found")
             elif item.create_location:
-                total = ctx.db.scalar(select(func.count()).select_from(Location).where(Location.tenant_id == ctx.tenant_id))
-                if sub and total >= sub.max_locations:
-                    raise HTTPException(status_code=402, detail=f"Your plan allows up to {sub.max_locations} locations")
+                e = ent.for_tenant(ctx.db, ctx.tenant_id)
+                if ent.locations_used(ctx.db, ctx.tenant_id) >= e.max_locations:
+                    raise HTTPException(status_code=402, detail={"code": "plan_limit", "message": f"Your plan allows up to {e.max_locations} locations."})
                 loc = Location(tenant_id=ctx.tenant_id, name=gl.title or "Google location", address_line=gl.address)
                 ctx.db.add(loc)
                 ctx.db.flush()
@@ -221,6 +225,7 @@ def select_locations(connection_id: uuid.UUID, body: SelectionIn, request: Reque
 
 @router.post("/sync")
 def sync_now(ctx: TenantContext = Depends(require_role(Role.admin))):
+    ent.require_feature(ctx.db, ctx.tenant_id, "review_sync")
     ids = ctx.db.scalars(
         select(GoogleLocation.id).join(GoogleConnection, GoogleConnection.id == GoogleLocation.connection_id).where(
             GoogleLocation.tenant_id == ctx.tenant_id, GoogleLocation.selected.is_(True),

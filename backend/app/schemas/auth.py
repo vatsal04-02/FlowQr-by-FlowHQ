@@ -33,6 +33,10 @@ class LoginIn(BaseModel):
     password: str = Field(max_length=128)
 
 
+class VerifyEmailIn(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+
+
 class PasswordResetRequestIn(BaseModel):
     email: EmailStr
 
@@ -61,6 +65,7 @@ class UserOut(ORM):
     full_name: str
     phone: str | None
     is_platform_admin: bool
+    email_verified_at: datetime | None = None
 
 
 class TenantOut(ORM):

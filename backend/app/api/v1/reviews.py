@@ -9,6 +9,7 @@ from app.core.rate_limit import client_ip
 from app.models import Location, ReplyDraft, ReplyLog, ReplyStatus, Review, Role
 from app.models.base import utcnow
 from app.schemas.reviews import ApproveIn, DraftBodyIn, DraftOut, LogOut, ReviewDetail, ReviewList, ReviewOut
+from app.services import entitlements as ent
 from app.services import reviews as review_svc
 from app.services.ai import AIUnavailable, get_provider
 from app.services.ai.replies import draft_reply, reason_labels
@@ -116,6 +117,7 @@ def review_detail(review_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_
 @router.post("/reviews/{review_id}/drafts/generate", response_model=DraftOut, status_code=201)
 def generate_draft(review_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
     r = _review_or_404(ctx, review_id)
+    ent.require_feature(ctx.db, ctx.tenant_id, "ai_replies")
     if quota_exceeded(ctx.db, ctx.tenant_id):
         raise HTTPException(status_code=402, detail="Monthly AI limit reached for your plan")
     started = time.monotonic()
@@ -197,7 +199,11 @@ def approve_draft(draft_id: uuid.UUID, body: ApproveIn, request: Request, ctx: T
 @router.post("/reply-drafts/{draft_id}/publish", response_model=DraftOut)
 def publish_draft(draft_id: uuid.UUID, request: Request, replace_existing: bool = False,
                   ctx: TenantContext = Depends(require_role(Role.admin))):
-    d = _draft_or_404(ctx, draft_id)
+    ent.require_active(ctx.db, ctx.tenant_id)
+    # Row lock: two concurrent clicks cannot both publish the same draft.
+    d = ctx.db.scalar(select(ReplyDraft).where(ReplyDraft.id == draft_id, ReplyDraft.tenant_id == ctx.tenant_id).with_for_update())
+    if not d:
+        raise HTTPException(status_code=404, detail="Draft not found")
     if d.status not in (ReplyStatus.approved, ReplyStatus.failed) or not d.approved_by:
         raise HTTPException(status_code=409, detail="Approve the reply before publishing")
     review = ctx.db.get(Review, d.review_id)

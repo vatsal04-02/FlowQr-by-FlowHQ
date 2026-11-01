@@ -134,3 +134,9 @@ def public_db(db: Session = Depends(get_db)) -> Session:
     to the narrow queries those handlers perform."""
     set_rls_context(db, bypass=True)
     return db
+
+
+def ensure_verified(user: User) -> None:
+    """Sensitive actions (billing, inviting staff, connecting Google) need a verified email."""
+    if settings.require_verified_email and not user.email_verified_at:
+        raise HTTPException(status_code=403, detail={"code": "email_not_verified", "message": "Please verify your email address first."})
