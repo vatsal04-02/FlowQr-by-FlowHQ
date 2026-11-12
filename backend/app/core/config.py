@@ -66,6 +66,16 @@ class Settings(BaseSettings):
     public_ai_max_input_chars: int = 1200
 
     # Review Growth (QR campaigns + AI review drafts)
+    # Planned integrations (Releases 2 and 3). Setting these does NOT make anything work: there is no adapter yet, and the UI says so.
+    meta_app_id: str = ""
+    meta_app_secret: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_access_token: str = ""
+    rank_provider: str = ""
+    rank_provider_key: str = ""
+    account_deletion_grace_days: int = 14  # how long an owner can cancel a deletion request
+    support_email: str = ""  # shown on the legal pages; empty = pages say it is not configured
+    legal_company_name: str = "FlowHQ"
     review_session_retention_days: int = 90  # customer answers/drafts are deleted after this; aggregate analytics are kept
     review_max_drafts_per_session: int = 5  # 1 generation + 4 regenerations
     review_max_refinements: int = 15  # times a customer can change stars/topics and have the draft rewritten in one session (the page does this automatically)

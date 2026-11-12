@@ -10,3 +10,7 @@ from app.models.platform import AIGenerationLog, AuditLog, Subscription  # noqa:
 from app.models.tenancy import (  # noqa: F401
     AuthSession, EmailVerificationToken, Invitation, Membership, MembershipLocation, PasswordResetToken, Role, Tenant, User,
 )
+
+from app.models.agent import (  # noqa: F401,E402
+    AgentRun, AgentSettings, AgentTask, AgentTaskEvent, BusinessKnowledge, GbpSnapshot, HealthSnapshot, ScheduledPost,
+)

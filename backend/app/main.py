@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.v1 import (
-    admin, analytics, auth_google, billing, gbp, auth, cards, google, locations, public, qr, review_growth, review_public, reviews, tenants,
+    account, admin, agent, analytics, auth_google, billing, gbp, posts, reports, workspace, auth, cards, google, locations, public, qr, review_growth, review_public, reviews, tenants,
 )
 from app.core.config import assert_production_safe, settings
 from app.core.db import engine
@@ -59,5 +59,5 @@ def health():
 
 
 API = "/api/v1"
-for module in (auth, auth_google, tenants, locations, cards, qr, admin, public, review_public, review_growth, google, reviews, analytics, billing, gbp):
+for module in (account, agent, posts, reports, workspace, auth, auth_google, tenants, locations, cards, qr, admin, public, review_public, review_growth, google, reviews, analytics, billing, gbp):
     app.include_router(module.router, prefix=API)

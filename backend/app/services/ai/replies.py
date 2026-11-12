@@ -17,8 +17,12 @@ RULES:
 - Output ONLY the reply text. No quotes, no preface, no markdown."""
 
 
-def draft_reply(provider: LLMProvider, review: Review, tenant: Tenant, location_name: str | None) -> tuple[str, str, list[str]]:
-    """Returns (reply_text, language, flag_reasons)."""
+def draft_reply(provider: LLMProvider, review: Review, tenant: Tenant, location_name: str | None, kb: dict | None = None) -> tuple[str, str, list[str]]:
+    """Returns (reply_text, language, flag_reasons).
+
+    With `kb` (the Business Knowledge Base, services/agent/knowledge.context) the reply is grounded in it and the output is CHECKED:
+    prices or offers that are not verified, outcome promises, and anything confirming someone is a patient are rejected. One retry is made
+    with the violations spelled out; if it still fails the draft is refused (AIUnavailable code "rejected"), never shown as a normal draft."""
     text = review.text or ""
     lang = detect_language(text) if text.strip() else tenant.language
     if text.strip() and tenant.language != "en" and lang == "en":
@@ -34,7 +38,18 @@ def draft_reply(provider: LLMProvider, review: Review, tenant: Tenant, location_
         f"Star rating: {review.rating} out of 5\n\n"
         f"<review>\n{text if text.strip() else '(rating only, no written text)'}\n</review>"
     )
+    if kb is not None:
+        from app.services.agent import knowledge as kbs
+        from app.services.agent.safety import check_text
+        user = kbs.render(kb) + "\n\n" + user
     out = provider.generate(SYSTEM, user, max_tokens=400, temperature=0.5).strip().strip('"').strip()
+    if kb is not None:
+        bad = check_text(out, kb=kb, kind="reply") if out else []
+        if bad:
+            retry = user + "\n\nYour previous draft was rejected because: " + " ".join(b.message for b in bad) + "\nWrite a new reply that avoids all of this."
+            out = provider.generate(SYSTEM, retry, max_tokens=400, temperature=0.3).strip().strip('"').strip()
+            if out and check_text(out, kb=kb, kind="reply"):
+                raise AIUnavailable("The draft broke a safety rule twice, so it was not shown", code="rejected")
     if not out or len(out) > 4000:
         raise AIUnavailable("The draft didn't meet our quality checks")
     return out, lang, reasons

@@ -12,6 +12,7 @@ from app.schemas.reviews import ApproveIn, DraftBodyIn, DraftOut, LogOut, Review
 from app.services import entitlements as ent
 from app.services import reviews as review_svc
 from app.services.ai import AIUnavailable, get_provider
+from app.services.agent.knowledge import context as kb_ctx
 from app.services.ai.replies import draft_reply, reason_labels
 from app.services.ai.safety import assess_review
 from app.services.ai_usage import log_generation, quota_exceeded
@@ -131,7 +132,7 @@ def generate_draft(review_id: uuid.UUID, request: Request, ctx: TenantContext = 
         raise HTTPException(status_code=503, detail="AI is not configured on this server. You can still write a reply manually.")
     names = _loc_names(ctx)
     try:
-        body, lang, reasons = draft_reply(provider, r, ctx.tenant, names.get(r.location_id))
+        body, lang, reasons = draft_reply(provider, r, ctx.tenant, names.get(r.location_id), kb=kb_ctx(ctx.db, ctx.tenant))
     except AIUnavailable as exc:
         log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="reply_draft", provider=provider.name, model=provider.model,
                        language=None, input_chars=len(r.text or ""), output_chars=0, status="error", started=started,

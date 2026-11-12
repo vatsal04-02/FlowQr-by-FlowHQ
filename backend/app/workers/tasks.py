@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import timedelta
 
 from app.core.db import system_session
 from app.models import GoogleLocation
@@ -94,5 +95,100 @@ def retry_failed_replies():
                 db.rollback()
                 log.exception("auto-retry of reply %s failed", did)
         return {"retried": done}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="flowqr.purge_deleted_accounts")
+def purge_deleted_accounts():
+    """Delete businesses whose owner scheduled deletion and whose grace period has ended."""
+    from app.services.account import delete_tenant, due_for_deletion
+
+    db = system_session()
+    try:
+        ids = due_for_deletion(db)
+        done = []
+        for tid in ids:
+            try:
+                done.append(delete_tenant(db, tid))
+            except Exception:  # keep going: one failure must not block the others, and it retries next hour
+                db.rollback()
+                log.exception("account deletion failed for %s", tid)
+        return {"due": len(ids), "deleted": sum(1 for d in done if d.get("deleted"))}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="flowqr.publish_due_posts")
+def publish_due_posts():
+    """Publish approved posts whose time has come. One post at a time, each in its own transaction, so a slow Google call never
+    holds other posts' locks and a crash loses at most the post in hand (it is picked up again, never published twice)."""
+    from app.models.base import utcnow
+    from app.services import entitlements as ent
+    from app.services.agent import posts as posts_svc
+    from app.services.audit import audit
+
+    db = system_session()
+    totals = {"published": 0, "retry": 0, "failed": 0, "skipped": 0, "held": 0}
+    try:
+        seen: set = set()
+        for _ in range(40):
+            batch = [p for p in posts_svc.due(db, limit=5) if p.id not in seen]
+            if not batch:
+                db.rollback()
+                break
+            p = batch[0]
+            seen.add(p.id)
+            if not ent.for_tenant(db, p.tenant_id).has("gbp_posts"):
+                if p.scheduled_for and p.scheduled_for < utcnow() - timedelta(hours=24):  # a day late: too stale to publish unannounced
+                    p.status, p.failure_reason = "failed", "The plan was inactive for more than a day after this post was due, so it was not published. Retry it if it is still relevant."
+                    totals["failed"] += 1
+                else:
+                    totals["held"] += 1
+                db.commit()
+                continue
+            res = posts_svc.publish(db, p)
+            audit(db, action=f"post.publish_{res}", tenant_id=p.tenant_id, entity_type="scheduled_post", entity_id=p.id, meta={"status": p.status, "reason": p.failure_reason, "scheduled": True})
+            totals[res] += 1
+            db.commit()
+        return totals
+    finally:
+        db.close()
+
+
+@celery_app.task(name="flowqr.daily_agent")
+def daily_agent():
+    """Once a day per business (from 06:00 local time): refresh what Google says, then build the plan. A failure for one business
+    is recorded on its own activity log and never stops the others."""
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy import select
+
+    from app.models import AgentSettings, GoogleConnection, GoogleConnectionStatus, GoogleLocation, Tenant
+    from app.models.base import utcnow
+    from app.services import entitlements as ent
+    from app.services.agent import plan as plan_svc
+    from app.services.agent import snapshots as snap_svc
+
+    db = system_session()
+    ran = failed = 0
+    try:
+        for tid in list(db.scalars(select(Tenant.id).where(Tenant.is_active.is_(True), Tenant.suspended_at.is_(None), Tenant.deletion_scheduled_for.is_(None)))):
+            try:
+                t = db.get(Tenant, tid)
+                now_local = utcnow().astimezone(ZoneInfo(t.timezone or "Asia/Kolkata"))
+                s = db.scalar(select(AgentSettings).where(AgentSettings.tenant_id == tid))
+                if now_local.hour < 6 or (s and (not s.daily_plan or s.last_plan_date == now_local.date())) or not ent.for_tenant(db, tid).active:
+                    continue
+                for gl in db.scalars(select(GoogleLocation).join(GoogleConnection, GoogleConnection.id == GoogleLocation.connection_id).where(
+                        GoogleLocation.tenant_id == tid, GoogleLocation.selected.is_(True), GoogleConnection.status == GoogleConnectionStatus.active)):
+                    snap_svc.refresh(db, gl)
+                plan_svc.run_plan(db, t)
+                ran += 1
+            except Exception:  # noqa: BLE001
+                db.rollback()
+                failed += 1
+                log.exception("daily agent failed for tenant %s", tid)
+        return {"ran": ran, "failed": failed}
     finally:
         db.close()

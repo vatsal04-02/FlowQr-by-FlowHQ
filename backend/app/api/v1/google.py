@@ -36,6 +36,13 @@ def _frontend(path: str, **params) -> RedirectResponse:
     return RedirectResponse(f"{settings.frontend_url.rstrip('/')}{path}{q}", status_code=303)
 
 
+def _conn_out(ctx: TenantContext, c: GoogleConnection) -> ConnectionOut:
+    o = ConnectionOut.model_validate(c)
+    o.locations_found = ctx.db.scalar(select(func.count()).select_from(GoogleLocation).where(GoogleLocation.connection_id == c.id)) or 0
+    o.no_locations = o.locations_found == 0 and c.api_access == "approved" and c.status in (GoogleConnectionStatus.pending_selection, GoogleConnectionStatus.active)
+    return o
+
+
 @router.get("/status")
 def status(ctx: TenantContext = Depends(get_tenant_context)):
     conns = ctx.db.scalars(
@@ -47,7 +54,7 @@ def status(ctx: TenantContext = Depends(get_tenant_context)):
         "configuration_note": None if settings.google_configured else
         "Google sign-in is not configured on this FlowQR server yet (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET). "
         "You can keep using manual review links in the meantime.",
-        "connections": [ConnectionOut.model_validate(c) for c in conns],
+        "connections": [_conn_out(ctx, c) for c in conns],
     }
 
 

@@ -370,6 +370,8 @@ def test_auto_retry_only_transient_approved_failures(monkeypatch, rzp):
     from tests.conftest import owner_exec
     owner_exec("UPDATE reply_logs SET http_status = 400 WHERE draft_id = :d", d=drafts[1])
     fake.reply_error = None
+    # the job is global (every tenant): park failed drafts that other tests left behind so this test counts only its own
+    owner_exec("UPDATE reply_drafts SET attempts = 99 WHERE status = 'failed' AND id <> ALL(CAST(:ids AS uuid[]))", ids=drafts)
     assert retry_failed_replies() == {"retried": 1}
     states = {d["id"]: d["status"] for r in ids for d in [biz.get(f"/reviews/{r}").json()["drafts"][0]]}
     assert states[drafts[0]] == "published" and states[drafts[1]] == "failed"

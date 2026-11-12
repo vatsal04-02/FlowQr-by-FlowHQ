@@ -39,6 +39,8 @@ class Tenant(IdMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suspension_reason: Mapped[str | None] = mapped_column(String(300))
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # owner asked to delete the business
+    deletion_scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when the daily job will do it (cancellable until then)
     support_status: Mapped[str] = mapped_column(String(16), default="none")  # none | open | waiting | resolved
     support_note: Mapped[str | None] = mapped_column(Text)
     # Review Growth business context, owner-edited: {category_key, description, services[], disabled_suggestions[], languages[]}
