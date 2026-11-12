@@ -3,23 +3,26 @@ import clsx from "clsx";
 import { Loader2 } from "lucide-react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "accent" | "secondary" | "ghost" | "danger";
+// primary = the one cobalt action per view. ink = a decisive outward action (publish, create account).
+// inverse = for graphite bands. Every button has a press state. Rectangular (8px), never a capsule.
+type Variant = "primary" | "ink" | "secondary" | "ghost" | "danger" | "inverse";
 type Size = "md" | "sm" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors duration-200 select-none disabled:opacity-60 disabled:pointer-events-none whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors duration-150 select-none disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap active:translate-y-px";
 const variants: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 shadow-card",
-  // Orange is the FlowQR brand accent; dark text keeps 4.5:1 contrast.
-  accent: "bg-flow-500 text-ink hover:bg-flow-400 active:bg-flow-600 shadow-card",
-  secondary: "bg-white text-ink border border-ink-200 hover:bg-ink-50 active:bg-ink-100",
-  ghost: "text-ink-700 hover:bg-ink-50 active:bg-ink-100",
+  primary: "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800",
+  ink: "bg-ink text-white hover:bg-ink-700 active:bg-ink-800",
+  secondary: "bg-white text-ink border border-ink-200 hover:bg-ink-50 hover:border-ink-300 active:bg-ink-100",
+  ghost: "text-ink-700 hover:bg-ink-100/70 active:bg-ink-100",
   danger: "bg-white text-red-700 border border-red-200 hover:bg-red-50 active:bg-red-100",
+  inverse: "bg-white text-ink hover:bg-ink-100 active:bg-ink-200",
 };
+// 44px touch targets on small screens; denser on pointer devices.
 const sizes: Record<Size, string> = {
-  md: "min-h-11 px-4 text-[15px]",
-  sm: "min-h-11 sm:min-h-9 px-3 text-sm",
-  lg: "min-h-12 px-6 text-base",
+  md: "min-h-11 px-4 text-sm sm:min-h-9",
+  sm: "min-h-11 px-3 text-[13px] sm:min-h-8",
+  lg: "min-h-12 px-5 text-[15px] sm:min-h-11",
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", extra?: string) {

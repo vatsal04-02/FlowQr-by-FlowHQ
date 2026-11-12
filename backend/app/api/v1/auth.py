@@ -15,7 +15,7 @@ from app.models import AuthSession, EmailVerificationToken, Membership, Password
 from app.models.base import utcnow
 from app.schemas.auth import (
     ChangePasswordIn, LoginIn, MeOut, MembershipOut, PasswordResetConfirmIn, PasswordResetRequestIn,
-    ProfileUpdateIn, RegisterIn, TenantOut, UserOut, VerifyEmailIn,
+    ProfileUpdateIn, RegisterIn, SetPasswordIn, TenantOut, UserOut, VerifyEmailIn,
 )
 from app.services.audit import audit
 from app.services.mailer import send_email
@@ -102,8 +102,9 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
     if not hit(f"login-email:{email}", 10, 900):
         raise HTTPException(status_code=429, detail="Too many attempts. Try again in a few minutes.")
     user = db.scalar(select(User).where(User.email == email))
-    ok = verify_password(body.password, user.password_hash if user else DUMMY_HASH)
-    if not user or not ok or not user.is_active:
+    # Google-only accounts have no hash: verify against the dummy so timing and the 401 are identical to a wrong password.
+    ok = verify_password(body.password, user.password_hash if user and user.password_hash else DUMMY_HASH)
+    if not user or not user.password_hash or not ok or not user.is_active:
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
@@ -157,17 +158,34 @@ def select_tenant(tenant_id: str, ctx: AuthContext = Depends(get_auth_context)):
 
 @router.post("/change-password", status_code=204)
 def change_password(body: ChangePasswordIn, request: Request, ctx: AuthContext = Depends(get_auth_context)):
+    if not ctx.user.password_hash:
+        raise HTTPException(status_code=409, detail={"code": "no_password_set", "message": "This account signs in with Google and has no password yet. Use 'Set a password' instead."})
     if not verify_password(body.current_password, ctx.user.password_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     ctx.user.password_hash = hash_password(body.new_password)
-    # revoke every other session
+    _revoke_other_sessions(ctx)
+    set_rls_context(ctx.db, bypass=True)
+    audit(ctx.db, action="auth.password_changed", user_id=ctx.user.id, ip=client_ip(request))
+    ctx.db.commit()
+
+
+def _revoke_other_sessions(ctx: AuthContext) -> None:
     ctx.db.execute(
         update(AuthSession)
         .where(AuthSession.user_id == ctx.user.id, AuthSession.id != ctx.session.id, AuthSession.revoked_at.is_(None))
         .values(revoked_at=utcnow())
     )
+
+
+@router.post("/set-password", status_code=204, dependencies=[Depends(limit_by_ip("setpw", 5, 300))])
+def set_password(body: SetPasswordIn, request: Request, ctx: AuthContext = Depends(get_auth_context)):
+    """First password for an account created through Google. Accounts that already have one must use change-password."""
+    if ctx.user.password_hash:
+        raise HTTPException(status_code=409, detail={"code": "password_already_set", "message": "This account already has a password. Use 'Change password'."})
+    ctx.user.password_hash = hash_password(body.new_password)
+    _revoke_other_sessions(ctx)
     set_rls_context(ctx.db, bypass=True)
-    audit(ctx.db, action="auth.password_changed", user_id=ctx.user.id, ip=client_ip(request))
+    audit(ctx.db, action="auth.password_set", user_id=ctx.user.id, ip=client_ip(request))
     ctx.db.commit()
 
 

@@ -27,6 +27,8 @@ class ConnectionOut(ORM):
     last_error: str | None
     connected_at: datetime | None
     disconnected_at: datetime | None
+    api_access: str = "unknown"  # unknown | approved | awaiting_approval
+    api_access_checked_at: datetime | None = None
 
 
 class SelectionItem(BaseModel):

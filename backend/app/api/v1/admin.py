@@ -128,9 +128,10 @@ def list_cards(
     tenants = {t.id: t.name for t in ctx.db.scalars(select(Tenant).where(Tenant.id.in_([c.tenant_id for c in cards if c.tenant_id])))}
     locs = {l.id: l.name for l in ctx.db.scalars(select(Location).where(Location.id.in_([c.location_id for c in cards if c.location_id])))}
     counts = svc.card_scan_counts(ctx.db, [c.id for c in cards])
+    last = svc.card_last_scans(ctx.db, [c.id for c in cards])
     return {
         "total": total,
-        "items": [card_out(c, stats=counts.get(c.id), tenant_name=tenants.get(c.tenant_id), location_name=locs.get(c.location_id)) for c in cards],
+        "items": [card_out(c, stats=counts.get(c.id), tenant_name=tenants.get(c.tenant_id), location_name=locs.get(c.location_id), last_scan_at=last.get(c.id)) for c in cards],
     }
 
 

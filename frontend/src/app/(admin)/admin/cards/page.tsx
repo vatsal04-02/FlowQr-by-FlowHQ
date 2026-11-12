@@ -35,7 +35,7 @@ export default function AdminCards() {
 
   return (
     <>
-      <PageHeader title="Card inventory" subtitle="Create batches, export print files, and assign cards to business locations."
+      <PageHeader eyebrow="Platform" title="Card inventory" subtitle="Create batches, export print files, and assign cards to business locations."
         actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setNewBatch(true)}>New batch</Button>} />
 
       <Card className="mb-5" pad={false}>
@@ -56,7 +56,7 @@ export default function AdminCards() {
         <div className="relative min-w-[200px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
           <input aria-label="Search by card ID" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search card ID, e.g. FQR-0012" className="min-h-11 w-full rounded-xl border border-ink-200 pl-9 pr-3 text-sm sm:min-h-10" /></div>
         <FilterSelect label="Status" value={f.status} onChange={(e) => { setF({ ...f, status: e.target.value }); setPage(0); }}>
-          <option value="">All statuses</option>{["unassigned", "assigned", "active", "deactivated", "lost"].map((s) => <option key={s} value={s}>{s}</option>)}</FilterSelect>
+          <option value="">All statuses</option>{["unassigned", "assigned", "active", "paused", "deactivated", "lost"].map((s) => <option key={s} value={s}>{s}</option>)}</FilterSelect>
         {f.batch_id && <Button variant="secondary" size="sm" onClick={() => setF({ ...f, batch_id: "" })}>Clear batch filter</Button>}
       </div></Card>
 
@@ -64,8 +64,8 @@ export default function AdminCards() {
       {cards.loading && !cards.data ? <Skeleton className="h-64" /> : cards.data && cards.data.items.length === 0 ? (
         <EmptyState icon={<FileStack className="h-6 w-6" />} title="No cards found" action={<Button onClick={() => setNewBatch(true)}>Create a batch</Button>}>Generate a batch of unique cards to get started.</EmptyState>
       ) : (
-        <Card pad={false}><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="border-b border-ink-100 bg-ink-50 text-xs uppercase tracking-wide text-ink-500"><tr>{["Card", "Status", "Business / location", "Scans", "Visits", "Clicks", ""].map((h, i) => <th key={i} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
+        <Card pad={false}><div className="overflow-x-auto"><table className="dt min-w-[760px]">
+          <thead><tr>{["Card", "Status", "Business / location", "Scans", "Visits", "Clicks", ""].map((h, i) => <th key={i} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
           <tbody>{cards.data?.items.map((c) => (
             <tr key={c.id} className="border-b border-ink-100 last:border-0">
               <td className="whitespace-nowrap px-4 py-3 font-semibold">{c.card_code}</td><td className="px-4"><Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge></td>
@@ -76,7 +76,7 @@ export default function AdminCards() {
                 <Button size="sm" variant="secondary" icon={<UserPlus className="h-4 w-4" />} onClick={() => setAssign(c)}>{c.tenant_id ? "Reassign" : "Assign"}</Button>
                 {c.tenant_id && <Button size="sm" variant="ghost" aria-label={`Unassign ${c.card_code}`} icon={<Link2Off className="h-4 w-4" />} onClick={() => { if (confirm(`Unassign ${c.card_code}? Scan history is kept.`)) void act(c, "unassign", undefined, "Card unassigned."); }} />}
                 <select aria-label={`Set status for ${c.card_code}`} value="" onChange={(e) => e.target.value && void act(c, "status", { status: e.target.value }, `Marked ${e.target.value}.`)} className="min-h-9 rounded-lg border border-ink-200 bg-white px-2 text-xs">
-                  <option value="">Status…</option>{(["active", "deactivated", "lost"] as CardStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}</select>
+                  <option value="">Status…</option>{(["active", "paused", "deactivated", "lost"] as CardStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}</select>
               </div></td>
             </tr>))}</tbody>
         </table></div></Card>

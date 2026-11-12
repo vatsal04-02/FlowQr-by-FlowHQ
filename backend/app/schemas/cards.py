@@ -53,6 +53,7 @@ class CardOut(ORM):
     tenant_name: str | None = None
     location_name: str | None = None
     stats: dict[str, int] = {}
+    last_scan_at: datetime | None = None  # most recent human QR scan / NFC tap (bots excluded)
 
 
 class TrackEventIn(BaseModel):

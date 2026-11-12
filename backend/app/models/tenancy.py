@@ -3,12 +3,12 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
-from app.models.base import IdMixin, TimestampMixin
+from app.models.base import IdMixin, TimestampMixin, utcnow
 
 
 class Role(str, enum.Enum):
@@ -41,6 +41,8 @@ class Tenant(IdMixin, TimestampMixin, Base):
     suspension_reason: Mapped[str | None] = mapped_column(String(300))
     support_status: Mapped[str] = mapped_column(String(16), default="none")  # none | open | waiting | resolved
     support_note: Mapped[str | None] = mapped_column(Text)
+    # Review Growth business context, owner-edited: {category_key, description, services[], disabled_suggestions[], languages[]}
+    review_context: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="tenant")
 
@@ -49,7 +51,10 @@ class User(IdMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String(254), unique=True)  # stored lower-cased
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # NULL for accounts created through "Continue with Google" until the user sets a password.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    # Google's stable account id (the ID token `sub`). Never derived from, or matched by, email alone.
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True)
     full_name: Mapped[str] = mapped_column(String(200))
     phone: Mapped[str | None] = mapped_column(String(32))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -59,6 +64,14 @@ class User(IdMixin, TimestampMixin, Base):
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
 
+    @property
+    def has_local_login(self) -> bool:
+        return bool(self.password_hash)
+
+    @property
+    def google_linked(self) -> bool:
+        return bool(self.google_sub)
+
 
 class Membership(IdMixin, TimestampMixin, Base):
     __tablename__ = "memberships"
@@ -67,9 +80,24 @@ class Membership(IdMixin, TimestampMixin, Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     role: Mapped[Role] = mapped_column(Enum(Role, name="role"), default=Role.staff)
+    # Staff only: FALSE restricts the member to the locations listed in membership_locations. Owners/admins always see all.
+    all_locations: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     tenant: Mapped[Tenant] = relationship(back_populates="memberships")
     user: Mapped[User] = relationship(back_populates="memberships")
+
+
+class MembershipLocation(IdMixin, Base):
+    """A location a restricted staff member may access (see core/deps.py: TenantContext.location_ids)."""
+
+    __tablename__ = "membership_locations"
+    __table_args__ = (UniqueConstraint("membership_id", "location_id", name="uq_membership_location"),
+                      Index("ix_membership_locations_tenant", "tenant_id"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    membership_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("memberships.id", ondelete="CASCADE"))
+    location_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("locations.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AuthSession(IdMixin, Base):
@@ -100,6 +128,7 @@ class Invitation(IdMixin, TimestampMixin, Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    location_ids: Mapped[list | None] = mapped_column(JSONB)  # staff invitations only: NULL = every location
 
 
 class PasswordResetToken(IdMixin, Base):

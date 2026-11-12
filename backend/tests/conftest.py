@@ -18,6 +18,8 @@ os.environ["GOOGLE_CLIENT_ID"] = "test-client-id"
 os.environ["GOOGLE_CLIENT_SECRET"] = "test-client-secret"
 os.environ["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/v1/google/callback"
 os.environ["GEMINI_API_KEY"] = ""
+os.environ["REVIEW_MAX_ATTEMPTS"] = "2"  # suite default (call counts in many tests assume write + one retry); production default is 3
+os.environ["REVIEW_VERIFY_WITH_AI"] = "false"  # tests use scripted stub models; the fact-check pass has its own dedicated tests
 os.environ["CARD_PRICE_PAISE"] = "24900"  # TEST ONLY price
 os.environ["PLATFORM_ADMIN_EMAILS"] = "root@flowhq-admin.example.com"
 
@@ -43,7 +45,10 @@ def _migrate():
 
 @pytest.fixture(autouse=True)
 def _reset_limits():
+    from app.services.ai import health
+
     rate_limit.reset_memory_limits()
+    health.reset()
     yield
 
 
@@ -79,6 +84,7 @@ class Session:
     def get(self, url, **kw): return self.request("GET", url, **kw)
     def post(self, url, **kw): return self.request("POST", url, **kw)
     def patch(self, url, **kw): return self.request("PATCH", url, **kw)
+    def put(self, url, **kw): return self.request("PUT", url, **kw)
     def delete(self, url, **kw): return self.request("DELETE", url, **kw)
 
 

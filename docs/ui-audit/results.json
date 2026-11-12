@@ -1,0 +1,1042 @@
+[
+ {
+  "route": "/dashboard",
+  "name": "dashboard",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews",
+  "name": "reviews",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews/f00a15d7-589e-4f96-ae8d-1f180c6d45f6",
+  "name": "review-detail",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards",
+  "name": "cards",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards/61abfd79-9182-43cc-8f96-886a97a81ea0",
+  "name": "card-detail",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards/analytics",
+  "name": "card-analytics",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/analytics",
+  "name": "analytics",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/locations",
+  "name": "locations",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/google",
+  "name": "google",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/profile",
+  "name": "google-profile",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": [
+   "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ]
+ },
+ {
+  "route": "/subscription",
+  "name": "subscription",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/payments",
+  "name": "payments",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/staff",
+  "name": "staff",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/settings",
+  "name": "settings",
+  "size": "desktop",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin",
+  "name": "admin",
+  "size": "desktop",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/customers",
+  "name": "admin-customers",
+  "size": "desktop",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/customers/e4d404e4-29e0-4cf7-a6c1-69373c7b6e01",
+  "name": "admin-customer-detail",
+  "size": "desktop",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/cards",
+  "name": "admin-cards",
+  "size": "desktop",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/billing",
+  "name": "admin-billing",
+  "size": "desktop",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/audit",
+  "name": "admin-audit",
+  "size": "desktop",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/dashboard",
+  "name": "dashboard-new-business",
+  "size": "desktop",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards",
+  "name": "cards-empty",
+  "size": "desktop",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews",
+  "name": "reviews-empty",
+  "size": "desktop",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/onboarding",
+  "name": "onboarding",
+  "size": "desktop",
+  "who": "onboarding",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/",
+  "name": "home",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/pricing",
+  "name": "pricing",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/login",
+  "name": "login",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/register",
+  "name": "register",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/forgot-password",
+  "name": "forgot-password",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reset-password?token=demo",
+  "name": "reset-password",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/verify-email?token=demo",
+  "name": "verify-email",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": [
+   "console: Failed to load resource: the server responded with a status of 422 (Unprocessable Content)"
+  ]
+ },
+ {
+  "route": "/accept-invite?token=demo",
+  "name": "accept-invite",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/c/-SWAbkMWV8rj1_3F1O0t6UWR",
+  "name": "card-public",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/c/not-a-real-token",
+  "name": "card-public-not-found",
+  "size": "desktop",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/dashboard",
+  "name": "dashboard",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews",
+  "name": "reviews",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews/f00a15d7-589e-4f96-ae8d-1f180c6d45f6",
+  "name": "review-detail",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards",
+  "name": "cards",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards/61abfd79-9182-43cc-8f96-886a97a81ea0",
+  "name": "card-detail",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards/analytics",
+  "name": "card-analytics",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/analytics",
+  "name": "analytics",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/locations",
+  "name": "locations",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/google",
+  "name": "google",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/profile",
+  "name": "google-profile",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": [
+   "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ]
+ },
+ {
+  "route": "/subscription",
+  "name": "subscription",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/payments",
+  "name": "payments",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/staff",
+  "name": "staff",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/settings",
+  "name": "settings",
+  "size": "tablet",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin",
+  "name": "admin",
+  "size": "tablet",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/customers",
+  "name": "admin-customers",
+  "size": "tablet",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/customers/e4d404e4-29e0-4cf7-a6c1-69373c7b6e01",
+  "name": "admin-customer-detail",
+  "size": "tablet",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/cards",
+  "name": "admin-cards",
+  "size": "tablet",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/billing",
+  "name": "admin-billing",
+  "size": "tablet",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/audit",
+  "name": "admin-audit",
+  "size": "tablet",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/dashboard",
+  "name": "dashboard-new-business",
+  "size": "tablet",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards",
+  "name": "cards-empty",
+  "size": "tablet",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews",
+  "name": "reviews-empty",
+  "size": "tablet",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/onboarding",
+  "name": "onboarding",
+  "size": "tablet",
+  "who": "onboarding",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/",
+  "name": "home",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/pricing",
+  "name": "pricing",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/login",
+  "name": "login",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/register",
+  "name": "register",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/forgot-password",
+  "name": "forgot-password",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reset-password?token=demo",
+  "name": "reset-password",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/verify-email?token=demo",
+  "name": "verify-email",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": [
+   "console: Failed to load resource: the server responded with a status of 422 (Unprocessable Content)"
+  ]
+ },
+ {
+  "route": "/accept-invite?token=demo",
+  "name": "accept-invite",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/c/-SWAbkMWV8rj1_3F1O0t6UWR",
+  "name": "card-public",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/c/not-a-real-token",
+  "name": "card-public-not-found",
+  "size": "tablet",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/dashboard",
+  "name": "dashboard",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews",
+  "name": "reviews",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [
+   "button 32x44"
+  ],
+  "problems": []
+ },
+ {
+  "route": "/reviews/f00a15d7-589e-4f96-ae8d-1f180c6d45f6",
+  "name": "review-detail",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards",
+  "name": "cards",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards/61abfd79-9182-43cc-8f96-886a97a81ea0",
+  "name": "card-detail",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards/analytics",
+  "name": "card-analytics",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/analytics",
+  "name": "analytics",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/locations",
+  "name": "locations",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/google",
+  "name": "google",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [
+   "input 18x18",
+   "input 18x18",
+   "input 18x18"
+  ],
+  "problems": []
+ },
+ {
+  "route": "/profile",
+  "name": "google-profile",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": [
+   "console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ]
+ },
+ {
+  "route": "/subscription",
+  "name": "subscription",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/payments",
+  "name": "payments",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/staff",
+  "name": "staff",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/settings",
+  "name": "settings",
+  "size": "mobile",
+  "who": "owner",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin",
+  "name": "admin",
+  "size": "mobile",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/customers",
+  "name": "admin-customers",
+  "size": "mobile",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/customers/e4d404e4-29e0-4cf7-a6c1-69373c7b6e01",
+  "name": "admin-customer-detail",
+  "size": "mobile",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/cards",
+  "name": "admin-cards",
+  "size": "mobile",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/billing",
+  "name": "admin-billing",
+  "size": "mobile",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/admin/audit",
+  "name": "admin-audit",
+  "size": "mobile",
+  "who": "admin",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/dashboard",
+  "name": "dashboard-new-business",
+  "size": "mobile",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/cards",
+  "name": "cards-empty",
+  "size": "mobile",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reviews",
+  "name": "reviews-empty",
+  "size": "mobile",
+  "who": "fresh",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [
+   "button 32x44"
+  ],
+  "problems": []
+ },
+ {
+  "route": "/onboarding",
+  "name": "onboarding",
+  "size": "mobile",
+  "who": "onboarding",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/",
+  "name": "home",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/pricing",
+  "name": "pricing",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/login",
+  "name": "login",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/register",
+  "name": "register",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/forgot-password",
+  "name": "forgot-password",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/reset-password?token=demo",
+  "name": "reset-password",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/verify-email?token=demo",
+  "name": "verify-email",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": [
+   "console: Failed to load resource: the server responded with a status of 422 (Unprocessable Content)"
+  ]
+ },
+ {
+  "route": "/accept-invite?token=demo",
+  "name": "accept-invite",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/c/-SWAbkMWV8rj1_3F1O0t6UWR",
+  "name": "card-public",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ },
+ {
+  "route": "/c/not-a-real-token",
+  "name": "card-public-not-found",
+  "size": "mobile",
+  "who": "anon",
+  "overflow": 0,
+  "unnamed": [],
+  "small": [],
+  "problems": []
+ }
+]

@@ -15,5 +15,6 @@ celery_app.conf.update(
         },
         "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
         "retry-failed-replies": {"task": "flowqr.retry_failed_replies", "schedule": 900.0},
+        "purge-review-sessions": {"task": "flowqr.purge_review_sessions", "schedule": 86400.0},
     },
 )

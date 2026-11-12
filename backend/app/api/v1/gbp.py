@@ -8,13 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 
 from app.core.deps import TenantContext, get_tenant_context, require_role
-from app.core.rate_limit import client_ip
+from app.core.rate_limit import client_ip, hit
 from app.models import GoogleConnection, GoogleConnectionStatus, GoogleLocation, Role
 from app.schemas.gbp import LocationInfoUpdate, MediaIn, PostIn
 from app.services import entitlements as ent
 from app.services import google as g
 from app.services.audit import audit
 from app.services.google.provider import PERFORMANCE_METRICS
+from app.services.google import tokens
 from app.services.google.tokens import get_access_token
 
 log = logging.getLogger("flowqr.gbp")
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/gbp/{google_location_id}", tags=["google-business-pr
 
 def _gloc(ctx: TenantContext, gid: uuid.UUID) -> tuple[GoogleLocation, GoogleConnection]:
     gl = ctx.db.scalar(select(GoogleLocation).where(GoogleLocation.id == gid, GoogleLocation.tenant_id == ctx.tenant_id))
-    if not gl or not gl.selected:
+    if not gl or not gl.selected or not ctx.can_access_location(gl.location_id):
         raise HTTPException(status_code=404, detail="Google location not found")
     conn = ctx.db.get(GoogleConnection, gl.connection_id)
     if not conn or conn.status != GoogleConnectionStatus.active:
@@ -37,6 +38,10 @@ def _call(ctx: TenantContext, conn: GoogleConnection, fn):
         provider = g.get_google_provider()
         token = get_access_token(ctx.db, conn, provider)
         return fn(provider, token)
+    except g.GoogleApiNotApproved as exc:
+        message = tokens.note_not_approved(conn, exc)
+        ctx.db.commit()
+        raise HTTPException(status_code=409, detail={"code": "google_api_" + conn.api_access, "message": message + " Nothing was changed."})
     except g.GoogleNotConfigured:
         raise HTTPException(status_code=503, detail={"code": "google_config_pending", "message": "Google integration is awaiting configuration."})
     except g.GoogleAuthRevoked:
@@ -45,10 +50,20 @@ def _call(ctx: TenantContext, conn: GoogleConnection, fn):
         raise HTTPException(status_code=429, detail="Google rate limit reached. Try again in a few minutes.")
     except g.GoogleAPIError as exc:
         if exc.status in (401, 403):
-            raise HTTPException(status_code=403, detail="Google denied this request. Business Profile API access or permissions may be missing.")
+            raise HTTPException(status_code=403, detail="Google denied this request. The connected Google account may not manage this "
+                                "location (or Business Profile is turned off for its Workspace organisation). Nothing was changed.")
+        if exc.status == 400:
+            raise HTTPException(status_code=422, detail=f"Google rejected this change: {str(exc)[:200]}")
         if exc.status == 404:
             raise HTTPException(status_code=404, detail="Google couldn't find this item.")
         raise HTTPException(status_code=502, detail=f"Google error ({exc.status}). Nothing was changed.")
+
+
+def _write_budget(gl: GoogleLocation) -> None:
+    """Google allows 10 edits per minute per Business Profile and will not raise it. Stop the 11th here instead of
+    spending a request to be told no."""
+    if not hit(f"gbp-edit:{gl.id}", 10, 60):
+        raise HTTPException(status_code=429, detail="Google allows 10 profile edits per minute per location. Try again in a minute.")
 
 
 def _need(ctx: TenantContext, feature: str) -> None:
@@ -72,6 +87,7 @@ def update_info(google_location_id: uuid.UUID, body: LocationInfoUpdate, request
         changes["hours"] = [h if isinstance(h, dict) else h.model_dump() for h in changes["hours"]]
     if not changes:
         raise HTTPException(status_code=422, detail="Nothing to update")
+    _write_budget(gl)
     result = _call(ctx, conn, lambda p, t: p.update_location(t, gl.google_location_name, changes))
     audit(ctx.db, action="gbp.update_info", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="google_location",
           entity_id=gl.id, meta={"fields": sorted(changes)}, ip=client_ip(request))
@@ -99,11 +115,29 @@ def list_posts(google_location_id: uuid.UUID, ctx: TenantContext = Depends(get_t
 def create_post(google_location_id: uuid.UUID, body: PostIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     _need(ctx, "gbp_posts")
     gl, conn = _gloc(ctx, google_location_id)
+    _write_budget(gl)
     created = _call(ctx, conn, lambda p, t: p.create_post(t, gl.google_account_name, gl.google_location_name, body.model_dump()))
     audit(ctx.db, action="gbp.post_create", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="google_location",
           entity_id=gl.id, meta={"post": created.get("name"), "chars": len(body.summary)}, ip=client_ip(request))
     ctx.db.commit()
     return created
+
+
+@router.patch("/posts")
+def update_post(google_location_id: uuid.UUID, body: PostIn, request: Request, name: str = Query(max_length=300),
+                ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Edit an existing post (summary and button). The response is what Google returned, not what we sent."""
+    _need(ctx, "gbp_posts")
+    gl, conn = _gloc(ctx, google_location_id)
+    if not name.startswith(f"{gl.google_account_name}/{gl.google_location_name}/localPosts/"):
+        raise HTTPException(status_code=404, detail="Post not found for this location")
+    payload = {"summary": body.summary, "cta_type": body.cta_type, "cta_url": body.cta_url}
+    _write_budget(gl)
+    updated = _call(ctx, conn, lambda p, t: p.update_post(t, name, payload))
+    audit(ctx.db, action="gbp.post_update", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="google_location",
+          entity_id=gl.id, meta={"post": name, "chars": len(body.summary)}, ip=client_ip(request))
+    ctx.db.commit()
+    return updated
 
 
 @router.delete("/posts", status_code=204)
@@ -113,6 +147,7 @@ def delete_post(google_location_id: uuid.UUID, name: str = Query(max_length=300)
     gl, conn = _gloc(ctx, google_location_id)
     if not name.startswith(f"{gl.google_account_name}/{gl.google_location_name}/localPosts/"):
         raise HTTPException(status_code=404, detail="Post not found for this location")  # can't delete other locations' posts
+    _write_budget(gl)
     _call(ctx, conn, lambda p, t: p.delete_post(t, name))
     audit(ctx.db, action="gbp.post_delete", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="google_location", entity_id=gl.id, meta={"post": name})
     ctx.db.commit()
@@ -130,6 +165,7 @@ def list_media(google_location_id: uuid.UUID, ctx: TenantContext = Depends(get_t
 def add_media(google_location_id: uuid.UUID, body: MediaIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     _need(ctx, "gbp_media")
     gl, conn = _gloc(ctx, google_location_id)
+    _write_budget(gl)
     created = _call(ctx, conn, lambda p, t: p.add_media(t, gl.google_account_name, gl.google_location_name, body.source_url, body.category))
     audit(ctx.db, action="gbp.media_add", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="google_location",
           entity_id=gl.id, meta={"category": body.category}, ip=client_ip(request))
@@ -143,6 +179,7 @@ def delete_media(google_location_id: uuid.UUID, name: str = Query(max_length=300
     gl, conn = _gloc(ctx, google_location_id)
     if not name.startswith(f"{gl.google_account_name}/{gl.google_location_name}/media/"):
         raise HTTPException(status_code=404, detail="Photo not found for this location")
+    _write_budget(gl)
     _call(ctx, conn, lambda p, t: p.delete_media(t, name))
     audit(ctx.db, action="gbp.media_delete", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="google_location", entity_id=gl.id, meta={"media": name})
     ctx.db.commit()

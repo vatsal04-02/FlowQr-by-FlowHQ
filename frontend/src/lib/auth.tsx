@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
-  const isPublicCard = pathname.startsWith("/c/"); // customers on a QR/NFC landing page never need the session
+  const isPublicCard = pathname.startsWith("/c/") || pathname.startsWith("/r/"); // customers on a QR/NFC or campaign landing page never need the session
 
   const refresh = useCallback(async () => {
     try {

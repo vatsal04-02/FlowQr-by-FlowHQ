@@ -47,6 +47,18 @@ def billing_refresh():
         db.close()
 
 
+@celery_app.task(name="flowqr.purge_review_sessions")
+def purge_review_sessions():
+    """Delete customer answers and drafts past the retention period (analytics events are kept; they hold no text)."""
+    from app.services.review_growth import purge_expired
+
+    db = system_session()
+    try:
+        return {"purged": purge_expired(db)}
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.retry_failed_replies")
 def retry_failed_replies():
     """Re-attempt replies that a human approved but Google rejected for a *transient* reason (429/5xx).
@@ -55,7 +67,8 @@ def retry_failed_replies():
     """
     from sqlalchemy import select
 
-    from app.models import ReplyDraft, ReplyLog, ReplyStatus, Review
+    from app.core.deps import member_may_act
+    from app.models import ReplyDraft, ReplyLog, ReplyStatus, Review, Role
     from app.services import entitlements as ent
     from app.services.reviews import publish_draft
 
@@ -70,7 +83,8 @@ def retry_failed_replies():
             last = db.scalar(select(ReplyLog).where(ReplyLog.draft_id == d.id).order_by(ReplyLog.created_at.desc()).limit(1))
             transient = last is not None and (last.http_status == 429 or (last.http_status or 0) >= 500)
             review = db.get(Review, d.review_id)
-            if not transient or review.google_reply_text is not None or not ent.for_tenant(db, d.tenant_id).active:
+            still_allowed = member_may_act(db, d.tenant_id, d.approved_by, review.location_id, Role.admin)
+            if not transient or review.google_reply_text is not None or not ent.for_tenant(db, d.tenant_id).active or not still_allowed:
                 db.rollback()
                 continue
             try:

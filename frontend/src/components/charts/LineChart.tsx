@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 export interface Series { key: string; label: string; color: string; dash?: string }
 type Point = { date: string; [k: string]: number | string };
@@ -27,8 +27,9 @@ function useWidth() {
  * Accessible SVG line chart: series differ by colour AND line style (never colour alone), has a legend,
  * a hover/keyboard tooltip (arrow keys) and a collapsible data table as the screen-reader fallback.
  */
-export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxProp }: { data: Point[]; series: Series[]; height?: number; ariaLabel: string; yMax?: number }) {
+export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxProp, gaps = false }: { data: Point[]; series: Series[]; height?: number; ariaLabel: string; yMax?: number; gaps?: boolean }) {
   const [ref, width] = useWidth();
+  const gid = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);
   const pad = { l: 36, r: 12, t: 12, b: 26 };
   const iw = width - pad.l - pad.r, ih = height - pad.t - pad.b;
@@ -45,6 +46,16 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
     setActive(Math.min(data.length - 1, Math.max(0, Math.round((rel / iw) * (data.length - 1)))));
   };
   const empty = data.length === 0 || series.every((s) => data.every((d) => !Number(d[s.key])));
+  // With `gaps`, a zero means "no data that day" (e.g. average rating), so the line breaks instead of plunging to 0.
+  const pathFor = (key: string) => {
+    let d = "", pen = false;
+    data.forEach((row, i) => {
+      const v = Number(row[key]) || 0;
+      if (gaps && v <= 0) { pen = false; return; }
+      d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)} `; pen = true;
+    });
+    return d.trim();
+  };
 
   return (
     <div>
@@ -65,20 +76,36 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
           }} onBlur={() => setActive(null)}>
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} stroke="#E2E8F0" strokeWidth="1" />
-              <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#64748B">{Number.isInteger(t) ? t : t.toFixed(1)}</text>
+              <line x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} stroke="#E6E8EB" strokeWidth="1" strokeDasharray="2 4" />
+              <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="12" fill="#6B717B">{Number.isInteger(t) ? t : t.toFixed(1)}</text>
             </g>
           ))}
           {data.map((d, i) => i % xStep === 0 && (
-            <text key={d.date} x={x(i)} y={height - 6} textAnchor="middle" fontSize="11" fill="#64748B">{label(d.date)}</text>
+            <text key={d.date} x={x(i)} y={height - 6} textAnchor="middle" fontSize="12" fill="#6B717B">{label(d.date)}</text>
           ))}
-          {series.map((s) => (
-            <path key={s.key} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash}
-              d={data.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(Number(d[s.key]) || 0).toFixed(1)}`).join(" ")} />
-          ))}
+          <defs>
+            {series.map((s) => (
+              <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={s.color} stopOpacity=".16" /><stop offset="100%" stopColor={s.color} stopOpacity="0" />
+              </linearGradient>
+            ))}
+          </defs>
+          {/* Keyed on the data so the left-to-right reveal replays when the range or location changes. */}
+          <g key={`${data.length}-${data[0]?.date}-${data[data.length - 1]?.date}`} style={{ animation: "chart-reveal .7s cubic-bezier(.22,1,.36,1) both" }}>
+            {series.length > 0 && data.length > 1 && !gaps && (
+              <path fill={`url(#${gid}-${series[0].key})`} stroke="none"
+                d={`${data.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(Number(d[series[0].key]) || 0).toFixed(1)}`).join(" ")} L${x(data.length - 1).toFixed(1)},${y(0)} L${x(0).toFixed(1)},${y(0)} Z`} />
+            )}
+            {series.map((s) => (
+              <g key={s.key}>
+                <path fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash} d={pathFor(s.key)} />
+                {gaps && data.map((d, i) => Number(d[s.key]) > 0 && <circle key={d.date} cx={x(i)} cy={y(Number(d[s.key]))} r="2.5" fill={s.color} />)}
+              </g>
+            ))}
+          </g>
           {active !== null && data[active] && (
             <g>
-              <line x1={x(active)} x2={x(active)} y1={pad.t} y2={pad.t + ih} stroke="#94A3B8" strokeDasharray="3 3" />
+              <line x1={x(active)} x2={x(active)} y1={pad.t} y2={pad.t + ih} stroke="#8B919A" strokeDasharray="3 3" />
               {series.map((s) => <circle key={s.key} cx={x(active)} cy={y(Number(data[active][s.key]) || 0)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.5" />)}
             </g>
           )}

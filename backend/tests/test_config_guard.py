@@ -65,7 +65,7 @@ def test_application_code_contains_no_mock_integrations():
     """Fakes live in tests/ only. Nothing in app/ may define or import a mock/stub/fake integration."""
     root = pathlib.Path(__file__).resolve().parent.parent / "app"
     bad = re.compile(r"class\s+(Fake|Stub|Mock)\w*|unittest\.mock|MagicMock|from tests|import tests", re.I)
-    offenders = [str(f.relative_to(root)) for f in root.rglob("*.py") if bad.search(f.read_text())]
+    offenders = [str(f.relative_to(root)) for f in root.rglob("*.py") if bad.search(f.read_text(encoding="utf-8"))]
     assert offenders == []
 
 

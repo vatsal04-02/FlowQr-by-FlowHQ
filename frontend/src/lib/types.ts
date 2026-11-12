@@ -6,7 +6,7 @@ export interface Tenant {
   logo_url: string | null; brand_tone: string | null; ai_instructions: string | null; onboarding_completed: boolean;
   suspended_at: string | null; suspension_reason: string | null; support_status: string;
 }
-export interface User { id: string; email: string; full_name: string; phone: string | null; is_platform_admin: boolean; email_verified_at: string | null }
+export interface User { id: string; email: string; full_name: string; phone: string | null; is_platform_admin: boolean; email_verified_at: string | null; has_local_login: boolean; google_linked: boolean }
 export interface Me {
   user: User; memberships: { tenant: Tenant; role: Role }[]; active_tenant_id: string | null; csrf_token: string;
   integrations: { google_configured: boolean; ai_configured: boolean; public_card_base_url: string };
@@ -15,14 +15,14 @@ export interface Location {
   id: string; name: string; address_line: string | null; city: string | null; state: string | null; postal_code: string | null;
   phone: string | null; review_url: string | null; review_url_source: string; is_active: boolean;
 }
-export type CardStatus = "unassigned" | "assigned" | "active" | "deactivated" | "lost";
+export type CardStatus = "unassigned" | "assigned" | "active" | "deactivated" | "lost" | "paused";
 export interface Card {
   id: string; card_code: string; status: CardStatus; batch_id: string | null; tenant_id: string | null; location_id: string | null;
   label: string | null; assigned_at: string | null; url: string; public_token?: string | null; tenant_name: string | null;
-  location_name: string | null; stats: Record<string, number>;
+  location_name: string | null; stats: Record<string, number>; last_scan_at?: string | null;
 }
 export interface Batch { id: string; name: string; prefix: string; quantity: number; created_at: string; notes: string | null }
-export interface GoogleConnection { id: string; google_email: string | null; status: string; last_error: string | null; connected_at: string | null }
+export interface GoogleConnection { id: string; google_email: string | null; status: string; last_error: string | null; connected_at: string | null; api_access?: "unknown" | "approved" | "awaiting_approval" | "api_disabled"; api_access_checked_at?: string | null }
 export interface GoogleLocation {
   id: string; connection_id: string; location_id: string | null; google_account_name: string; google_location_name: string;
   title: string | null; address: string | null; selected: boolean; last_synced_at: string | null; last_sync_status: string | null; last_sync_error: string | null;
@@ -35,7 +35,7 @@ export interface Draft {
 export interface Review {
   id: string; location_id: string | null; location_name: string | null; rating: number; text: string | null; reviewer_name: string | null;
   review_created_at: string; review_updated_at: string | null; update_count: number; google_reply_text: string | null;
-  google_reply_at: string | null; reply_state: "none" | "draft" | "approved" | "published" | "failed"; sensitive_reasons: string[]; latest_draft: Draft | null;
+  google_reply_at: string | null; google_reply_state?: "PENDING" | "APPROVED" | "REJECTED" | null; reply_state: "none" | "draft" | "approved" | "published" | "failed"; sensitive_reasons: string[]; latest_draft: Draft | null;
 }
 export interface ReviewLog { id: string; draft_id: string | null; action: string; success: boolean; http_status: number | null; error: string | null; created_at: string }
 export interface SeriesPoint { date: string; [k: string]: number | string }
@@ -72,3 +72,13 @@ export interface Insights {
   topics: { topic: string; label: string; mentions: number; positive: number; neutral: number; negative: number; avg_rating: number; previous_mentions: number; sample: string | null }[];
   method: string; range: { from: string; to: string };
 }
+
+/** How a QR code is drawn. It never changes what the code encodes. Mirrors backend/app/schemas/qr.py. */
+export interface QRStyle {
+  dark: string; light: string; margin: number; error_correction: "L" | "M" | "Q" | "H"; size_px: number;
+  use_logo: boolean; logo_scale: number; caption: string | null;
+}
+export interface QRStyleInfo { style: QRStyle; has_logo: boolean; is_default: boolean; verification: "decoded" | "rules_only" }
+export const DEFAULT_QR_STYLE: QRStyle = { dark: "#111827", light: "#FFFFFF", margin: 4, error_correction: "H", size_px: 1024, use_logo: false, logo_scale: 0.2, caption: null };
+export interface StaffMember { user_id: string; email: string; full_name: string; role: Role; all_locations: boolean; location_ids: string[] }
+export interface StaffInvitation { id: string; email: string; role: Role; expires_at: string; location_ids?: string[] | null }

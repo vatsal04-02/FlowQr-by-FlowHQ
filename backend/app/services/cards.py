@@ -2,6 +2,7 @@ import hashlib
 import re
 import secrets
 import uuid
+from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import func, select, text
@@ -32,8 +33,23 @@ def visitor_hash(ip: str, user_agent: str | None) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+
+
 def new_public_token() -> str:
-    return secrets.token_urlsafe(18)  # 144 bits of entropy, 24 chars
+    return secrets.token_urlsafe(18)  # 144 bits from the OS CSPRNG, 24 URL-safe chars
+
+
+def new_public_tokens(db: Session, count: int) -> list[str]:
+    """`count` tokens that are distinct from each other AND from every token already issued. A collision between random
+    144-bit values is not expected in the lifetime of the universe; this makes "not expected" into "cannot happen", and the
+    UNIQUE constraint on qr_cards.public_token still backs it at the database."""
+    tokens: set[str] = set()
+    while len(tokens) < count:
+        fresh = {new_public_token() for _ in range(count - len(tokens))} - tokens
+        taken = set(db.scalars(select(QRCard.public_token).where(QRCard.public_token.in_(fresh))))
+        tokens |= fresh - taken
+    return list(tokens)
 
 
 def create_batch(db: Session, *, name: str, quantity: int, prefix: str, created_by: uuid.UUID, notes: str | None) -> CardBatch:
@@ -42,8 +58,8 @@ def create_batch(db: Session, *, name: str, quantity: int, prefix: str, created_
     db.add(batch)
     db.flush()
     nums = db.scalars(text("SELECT nextval('card_code_seq') FROM generate_series(1, :n)"), {"n": quantity}).all()
-    for n in nums:
-        db.add(QRCard(card_code=f"{prefix}-{n:04d}", public_token=new_public_token(), batch_id=batch.id,
+    for n, token in zip(nums, new_public_tokens(db, len(nums))):
+        db.add(QRCard(card_code=f"{prefix}-{n:04d}", public_token=token, batch_id=batch.id,
                       status=CardStatus.unassigned))
     try:
         db.flush()
@@ -57,6 +73,9 @@ def assign_card(db: Session, card: QRCard, *, tenant: Tenant, location: Location
     """Point a card at a tenant location, preserving history. Caller commits."""
     if location.tenant_id != tenant.id:
         raise HTTPException(status_code=400, detail="Location does not belong to this business")
+    if not location.is_active:
+        # Pointing a printed card at a deactivated location would make it show "no longer active": refuse instead of breaking it.
+        raise HTTPException(status_code=400, detail="This location is deactivated. Reactivate it first, or choose another location, so the card keeps working.")
     now = utcnow()
     if card.tenant_id:
         close_open_assignment(db, card)
@@ -99,6 +118,18 @@ def record_event(db: Session, card: QRCard | None, event_type: ScanEventType, *,
     return ev
 
 
+def card_last_scans(db: Session, card_ids: list[uuid.UUID]) -> dict[uuid.UUID, datetime]:
+    """Most recent human scan per card (cards never scanned are absent)."""
+    if not card_ids:
+        return {}
+    rows = db.execute(
+        select(ScanEvent.card_id, func.max(ScanEvent.created_at))
+        .where(ScanEvent.card_id.in_(card_ids), ScanEvent.event_type == ScanEventType.scan, ScanEvent.is_bot.is_(False))
+        .group_by(ScanEvent.card_id)
+    ).all()
+    return {cid: ts for cid, ts in rows}
+
+
 def card_scan_counts(db: Session, card_ids: list[uuid.UUID]) -> dict[uuid.UUID, dict[str, int]]:
     if not card_ids:
         return {}
@@ -110,4 +141,13 @@ def card_scan_counts(db: Session, card_ids: list[uuid.UUID]) -> dict[uuid.UUID, 
     out: dict[uuid.UUID, dict[str, int]] = {cid: {} for cid in card_ids}
     for cid, et, n in rows:
         out[cid][et.value] = n
+    # Unique scans: distinct visitors among human scans. The visitor hash is salted per day and not reversible, so this
+    # counts "different devices per day" - the same phone on two days counts twice, by design (no cross-day tracking).
+    uniq = db.execute(
+        select(ScanEvent.card_id, func.count(func.distinct(ScanEvent.visitor_hash)))
+        .where(ScanEvent.card_id.in_(card_ids), ScanEvent.is_bot.is_(False), ScanEvent.event_type == ScanEventType.scan)
+        .group_by(ScanEvent.card_id)
+    ).all()
+    for cid, n in uniq:
+        out[cid]["unique_scan"] = n
     return out

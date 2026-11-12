@@ -1,8 +1,9 @@
 """AI logs, subscriptions, audit logs."""
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +26,13 @@ class AIGenerationLog(IdMixin, Base):
     language: Mapped[str | None] = mapped_column(String(16))
     input_chars: Mapped[int] = mapped_column(Integer, default=0)
     output_chars: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)  # as reported by the provider (NULL when it reports none)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    model_calls: Mapped[int | None] = mapped_column(Integer)  # provider calls made for this one customer request (writes + fact-checks)
+    attempts: Mapped[int | None] = mapped_column(Integer)  # write attempts (1 = no retry needed)
+    rejects_rules: Mapped[int | None] = mapped_column(Integer)  # attempts rejected by the deterministic checks
+    rejects_factcheck: Mapped[int | None] = mapped_column(Integer)  # attempts rejected by the AI fact-check
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))  # as reported by the provider (OpenRouter), NULL otherwise
     status: Mapped[str] = mapped_column(String(16))  # ok | error | rejected
     error: Mapped[str | None] = mapped_column(Text)
     latency_ms: Mapped[int | None] = mapped_column(Integer)

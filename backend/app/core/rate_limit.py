@@ -69,3 +69,10 @@ def limit_by_ip(scope: str, limit: int, window_seconds: int):
             raise HTTPException(status_code=429, detail="Too many requests. Please slow down.")
 
     return dependency
+
+
+def note_miss(request: Request, scope: str = "scan") -> None:
+    """Call when a public code lookup found nothing. A real customer mistypes rarely; a script guessing codes misses
+    constantly, so repeated misses from one address are cut off (on top of the per-minute request limit)."""
+    if not hit(f"{scope}-miss:{client_ip(request)}", 30, 300):
+        raise HTTPException(status_code=429, detail="Too many requests. Please slow down.")

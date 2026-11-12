@@ -10,7 +10,10 @@ argon2-cffi==23.1.0
 cryptography>=43
 segno==1.6.1
 pillow>=10.4
-redis==5.2.1
+redis==6.2.0
 celery==5.4.0
 httpx==0.28.1
+PyJWT==2.10.1  # verifies Google ID tokens (RS256) for Continue with Google; uses the existing cryptography package
 tzdata
+packaging
+zxing-cpp>=2.2  # decodes rendered QR codes to prove a customised style still scans (services/qr_style.py)

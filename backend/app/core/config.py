@@ -39,12 +39,42 @@ class Settings(BaseSettings):
     google_scopes: str = "https://www.googleapis.com/auth/business.manage"
     review_sync_interval_minutes: int = 30
 
+    # "Continue with Google" sign-in. A SEPARATE OAuth client from the Business Profile one above: it only ever
+    # requests openid/email/profile (no Google verification review) and shares no credentials, scopes or tokens.
+    google_login_client_id: str = ""
+    google_login_client_secret: str = ""
+    google_login_redirect_uri: str = "http://localhost:3000/api/v1/auth/google/callback"
+
     # AI
     ai_provider: str = "gemini"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash"  # gemini-2.5-flash is closed to new API keys
+    gemini_thinking_level: str = "minimal"  # "" to omit (models that do not support thinking levels reject the field)
+    # OpenRouter (AI_PROVIDER=openrouter). The key is server-side only. Pick the model by its OpenRouter id.
+    openrouter_api_key: str = ""
+    openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    # Any OpenAI-compatible endpoint (AI_PROVIDER=openai_compat), e.g. Groq https://api.groq.com/openai/v1, Mistral https://api.mistral.ai/v1. Server-side key only.
+    # Free tiers are fine for development and tests; use a paid plan for real customers (limits and data terms change).
+    openai_compat_base_url: str = ""
+    openai_compat_api_key: str = ""
+    openai_compat_model: str = ""
+    openai_compat_name: str = "openai_compat"  # label shown in logs and the dashboard
+    # Optional PEM file of EXTRA trusted roots for the AI client (a proxy/antivirus that re-signs HTTPS). Adds to, never replaces, normal verification.
+    ai_extra_ca_bundle: str = ""
+    openrouter_disable_reasoning: bool = True  # skip hidden chain-of-thought: faster, cheaper, and no null replies from reasoning models
     ai_timeout_seconds: int = 25
     public_ai_max_input_chars: int = 1200
+
+    # Review Growth (QR campaigns + AI review drafts)
+    review_session_retention_days: int = 90  # customer answers/drafts are deleted after this; aggregate analytics are kept
+    review_max_drafts_per_session: int = 5  # 1 generation + 4 regenerations
+    review_max_refinements: int = 15  # times a customer can change stars/topics and have the draft rewritten in one session (the page does this automatically)
+    # Direct submission to Google from inside FlowQR. NOT AVAILABLE: needs Google partner/API approval that is not publicly obtainable (docs/GOOGLE_DIRECT_REVIEWS.md).
+    # Even "approved" does nothing until a real, verified implementation is registered in services/review_submit/google_direct.py.
+    google_direct_submission: str = "off"
+    review_max_attempts: int = 3  # write -> check -> (told what was wrong) rewrite. Cheap, and only costs latency when a draft fails its checks
+    review_verify_with_ai: bool = True  # second AI pass that fact-checks each draft against the customer's answers (fails closed)
+    rl_review_generate_per_10min: int = 20  # per visitor IP per campaign. Generous on purpose: a waiting-room Wi-Fi puts many customers behind ONE IP
 
     # Rate limits (requests per window)
     rate_limit_enabled: bool = True
@@ -99,6 +129,10 @@ class Settings(BaseSettings):
         return bool(self.google_client_id and self.google_client_secret)
 
     @property
+    def google_login_configured(self) -> bool:
+        return bool(self.google_login_client_id and self.google_login_client_secret)
+
+    @property
     def razorpay_configured(self) -> bool:
         return bool(self.razorpay_key_id and self.razorpay_key_secret)
 
@@ -110,6 +144,10 @@ class Settings(BaseSettings):
 
     @property
     def ai_configured(self) -> bool:
+        if self.ai_provider == "openrouter":
+            return bool(self.openrouter_api_key and self.openrouter_model)
+        if self.ai_provider == "openai_compat":
+            return bool(self.openai_compat_base_url and self.openai_compat_api_key and self.openai_compat_model)
         return self.ai_provider == "gemini" and bool(self.gemini_api_key)
 
 
@@ -176,6 +214,14 @@ def config_problems(s: Settings) -> list[str]:
         why = _bad_host(s.google_redirect_uri)
         if why:
             p.append(f"GOOGLE_REDIRECT_URI {why}")
+    if s.google_login_client_id or s.google_login_client_secret:
+        if not s.google_login_configured:
+            p.append("GOOGLE_LOGIN_CLIENT_ID and GOOGLE_LOGIN_CLIENT_SECRET must both be set")
+        why = _bad_host(s.google_login_redirect_uri)
+        if why:
+            p.append(f"GOOGLE_LOGIN_REDIRECT_URI {why}")
+        if s.google_login_client_id and s.google_login_client_id == s.google_client_id:
+            p.append("GOOGLE_LOGIN_CLIENT_ID must be a separate OAuth client from GOOGLE_CLIENT_ID (Business Profile)")
     for o in s.cors_origin_list:
         why = _bad_host(o)
         if why:

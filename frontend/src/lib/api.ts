@@ -32,7 +32,7 @@ function csrfToken(): string | undefined {
   return document.cookie.split("; ").find((c) => c.startsWith("flowqr_csrf="))?.split("=")[1];
 }
 
-type Opts = { method?: string; body?: unknown; headers?: Record<string, string>; params?: Record<string, string | number | undefined | null>; signal?: AbortSignal };
+type Opts = { method?: string; body?: unknown; raw?: Blob; headers?: Record<string, string>; params?: Record<string, string | number | undefined | null>; signal?: AbortSignal; keepalive?: boolean };
 
 export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
   const method = opts.method ?? "GET";
@@ -40,7 +40,8 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
     ? "?" + new URLSearchParams(Object.entries(opts.params).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [k, String(v)])).toString()
     : "";
   const headers: Record<string, string> = { ...(opts.headers ?? {}) };
-  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  if (opts.raw) headers["Content-Type"] = opts.raw.type || "application/octet-stream";
+  else if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET") {
     const t = csrfToken();
     if (t) headers["X-CSRF-Token"] = t;
@@ -48,8 +49,8 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
   let res: Response;
   try {
     res = await fetch(`/api/v1${path}${qs === "?" ? "" : qs}`, {
-      method, headers, credentials: "include", signal: opts.signal,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      method, headers, credentials: "include", signal: opts.signal, keepalive: opts.keepalive,
+      body: opts.raw ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
     });
   } catch {
     throw new ApiError(0, "Can't reach FlowQR right now. Check your connection and try again.");
@@ -66,3 +67,32 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
 }
 
 export const errorMessage = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong. Please try again.");
+
+/** For endpoints that answer with a file (QR previews, bulk ZIPs). Failures are still JSON and become the same ApiError as api(). */
+export async function apiFile(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<{ blob: Blob; headers: Headers }> {
+  const method = opts.method ?? "GET";
+  const headers: Record<string, string> = {};
+  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  if (method !== "GET") { const t = csrfToken(); if (t) headers["X-CSRF-Token"] = t; }
+  let res: Response;
+  try {
+    res = await fetch(`/api/v1${path}`, { method, headers, credentials: "include", signal: opts.signal, body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError(0, "Can't reach FlowQR right now. Check your connection and try again.");
+  }
+  if (!res.ok) {
+    let detail: unknown = "Something went wrong. Please try again.";
+    try { detail = ((await res.json()) as { detail?: unknown }).detail ?? detail; } catch { /* not JSON */ }
+    throw new ApiError(res.status, detail);
+  }
+  return { blob: await res.blob(), headers: res.headers };
+}
+
+export function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}

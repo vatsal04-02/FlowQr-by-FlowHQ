@@ -27,7 +27,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-ink-50">
       <header className="sticky top-0 z-30 bg-ink text-white">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2.5 sm:px-6">
-          <Link href="/admin" className="flex items-center gap-2.5 rounded-lg" aria-label="Platform admin home"><LogoMark size={28} /><span className="font-display font-semibold">FlowQR <span className="text-flow-400">Admin</span></span></Link>
+          <Link href="/admin" className="flex items-center gap-2.5 rounded-lg" aria-label="Platform admin home"><LogoMark size={28} /><span className="font-display font-semibold">FlowQR <span className="text-ink-200">Admin</span></span></Link>
           <span className="hidden items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-semibold sm:inline-flex"><ShieldCheck className="h-3.5 w-3.5" aria-hidden />FlowHQ staff</span>
           <nav aria-label="Admin" className="ml-2 hidden flex-1 gap-1 lg:flex">
             {NAV.map((n) => <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined} className={clsx("inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold", active(n.href) ? "bg-white/15" : "text-ink-200 hover:bg-white/10")}><n.icon className="h-4 w-4" aria-hidden />{n.label}</Link>)}

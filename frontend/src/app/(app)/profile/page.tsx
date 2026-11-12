@@ -1,10 +1,11 @@
 "use client";
-import { ImagePlus, Lock, Megaphone, Plus, Trash2 } from "lucide-react";
+import { ImagePlus, Lock, Megaphone, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { LineChart } from "@/components/charts/LineChart";
 import { DateRange, presetRange } from "@/components/DateRange";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton, Stat } from "@/components/ui/Card";
+import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Panel } from "@/components/ui/kit";
 import { ErrorSummary, Input, Select, Textarea } from "@/components/ui/Form";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -17,8 +18,14 @@ const DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"
 const TABS = [["info", "Business info"], ["posts", "Posts"], ["media", "Photos"], ["performance", "Performance"]] as const;
 type Tab = (typeof TABS)[number][0];
 
+/** Why a profile tool isn't available: plan limit, server not configured for Google yet, or a real failure. */
 function Gate({ error }: { error: string }) {
   const upgrade = /plan|subscription/i.test(error);
+  const pending = /awaiting configuration|not configured|configuration pending/i.test(error);
+  if (/hasn.t approved FlowQR|awaiting .*approval/i.test(error)) return <Alert tone="warning" title="Awaiting Google approval">Google hasn&rsquo;t granted FlowQR Business Profile API access yet, so this tool is unavailable and nothing was changed. Your QR/NFC cards, review links and AI writing assistant keep working.</Alert>;
+  if (/not enabled on FlowQR/i.test(error)) return <Alert tone="warning" title="A Google API is switched off for FlowQR">{error} Contact FlowQR support; this is fixed on FlowQR&rsquo;s side.</Alert>;
+  if (/10 profile edits per minute/i.test(error)) return <Alert tone="warning" title="Slow down a little">{error}</Alert>;
+  if (pending) return <Alert tone="warning" title="Configuration pending">Google Business Profile tools need Google API access, which isn&rsquo;t configured on this server yet. Your QR/NFC cards, review links and AI writing assistant work without it.</Alert>;
   return <Alert tone={upgrade ? "info" : "error"} title={upgrade ? "Not included in your plan" : "Couldn't load from Google"} action={upgrade ? <LinkButton href="/subscription" size="sm" variant="secondary">View plans</LinkButton> : undefined}>{error}</Alert>;
 }
 
@@ -33,7 +40,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="Google Business Profile" subtitle="Update what customers see on Google. Changes go straight to your Google profile." />
+      <PageHeader eyebrow="Business" title="Google profile" subtitle="Update what customers see on Google. Changes go straight to your Google Business Profile." />
       {status.loading && !status.data ? <Skeleton className="h-40" /> : !active || (locs.data && selected.length === 0) ? (
         <EmptyState icon={<Lock className="h-6 w-6" />} title="Connect Google to manage your profile" action={<LinkButton href="/google">Go to Google connection</LinkButton>}>Profile tools need a connected Google Business Profile and at least one selected location.</EmptyState>
       ) : (
@@ -119,6 +126,12 @@ function PostsTab({ gid }: { gid: string }) {
   const toast = useToast();
   const { data, error, loading, reload } = useFetch<Post[]>(`/gbp/${gid}/posts`);
   const [busy, setBusy] = useState(false);
+  const [edit, setEdit] = useState<{ name: string; text: string } | null>(null);
+  async function saveEdit() {
+    if (!edit || edit.text.trim().length < 10) { toast("Write at least 10 characters", "error"); return; }
+    try { await api(`/gbp/${gid}/posts`, { method: "PATCH", params: { name: edit.name }, body: { summary: edit.text.trim() } }); toast("Post updated on Google."); setEdit(null); await reload(); }
+    catch (er) { toast(errorMessage(er), "error"); }
+  }
   const f = useForm({ summary: "", cta_type: "", cta_url: "", photo_url: "" }, {
     summary: (v) => (String(v).trim().length >= 10 ? undefined : "Write at least 10 characters"),
     cta_url: (v, all) => (all.cta_type && all.cta_type !== "CALL" && !String(v).startsWith("https://") ? "Buttons need an https:// link" : undefined),
@@ -146,7 +159,10 @@ function PostsTab({ gid }: { gid: string }) {
       <Card className={isAdmin ? "" : "lg:col-span-2"}><CardHeader title="Your posts on Google" />
         {loading && !data ? <Skeleton className="h-32" /> : data && data.length === 0 ? <p className="text-sm text-ink-500">No posts yet.</p> : (
           <ul className="divide-y divide-ink-100">{data?.map((p) => (
-            <li key={p.name} className="flex gap-3 py-3"><div className="min-w-0 flex-1"><p className="whitespace-pre-wrap text-sm">{p.summary}</p><p className="mt-1 flex gap-2 text-xs text-ink-500">{p.state && <Badge tone={p.state === "LIVE" ? "green" : "gray"}>{p.state.toLowerCase()}</Badge>}{p.cta_type && <span>button: {p.cta_type.toLowerCase().replace("_", " ")}</span>}</p></div>
+            <li key={p.name} className="flex gap-3 py-3"><div className="min-w-0 flex-1">{edit?.name === p.name
+                ? <div className="space-y-2"><Textarea label="Edit post" rows={4} maxLength={1500} value={edit.text} onChange={(e) => setEdit({ name: p.name, text: e.target.value })} /><div className="flex gap-2"><Button size="sm" onClick={() => void saveEdit()}>Save to Google</Button><Button size="sm" variant="secondary" onClick={() => setEdit(null)}>Cancel</Button></div></div>
+                : <p className="whitespace-pre-wrap text-sm">{p.summary}</p>}<p className="mt-1 flex gap-2 text-xs text-ink-500">{p.state && <Badge tone={p.state === "LIVE" ? "green" : "gray"}>{p.state.toLowerCase()}</Badge>}{p.cta_type && <span>button: {p.cta_type.toLowerCase().replace("_", " ")}</span>}</p></div>
+              {isAdmin && <Button variant="ghost" size="sm" aria-label="Edit post" icon={<Pencil className="h-4 w-4" />} onClick={() => setEdit({ name: p.name, text: p.summary })} />}
               {isAdmin && <Button variant="ghost" size="sm" aria-label="Delete post" icon={<Trash2 className="h-4 w-4 text-red-600" />} onClick={async () => { if (confirm("Delete this post from Google?")) { try { await api(`/gbp/${gid}/posts`, { method: "DELETE", params: { name: p.name } }); toast("Post deleted."); void reload(); } catch (e) { toast(errorMessage(e), "error"); } } }} />}</li>))}</ul>)}
       </Card>
     </div>
@@ -194,12 +210,12 @@ function PerfTab({ gid }: { gid: string }) {
     <>
       <div className="mb-4"><DateRange value={range} onChange={setRange} /></div>
       {loading && !data ? <Skeleton className="h-60" /> : data && (<>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Stat label="Profile views" value={impressions.toLocaleString("en-IN")} hint="Search + Maps impressions" />
-          {Object.entries(METRIC_LABELS).filter(([k]) => k in data.totals).slice(0, 3).map(([k, l]) => <Stat key={k} label={l} value={(data.totals[k] ?? 0).toLocaleString("en-IN")} tone="green" />)}
-        </div>
-        <Card className="mt-5"><CardHeader title="Actions on your Google profile" />
-          <LineChart ariaLabel="Calls, website clicks and direction requests per day" data={chart} series={[{ key: "calls", label: "Calls", color: "#34A853" }, { key: "website", label: "Website clicks", color: "#2F6FE4", dash: "6 4" }, { key: "directions", label: "Directions", color: "#F26B1D", dash: "2 4" }]} /></Card>
+        <dl className="panel grid grid-cols-2 divide-ink-100 overflow-hidden sm:grid-cols-4 sm:divide-x">
+          {[["Profile views", impressions, "Search + Maps impressions"], ...Object.entries(METRIC_LABELS).filter(([k]) => k in data.totals).slice(0, 3).map(([k, l]) => [l, data.totals[k] ?? 0, ""] as [string, number, string])].map(([k, v, h]) => (
+            <div key={k as string} className="border-b border-ink-100 px-4 py-3 sm:border-b-0"><dt className="text-xs font-medium text-ink-500">{k as string}</dt><dd className="num mt-1 text-2xl font-bold leading-none tracking-tight">{(v as number).toLocaleString("en-IN")}</dd>{h && <p className="mt-1.5 text-xs text-ink-500">{h as string}</p>}</div>))}
+        </dl>
+        <Panel className="mt-4" title="Actions on your Google profile">
+          <LineChart ariaLabel="Calls, website clicks and direction requests per day" data={chart} series={[{ key: "calls", label: "Calls", color: "#0A7D6B" }, { key: "website", label: "Website clicks", color: "#1B46B8", dash: "6 4" }, { key: "directions", label: "Directions", color: "#57554F", dash: "2 4" }]} /></Panel>
         <p className="mt-3 text-xs text-ink-500">{data.note}</p></>)}
     </>
   );

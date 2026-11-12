@@ -37,6 +37,13 @@ class FakeGbpProvider(FakeGoogleProvider):
         self._maybe(); p = {"name": f"{acct}/{loc}/localPosts/{len(self.posts)+1}", "summary": post["summary"], "state": "LIVE", "cta_type": post.get("cta_type")}
         self.posts.append(p); return p
 
+    def update_post(self, at, name, post):
+        self._maybe()
+        for p in self.posts:
+            if p["name"] == name:
+                p["summary"], p["cta_type"] = post["summary"], post.get("cta_type"); return dict(p)
+        raise g.GoogleAPIError(404, "no post")
+
     def delete_post(self, at, name): self._maybe(); self.posts = [p for p in self.posts if p["name"] != name]
     def list_media(self, at, acct, loc): return list(self.media)
 
@@ -112,3 +119,52 @@ def test_plan_gating_and_roles_and_isolation(connected, fake, gid, biz_b):
     # another tenant cannot touch this Google location
     assert biz_b.get(f"/gbp/{gid}/info").status_code == 404
     assert biz_b.patch(f"/gbp/{gid}/info", json={"description": "hacked description"}).status_code == 404
+
+
+def test_post_can_be_edited_and_edit_is_scoped_audited_and_admin_only(connected, fake, gid):
+    p = connected.post(f"/gbp/{gid}/posts", json={"summary": "Winter back-care workshop on Saturday."}).json()
+    r = connected.http.patch(f"/api/v1/gbp/{gid}/posts", params={"name": p["name"]}, json={"summary": "Workshop moved to Sunday 10am."},
+                             headers={"X-CSRF-Token": connected.csrf})
+    assert r.status_code == 200 and r.json()["summary"] == "Workshop moved to Sunday 10am."
+    assert fake.posts[0]["summary"] == "Workshop moved to Sunday 10am."
+    other = connected.http.patch(f"/api/v1/gbp/{gid}/posts", params={"name": "accounts/999/locations/1/localPosts/1"},
+                                 json={"summary": "Cross-location edit attempt."}, headers={"X-CSRF-Token": connected.csrf})
+    assert other.status_code == 404
+
+
+def test_unapproved_project_is_shown_as_awaiting_approval_not_as_working(connected, fake, gid):
+    fake.error = g.GoogleApiNotApproved(429, "quota 0")
+    r = connected.get(f"/gbp/{gid}/posts")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "google_api_awaiting_approval"
+    conn = connected.get("/google/status").json()["connections"][0]
+    assert conn["api_access"] == "awaiting_approval" and conn["api_access_checked_at"]
+    fake.error = None
+    assert connected.get(f"/gbp/{gid}/posts").status_code == 200
+
+
+def test_disabled_api_is_reported_separately_from_awaiting_approval(connected, fake, gid):
+    fake.error = g.GoogleApiNotApproved(403, "disabled", why="service_disabled", service="mybusiness.googleapis.com")
+    r = connected.get(f"/gbp/{gid}/posts")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "google_api_api_disabled"
+    assert "mybusiness.googleapis.com" in r.json()["detail"]["message"]
+    assert connected.get("/google/status").json()["connections"][0]["api_access"] == "api_disabled"
+
+
+def test_profile_edits_are_capped_at_googles_ten_per_minute_per_location(connected, fake, gid):
+    for i in range(10):
+        assert connected.post(f"/gbp/{gid}/posts", json={"summary": f"Announcement number {i} for today"}).status_code == 201
+    r = connected.post(f"/gbp/{gid}/posts", json={"summary": "The eleventh edit this minute"})
+    assert r.status_code == 429 and "10 profile edits" in r.json()["detail"]
+    assert len(fake.posts) == 10  # the 11th never reached Google
+    assert connected.get(f"/gbp/{gid}/posts").status_code == 200  # reads are not edits
+
+
+def test_google_400_is_shown_as_a_rejected_change_not_a_server_error(connected, fake, gid):
+    fake.error = g.GoogleAPIError(400, "Request contains an invalid argument.")
+    r = connected.post(f"/gbp/{gid}/posts", json={"summary": "A perfectly ordinary post"})
+    assert r.status_code == 422 and "Google rejected this change" in r.json()["detail"]
+
+
+def test_media_categories_follow_googles_enum(connected, fake, gid):
+    assert connected.post(f"/gbp/{gid}/media", json={"source_url": "https://cdn.example.com/menu.jpg", "category": "MENU"}).status_code == 201
+    assert connected.post(f"/gbp/{gid}/media", json={"source_url": "https://cdn.example.com/x.jpg", "category": "SELFIE"}).status_code == 422

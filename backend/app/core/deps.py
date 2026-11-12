@@ -7,13 +7,13 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import Cookie, Depends, Header, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import select, true
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db, set_rls_context
 from app.core.security import constant_time_equals, hash_token
-from app.models import AuthSession, Membership, Role, Tenant, User
+from app.models import AuthSession, Membership, MembershipLocation, Role, Tenant, User
 from app.models.base import utcnow
 from app.models.tenancy import ROLE_RANK
 
@@ -36,10 +36,29 @@ class TenantContext:
     session: AuthSession
     tenant: Tenant
     membership: Membership
+    # Location-level permission: None = every location (owners, admins, unrestricted staff); otherwise the ONLY locations
+    # this member may see. Resolved server-side from the membership on every request, never from the client.
+    location_ids: frozenset[uuid.UUID] | None = None
 
     @property
     def tenant_id(self) -> uuid.UUID:
         return self.tenant.id
+
+    @property
+    def restricted(self) -> bool:
+        return self.location_ids is not None
+
+    def can_access_location(self, location_id: uuid.UUID | None) -> bool:
+        """Data that is not tied to a location (location_id NULL) is denied to restricted members: deny by default."""
+        return self.location_ids is None or (location_id is not None and location_id in self.location_ids)
+
+    def require_location(self, location_id: uuid.UUID | None, what: str = "Location") -> None:
+        if not self.can_access_location(location_id):
+            raise HTTPException(status_code=404, detail=f"{what} not found")  # 404, not 403: don't confirm it exists
+
+    def scope(self, column):
+        """SQL condition limiting `column` (a location id) to what this member may see. Use it on every list/aggregate query."""
+        return true() if self.location_ids is None else column.in_(list(self.location_ids))
 
     @property
     def role(self) -> Role:
@@ -54,6 +73,28 @@ def _load_session(db: Session, token: str | None) -> AuthSession | None:
     if not sess or sess.revoked_at is not None or sess.expires_at < utcnow():
         return None
     return sess
+
+
+def location_scope(db: Session, membership: Membership) -> frozenset[uuid.UUID] | None:
+    """The locations a membership is limited to, or None for all. Needs the tenant RLS context (or bypass) to be set."""
+    if ROLE_RANK[membership.role] >= ROLE_RANK[Role.admin] or membership.all_locations:
+        return None
+    return frozenset(db.scalars(select(MembershipLocation.location_id).where(MembershipLocation.membership_id == membership.id)))
+
+
+def member_may_act(db: Session, tenant_id: uuid.UUID, user_id: uuid.UUID | None, location_id: uuid.UUID | None, minimum: Role) -> bool:
+    """For background jobs that act on a person's earlier decision: is that person STILL allowed to do it?
+    (still a member, still at least `minimum`, still has the location). Caller must be in a bypass/system session."""
+    if not user_id:
+        return False
+    m = db.scalar(select(Membership).where(Membership.tenant_id == tenant_id, Membership.user_id == user_id))
+    if not m or ROLE_RANK[m.role] < ROLE_RANK[minimum]:
+        return False
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        return False
+    ids = location_scope(db, m)
+    return ids is None or (location_id is not None and location_id in ids)
 
 
 def get_auth_context(
@@ -110,7 +151,7 @@ def get_tenant_context(
         set_rls_context(db)
         raise HTTPException(status_code=403, detail={"code": "account_suspended", "message": "This business account is suspended. Contact FlowQR support."})
     set_rls_context(db, tenant_id=tenant.id)  # from here on, RLS confines the session to this tenant
-    return TenantContext(db=db, user=auth.user, session=auth.session, tenant=tenant, membership=chosen)
+    return TenantContext(db=db, user=auth.user, session=auth.session, tenant=tenant, membership=chosen, location_ids=location_scope(db, chosen))
 
 
 def require_role(minimum: Role):

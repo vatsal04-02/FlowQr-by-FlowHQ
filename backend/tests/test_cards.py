@@ -44,13 +44,11 @@ def test_qr_png_and_svg_are_valid_images(admin, batch):
 
 def test_qr_decodes_to_card_url(admin, batch):
     """Round-trip: the generated QR must actually encode the card URL (using an independent decoder if available)."""
-    cv2 = pytest.importorskip("cv2")
-    import numpy as np
+    pytest.importorskip("cv2"), pytest.importorskip("zxingcpp")
+    from tests.test_qr import opencv, raster, zxing  # ZXing + OpenCV's ArUco detector (see tests/test_qr.py for why not the legacy one)
     card = cards_of(admin, batch["id"])[0]
     data = admin.get(f"/admin/cards/{card['id']}/qr.png").content
-    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-    decoded, _, _ = cv2.QRCodeDetector().detectAndDecode(img)
-    assert decoded == card["url"]
+    assert zxing(raster(data, "png")) == [card["url"]] and opencv(raster(data, "png")) == card["url"]
 
 
 def test_batch_zip_and_printable_sheet(admin, batch):
@@ -111,6 +109,19 @@ def test_bot_scans_are_not_counted(admin, batch, biz_a, client):
     assert biz_a.get("/cards").json()[0]["stats"].get("scan", 0) == 0
     # and a bot does not flip the card to active
     assert admin.get(f"/admin/cards/{card['id']}").json()["card"]["status"] == "assigned"
+
+
+def test_last_scan_at_reflects_only_human_scans(admin, batch, biz_a, client):
+    card = cards_of(admin, batch["id"])[3]
+    ua = {"user-agent": "Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile Safari/537.36"}
+    admin.post(f"/admin/cards/{card['id']}/assign", json={"tenant_id": biz_a.tenant_id, "location_id": biz_a.location_id})
+    assert biz_a.get("/cards").json()[0]["last_scan_at"] is None  # never scanned
+    client.get(f"/api/v1/public/c/{card['public_token']}", headers={"user-agent": "python-requests/2.31"})
+    assert biz_a.get("/cards").json()[0]["last_scan_at"] is None  # a bot is not a scan
+    client.get(f"/api/v1/public/c/{card['public_token']}", headers=ua)
+    assert biz_a.get("/cards").json()[0]["last_scan_at"] is not None
+    listed = admin.get("/admin/cards", params={"search": card["card_code"]}).json()["items"][0]
+    assert listed["last_scan_at"] is not None  # platform admin sees the same value
 
 
 def test_deactivated_card_shows_fallback_but_keeps_history(admin, batch, biz_a, client):

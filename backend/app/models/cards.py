@@ -3,7 +3,8 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, LargeBinary, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -16,6 +17,7 @@ class CardStatus(str, enum.Enum):
     active = "active"
     deactivated = "deactivated"
     lost = "lost"
+    paused = "paused"  # temporarily off: scans show the inactive notice until the business resumes it
 
 
 class CardBatch(IdMixin, TimestampMixin, Base):
@@ -86,3 +88,15 @@ class ScanEvent(IdMixin, Base):
     visitor_hash: Mapped[str | None] = mapped_column(String(64))  # salted daily hash of ip+ua, not reversible
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class QRStyle(IdMixin, TimestampMixin, Base):
+    """A business's QR look (colours, margin, error correction, caption, logo). Purely visual: it never affects what a code
+    encodes. One row per tenant; campaigns may override `style` (review_campaigns.qr_style) but share the logo."""
+
+    __tablename__ = "qr_styles"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), unique=True)
+    style: Mapped[dict] = mapped_column(JSONB, default=dict)
+    logo_png: Mapped[bytes | None] = mapped_column(LargeBinary)  # validated and re-encoded on upload (services/qr_style.normalise_logo)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

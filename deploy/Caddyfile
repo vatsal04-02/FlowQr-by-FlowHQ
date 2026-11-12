@@ -68,7 +68,7 @@ www.{$MARKETING_DOMAIN} {
 	request_body {
 		max_size 64KB
 	}
-	@card path /c/* /_next/* /favicon.ico
+	@card path /c/* /r/* /_next/* /favicon.ico
 	handle @card {
 		reverse_proxy frontend:3000
 	}

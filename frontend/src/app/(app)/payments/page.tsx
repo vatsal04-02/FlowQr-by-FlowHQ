@@ -1,9 +1,10 @@
 "use client";
-import { Package, Receipt } from "lucide-react";
+import { Package } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, PageHeader, Skeleton } from "@/components/ui/Card";
 import { ErrorSummary, Input } from "@/components/ui/Form";
+import { Panel, Segmented, Status } from "@/components/ui/kit";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
@@ -14,12 +15,12 @@ import { phoneRule, required, useForm } from "@/lib/form";
 import type { CardOrder, Payment, PlansResponse } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
-const TONE: Record<string, "green" | "amber" | "red" | "gray" | "blue"> = { captured: "green", paid: "green", shipped: "green", authorized: "blue", processing: "blue", created: "gray", failed: "red", refunded: "amber", cancelled: "red" };
+const TONE: Record<string, "ok" | "warn" | "bad" | "idle" | "info"> = { captured: "ok", paid: "ok", shipped: "ok", authorized: "info", processing: "info", created: "idle", failed: "bad", refunded: "warn", cancelled: "bad" };
 
 export default function PaymentsPage() {
   const { role } = useAuth();
   const toast = useToast();
-  const [tab, setTab] = useState<"subscription" | "card_order" | "">("");
+  const [tab, setTab] = useState<"" | "subscription" | "card_order">("");
   const pays = useFetch<Payment[]>("/billing/payments", { kind: tab });
   const orders = useFetch<CardOrder[]>("/billing/card-orders");
   const plans = useFetch<PlansResponse>("/billing/plans");
@@ -27,44 +28,38 @@ export default function PaymentsPage() {
 
   return (
     <>
-      <PageHeader title="Payments" subtitle="Software subscription payments and physical card orders are tracked separately."
-        actions={role === "owner" ? <Button icon={<Package className="h-4 w-4" />} onClick={() => setOrderOpen(true)} disabled={!plans.data?.card_ordering_enabled}>Order cards</Button> : undefined} />
-      {plans.data && !plans.data.card_ordering_enabled && <div className="mb-5"><Alert tone="warning" title="Card ordering: configuration pending">{!plans.data.billing.configured ? "Card ordering opens once Razorpay is configured on this server." : "Card pricing hasn't been set yet. Please contact FlowQR."}</Alert></div>}
+      <PageHeader eyebrow="Business" title="Payments" subtitle="Software subscription payments and physical card orders are tracked separately."
+        actions={role === "owner" ? <Button size="sm" icon={<Package className="h-4 w-4" />} onClick={() => setOrderOpen(true)} disabled={!plans.data?.card_ordering_enabled}>Order cards</Button> : undefined} />
+      {plans.data && !plans.data.card_ordering_enabled && <div className="mb-4"><Alert tone="warning" title="Card ordering: configuration pending">{!plans.data.billing.configured ? "Card ordering opens once Razorpay is configured on this server." : "Card pricing hasn't been set yet. Please contact FlowQR."}</Alert></div>}
 
-      <Card className="mb-6" pad={false}>
-        <div className="p-5 sm:p-6"><CardHeader title="Card orders" subtitle="Physical QR/NFC cards. Shipped by the FlowQR team after payment is confirmed." /></div>
-        {orders.loading && !orders.data ? <Skeleton className="m-5 h-20" /> : orders.data && orders.data.length === 0 ? <p className="px-6 pb-6 text-sm text-ink-500">No card orders yet.</p> : (
-          <ul className="divide-y divide-ink-100 border-t border-ink-100">{orders.data?.map((o) => (
-            <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 sm:px-6">
-              <div><p className="font-semibold">{o.quantity} cards · {rupees(o.amount_paise)}</p><p className="text-sm text-ink-500">{fmtDate(o.created_at)}{o.tracking_note && ` · ${o.tracking_note}`}</p></div>
-              <Badge tone={TONE[o.status] ?? "gray"}>{o.status === "created" ? "awaiting payment" : o.status}</Badge>
-            </li>))}</ul>
-        )}
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+        <Panel title="Card orders" meta="shipped after payment is confirmed" flush>
+          {orders.loading && !orders.data ? <Skeleton className="m-4 h-20" /> : orders.data && orders.data.length === 0 ? <p className="p-4 text-sm text-ink-500">No card orders yet. Physical cards are paid per order and shipped by the FlowQR team.</p> : (
+            <ul className="divide-y divide-ink-100">{orders.data?.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                <div><p className="text-sm font-semibold"><span className="num">{o.quantity}</span> cards · <span className="num">{rupees(o.amount_paise)}</span></p><p className="text-[13px] text-ink-500">{fmtDate(o.created_at)}{o.tracking_note && ` · ${o.tracking_note}`}</p></div>
+                <Status tone={TONE[o.status] ?? "idle"}>{o.status === "created" ? "Awaiting payment" : o.status}</Status>
+              </li>))}</ul>
+          )}
+        </Panel>
 
-      <Card pad={false}>
-        <div className="flex flex-wrap items-center justify-between gap-3 p-5 sm:p-6">
-          <CardHeader title="Payment history" />
-          <div role="tablist" aria-label="Payment type" className="flex gap-1 rounded-xl bg-ink-50 p-1">
-            {([["", "All"], ["subscription", "Subscription"], ["card_order", "Cards"]] as const).map(([k, l]) => (
-              <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`min-h-9 rounded-lg px-3 text-sm font-semibold ${tab === k ? "bg-white shadow-card" : "text-ink-500"}`}>{l}</button>))}
-          </div>
-        </div>
-        {pays.loading && !pays.data ? <Skeleton className="m-5 h-32" /> : pays.data && pays.data.length === 0 ? (
-          <div className="p-6"><EmptyState icon={<Receipt className="h-6 w-6" />} title="No payments yet">Payments appear here once Razorpay confirms them.</EmptyState></div>
-        ) : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-y border-ink-100 bg-ink-50 text-xs uppercase tracking-wide text-ink-500"><tr>{["Date", "Type", "Amount", "Status", "Reference"].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
-            <tbody>{pays.data?.map((p) => (
-              <tr key={p.id} className="border-b border-ink-100 last:border-0">
-                <td className="px-4 py-3">{fmtDate(p.paid_at ?? p.created_at)}</td><td className="px-4">{p.kind === "subscription" ? "Subscription" : "Card order"}</td>
-                <td className="px-4 font-semibold tabular-nums">{rupees(p.amount_paise)}</td>
-                <td className="px-4"><Badge tone={TONE[p.status] ?? "gray"}>{p.status}</Badge>{p.error_description && <span className="mt-0.5 block text-xs text-red-700">{p.error_description}</span>}</td>
-                <td className="px-4 font-mono text-xs text-ink-500">{p.razorpay_payment_id ?? "–"}{p.razorpay_invoice_id && <span className="block">inv {p.razorpay_invoice_id}</span>}</td>
-              </tr>))}</tbody>
-          </table></div>
-        )}
-      </Card>
+        <Panel title="Payment history" action={<Segmented label="Payment type" value={tab} onChange={setTab} options={[["", "All"], ["subscription", "Subscription"], ["card_order", "Cards"]] as const} />} flush>
+          {pays.loading && !pays.data ? <Skeleton className="m-4 h-32" /> : pays.data && pays.data.length === 0 ? (
+            <p className="p-4 text-sm text-ink-500">No payments yet. They appear here once Razorpay confirms them.</p>
+          ) : (
+            <div className="overflow-x-auto"><table className="dt min-w-[560px]">
+              <thead><tr><th>Date</th><th>Type</th><th className="!text-right">Amount</th><th>Status</th><th>Reference</th></tr></thead>
+              <tbody>{pays.data?.map((p) => (
+                <tr key={p.id}>
+                  <td className="whitespace-nowrap">{fmtDate(p.paid_at ?? p.created_at)}</td><td>{p.kind === "subscription" ? "Subscription" : "Card order"}</td>
+                  <td className="n font-semibold">{rupees(p.amount_paise)}</td>
+                  <td><Status tone={TONE[p.status] ?? "idle"}>{p.status}</Status>{p.error_description && <p className="text-xs text-red-700">{p.error_description}</p>}</td>
+                  <td className="font-mono text-xs text-ink-500">{p.razorpay_payment_id ?? "–"}{p.razorpay_invoice_id && <span className="block">inv {p.razorpay_invoice_id}</span>}</td>
+                </tr>))}</tbody>
+            </table></div>
+          )}
+        </Panel>
+      </div>
       {orderOpen && plans.data?.card_price_paise && <OrderModal unit={plans.data.card_price_paise} onClose={() => setOrderOpen(false)} onDone={() => { setOrderOpen(false); void orders.reload(); void pays.reload(); }} toast={toast} />}
     </>
   );

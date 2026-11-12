@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PlanCards } from "@/components/PlanCards";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Meter } from "@/components/ui/kit";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -13,14 +14,12 @@ import { fmtDate } from "@/lib/format";
 import type { Plan, PlansResponse, SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
-function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
-  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const pct = limit ? (used / limit) * 100 : 0;
   return (
     <div>
-      <div className="flex justify-between text-sm"><span className="font-semibold text-ink-700">{label}</span><span className="tabular-nums text-ink-500">{used.toLocaleString("en-IN")} / {limit.toLocaleString("en-IN")}</span></div>
-      <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-ink-50" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={limit} aria-label={label}>
-        <div className={`h-full rounded-full ${pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-g-yellow" : "bg-brand-500"}`} style={{ width: `${pct}%` }} />
-      </div>
+      <div className="mb-1.5 flex justify-between text-[13px]"><span className="font-medium text-ink-700">{label}</span><span className="num text-ink-500">{used.toLocaleString("en-IN")} / {limit.toLocaleString("en-IN")}</span></div>
+      <Meter label={label} value={used} max={limit} tone={pct >= 90 ? "bad" : pct >= 70 ? "warn" : "info"} />
     </div>
   );
 }
@@ -69,7 +68,7 @@ export default function SubscriptionPage() {
   const statusTone = s?.status === "active" ? "green" : s?.status === "trialing" ? "blue" : s?.status === "past_due" ? "amber" : "red";
   return (
     <>
-      <PageHeader title="Subscription" subtitle="Your plan, usage and billing." actions={<LinkButton href="/payments" variant="secondary" icon={<CreditCard className="h-4 w-4" />}>Payment history</LinkButton>} />
+      <PageHeader eyebrow="Business" title="Subscription" subtitle="Your plan, usage and billing." actions={<LinkButton href="/payments" size="sm" variant="secondary" icon={<CreditCard className="h-4 w-4" />}>Payment history</LinkButton>} />
       {plans.data && !plans.data.billing.configured && <div className="mb-5"><Alert tone="warning" title="Online payments: configuration pending">Razorpay isn&rsquo;t configured on this server yet, so plans can&rsquo;t be purchased. Your trial and all features keep working meanwhile.</Alert></div>}
       {plans.data?.billing.mode === "test" && <div className="mb-5"><Alert tone="info" title="Razorpay test mode">Payments are simulated by Razorpay&rsquo;s test environment. No real money moves.</Alert></div>}
       {err && <div className="mb-5"><Alert tone="error" title="Couldn't complete that">{err.message}</Alert></div>}
@@ -80,7 +79,7 @@ export default function SubscriptionPage() {
         {!s ? <Skeleton className="h-32" /> : (
           <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
             <div>
-              <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">{s.plan_name ?? "No plan"}</h2><Badge tone={statusTone}>{s.status.replace("_", " ")}</Badge>{s.billing.mode === "test" && <Badge tone="orange">test mode</Badge>}</div>
+              <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">{s.plan_name ?? "No plan"}</h2><Badge tone={statusTone}>{s.status.replace("_", " ")}</Badge>{s.billing.mode === "test" && <Badge tone="amber">test mode</Badge>}</div>
               {s.price_paise && <p className="mt-1 text-ink-500">{rupees(s.price_paise)} / month</p>}
               {s.status === "trialing" && s.trial_ends_at && <p className="mt-3 flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />Free trial ends {fmtDate(s.trial_ends_at)} ({s.trial_days_left} days left)</p>}
               {s.current_period_end && s.status !== "trialing" && <p className="mt-3 flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />{s.cancel_at_period_end ? "Access until" : "Renews on"} {fmtDate(s.current_period_end)}</p>}
@@ -89,15 +88,15 @@ export default function SubscriptionPage() {
               {isOwner && s.has_razorpay_subscription && ["active", "past_due"].includes(s.status) && !s.cancel_at_period_end && <Button className="mt-4" variant="danger" size="sm" onClick={() => setCancelOpen(true)}>Cancel subscription</Button>}
             </div>
             <div className="space-y-4">
-              <Meter label="Locations" used={s.usage.locations} limit={s.limits.locations} />
-              <Meter label="AI generations this month" used={s.usage.ai_generations} limit={s.limits.ai_generations} />
-              <Meter label="Team members (incl. invites)" used={s.usage.staff} limit={s.limits.staff} />
+              <UsageMeter label="Locations" used={s.usage.locations} limit={s.limits.locations} />
+              <UsageMeter label="AI generations this month" used={s.usage.ai_generations} limit={s.limits.ai_generations} />
+              <UsageMeter label="Team members (incl. invites)" used={s.usage.staff} limit={s.limits.staff} />
             </div>
           </div>
         )}
       </Card>
 
-      <h2 className="mb-3 text-lg font-semibold">{s?.has_razorpay_subscription && s.status === "active" ? "Change plan" : "Choose a plan"}</h2>
+      <h2 className="mb-3 text-[15px] font-semibold">{s?.has_razorpay_subscription && s.status === "active" ? "Change plan" : "Choose a plan"}</h2>
       {!isOwner && <div className="mb-4"><Alert tone="info">Only the business owner can change the subscription.</Alert></div>}
       {plans.data ? (
         <PlanCards plans={plans.data.plans} current={s?.plan} action={(p) => (

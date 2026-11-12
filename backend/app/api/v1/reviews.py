@@ -46,19 +46,19 @@ def _review_out(ctx: TenantContext, r: Review, loc_names: dict) -> ReviewOut:
     return ReviewOut(
         id=r.id, location_id=r.location_id, location_name=loc_names.get(r.location_id), rating=r.rating, text=r.text,
         reviewer_name=r.reviewer_name, review_created_at=r.review_created_at, review_updated_at=r.review_updated_at,
-        update_count=r.update_count, google_reply_text=r.google_reply_text, google_reply_at=r.google_reply_at,
+        update_count=r.update_count, google_reply_text=r.google_reply_text, google_reply_at=r.google_reply_at, google_reply_state=r.google_reply_state,
         reply_state=state, sensitive_reasons=assess_review(r.text, r.rating, ctx.tenant.category),
         latest_draft=_draft_out(latest) if latest else None,
     )
 
 
 def _loc_names(ctx: TenantContext) -> dict:
-    return {l.id: l.name for l in ctx.db.scalars(select(Location).where(Location.tenant_id == ctx.tenant_id))}
+    return {l.id: l.name for l in ctx.db.scalars(select(Location).where(Location.tenant_id == ctx.tenant_id, ctx.scope(Location.id)))}
 
 
 def _review_or_404(ctx: TenantContext, review_id: uuid.UUID) -> Review:
     r = ctx.db.scalar(select(Review).where(Review.id == review_id, Review.tenant_id == ctx.tenant_id))
-    if not r:
+    if not r or not ctx.can_access_location(r.location_id):
         raise HTTPException(status_code=404, detail="Review not found")
     return r
 
@@ -67,6 +67,10 @@ def _draft_or_404(ctx: TenantContext, draft_id: uuid.UUID) -> ReplyDraft:
     d = ctx.db.scalar(select(ReplyDraft).where(ReplyDraft.id == draft_id, ReplyDraft.tenant_id == ctx.tenant_id))
     if not d:
         raise HTTPException(status_code=404, detail="Draft not found")
+    if ctx.restricted:  # a draft inherits the location of its review
+        review = ctx.db.get(Review, d.review_id)
+        if not review or not ctx.can_access_location(review.location_id):
+            raise HTTPException(status_code=404, detail="Draft not found")
     return d
 
 
@@ -80,7 +84,7 @@ def list_reviews(
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    q = select(Review).where(Review.tenant_id == ctx.tenant_id)
+    q = select(Review).where(Review.tenant_id == ctx.tenant_id, ctx.scope(Review.location_id))
     if location_id:
         q = q.where(Review.location_id == location_id)
     if rating:

@@ -26,7 +26,7 @@ class FakeGoogleProvider:
         self.list_calls = 0
 
     def build_auth_url(self, state): return f"https://accounts.google.test/auth?state={state}"
-    def exchange_code(self, code): return TokenSet("access-1", 3600, "REFRESH-SECRET-TOKEN", "business.manage")
+    def exchange_code(self, code): return TokenSet("access-1", 3600, "REFRESH-SECRET-TOKEN", "openid email https://www.googleapis.com/auth/business.manage")
     def refresh_access_token(self, rt):
         self.refresh_calls += 1
         if self.fail_refresh_with:
@@ -306,3 +306,93 @@ def test_staff_can_draft_but_not_approve_or_publish(connected, fake, monkeypatch
     assert staff.post(f"/reply-drafts/{did}/approve", json={}, headers=h).status_code == 403
     assert staff.post(f"/reply-drafts/{did}/publish", headers=h).status_code == 403
     assert staff.post("/google/connect", headers=h).status_code == 403
+
+
+def test_connect_with_unapproved_project_surfaces_awaiting_approval_then_recovers(fake):
+    biz = make_business("Awaiting Co")
+    fake.list_accounts = lambda at: (_ for _ in ()).throw(g.GoogleApiNotApproved(429, "quota 0"))
+    r = callback(biz, connect(biz, fake))
+    assert r.status_code == 303 and "connected=1" in r.headers["location"]  # OAuth itself succeeded
+    c = biz.get("/google/status").json()["connections"][0]
+    assert c["api_access"] == "awaiting_approval" and c["status"] == "error" and "not yet approved" in c["last_error"]
+    # Google approves the project: refresh succeeds and the connection recovers
+    del fake.list_accounts
+    r = biz.post(f"/google/connections/{c['id']}/refresh-locations")
+    assert r.status_code == 200 and len(r.json()) == 2
+    c = biz.get("/google/status").json()["connections"][0]
+    assert c["api_access"] == "approved" and c["status"] == "pending_selection" and c["last_error"] is None
+
+
+def test_sync_reports_awaiting_approval_and_backs_off(connected, fake):
+    sync_select(connected, fake)
+    fake.list_error = g.GoogleApiNotApproved(429, "quota 0")
+    gl = connected.get(f"/google/connections/{connected.conn_id}/locations").json()[0]
+    connected.post("/google/sync")
+    gl = connected.get(f"/google/connections/{connected.conn_id}/locations").json()[0]
+    assert gl["last_sync_status"] == "awaiting_approval"
+
+
+def test_connect_without_the_business_scope_is_refused_and_the_token_revoked(fake):
+    biz = make_business("Unticked Co")
+    fake.exchange_code = lambda code: TokenSet("access-1", 3600, "REFRESH-X", "openid email")  # user unticked Business Profile
+    r = callback(biz, connect(biz, fake))
+    assert r.status_code == 303 and "error=scope_missing" in r.headers["location"]
+    assert biz.get("/google/status").json()["connections"] == [] and fake.revoked == ["REFRESH-X"]
+
+
+def test_first_contact_quota_error_is_reported_as_probably_unapproved_not_as_a_generic_failure(fake):
+    biz = make_business("First Contact Co")
+    fake.list_accounts = lambda at: (_ for _ in ()).throw(g.GoogleRateLimited(None))
+    callback(biz, connect(biz, fake))
+    c = biz.get("/google/status").json()["connections"][0]
+    assert c["api_access"] == "awaiting_approval" and "most likely awaiting" in c["last_error"]
+    r = biz.post(f"/google/connections/{c['id']}/refresh-locations")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "google_api_awaiting_approval"
+
+
+def test_a_rate_limit_on_an_approved_connection_stays_a_rate_limit(connected, fake):
+    fake.list_accounts = lambda at: (_ for _ in ()).throw(g.GoogleRateLimited(30))
+    assert connected.post(f"/google/connections/{connected.conn_id}/refresh-locations").status_code == 429
+    assert connected.get("/google/status").json()["connections"][0]["api_access"] == "approved"
+
+
+def _approved_draft(connected, fake, body="Thank you, call us for a discount!"):
+    fake.reviews = [greview(1)]
+    sync_select(connected, fake)
+    rid = connected.get("/reviews").json()["items"][0]["id"]
+    did = connected.post(f"/reviews/{rid}/drafts", json={"body": body}).json()["id"]
+    assert connected.post(f"/reply-drafts/{did}/approve", json={}).json()["status"] == "approved"
+    return rid, did
+
+
+def test_reply_google_rejects_on_publish_is_failed_not_published(connected, fake):
+    rid, did = _approved_draft(connected, fake)
+    fake.reply_to_review = lambda at, acct, loc, review_id, comment: {"comment": comment, "state": "REJECTED", "policy_violation": "ADVERTISING_AND_SOLICITATION"}
+    r = connected.post(f"/reply-drafts/{did}/publish").json()
+    assert r["status"] == "failed" and r["published_at"] is None and "advertising and solicitation" in r["failure_reason"]
+    review = connected.get(f"/reviews/{rid}").json()
+    assert review["review"]["google_reply_text"] is None and review["review"]["google_reply_state"] == "REJECTED"
+    assert review["review"]["reply_state"] == "failed" and review["logs"][0]["success"] is False
+
+
+def test_pending_reply_is_published_with_its_state_and_a_later_rejection_corrects_it(connected, fake):
+    rid, did = _approved_draft(connected, fake)
+    fake.reply_to_review = lambda at, acct, loc, review_id, comment: {"comment": comment, "state": "PENDING", "policy_violation": None}
+    assert connected.post(f"/reply-drafts/{did}/publish").json()["status"] == "published"
+    assert connected.get(f"/reviews/{rid}").json()["review"]["google_reply_state"] == "PENDING"
+    # the next sync shows Google moderated it away
+    rejected = greview(1, reply="Thank you, call us for a discount!")
+    rejected.reply_state, rejected.reply_policy_violation = "REJECTED", "ADVERTISING_AND_SOLICITATION"
+    fake.reviews = [rejected]
+    connected.post("/google/sync")
+    review = connected.get(f"/reviews/{rid}").json()
+    assert review["review"]["google_reply_text"] is None and review["review"]["reply_state"] == "failed"
+    assert "Google rejected this reply" in review["drafts"][0]["failure_reason"]
+
+
+def test_reply_longer_than_googles_byte_limit_is_refused_when_drafting(connected, fake):
+    fake.reviews = [greview(1)]
+    sync_select(connected, fake)
+    rid = connected.get("/reviews").json()["items"][0]["id"]
+    assert connected.post(f"/reviews/{rid}/drafts", json={"body": "\u0927" * 1400}).status_code == 422  # 1400 characters, 4200 bytes
+    assert connected.post(f"/reviews/{rid}/drafts", json={"body": "\u0927" * 1300}).status_code == 201

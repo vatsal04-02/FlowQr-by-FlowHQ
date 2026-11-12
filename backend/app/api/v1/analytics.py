@@ -51,11 +51,11 @@ def overview(
     start, end, lo, hi, tz = _range(ctx, start, end)
     t = ctx.tenant_id
     db = ctx.db
-    if location_id and not db.scalar(select(Location.id).where(Location.id == location_id, Location.tenant_id == t)):
+    if location_id and (not ctx.can_access_location(location_id) or not db.scalar(select(Location.id).where(Location.id == location_id, Location.tenant_id == t))):
         raise HTTPException(status_code=404, detail="Location not found")
 
     # ---------- Reviews ----------
-    rq = select(Review).where(Review.tenant_id == t)
+    rq = select(Review).where(Review.tenant_id == t, ctx.scope(Review.location_id))  # restricted staff: their locations only
     if location_id:
         rq = rq.where(Review.location_id == location_id)
     base = rq.subquery()
@@ -72,7 +72,7 @@ def overview(
     dist = dict(db.execute(select(base.c.rating, func.count()).group_by(base.c.rating)).all())
 
     # ---------- Card engagement (bots excluded) ----------
-    eq = select(ScanEvent).where(ScanEvent.tenant_id == t, ScanEvent.is_bot.is_(False), ScanEvent.created_at >= lo, ScanEvent.created_at < hi)
+    eq = select(ScanEvent).where(ScanEvent.tenant_id == t, ScanEvent.is_bot.is_(False), ScanEvent.created_at >= lo, ScanEvent.created_at < hi, ctx.scope(ScanEvent.location_id))
     if location_id:
         eq = eq.where(ScanEvent.location_id == location_id)
     ev = eq.subquery()
@@ -89,8 +89,8 @@ def overview(
     per_card: dict = {}
     for cid, et, c in card_rows:
         per_card.setdefault(cid, {})[et.value] = c
-    cards = {c.id: c for c in db.scalars(select(QRCard).where(QRCard.tenant_id == t))}
-    locs = {l.id: l.name for l in db.scalars(select(Location).where(Location.tenant_id == t))}
+    cards = {c.id: c for c in db.scalars(select(QRCard).where(QRCard.tenant_id == t, ctx.scope(QRCard.location_id)))}
+    locs = {l.id: l.name for l in db.scalars(select(Location).where(Location.tenant_id == t, ctx.scope(Location.id)))}
     card_perf = []
     for cid, c in cards.items():
         if location_id and c.location_id != location_id:
@@ -120,10 +120,11 @@ def overview(
     sub = db.scalar(select(Subscription).where(Subscription.tenant_id == t))
     ai_by_kind = dict(db.execute(select(AIGenerationLog.kind, func.count()).where(
         AIGenerationLog.tenant_id == t, AIGenerationLog.created_at >= lo, AIGenerationLog.created_at < hi,
-        AIGenerationLog.status == "ok").group_by(AIGenerationLog.kind)).all())
+        AIGenerationLog.status == "ok", ctx.scope(AIGenerationLog.location_id)).group_by(AIGenerationLog.kind)).all())
     sync = [{"title": g.title, "location": locs.get(g.location_id), "last_synced_at": g.last_synced_at, "status": g.last_sync_status,
-             "error": g.last_sync_error} for g in db.scalars(select(GoogleLocation).where(GoogleLocation.tenant_id == t, GoogleLocation.selected.is_(True)))]
-    pending_drafts = db.scalar(select(func.count()).select_from(ReplyDraft).where(ReplyDraft.tenant_id == t, ReplyDraft.status == ReplyStatus.draft))
+             "error": g.last_sync_error} for g in db.scalars(select(GoogleLocation).where(GoogleLocation.tenant_id == t, GoogleLocation.selected.is_(True), ctx.scope(GoogleLocation.location_id)))]
+    pending_drafts = db.scalar(select(func.count()).select_from(ReplyDraft).join(Review, Review.id == ReplyDraft.review_id).where(
+        ReplyDraft.tenant_id == t, ReplyDraft.status == ReplyStatus.draft, ctx.scope(Review.location_id)))
 
     scans, views, clicks = totals.get("scan", 0), totals.get("landing_view", 0), totals.get("google_click", 0)
     return {
@@ -165,11 +166,12 @@ def insights(
     """Sentiment mix and recurring topics across synced reviews (plan feature: insights)."""
     ent.require_feature(ctx.db, ctx.tenant_id, "insights")
     start, end, lo, hi, tz = _range(ctx, start, end)
-    if location_id and not ctx.db.scalar(select(Location.id).where(Location.id == location_id, Location.tenant_id == ctx.tenant_id)):
+    if location_id and (not ctx.can_access_location(location_id) or not ctx.db.scalar(select(Location.id).where(Location.id == location_id, Location.tenant_id == ctx.tenant_id))):
         raise HTTPException(status_code=404, detail="Location not found")
 
     def fetch(a, b):
-        q = select(Review.rating, Review.text).where(Review.tenant_id == ctx.tenant_id, Review.review_created_at >= a, Review.review_created_at < b)
+        q = select(Review.rating, Review.text).where(Review.tenant_id == ctx.tenant_id, Review.review_created_at >= a, Review.review_created_at < b,
+                                                     ctx.scope(Review.location_id))
         if location_id:
             q = q.where(Review.location_id == location_id)
         return [(r, t) for r, t in ctx.db.execute(q).all()]

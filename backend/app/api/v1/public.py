@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.deps import public_db
-from app.core.rate_limit import client_ip, hit, limit_by_ip
+from app.core.rate_limit import client_ip, hit, limit_by_ip, note_miss
 from app.models import CardStatus, Location, QRCard, ScanEvent, ScanEventType, Tenant
 from app.models.base import utcnow
 from app.schemas.cards import TrackEventIn
@@ -30,7 +30,7 @@ class AssistIn(BaseModel):
 
 
 def _find_card(db: Session, token: str) -> QRCard | None:
-    if not (16 <= len(token) <= 64):
+    if not svc.TOKEN_PATTERN.match(token):  # only the alphabet tokens are made of; anything else never reaches the database
         return None
     return db.scalar(select(QRCard).where(QRCard.public_token == token))
 
@@ -52,6 +52,7 @@ def resolve_card(token: str, request: Request, db: Session = Depends(public_db))
     card = _find_card(db, token)
     if not card:
         # Not recorded: unknown tokens are probes and would otherwise grow the table unbounded.
+        note_miss(request)
         raise HTTPException(status_code=404, detail=_fallback("not_found"))
 
     if card.status == CardStatus.unassigned or not card.tenant_id:

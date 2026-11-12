@@ -1,6 +1,8 @@
 """Operator CLI.   python -m app.cli card-url-audit [--live]
+                   python -m app.cli google-smoke [--connection ID] [--location locations/N] [--validate-patch]
 
 `card-url-audit` MUST pass before generating physical cards: the URL is printed/encoded permanently.
+`google-smoke` is a READ-ONLY live check of the Google Business Profile integration (services/google/smoke.py).
 """
 import argparse
 import secrets
@@ -94,8 +96,12 @@ def main() -> None:
     a = sub.add_parser("card-url-audit", help="verify the permanent card URL configuration before printing cards")
     a.add_argument("--live", action="store_true", help="probe the real domain over HTTPS")
     a.add_argument("--expect-domain", help="e.g. go.flowqr.co.in")
+    from app.services.google import smoke
+
+    g = sub.add_parser("google-smoke", help="read-only live check of the Google Business Profile integration")
+    smoke.add_arguments(g)
     args = ap.parse_args()
-    sys.exit(card_url_audit(args.live, args.expect_domain))
+    sys.exit(smoke.run(args) if args.cmd == "google-smoke" else card_url_audit(args.live, args.expect_domain))
 
 
 if __name__ == "__main__":

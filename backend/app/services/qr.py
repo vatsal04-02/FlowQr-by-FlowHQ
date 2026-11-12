@@ -13,6 +13,11 @@ def card_url(public_token: str) -> str:
     return f"{base}/c/{public_token}"
 
 
+def campaign_url(public_id: str) -> str:
+    """Review Growth campaign landing page. Same base URL as cards, so one short domain serves both."""
+    return f"{settings.public_card_base_url.rstrip('/')}/r/{public_id}"
+
+
 def _qr(url: str):
     return segno.make(url, error="h", micro=False)
 

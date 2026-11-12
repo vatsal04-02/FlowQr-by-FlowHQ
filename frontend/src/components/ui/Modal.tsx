@@ -33,9 +33,9 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
   return (
     <div className="fixed inset-0 z-50 grid items-end bg-ink/50 sm:place-items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="fq-enter flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-white shadow-pop outline-none sm:max-w-lg sm:rounded-2xl">
+        className="fq-enter flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-pop outline-none sm:max-w-lg sm:rounded-panel">
         <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-4">
-          <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
+          <h2 id={titleId} className="text-base font-semibold">{title}</h2>
           <button onClick={onClose} aria-label="Close dialog" className="tap grid place-items-center rounded-xl text-ink-500 hover:bg-ink-50"><X className="h-5 w-5" aria-hidden /></button>
         </div>
         <div className="overflow-y-auto px-5 py-5">{children}</div>

@@ -31,13 +31,13 @@ export default function Onboarding() {
 
   if (step === null) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
   return (
-    <div className="min-h-dvh bg-ink-50/60">
+    <div className="min-h-dvh bg-ink-50">
       <header className="border-b border-ink-100 bg-white"><div className="container-page flex items-center justify-between py-3"><Logo /><p className="text-sm text-ink-500">{me?.user.email}</p></div></header>
       <main className="mx-auto max-w-xl px-4 py-8 sm:py-12">
         <ol className="mb-8 flex items-center gap-2" aria-label="Progress">
           {STEPS.map((s, i) => (
             <li key={s} className="flex flex-1 items-center gap-2" aria-current={i === step ? "step" : undefined}>
-              <span className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold", i < step ? "bg-g-green text-white" : i === step ? "bg-brand-600 text-white" : "bg-ink-100 text-ink-500")}>
+              <span className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold", i < step ? "bg-ok text-white" : i === step ? "bg-brand-600 text-white" : "bg-ink-100 text-ink-500")}>
                 {i < step ? <Check className="h-4 w-4" aria-label="done" /> : i + 1}
               </span>
               <span className={clsx("hidden text-sm font-semibold sm:block", i === step ? "text-ink" : "text-ink-400")}>{s}</span>
@@ -162,12 +162,12 @@ function GoogleStep() {
       <p className="mt-1 text-ink-500">You can switch any time. Your QR/NFC cards work either way.</p>
       {notice && <div className="mt-4"><Alert tone="error">{notice}</Alert></div>}
       <div className="mt-6 grid gap-3">
-        <button disabled={!!busy} onClick={() => void finish("manual")} className="tap flex items-start gap-4 rounded-2xl border-2 border-ink-100 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40 disabled:opacity-60">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-flow-50 text-flow-700"><Pencil className="h-5 w-5" aria-hidden /></span>
+        <button disabled={!!busy} onClick={() => void finish("manual")} className="tap flex items-start gap-4 rounded-lg border border-ink-300 p-4 text-left transition-colors hover:border-brand-600 hover:bg-brand-50/40 disabled:opacity-60">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-700"><Pencil className="h-5 w-5" aria-hidden /></span>
           <span><span className="block font-semibold">Use my Google review link</span><span className="mt-0.5 block text-sm text-ink-500">Fastest. Cards, AI writing help and scan analytics work immediately.</span></span>
         </button>
-        <button disabled={!!busy} onClick={() => void finish("google")} className="tap flex items-start gap-4 rounded-2xl border-2 border-ink-100 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40 disabled:opacity-60">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Link2 className="h-5 w-5" aria-hidden /></span>
+        <button disabled={!!busy} onClick={() => void finish("google")} className="tap flex items-start gap-4 rounded-lg border border-ink-300 p-4 text-left transition-colors hover:border-brand-600 hover:bg-brand-50/40 disabled:opacity-60">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-700"><Link2 className="h-5 w-5" aria-hidden /></span>
           <span><span className="block font-semibold">Connect my Google Business Profile</span><span className="mt-0.5 block text-sm text-ink-500">Also syncs reviews and lets you approve AI-drafted replies. Requires Google access approval for FlowQR.</span></span>
         </button>
       </div>

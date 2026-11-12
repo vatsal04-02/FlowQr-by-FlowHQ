@@ -4,8 +4,8 @@ import { AlertCircle } from "lucide-react";
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 const control =
-  "w-full min-h-11 rounded-xl border bg-white px-3.5 py-2.5 text-[16px] text-ink placeholder:text-ink-400 transition-colors " +
-  "border-ink-200 hover:border-ink-300 focus-visible:border-brand-500 disabled:bg-ink-50 disabled:text-ink-400";
+  "w-full min-h-11 rounded-lg border bg-white px-3 py-2 text-base text-ink placeholder:text-ink-400 transition-colors sm:min-h-9 sm:text-sm " +
+  "border-ink-300 hover:border-ink-500 focus-visible:border-brand-600 disabled:bg-ink-50 disabled:text-ink-400";
 const invalid = "border-red-500 hover:border-red-500";
 
 interface FieldShell { label: string; hint?: string; error?: string; required?: boolean; children: (p: { id: string; describedBy?: string; invalid: boolean }) => ReactNode; className?: string }
@@ -16,7 +16,7 @@ export function Field({ label, hint, error, required, children, className }: Fie
   const errId = error ? `${id}-err` : undefined;
   return (
     <div className={className}>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-ink-700">
+      <label htmlFor={id} className="mb-1 block text-[13px] font-medium text-ink-700">
         {label}{required && <span className="text-red-600" aria-hidden> *</span>}
       </label>
       {children({ id, describedBy: [hintId, errId].filter(Boolean).join(" ") || undefined, invalid: !!error })}
@@ -72,7 +72,7 @@ export function Select({ label, hint, error, wrapperClassName, className, requir
 /** Compact select for filter bars (visible label via aria-label). */
 export function FilterSelect({ label, className, children, ...rest }: { label: string } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select aria-label={label} className={clsx(control, "min-h-11 sm:min-h-10 py-2 text-sm sm:w-auto", className)} {...rest}>{children}</select>
+    <select aria-label={label} className={clsx(control, "py-1.5 !text-sm sm:w-auto", className)} {...rest}>{children}</select>
   );
 }
 
@@ -81,7 +81,7 @@ export function ErrorSummary({ errors, serverError, summaryRef }: { errors: Reco
   const items = Object.entries(errors).filter(([, v]) => v);
   if (!items.length && !serverError) return null;
   return (
-    <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+    <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm text-red-800 outline-none focus-visible:ring-2 focus-visible:ring-red-500">
       <p className="font-semibold">{serverError ? "We couldn't save that" : "Please fix the following"}</p>
       {serverError && <p className="mt-1">{serverError}</p>}
       {items.length > 0 && <ul className="mt-1 list-disc pl-5">{items.map(([k, v]) => <li key={k}>{v}</li>)}</ul>}

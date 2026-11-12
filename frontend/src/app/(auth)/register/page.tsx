@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
+import { GoogleButton, OrDivider, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
 import { ErrorSummary, Input } from "@/components/ui/Form";
 import { api, errorMessage } from "@/lib/api";
@@ -16,6 +17,9 @@ export default function RegisterPage() {
   const f = useForm({ full_name: "", email: "", phone: "", password: "" }, {
     full_name: required("Your name"), email: emailRule, password: passwordRule, phone: phoneRule,
   });
+
+  const googleError = useGoogleError();
+  useEffect(() => { if (googleError) f.fail(googleError); }, [googleError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +37,8 @@ export default function RegisterPage() {
   return (
     <AuthShell title="Create your FlowQR account" subtitle="Takes about two minutes. No card needed."
       footer={<>Already have an account? <Link href="/login" className="font-semibold text-brand-700 hover:underline">Log in</Link></>}>
+      <GoogleButton label="Sign up with Google" />
+      <OrDivider>or sign up with email</OrDivider>
       <form onSubmit={submit} noValidate className="space-y-4">
         <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
         <Input label="Your name" autoComplete="name" required {...f.bind("full_name")} />
