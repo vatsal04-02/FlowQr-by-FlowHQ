@@ -102,3 +102,31 @@ None of the Setup-required placeholders exist yet. No code in these areas exists
 * Razorpay keys and webhook secret (checkout).
 * Google: enable the Business Profile APIs on the project, access application, a verified location.
 * Meta, WhatsApp, rank-provider credentials (Releases 2 and 3).
+
+---
+
+# After the growth-platform work (2026-11-12)
+
+The tables above are the audit taken **before** this work and are kept as the baseline. Status now, by area. "Mocked" = tested against a fake Google/AI; **nothing below has been verified against live Google** (see `LAUNCH_REPORT.md`).
+
+| Area | Before | After | Notes |
+|---|---|---|---|
+| Navigation | 🟡 flat, duplicate names | ✅ | 8 expandable groups, breadcrumbs, location picker (new pages only), every old URL still opens |
+| Zero-location Google account | 🟡 | ✅ Mocked | Explained, offers "Connect another account", never shown as connected |
+| Profile Manager | 🟡 | 🟡 | Completeness score and AI description draft with approval; no AI suggestions for hours/categories |
+| Reviews | ✅ | 🟡→✅ | Replies grounded in the knowledge base with a safety re-check. **Still missing:** date/sentiment/topic filters; review-automation policies beyond auto-draft |
+| Posts | 🟡 | ✅ Mocked | Draft → approval → scheduled → Celery publish; calendar; failures kept with reason; "published" only after Google confirms |
+| Photos | 🟡 | 🟡 | Still by URL. **No file upload** |
+| Performance | ✅ | ✅ | Unchanged; shown in reports |
+| Local Visibility | ⬜ | 🟡 | Page + "Setup required" (no rank provider). No fake data |
+| Knowledge Base + healthcare defaults | 🟡 | ✅ | Seeded prohibited claims; deterministic checker blocks invented prices/offers, appointment and health claims |
+| Health Score | ⬜ | ✅ | Formula shown; unavailable measures are left out, not counted as zero |
+| Daily Plan, approve/snooze/dismiss | ⬜ | ✅ | Built from real data only |
+| Action state machine, Agent Activity | 🟡 | ✅ | Append-only events; tenant-facing activity, failed posts |
+| Reports | 🟡 | ✅ | PDF + CSV (reviews, posts, tasks, AI), formula-injection-safe |
+| Privacy / Terms / Data deletion pages | ⬜ | 🟡 | Written, **not legally reviewed**; support email unset |
+| Data export / account deletion | ⬜ | ✅ Mocked | ZIP without secrets; grace period; cancel; cards returned to inventory |
+| Audit log (tenant) | 🟡 | ✅ | Settings → Audit log, filterable |
+| Content Studio, Inbox/Leads, Meta, WhatsApp | ⬜ | 🟡 | Structure + honest "Setup required". **No functionality**; needs Meta/WhatsApp credentials |
+| Auto-publish | n/a | ⬜ by design | Disabled; owner approval is always required |
+| Plan gating for agent, GST invoices, error monitoring | ⬜ | ⬜ | Not built |
