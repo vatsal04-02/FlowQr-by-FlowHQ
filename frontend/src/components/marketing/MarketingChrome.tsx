@@ -38,7 +38,7 @@ export function MarketingFooter() {
           <li><Link className={a} href="/login">Log in</Link></li><li><Link className={a} href="/register">Start free trial</Link></li></ul></nav>
       </div>
       <div className="container-page mt-8 flex flex-col gap-2 border-t border-ink-100 pt-5 text-xs text-ink-500 sm:flex-row sm:items-start sm:justify-between">
-        <p>© {new Date().getFullYear()} FlowHQ. FlowQR is a FlowHQ product.</p>
+        <p>© {new Date().getFullYear()} FlowHQ. FlowQR is a FlowHQ product. <Link className="underline hover:text-ink" href="/privacy">Privacy</Link> · <Link className="underline hover:text-ink" href="/terms">Terms</Link> · <Link className="underline hover:text-ink" href="/data-deletion">Delete your data</Link></p>
         <p className="max-w-xl">FlowQR is not affiliated with, endorsed by or sponsored by Google. Google and Google Business Profile are trademarks of Google LLC.</p>
       </div>
     </footer>

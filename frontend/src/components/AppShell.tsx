@@ -1,14 +1,13 @@
 "use client";
 import clsx from "clsx";
-import {
-  BarChart3, ChevronsUpDown, CreditCard, LayoutDashboard, Link2, LogOut, MapPin, Menu, Paintbrush, Palette, QrCode, ScanLine, Settings, ShieldCheck, SlidersHorizontal,
-  Sparkles, Star, Store, TrendingUp, Users,
-} from "lucide-react";
+import { ChevronDown, ChevronsUpDown, LogOut, Menu, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { LocationScopeProvider, useLocationScope } from "@/lib/location-scope";
+import { isEntryActive, locate, NAV, TAB_HREFS, type NavGroup } from "@/lib/nav";
 import type { SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 import { Logo } from "./ui/Brand";
@@ -16,48 +15,47 @@ import { LinkButton } from "./ui/Button";
 import { Alert, Spinner } from "./ui/Card";
 import { Modal } from "./ui/Modal";
 
-type NavItem = { href: string; label: string; icon: typeof Star };
-const GROUPS: { title: string; items: NavItem[] }[] = [
-  { title: "Reputation", items: [
-    { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-    { href: "/reviews", label: "Reviews", icon: Star },
-    { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  ] },
-  { title: "Cards", items: [
-    { href: "/cards", label: "Cards", icon: QrCode },
-    { href: "/cards/analytics", label: "Card analytics", icon: ScanLine },
-    { href: "/qr", label: "QR design & export", icon: Paintbrush },
-    { href: "/locations", label: "Locations", icon: MapPin },
-  ] },
-  { title: "Review Growth", items: [
-    { href: "/review-growth", label: "Overview", icon: TrendingUp },
-    { href: "/review-growth/campaigns", label: "QR campaigns", icon: QrCode },
-    { href: "/review-growth/generator", label: "AI review generator", icon: Sparkles },
-    { href: "/review-growth/customize", label: "Landing page", icon: Palette },
-    { href: "/review-growth/analytics", label: "Analytics", icon: BarChart3 },
-    { href: "/review-growth/settings", label: "Settings", icon: SlidersHorizontal },
-  ] },
-  { title: "Business", items: [
-    { href: "/google", label: "Google connection", icon: Link2 },
-    { href: "/profile", label: "Google profile", icon: Store },
-    { href: "/subscription", label: "Subscription", icon: CreditCard },
-    { href: "/staff", label: "Staff", icon: Users },
-    { href: "/settings", label: "Settings", icon: Settings },
-  ] },
-];
-const ADMIN_GROUP = { title: "Platform", items: [{ href: "/admin", label: "Platform admin", icon: ShieldCheck }] };
-const TABS = ["/dashboard", "/reviews", "/cards", "/analytics"];
+const ADMIN_GROUP: NavGroup = { id: "platform", title: "Platform", icon: ShieldCheck, href: "/admin", items: [] };
 
-function isActive(path: string, href: string) {
-  if (href === "/cards") return path === "/cards" || /^\/cards\/(?!analytics)/.test(path);
-  if (href === "/review-growth") return path === href; // its sub-pages have their own nav items
-  if (href === "/review-growth/campaigns") return path === href || path.startsWith(href + "/");
-  return path === href || path.startsWith(href + "/");
+function Crumbs({ path }: { path: string }) {
+  const l = locate(path);
+  if (!l) return null;
+  const crumbs = [{ label: l.group.title, href: l.group.items[0]?.href ?? l.group.href }, ...(l.item ? [{ label: l.item.label, href: l.item.href }] : [])];
+  return (
+    <nav aria-label="Breadcrumb" className="min-w-0">
+      <ol className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-ink-500">
+        {crumbs.map((c, n) => (
+          <li key={c.label} className="flex items-center gap-1.5">
+            {n > 0 && <span aria-hidden>/</span>}
+            {n < crumbs.length - 1 || l.detail ? <Link href={c.href ?? "#"} className="hover:text-ink hover:underline">{c.label}</Link> : <span aria-current="page" className="font-medium text-ink-700">{c.label}</span>}
+          </li>))}
+        {l.detail && <li className="flex items-center gap-1.5"><span aria-hidden>/</span><span aria-current="page" className="font-medium text-ink-700">Details</span></li>}
+      </ol>
+    </nav>
+  );
 }
 
+function LocationPicker() {
+  const { locations, locationId, setLocationId } = useLocationScope();
+  if (locations.length < 2) return null; // one location: nothing to choose
+  return (
+    <label className="flex items-center gap-2 text-[13px] text-ink-500">
+      <span className="hidden sm:inline">Location</span>
+      <select aria-label="Location" value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)}
+        className="min-h-9 max-w-[220px] rounded-lg border border-ink-200 bg-white px-2 text-sm font-medium text-ink-700">
+        <option value="">All locations</option>
+        {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+      </select>
+    </label>
+  );
+}
+
+const OPEN_KEY = "flowqr:nav-open";
+
 function Banners({ s }: { s: SubscriptionInfo | null }) {
-  const { me, refresh } = useAuth();
+  const { me, refresh, role } = useAuth();
   const path = usePathname();
+  const del = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
   const [sent, setSent] = useState<string | null>(null);
   return (
     <div className="mb-4 space-y-2 empty:hidden">
@@ -69,6 +67,7 @@ function Banners({ s }: { s: SubscriptionInfo | null }) {
           {sent ?? "Confirm your email to invite staff, connect Google and manage billing."}
         </Alert>
       )}
+      {del?.requested && <Alert tone="warning" title="This business is scheduled for deletion" action={<LinkButton href="/settings#data" size="sm" variant="secondary">Review</LinkButton>}>Everything works until {del.scheduled_for ? new Date(del.scheduled_for).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "the scheduled date"}; you can cancel in Settings.</Alert>}
       {s && !path.startsWith("/subscription") && !path.startsWith("/payments") && (
         !s.active ? <Alert tone="error" title="Subscription inactive" action={<LinkButton href="/subscription" size="sm">Choose a plan</LinkButton>}>Your data is safe and your cards keep working, but editing, AI and sync are paused.</Alert>
         : s.status === "past_due" ? <Alert tone="warning" title="Payment failed" action={<LinkButton href="/subscription" size="sm" variant="secondary">Review billing</LinkButton>}>We couldn&rsquo;t charge your payment method. Access continues for now.</Alert>
@@ -84,6 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [more, setMore] = useState(false);
+  const [openIds, setOpenIds] = useState<string[]>([]);
   const sub = useFetch<SubscriptionInfo>("/billing/subscription");
 
   useEffect(() => {
@@ -92,6 +92,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     else if (!tenant || !tenant.onboarding_completed) router.replace(me.user.is_platform_admin && !tenant ? "/admin" : "/onboarding");
   }, [loading, me, tenant, router]);
   useEffect(() => setMore(false), [path]);
+  useEffect(() => { try { const v = JSON.parse(localStorage.getItem(OPEN_KEY) ?? "[]"); if (Array.isArray(v)) setOpenIds(v); } catch { /* ignore */ } }, []);
+  const here = locate(path);
+  // the group you are in is always open; the others stay as you left them
+  const isOpen = (g: NavGroup) => g.id === here?.group.id || openIds.includes(g.id);
+  const toggle = (g: NavGroup) => setOpenIds((cur) => {
+    const next = cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id];
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
 
   if (loading || !me || !tenant || !tenant.onboarding_completed) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
 
@@ -107,29 +116,43 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const s = sub.data;
   const planLine = s ? (s.status === "trialing" ? `Trial · ${s.trial_days_left ?? 0} days left` : `${s.plan_name ?? "No plan"} plan`) : " ";
-  const groups = me.user.is_platform_admin ? [...GROUPS, ADMIN_GROUP] : GROUPS;
-  const tabs = GROUPS.flatMap((g) => g.items).filter((n) => TABS.includes(n.href)).sort((a, b) => TABS.indexOf(a.href) - TABS.indexOf(b.href));
+  const groups = me.user.is_platform_admin ? [...NAV, ADMIN_GROUP] : NAV;
+  const tabs = TAB_HREFS.map((h) => groups.flatMap((g) => (g.items.length ? g.items : [{ href: g.href!, label: g.title, icon: g.icon }])).find((n) => n.href === h)).filter((n): n is NonNullable<typeof n> => !!n);
 
-  const nav = (label: string) => groups.map((g) => (
-    <div key={g.title} role="group" aria-label={`${g.title} ${label}`} className="mt-5 first:mt-0">
-      <p className="eyebrow px-2.5 pb-1.5 !text-[11px] text-ink-400">{g.title}</p>
-      <div className="space-y-px">
-        {g.items.map((n) => {
-          const on = isActive(path, n.href);
-          return (
-            <Link key={n.href} href={n.href} aria-current={on ? "page" : undefined}
-              className={clsx("flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors lg:min-h-8",
-                on ? "bg-brand-50 font-semibold text-brand-700" : "font-medium text-ink-700 hover:bg-ink-50")}>
-              <n.icon className={clsx("h-[17px] w-[17px] shrink-0", on ? "text-brand-600" : "text-ink-400")} strokeWidth={1.8} aria-hidden />{n.label}
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  ));
+  const linkCls = (on: boolean) => clsx("flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors lg:min-h-8", on ? "bg-brand-50 font-semibold text-brand-700" : "font-medium text-ink-700 hover:bg-ink-50");
+  const nav = (label: string) => (
+    <ul className="space-y-px" aria-label={label}>
+      {groups.map((g) => {
+        const open = isOpen(g);
+        const inGroup = here?.group.id === g.id;
+        if (!g.items.length) {
+          const on = isEntryActive(path, g.href!) || path === g.href || path.startsWith(g.href + "/");
+          return <li key={g.id}><Link href={g.href!} aria-current={on ? "page" : undefined} className={linkCls(on)}><g.icon className={clsx("h-[17px] w-[17px] shrink-0", on ? "text-brand-600" : "text-ink-400")} strokeWidth={1.8} aria-hidden />{g.title}</Link></li>;
+        }
+        return (
+          <li key={g.id}>
+            <button type="button" onClick={() => toggle(g)} aria-expanded={open} aria-controls={`nav-${label}-${g.id}`}
+              className={clsx("flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm font-medium transition-colors hover:bg-ink-50 lg:min-h-8", inGroup ? "text-ink" : "text-ink-700")}>
+              <g.icon className={clsx("h-[17px] w-[17px] shrink-0", inGroup ? "text-brand-600" : "text-ink-400")} strokeWidth={1.8} aria-hidden />
+              <span className="flex-1">{g.title}</span>
+              <ChevronDown className={clsx("h-3.5 w-3.5 text-ink-400 transition-transform", open && "rotate-180")} aria-hidden />
+            </button>
+            {open && (
+              <ul id={`nav-${label}-${g.id}`} className="ml-[18px] mt-px space-y-px border-l border-ink-100 pl-2">
+                {g.items.map((n) => {
+                  const on = isEntryActive(path, n.href);
+                  return <li key={n.href}><Link href={n.href} aria-current={on ? "page" : undefined} className={clsx(linkCls(on), "min-h-10 lg:min-h-[30px]")}>{n.label}</Link></li>;
+                })}
+              </ul>)}
+          </li>
+        );
+      })}
+    </ul>
+  );
   const switchTenant = async (id: string) => { await api("/auth/select-tenant", { method: "POST", params: { tenant_id: id } }); await refresh(); router.refresh(); };
 
   return (
+    <LocationScopeProvider>
     <div className="min-h-dvh bg-ink-50">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col border-r border-ink-100 bg-white px-3 py-4 lg:flex">
         <div className="px-1.5 pb-4"><Logo href="/dashboard" /></div>
@@ -145,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </div>
-        <nav aria-label="Main" className="flex-1 overflow-y-auto pr-0.5 [scrollbar-width:thin]">{nav("pages")}</nav>
+        <nav aria-label="Main" className="flex-1 overflow-y-auto pr-0.5 [scrollbar-width:thin]">{nav("Main pages")}</nav>
         <div className="mt-3 border-t border-ink-100 pt-3">
           <p className="truncate px-2.5 text-xs text-ink-500">{me.user.email}</p>
           <button onClick={() => void logout()} className="mt-1 flex min-h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"><LogOut className="h-[17px] w-[17px] text-ink-400" strokeWidth={1.8} aria-hidden />Log out</button>
@@ -157,11 +180,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <span className="max-w-[48%] truncate text-sm font-medium text-ink-700">{tenant.name}</span>
       </header>
 
-      <main className="lg:pl-[232px]"><div className="mx-auto w-full max-w-[1180px] px-4 pb-24 pt-5 sm:px-6 lg:pb-10 lg:pt-6"><Banners s={s} />{children}</div></main>
+      <main className="lg:pl-[232px]"><div className="mx-auto w-full max-w-[1180px] px-4 pb-24 pt-5 sm:px-6 lg:pb-10 lg:pt-6">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2"><Crumbs path={path} /><LocationPicker /></div>
+        <Banners s={s} />{children}</div></main>
 
       <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-ink-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
         {tabs.map((n) => {
-          const on = isActive(path, n.href);
+          const on = isEntryActive(path, n.href);
           return (
             <Link key={n.href} href={n.href} aria-current={on ? "page" : undefined}
               className={clsx("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", on ? "text-brand-600" : "text-ink-500")}>
@@ -173,9 +198,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <Modal open={more} onClose={() => setMore(false)} title="Menu">
-        <nav aria-label="All pages">{nav("menu")}</nav>
+        <nav aria-label="All pages">{nav("Menu pages")}</nav>
         <button onClick={() => void logout()} className="tap mt-5 flex w-full items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-red-700 hover:bg-red-50"><LogOut className="h-[17px] w-[17px]" aria-hidden />Log out</button>
       </Modal>
     </div>
+    </LocationScopeProvider>
   );
 }

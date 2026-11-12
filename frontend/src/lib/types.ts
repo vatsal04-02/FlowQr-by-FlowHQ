@@ -22,7 +22,7 @@ export interface Card {
   location_name: string | null; stats: Record<string, number>; last_scan_at?: string | null;
 }
 export interface Batch { id: string; name: string; prefix: string; quantity: number; created_at: string; notes: string | null }
-export interface GoogleConnection { id: string; google_email: string | null; status: string; last_error: string | null; connected_at: string | null; api_access?: "unknown" | "approved" | "awaiting_approval" | "api_disabled"; api_access_checked_at?: string | null }
+export interface GoogleConnection { id: string; google_email: string | null; status: string; last_error: string | null; connected_at: string | null; api_access?: "unknown" | "approved" | "awaiting_approval" | "api_disabled"; api_access_checked_at?: string | null; locations_found?: number; no_locations?: boolean }
 export interface GoogleLocation {
   id: string; connection_id: string; location_id: string | null; google_account_name: string; google_location_name: string;
   title: string | null; address: string | null; selected: boolean; last_synced_at: string | null; last_sync_status: string | null; last_sync_error: string | null;

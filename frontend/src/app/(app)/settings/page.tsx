@@ -1,4 +1,5 @@
 "use client";
+import { YourDataPanel } from "@/components/YourDataPanel";
 import { useEffect, useState } from "react";
 import { useGoogleError } from "@/components/GoogleAuth";
 import { Button, LinkButton } from "@/components/ui/Button";
@@ -13,7 +14,7 @@ import { emailRule, passwordRule, phoneRule, required, useForm } from "@/lib/for
 import type { SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
-const SECTIONS = [["business", "Business profile"], ["ai", "AI reply style"], ["plan", "Plan"], ["you", "Your profile"], ["signin", "Sign-in methods"], ["password", "Password"]] as const;
+const SECTIONS = [["business", "Business profile"], ["ai", "AI reply style"], ["data", "Your data"], ["plan", "Plan"], ["you", "Your profile"], ["signin", "Sign-in methods"], ["password", "Password"]] as const;
 
 export default function SettingsPage() {
   const { tenant, me, isAdmin, refresh } = useAuth();
@@ -70,6 +71,8 @@ export default function SettingsPage() {
             </Panel></section>
             {isAdmin && <div className="flex justify-end"><Button type="submit" loading={busy}>Save business settings</Button></div>}
           </form>
+
+          <section id="data" className="scroll-mt-6"><YourDataPanel /></section>
 
           <section id="plan" className="scroll-mt-6"><Panel title="Plan" action={<LinkButton href="/subscription" size="sm" variant="secondary">Manage subscription</LinkButton>} flush>
             {sub.data && <div className="px-4 py-1"><KV rows={[

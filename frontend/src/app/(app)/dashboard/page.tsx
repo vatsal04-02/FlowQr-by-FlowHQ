@@ -10,6 +10,8 @@ import { LinkButton } from "@/components/ui/Button";
 import { Alert, PageHeader, Skeleton, Stars } from "@/components/ui/Card";
 import { FilterSelect } from "@/components/ui/Form";
 import { CellBar, Meter, Panel, Segmented, Status } from "@/components/ui/kit";
+import { HealthCard } from "@/components/agent/HealthCard";
+import type { TasksResponse } from "@/lib/agent";
 import { useAuth } from "@/lib/auth";
 import { fmtDate, fmtHours, fmtNum, fmtPct, fmtRating, timeAgo } from "@/lib/format";
 import type { Card, GoogleConnection, Location, Overview, Review } from "@/lib/types";
@@ -20,6 +22,26 @@ interface Item { tone: Tone; title: string; detail: string; href: string; cta: s
 const REVIEW_STATE: Record<Review["reply_state"], ["ok" | "warn" | "bad" | "info" | "idle", string]> = {
   none: ["warn", "Needs reply"], draft: ["info", "Draft ready"], approved: ["info", "Approved"], published: ["ok", "Replied"], failed: ["bad", "Publish failed"],
 };
+
+function AgentSummary() {
+  const plan = useFetch<TasksResponse>("/agent/tasks", { scope: "today" });
+  const open = (plan.data?.tasks ?? []).filter((t) => !["published", "done", "dismissed"].includes(t.status));
+  const waiting = open.filter((t) => t.status === "awaiting_approval").length;
+  const done = (plan.data?.tasks ?? []).filter((t) => ["published", "done"].includes(t.status)).length;
+  return (
+    <div className="mb-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <HealthCard compact />
+      <Panel title="Today's plan" action={<Link className="text-[13px] font-medium text-brand-700 hover:underline" href="/agent">Open</Link>}>
+        {plan.error ? <p className="text-sm text-red-700">{plan.error}</p> : !plan.data ? <Skeleton className="h-16" /> : (
+          <>
+            <p className="text-sm text-ink-700"><b className="num text-lg">{open.length}</b> to do · <b className="num text-lg">{waiting}</b> waiting for your approval · <b className="num text-lg">{done}</b> finished today</p>
+            <ul className="mt-2 space-y-1 text-sm">{open.slice(0, 3).map((t) => <li key={t.id} className="truncate text-ink-700">• {t.title}</li>)}</ul>
+            {open.length === 0 && <p className="mt-1 text-sm text-ink-500">Nothing needs doing right now, or the agent has not run yet.</p>}
+          </>)}
+      </Panel>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { tenant } = useAuth();
@@ -75,6 +97,8 @@ export default function Dashboard() {
           </FilterSelect>
           <DateRange value={range} onChange={setRange} />
         </>} />
+
+      <AgentSummary />
 
       {ov.error && <div className="mb-4"><Alert tone="error" title="Couldn't load analytics">{ov.error}</Alert></div>}
       {!o && !ov.error && <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]"><Skeleton className="h-64" /><Skeleton className="h-64" /></div>}
