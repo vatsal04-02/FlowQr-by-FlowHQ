@@ -14,12 +14,14 @@ Branch `feature/growth-platform`, local commits only. Not pushed, not deployed.
 | Migration 0016–0017 | up to 0017, down to 0015, up again: OK on a fresh DB | real Postgres |
 | Local stack deploy | 6 services healthy; real DB at 0017; data fingerprints (tenants, users, reviews, campaigns, locations, subscriptions) identical before/after | live local |
 | Celery | new tasks registered (`publish_due_posts`, `daily_agent`, `purge_deleted_accounts`) | live local |
-| **Live Google** (accounts, locations, reviews, posts) | **NOT VERIFIED.** No consent completed; Business Profile APIs not confirmed enabled/approved | blocked |
+| **Live Google, READ-ONLY** (`google-smoke`, 2026-11-12) | **PASS**: token refresh with the business scope, accounts.list (1), locations.list (1), locations.get, categories.list, reviews.list (50 on first page, more available), localPosts.list (44), media.list (31), Performance fetchMultiDaily (10/10 metrics) | **Live** |
+| **Live Google, WRITES** (reply, post, photo, profile edit) | **NOT VERIFIED.** Deliberately never made by the smoke command. `locations.patch validateOnly` was skipped | untested |
+| Google Cloud console | Google My Business API (private), Business Information, Account Management and Performance APIs all enabled and receiving requests | observed |
 | AI drafting with the real provider | not exercised in e2e (would spend quota); covered by scripted-AI tests | mocked |
 
 ## Blocked, and by what
 
-- **Live Google:** enable the Business Profile APIs on project 806581490238 and get access approved; complete OAuth consent with an account that manages a verified location; then run `python -m app.cli google-smoke --connection <id>` (read-only).
+- **Live Google writes:** reads are verified (above). Publishing a reply, a post, a photo or a profile edit has not been tried live. Do one controlled test on a throwaway post or reply, approved by the owner, before relying on it. Also run `google-smoke --validate-patch`.
 - **Payments:** Razorpay keys.
 - **Meta / WhatsApp / rank provider:** credentials; pages are "Setup required" only.
 - **Email:** SMTP and a support address (privacy page says the address is unset until configured).

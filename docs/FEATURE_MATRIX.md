@@ -107,7 +107,7 @@ None of the Setup-required placeholders exist yet. No code in these areas exists
 
 # After the growth-platform work (2026-11-12)
 
-The tables above are the audit taken **before** this work and are kept as the baseline. Status now, by area. "Mocked" = tested against a fake Google/AI; **nothing below has been verified against live Google** (see `LAUNCH_REPORT.md`).
+The tables above are the audit taken **before** this work and are kept as the baseline. Status now, by area. "Mocked" = tested against a fake Google/AI; **live Google READ calls are verified; live WRITES are not** (see `LAUNCH_REPORT.md`).
 
 | Area | Before | After | Notes |
 |---|---|---|---|
