@@ -78,7 +78,7 @@ def callback(request: Request, code: str | None = None, state: str | None = None
              session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
              db: Session = Depends(get_db)):
     def fail(reason: str):
-        r = _frontend("/google", error=reason)
+        r = _frontend("/gbp/locations", error=reason)
         r.delete_cookie(STATE_COOKIE, path="/")
         return r
 
@@ -149,7 +149,7 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     audit(db, action="google.connect", tenant_id=tenant_id, user_id=user_id, entity_type="google_connection",
           entity_id=conn.id, ip=client_ip(request))
     db.commit()
-    r = _frontend("/google", connected="1", connection=str(conn.id))
+    r = _frontend("/gbp/locations", connected="1", connection=str(conn.id))
     r.delete_cookie(STATE_COOKIE, path="/")
     return r
 

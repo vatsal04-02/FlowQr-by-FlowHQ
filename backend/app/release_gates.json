@@ -1,0 +1,12 @@
+{
+  "_about": "The release status ladder (docs/STAGING_DEPLOYMENT.md section 5). A rung is 'passed' only with dated evidence a person can open. 'not_done' is the honest default. The application serves this at GET /admin/release-gates and never computes it: a test double can never turn a live rung green.",
+  "overall": "Development Complete - External Validation Pending",
+  "gates": [
+    {"id": "unit_tested", "label": "Unit tested", "status": "passed", "date": "2026-11-15", "evidence": "backend pytest on a fresh PostgreSQL 16 with migrations from scratch; see docs/PHASE_2_COMPLETION_REPORT.md for the run"},
+    {"id": "integration_doubles", "label": "Integration tested with test doubles", "status": "passed", "date": "2026-11-15", "evidence": "Google, Places, Razorpay and the AI are test doubles in these tests; browser suites e2e/autonomy-control-centre.js and e2e/agent-and-posts.js against an isolated stack with seeded data"},
+    {"id": "real_google", "label": "Tested against the real Google Business Profile API (read and write, read back)", "status": "not_done", "date": null, "evidence": null, "blocked_by": "an authorised test Business Profile (docs/LIVE_VALIDATION_RUNBOOK.md stages 1 to 4)"},
+    {"id": "real_places", "label": "Tested against the real Google Places API (scan, measured cost)", "status": "not_done", "date": null, "evidence": null, "blocked_by": "a Places API key and a test business (runbook stage 5)"},
+    {"id": "staging_validated", "label": "Validated in staging (current code, migrations upgraded from production-shaped data)", "status": "not_done", "date": null, "evidence": null, "blocked_by": "a staging environment on the current code (docs/STAGING_DEPLOYMENT.md)"},
+    {"id": "production_approved", "label": "Approved for production", "status": "not_done", "date": null, "evidence": null, "blocked_by": "all rungs above, the owner decisions, legal review, and a rehearsed rollback (docs/PRODUCTION_DEPLOYMENT.md section 2)"}
+  ]
+}

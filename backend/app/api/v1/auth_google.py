@@ -128,7 +128,7 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     intent = flow.intent if flow else LOGIN
 
     def fail(reason: str) -> RedirectResponse:
-        return _done(_redirect("/settings" if intent == LINK else "/login", google_error=reason))
+        return _done(_redirect("/settings/account" if intent == LINK else "/login", google_error=reason))
 
     if error:
         return fail("access_denied")
@@ -169,7 +169,7 @@ def _link_existing(db: Session, request: Request, session_token, flow: _Flow, id
     user.google_sub = identity.sub
     audit(db, action="auth.google_linked", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request))
     db.commit()
-    return _done(_redirect("/settings", google="linked"))
+    return _done(_redirect("/settings/account", google="linked"))
 
 
 def _sign_in(db: Session, request: Request, identity, fail) -> RedirectResponse:
@@ -205,7 +205,7 @@ def _sign_in(db: Session, request: Request, identity, fail) -> RedirectResponse:
         return fail("account_disabled")
 
     user.last_login_at = utcnow()
-    response = _redirect("/onboarding" if created else "/dashboard")
+    response = _redirect("/onboarding" if created else "/overview")
     _start_session(db, user, request, response)
     audit(db, action="auth.login", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request),
           meta={"via": "google"})

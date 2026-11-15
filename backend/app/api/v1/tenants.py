@@ -4,6 +4,7 @@ import uuid as _uuid
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
 from app.core.config import settings
@@ -66,6 +67,62 @@ def update_tenant(body: TenantUpdateIn, request: Request, ctx: TenantContext = D
           entity_id=ctx.tenant_id, meta={"fields": sorted(data)}, ip=client_ip(request))
     ctx.db.commit()
     return ctx.tenant
+
+
+class VoicePreviewIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    brand_tone: str | None = Field(default=None, max_length=300)
+    ai_instructions: str | None = Field(default=None, max_length=2000)
+
+
+SAMPLE_REVIEWS = {
+    5: "Lovely experience. The staff were friendly and explained everything clearly. Will definitely come back.",
+    4: "Good service overall, though I had to wait a little before my turn.",
+    3: "It was okay. The service was fine but the waiting time was long and nobody told us why.",
+    2: "Not great. I waited a long time and the person at the front desk seemed rushed.",
+    1: "Very disappointed. I waited over an hour and nobody apologised.",
+}
+
+
+@router.post("/tenant/voice-preview")
+def voice_preview(body: VoicePreviewIn, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """AI › Brand voice: one sample reply to a made-up review, written with the tone/instructions being edited (saved or not).
+    Nothing is stored except the usual AI-usage log line; nothing is posted. Counts as one AI use."""
+    import time
+
+    from app.models import Review
+    from app.services.agent.knowledge import context as kb_ctx
+    from app.services.ai import AIUnavailable, get_provider
+    from app.services.ai.replies import draft_reply
+    from app.services.ai_usage import log_generation, metered, quota_exceeded
+
+    ent.require_feature(ctx.db, ctx.tenant_id, "ai_replies")
+    if quota_exceeded(ctx.db, ctx.tenant_id, "reply_draft"):
+        raise HTTPException(status_code=402, detail="Monthly AI limit reached for your plan")
+    try:
+        provider = metered(get_provider(), ctx.db, ctx.tenant_id, "reply_draft", actor_user_id=ctx.user.id)
+    except AIUnavailable:
+        raise HTTPException(status_code=503, detail="AI is not configured on this server.")
+    sample = Review(rating=body.rating, text=SAMPLE_REVIEWS[body.rating], reviewer_name="Sample customer")  # transient: never added to the session
+    t = ctx.tenant
+    saved = (t.brand_tone, t.ai_instructions)
+    started = time.monotonic()
+    try:
+        t.brand_tone, t.ai_instructions = body.brand_tone, body.ai_instructions  # only for this one call, restored below
+        text, lang, reasons = draft_reply(provider, sample, t, None, kb=kb_ctx(ctx.db, t))  # a sample for the voice preview: not recorded as an output
+        status, err = "ok", None
+    except AIUnavailable as exc:
+        if getattr(exc, "scope", None):  # a spending budget stopped it (services/ai_usage.BudgetExceeded): say so, don't call it a failure
+            raise HTTPException(status_code=402, detail=str(exc))
+        text, lang, reasons, status, err = "", None, [], "error", str(exc)
+    finally:
+        t.brand_tone, t.ai_instructions = saved
+    log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="reply_draft", provider=provider.name, model=provider.model, language=lang,
+                   input_chars=len(sample.text), output_chars=len(text), status=status, started=started, location_id=None, error=err, usage=getattr(provider, "usage", None))
+    ctx.db.commit()
+    if status != "ok":
+        raise HTTPException(status_code=502, detail="The AI couldn't write a sample just now. Try again.")
+    return {"body": text, "language": lang, "flags": reasons, "review": sample.text}
 
 
 @router.post("/tenant/complete-onboarding", response_model=TenantOut)

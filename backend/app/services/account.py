@@ -28,6 +28,9 @@ from app.models import (
     ReviewSession, ScanEvent, Subscription, Tenant, User,
 )
 from app.models.base import utcnow
+from app.models.autonomy import AgentAction, AgentActionApproval, AgentInterventionEvent, AgentRankFollowup
+from app.models.rank import RankKeyword
+from app.models.rank_grid import RankGrid, RankGridPoint, RankGridScan
 
 log = logging.getLogger("flowqr.account")
 
@@ -36,7 +39,9 @@ SECRET_COLUMNS = {"refresh_token_encrypted", "access_token_encrypted", "access_t
                   "visitor_hash", "logo_png", "idempotency_key"}
 MAX_ROWS = 200_000
 TABLES = [Location, GoogleConnection, GoogleLocation, Review, ReplyDraft, ReplyLog, QRCard, CardAssignment, ReviewCampaign, RetiredCampaignId,
-          ReviewSession, ReviewDraft, ReviewEvent, ScanEvent, Subscription, Payment, CardOrder, AuditLog, AIGenerationLog, Invitation]
+          ReviewSession, ReviewDraft, ReviewEvent, ScanEvent, Subscription, Payment, CardOrder, AuditLog, AIGenerationLog, Invitation,
+          # the autonomy records: what FlowQR proposed or did on the business's Google profile, who authorised it, every step, and what was measured afterwards
+          AgentAction, AgentActionApproval, AgentInterventionEvent, AgentRankFollowup, RankKeyword, RankGrid, RankGridScan, RankGridPoint]
 
 
 def _plain(v):
@@ -112,11 +117,14 @@ def delete_tenant(db: Session, tenant_id: uuid.UUID, *, provider=None) -> dict:
     from app.services.cards import unassign_card
     cards_returned = 0
     for card in db.scalars(select(QRCard).where(QRCard.tenant_id == tenant_id)):
-        unassign_card(db, card)  # back to FlowHQ inventory as a clean, unassigned card (not a stale "active" one)
+        if card.status.value == "retired":  # stays retired (never returns to stock); the tenant link is cleared when the business row goes
+            continue
+        unassign_card(db, card, "business_deleted")  # back to FlowHQ inventory as a clean, unassigned card (not a stale "active" one)
         cards_returned += 1
     db.flush()
     member_ids = list(db.scalars(select(Membership.user_id).where(Membership.tenant_id == tenant_id)))
     slug = tenant.slug
+    db.execute(text("SELECT set_config('app.history_purge', 'on', true)"))  # the autonomy history is append-only; only deleting the whole business may erase it
     db.execute(delete(Tenant).where(Tenant.id == tenant_id))
     orphaned = 0
     for uid in member_ids:  # people whose only business this was lose their account too; platform admins never do

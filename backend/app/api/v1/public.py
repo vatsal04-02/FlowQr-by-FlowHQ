@@ -11,13 +11,13 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.deps import public_db
 from app.core.rate_limit import client_ip, hit, limit_by_ip, note_miss
-from app.models import CardStatus, Location, QRCard, ScanEvent, ScanEventType, Tenant
+from app.models import CardStatus, Location, QRCard, ReviewCampaign, ScanEvent, ScanEventType, Tenant
 from app.models.base import utcnow
 from app.schemas.cards import TrackEventIn
 from app.services import cards as svc
 from app.services.ai import AIUnavailable, get_provider
 from app.services.ai.review_assist import improve_review
-from app.services.ai_usage import log_generation, quota_exceeded
+from app.services.ai_usage import log_generation, metered, quota_exceeded
 
 router = APIRouter(prefix="/public/c", tags=["public"])
 
@@ -35,18 +35,27 @@ def _find_card(db: Session, token: str) -> QRCard | None:
     return db.scalar(select(QRCard).where(QRCard.public_token == token))
 
 
-def _fallback(state: str) -> dict:
+def _fallback(state: str, reason: str | None = None) -> dict:
+    """What a customer sees when a card cannot open a review page. Deliberately says nothing about who owns the card or why it is off."""
     messages = {
         "unassigned": "This FlowQR card hasn't been set up yet.",
         "inactive": "This FlowQR card is no longer active.",
         "not_found": "We couldn't find this card.",
     }
-    return {"state": state, "message": messages[state]}
+    msg = "This FlowQR card is switched off for now. Please check back soon." if reason == "paused" else messages[state]
+    return {"state": state, "message": msg, **({"reason": reason} if reason else {})}
+
+
+def _channel(value: str | None) -> str | None:
+    return value if value in svc.CHANNELS else None
 
 
 @router.get("/{token}", dependencies=[Depends(limit_by_ip("scan", settings.rl_public_scan_per_minute, 60))])
-def resolve_card(token: str, request: Request, db: Session = Depends(public_db)):
-    """Resolve token -> card -> business/location, record a scan, return what the landing page needs."""
+def resolve_card(token: str, request: Request, channel: str | None = None, db: Session = Depends(public_db)):
+    """Resolve token -> card -> business/location, record a scan, return what the landing page needs.
+    The same card answers both of its doors: the printed QR (/q/ and the older /c/) and the NFC tag (/n/). `channel` says which one
+    was used, and only changes how the visit is counted."""
+    channel = _channel(channel)
     ua = request.headers.get("user-agent")
     ip = client_ip(request)
     card = _find_card(db, token)
@@ -55,19 +64,19 @@ def resolve_card(token: str, request: Request, db: Session = Depends(public_db))
         note_miss(request)
         raise HTTPException(status_code=404, detail=_fallback("not_found"))
 
-    if card.status == CardStatus.unassigned or not card.tenant_id:
-        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua)
+    if card.status in (CardStatus.generated, CardStatus.unassigned, CardStatus.reserved, CardStatus.archived) or not card.tenant_id:
+        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel)
         db.commit()
         return _fallback("unassigned")
     if card.status not in svc.LIVE_STATUSES:
-        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua)
+        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel)
         db.commit()
-        return _fallback("inactive")
+        return _fallback("inactive", "paused" if card.status == CardStatus.paused else None)
 
     tenant = db.get(Tenant, card.tenant_id)
     location = db.get(Location, card.location_id) if card.location_id else None
     if not tenant or not tenant.is_active or not location or not location.is_active:
-        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua)
+        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel)
         db.commit()
         return _fallback("inactive")
 
@@ -76,13 +85,19 @@ def resolve_card(token: str, request: Request, db: Session = Depends(public_db))
         ScanEvent.card_id == card.id, ScanEvent.event_type == ScanEventType.scan, ScanEvent.visitor_hash == vhash,
         ScanEvent.created_at > utcnow() - timedelta(seconds=20)).limit(1))
     if not recent:  # ignore rapid refreshes
-        svc.record_event(db, card, ScanEventType.scan, ip=ip, ua=ua)
+        svc.record_event(db, card, ScanEventType.scan, ip=ip, ua=ua, channel=channel)
         if card.status == CardStatus.assigned and not svc.is_bot(ua):
             card.status = CardStatus.active  # first genuine scan makes the card live
         db.commit()
 
+    # A card bound to a live review campaign opens that campaign's page (the AI review assistant). If the campaign is paused, archived or
+    # points at another location, the card falls back to its plain landing page: customers can still leave a review.
+    camp = db.get(ReviewCampaign, card.campaign_id) if card.campaign_id else None
+    campaign = {"id": camp.public_id} if camp and camp.status == "active" and camp.tenant_id == tenant.id and camp.location_id in (None, location.id) else None
     return {
         "state": "ok",
+        "campaign": campaign,
+        "channel": channel,
         "business": {
             "name": tenant.name,
             "logo_url": tenant.logo_url,
@@ -106,7 +121,7 @@ def track_event(token: str, body: TrackEventIn, request: Request, db: Session = 
     card = _find_card(db, token)
     if not card or card.status not in svc.LIVE_STATUSES or not card.tenant_id:
         return
-    svc.record_event(db, card, ScanEventType(body.type), ip=client_ip(request), ua=request.headers.get("user-agent"))
+    svc.record_event(db, card, ScanEventType(body.type), ip=client_ip(request), ua=request.headers.get("user-agent"), channel=_channel(body.channel))
     db.commit()
 
 
@@ -125,12 +140,12 @@ def assist(token: str, body: AssistIn, request: Request, db: Session = Depends(p
     if len(text) > settings.public_ai_max_input_chars:
         raise HTTPException(status_code=422, detail=f"Please keep it under {settings.public_ai_max_input_chars} characters.")
     tenant = db.get(Tenant, card.tenant_id)
-    if quota_exceeded(db, tenant.id):
+    if quota_exceeded(db, tenant.id, "review_assist"):
         raise HTTPException(status_code=503, detail="The writing assistant is unavailable right now. You can still post your own words.")
 
     started = time.monotonic()
     try:
-        provider = get_provider()
+        provider = metered(get_provider(), db, tenant.id, "review_assist")
     except AIUnavailable:
         raise HTTPException(status_code=503, detail="The writing assistant is unavailable right now. You can still post your own words.")
     try:
@@ -138,12 +153,12 @@ def assist(token: str, body: AssistIn, request: Request, db: Session = Depends(p
     except AIUnavailable as exc:
         log_generation(db, tenant_id=tenant.id, kind="review_assist", provider=provider.name, model=provider.model,
                        language=body.language, input_chars=len(text), output_chars=0, status="error",
-                       started=started, location_id=card.location_id, card_id=card.id, error=str(exc))
+                       started=started, location_id=card.location_id, card_id=card.id, error=str(exc), usage=getattr(provider, "usage", None))
         db.commit()
         raise HTTPException(status_code=503, detail="We couldn't improve your text just now. You can still post your own words.")
     log_generation(db, tenant_id=tenant.id, kind="review_assist", provider=provider.name, model=provider.model,
                    language=lang, input_chars=len(text), output_chars=len(suggestion), status="ok",
-                   started=started, location_id=card.location_id, card_id=card.id)
+                   started=started, location_id=card.location_id, card_id=card.id, usage=getattr(provider, "usage", None))
     svc.record_event(db, card, ScanEventType.ai_assist, ip=ip, ua=request.headers.get("user-agent"))
     db.commit()
     return {"suggestion": suggestion, "language": lang, "ai_assisted": True, "disclaimer": AI_DISCLAIMER}

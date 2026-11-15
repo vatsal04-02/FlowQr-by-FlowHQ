@@ -82,9 +82,17 @@ def refresh(db: Session, gloc: GoogleLocation, *, provider=None, today: date | N
         snap.posts = [{"name": p.get("name"), "summary": (p.get("summary") or "")[:200], "state": p.get("state"), "created_at": p.get("created_at")} for p in posts]
     if media is not None:
         snap.media = [{"name": m.get("name"), "category": m.get("category"), "created_at": m.get("created_at")} for m in media]
+    keywords = None
+    if hasattr(provider, "search_keywords"):
+        last = today.replace(day=1) - timedelta(days=1)  # last complete month
+        first = (last.replace(day=1) - timedelta(days=62)).replace(day=1)
+        keywords = attempt("search keywords", lambda: provider.search_keywords(token, gloc.google_location_name, f"{first:%Y-%m}", f"{last:%Y-%m}", limit=100))
     if perf is not None:
         snap.performance = {"current": _sum_window(perf, cur_start, end), "previous": _sum_window(perf, prev_start, prev_end),
                             "window_days": 28, "from": cur_start.isoformat(), "to": end.isoformat(), "metrics": ACTION_METRICS}
+        if keywords is not None:  # only Google's own terms, top 25 by count, with the months they cover
+            ranked = sorted([k for k in keywords if k.get("keyword")], key=lambda k: (k["value"] is None, -(k["value"] or 0)))
+            snap.performance = {**snap.performance, "keywords": ranked[:25], "keywords_months": [f"{first:%Y-%m}", f"{last:%Y-%m}"]}
     snap.error = "; ".join(errors)[:600] or None
     if len(errors) < 4:
         snap.fetched_at = utcnow()

@@ -28,6 +28,7 @@ ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts"
 INFO_URL = "https://mybusinessbusinessinformation.googleapis.com/v1"
 REVIEWS_URL = "https://mybusiness.googleapis.com/v4"  # reviews, localPosts and media still live on the v4 surface
 PERFORMANCE_URL = "https://businessprofileperformance.googleapis.com/v1"
+UPLOAD_URL = "https://mybusiness.googleapis.com/upload/v1/media"  # byte upload target for media:startUpload references
 
 BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage"
 LEGACY_BUSINESS_SCOPE = "https://www.googleapis.com/auth/plus.business.manage"  # deprecated alias Google still accepts
@@ -100,6 +101,7 @@ class GoogleBusinessProvider(Protocol):
     def list_locations(self, access_token: str, account_name: str) -> list[GLocation]: ...
     def list_reviews(self, access_token: str, account_name: str, location_name: str, page_token: str | None = None) -> GReviewPage: ...
     def reply_to_review(self, access_token: str, account_name: str, location_name: str, review_id: str, comment: str) -> dict | None: ...
+    def delete_reply(self, access_token: str, account_name: str, location_name: str, review_id: str) -> None: ...
     def revoke(self, token: str) -> None: ...
     # Business Profile management (only what Google's APIs and the business.manage scope allow)
     def get_location_details(self, access_token: str, location_name: str) -> dict: ...
@@ -113,6 +115,9 @@ class GoogleBusinessProvider(Protocol):
     def add_media(self, access_token: str, account_name: str, location_name: str, source_url: str, category: str) -> dict: ...
     def delete_media(self, access_token: str, media_name: str) -> None: ...
     def fetch_performance(self, access_token: str, location_name: str, start: str, end: str, metrics: list[str]) -> dict: ...
+    def upload_media_bytes(self, access_token: str, account_name: str, location_name: str, data: bytes, content_type: str, category: str, description: str | None = None) -> dict: ...
+    def get_media(self, access_token: str, media_name: str) -> dict: ...
+    def search_keywords(self, access_token: str, location_name: str, start_month: str, end_month: str, limit: int = 300) -> list[dict]: ...
 
 
 def has_business_scope(scope: str | None) -> bool:
@@ -329,9 +334,13 @@ class HttpGoogleProvider:
         return {"comment": j.get("comment"), "updated_at": j.get("updateTime"), "state": _reply_state(j),
                 "policy_violation": j.get("policyViolation")}
 
+    def delete_reply(self, access_token: str, account_name: str, location_name: str, review_id: str) -> None:
+        """DELETE .../reviews/{id}/reply (reviews.deleteReply). Used by the controlled write test to clean up; the app itself never deletes replies."""
+        self._send("DELETE", f"{REVIEWS_URL}/{account_name}/{location_name}/reviews/{review_id}/reply", access_token)
+
     # ================= Business Profile management =================
     def get_location_details(self, access_token, location_name):
-        mask = "name,title,phoneNumbers,categories,storefrontAddress,websiteUri,regularHours,profile,metadata"
+        mask = "name,title,phoneNumbers,categories,storefrontAddress,websiteUri,regularHours,profile,metadata,specialHours,openInfo,serviceItems"
         j = self._send("GET", f"{INFO_URL}/{location_name}", access_token, params={"readMask": mask})  # readMask is required
         cats = j.get("categories") or {}
         periods = (j.get("regularHours") or {}).get("periods", [])
@@ -340,6 +349,9 @@ class HttpGoogleProvider:
             "phone": (j.get("phoneNumbers") or {}).get("primaryPhone"), "website": j.get("websiteUri"),
             "primary_category": _cat(cats.get("primaryCategory")), "additional_categories": [_cat(c) for c in cats.get("additionalCategories", [])],
             "hours": [{"day": p.get("openDay"), "open": _hhmm(p.get("openTime")), "close": _hhmm(p.get("closeTime"))} for p in periods],
+            "services": [s for s in (_service(x) for x in j.get("serviceItems") or []) if s],
+            "special_hours": [{"date": _ymd(p.get("startDate")), "closed": bool(p.get("closed"))} for p in (j.get("specialHours") or {}).get("specialHourPeriods", [])],
+            "open_status": (j.get("openInfo") or {}).get("status"),
         }
 
     def update_location(self, access_token, location_name, changes):
@@ -401,8 +413,19 @@ class HttpGoogleProvider:
         return out[:MAX_POSTS]
 
     def create_post(self, access_token, account_name, location_name, post):
-        body = {"languageCode": post.get("language", "en"), "summary": post["summary"], "topicType": "STANDARD"}  # topicType is required
-        if post.get("cta_type"):
+        topic = post.get("topic_type") or "STANDARD"
+        body = {"languageCode": post.get("language", "en"), "summary": post["summary"], "topicType": topic}  # topicType is required
+        if topic in ("EVENT", "OFFER"):
+            # `event` is required for EVENT and OFFER; its TimeInterval must contain all four fields (Google reference).
+            s, e = post["event_start"], post["event_end"]  # naive local datetimes in the business's time zone
+            body["event"] = {"title": post["event_title"], "schedule": {
+                "startDate": {"year": s.year, "month": s.month, "day": s.day}, "startTime": {"hours": s.hour, "minutes": s.minute, "seconds": 0, "nanos": 0},
+                "endDate": {"year": e.year, "month": e.month, "day": e.day}, "endTime": {"hours": e.hour, "minutes": e.minute, "seconds": 0, "nanos": 0}}}
+        if topic == "OFFER":
+            offer = {k: v for k, v in (("couponCode", post.get("offer_coupon")), ("redeemOnlineUrl", post.get("offer_url")), ("termsConditions", post.get("offer_terms"))) if v}
+            if offer:
+                body["offer"] = offer
+        if post.get("cta_type") and topic != "OFFER":  # Google ignores callToAction on OFFER posts
             # CALL uses the profile's phone number: Google says `url` must be left unset for it.
             cta = {"actionType": post["cta_type"]}
             if post["cta_type"] != "CALL" and post.get("cta_url"):
@@ -440,6 +463,50 @@ class HttpGoogleProvider:
     def delete_media(self, access_token, media_name):
         self._send("DELETE", f"{REVIEWS_URL}/{media_name}", access_token)
 
+    def upload_media_bytes(self, access_token, account_name, location_name, data, content_type, category, description=None):
+        """Photo bytes straight to Google (no public URL needed), as documented for v4 media:
+        1) media:startUpload -> resourceName, 2) POST the bytes to the upload endpoint, 3) media.create with dataRef + category.
+        Returns the MediaItem Google created; `googleUrl` may be absent until Google finishes processing."""
+        category = "PROFILE" if category == "LOGO" else category
+        ref = self._send("POST", f"{REVIEWS_URL}/{account_name}/{location_name}/media:startUpload", access_token, json={})
+        resource = ref.get("resourceName")
+        if not resource:
+            raise GoogleAPIError(502, "Google did not return an upload reference")
+        try:
+            r = self._http.request("POST", f"{UPLOAD_URL}/{resource}", params={"uploadType": "media"}, content=data,
+                                   headers={"Authorization": f"Bearer {access_token}", "Content-Type": content_type})
+        except httpx.HTTPError as exc:
+            raise GoogleAPIError(503, "network error") from exc
+        _raise_for(r)
+        body = {"mediaFormat": "PHOTO", "locationAssociation": {"category": category}, "dataRef": {"resourceName": resource}}
+        if description and category not in ("COVER", "PROFILE"):
+            body["description"] = description[:300]
+        return _media(self._send("POST", f"{REVIEWS_URL}/{account_name}/{location_name}/media", access_token, json=body))
+
+    def get_media(self, access_token, media_name):
+        return _media(self._send("GET", f"{REVIEWS_URL}/{media_name}", access_token))
+
+    def search_keywords(self, access_token, location_name, start_month, end_month, limit=300):
+        """Monthly search-keyword impressions (Performance API). Each count is either an exact `value` or, for small numbers, only a
+        `threshold` Google says the real value is below; both are passed through as Google sent them, never guessed."""
+        sy, sm = (int(x) for x in start_month.split("-"))
+        ey, em = (int(x) for x in end_month.split("-"))
+        out, token = [], None
+        while len(out) < limit:
+            params = [("monthlyRange.start_month.year", sy), ("monthlyRange.start_month.month", sm),
+                      ("monthlyRange.end_month.year", ey), ("monthlyRange.end_month.month", em), ("pageSize", 100)]
+            if token:
+                params.append(("pageToken", token))
+            j = self._send("GET", f"{PERFORMANCE_URL}/{location_name}/searchkeywords/impressions/monthly", access_token, params=params)
+            for c in j.get("searchKeywordsCounts", []):
+                iv = c.get("insightsValue") or {}
+                out.append({"keyword": c.get("searchKeyword"), "value": int(iv["value"]) if iv.get("value") is not None else None,
+                            "below": int(iv["threshold"]) if iv.get("threshold") is not None else None})
+            token = j.get("nextPageToken")
+            if not token:
+                break
+        return out[:limit]
+
     def fetch_performance(self, access_token, location_name, start, end, metrics):
         sy, sm, sd = (int(x) for x in start.split("-"))
         ey, em, ed = (int(x) for x in end.split("-"))
@@ -471,6 +538,18 @@ def _reply_state(reply: dict | None) -> str | None:
     return s if s in ("PENDING", "REJECTED", "APPROVED") else None
 
 
+def _service(x: dict) -> str | None:
+    """A service's display name: custom items carry a label; standard items only a Google service type id."""
+    free = x.get("freeFormServiceItem") or {}
+    if (free.get("label") or {}).get("displayName"):
+        return free["label"]["displayName"]
+    return (x.get("structuredServiceItem") or {}).get("serviceTypeId")
+
+
+def _ymd(d: dict | None) -> str | None:
+    return f"{int(d['year']):04d}-{int(d['month']):02d}-{int(d['day']):02d}" if d and d.get("year") and d.get("month") and d.get("day") else None
+
+
 def _cat(c: dict | None) -> dict | None:
     return {"id": c.get("name"), "name": c.get("displayName")} if c else None
 
@@ -484,5 +563,7 @@ def _post(p: dict) -> dict:
 
 
 def _media(m: dict) -> dict:
+    dims = m.get("dimensions") or {}
     return {"name": m.get("name"), "category": (m.get("locationAssociation") or {}).get("category"), "url": m.get("googleUrl") or m.get("sourceUrl"),
-            "thumbnail": m.get("thumbnailUrl"), "created_at": m.get("createTime")}
+            "google_url": m.get("googleUrl"), "thumbnail": m.get("thumbnailUrl"), "created_at": m.get("createTime"),
+            "width": dims.get("widthPixels"), "height": dims.get("heightPixels"), "views": (m.get("insights") or {}).get("viewCount")}

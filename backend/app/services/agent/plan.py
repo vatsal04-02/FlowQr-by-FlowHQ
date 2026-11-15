@@ -10,7 +10,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -21,12 +21,16 @@ from app.models import (
 from app.models.base import utcnow
 from app.services import google as g
 from app.services.agent import knowledge as kbs
+from app.services.agent import learning
 from app.services.agent import posts as posts_svc
 from app.services.agent.safety import check_text
 from app.services.agent.snapshots import DESCRIPTION_MIN, profile_completeness
 from app.services.ai.base import AIUnavailable, LLMProvider, get_provider
-from app.services.ai.replies import draft_reply
-from app.services.ai_usage import log_generation, quota_exceeded
+from app.services.ai import craft, intelligence, outcomes, quality
+from app.services.ai.description import draft_description
+from app.services.ai.replies import draft_reply_scored
+from app.services.ai.risk import review_risk
+from app.services.ai_usage import log_generation, metered, quota_exceeded
 from app.services.google.tokens import get_access_token
 
 log = logging.getLogger("flowqr.agent")
@@ -233,10 +237,14 @@ def generate(db: Session, tenant: Tenant, *, now: datetime | None = None, manual
             if s.info is not None:
                 pc = profile_completeness(s.info)
                 keys = {m["key"] for m in pc["missing"]}
-                if "description" in keys:
+                # what the feedback loop learned about this kind of change at THIS business (learning.py): a change that failed repeatedly, was rejected or was
+                # observed not to help is not proposed again for a while, and one that worked is promoted
+                paused = learning.suppression(db, tenant.id, gl.id, "description_improve", "description", now)
+                if "description" in keys and not paused:
                     add(kind="profile_fix", title=f"Add a description to {gl.title or 'your profile'}", why=f"Your Google description is missing or shorter than {DESCRIPTION_MIN} characters.",
                         evidence={"field": "description", "google_location_id": str(gl.id), "current_length": len((s.info.get("description") or "").strip())},
-                        action="Draft a description from your knowledge base, edit it and approve it. It goes live on Google only after you approve.", dedupe=f"profile_description:{gl.id}", priority=35, location_id=gl.location_id)
+                        action="Draft a description from your knowledge base, edit it and approve it. It goes live on Google only after you approve.", dedupe=f"profile_description:{gl.id}",
+                        priority=35 + learning.priority_modifier(db, tenant.id, "description_improve"), location_id=gl.location_id)
                 rest = [m for m in pc["missing"] if m["key"] != "description"]
                 if rest:
                     add(kind="profile_fix", title=f"Complete {gl.title or 'your profile'}: {', '.join(m['label'].lower() for m in rest)}",
@@ -245,29 +253,125 @@ def generate(db: Session, tenant: Tenant, *, now: datetime | None = None, manual
             if s.media is not None:
                 newest = max((m["created_at"] for m in s.media if m.get("created_at")), default=None)
                 age = (now - datetime.fromisoformat(newest.replace("Z", "+00:00"))).days if newest else None
+                cats = {m.get("category") for m in s.media}
+                gaps = [c for c in ("COVER", "EXTERIOR", "INTERIOR", "TEAMS") if c not in cats]
                 if age is None or age > 90:
                     add(kind="add_photo", title=f"Add a fresh photo to {gl.title or 'your profile'}", why=("No photos are on your profile." if age is None else f"Your newest photo is {age} days old."),
-                        evidence={"newest_photo_age_days": age, "google_location_id": str(gl.id)}, action="Upload a recent photo in Photos & Media.", dedupe=f"photo:{gl.id}", priority=60, location_id=gl.location_id)
+                        evidence={"newest_photo_age_days": age, "google_location_id": str(gl.id), "missing_categories": gaps},
+                        action="Upload a recent photo in Photos, approve it, and FlowQR sends it to Google at the time you choose.", dedupe=f"photo:{gl.id}", priority=60, location_id=gl.location_id)
+                elif gaps:
+                    names = {"COVER": "cover", "EXTERIOR": "outside", "INTERIOR": "inside", "TEAMS": "team"}
+                    add(kind="add_photo", title=f"Add {', '.join(names[c] for c in gaps)} photos to {gl.title or 'your profile'}",
+                        why="Google shows photos by type; these types are empty on your profile.", evidence={"newest_photo_age_days": age, "google_location_id": str(gl.id), "missing_categories": gaps},
+                        action="Upload them in Photos with the right category, approve, and schedule.", dedupe=f"photo_categories:{gl.id}", priority=62, location_id=gl.location_id)
+            # Opportunities that come from comparing things we really hold (never from guesses)
+            posts_here = [p.get("summary") or "" for p in (s.posts or []) if p.get("summary")][:6]
+            if len(posts_here) >= 3:
+                sims = [quality.similarity(a, b) for i, a in enumerate(posts_here) for b in posts_here[i + 1:]]
+                types = [craft.classify_post(t) for t in posts_here[:4]]
+                avg = sum(sims) / len(sims)
+                if avg >= 0.25 or max(types.count(t) for t in set(types)) >= 3:
+                    wk = f"{today.isocalendar().year}-{today.isocalendar().week}"
+                    add(kind="create_post", title="Your recent posts are too alike: try a different angle",
+                        why=f"Your last {len(posts_here)} Google posts overlap a lot (about {round(avg * 100)}% shared wording" + (f", and {max(types.count(t) for t in set(types))} of the last {len(types)} are the same kind of post" if max(types.count(t) for t in set(types)) >= 3 else "") + "). Repeating one message is less useful to people reading your profile.",
+                        evidence={"google_location_id": str(gl.id), "posts_compared": len(posts_here), "avg_overlap_pct": round(avg * 100), "recent_types": types},
+                        action="Draft a post of a different kind (for example a question answered, or what a first visit is like), then approve it.", dedupe=f"post_variety:{gl.id}:{wk}", priority=48, location_id=gl.location_id)
+            # Measured search visibility (Google Places, first 20 results around one point; never invented): shown only when tracked terms have actually been measured
+            rs = learning.rank_summary(db, gl.id)
+            if rs and rs["weak"]:
+                wk = f"{today.isocalendar().year}-{today.isocalendar().week}"
+                names = ", ".join(f"\"{w['keyword']}\"" for w in rs["weak"][:3])
+                add(kind="profile_fix", title=f"{gl.title or 'Your profile'} is not showing for {len(rs['weak'])} of your {rs['measured']} tracked search terms",
+                    why=f"In the latest measurements your business was not among the first 10 Google Places results for {names}"
+                        + (f" ({len(rs['not_found'])} not in the first 20)" if rs["not_found"] else "") + ". This is a measurement around one point, not a guaranteed Google Maps ranking, and many things outside your profile move it.",
+                    evidence={"field": "visibility", "google_location_id": str(gl.id), "weak": [{k: w[k] for k in ("keyword", "rank", "checked_at")} for w in rs["weak"]], "measured": rs["measured"]},
+                    action="Open Local ranking to see where you appear, and check the profile suggestions for what genuinely applies to these terms.", dedupe=f"visibility:{gl.id}:{wk}", priority=42, location_id=gl.location_id)
+            perf = s.performance or {}
+            cur, prev = perf.get("current"), perf.get("previous")
+            if isinstance(cur, int) and isinstance(prev, int) and prev >= 30 and (cur - prev) / prev <= -0.20:
+                drop = round((prev - cur) / prev * 100)
+                seen = []
+                if s.posts is not None and (last_iso is None or days is None or days > 21):
+                    seen.append("no new Google post in the last three weeks")
+                if s.media is not None and not [m for m in s.media if m.get("created_at") and (now - datetime.fromisoformat(m["created_at"].replace("Z", "+00:00"))).days < 90]:
+                    seen.append("no new photo in three months")
+                if s.info is not None and not s.info.get("hours"):
+                    seen.append("no opening hours on the profile")
+                if s.info is not None and s.info.get("open_status") in ("CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY"):
+                    seen.append("the profile is marked closed")
+                add(kind="profile_fix", title=f"Customer actions on {gl.title or 'your profile'} fell by {drop}%",
+                    why=f"Calls, website clicks and direction requests were {cur} in the last 28 days against {prev} in the 28 before. "
+                        + ("What we can see on the profile that may matter: " + "; ".join(seen) + ". " if seen else "We can't see a problem on the profile itself. ")
+                        + "This is a comparison, not a diagnosis: seasons, holidays and Google's own changes also move these numbers.",
+                    evidence={"field": "performance", "google_location_id": str(gl.id), "current": cur, "previous": prev, "change_pct": -drop, "possible_factors_seen": seen},
+                    action="Check the items listed above, and compare again next month. FlowQR will not claim any change in ranking.", dedupe=f"performance_drop:{gl.id}", priority=40, location_id=gl.location_id)
         # Auto-draft replies (drafts only: publishing always needs a person)
         drafted = 0
         if settings_row.auto_draft_replies:
             prov = provider
             for t in db.scalars(select(AgentTask).where(AgentTask.tenant_id == tenant.id, AgentTask.kind == "reply_review", AgentTask.status == "suggested").order_by(AgentTask.priority).limit(MAX_REPLY_TASKS)):
                 try:
-                    prov = prov or get_provider()
+                    prov = prov or metered(get_provider(), db, tenant.id, "agent_draft")
                     draft_for_task(db, tenant, t, prov, user_id=None, actor="agent")
                     drafted += 1
                 except (TaskError, AIUnavailable) as exc:
                     log.info("auto-draft skipped: %s", exc)
                     break
+        posts_drafted = 0
+        if settings_row.auto_draft_posts:
+            posts_drafted = auto_draft_posts(db, tenant, glocs, today, provider=provider)
         settings_row.last_plan_date = today
         run.status = "ok"
-        run.detail = {"manual": manual, "created": len(created), "drafted": drafted, "plan_date": today.isoformat()}
+        run.detail = {"manual": manual, "created": len(created), "drafted": drafted, "posts_drafted": posts_drafted, "plan_date": today.isoformat()}
         run.finished_at = utcnow()
-        return {"created": len(created), "drafted": drafted}
+        return {"created": len(created), "drafted": drafted, "posts_drafted": posts_drafted}
     except Exception as exc:  # noqa: BLE001 - recorded, never silent
         run.status, run.error, run.finished_at = "failed", f"{type(exc).__name__}: {exc}"[:500], utcnow()
         raise
+
+
+MAX_AUTO_POST_LOCATIONS = 5
+MAX_PENDING_POSTS = 3  # per location: the agent stops drafting while this many are waiting for the owner
+
+
+def auto_draft_posts(db: Session, tenant: Tenant, glocs: list[GoogleLocation], today: date, *, provider: LLMProvider | None = None) -> int:
+    """Daily SEO post drafts. For each connected location, at most ONE new AI draft per day, and none while the owner already has
+    MAX_PENDING_POSTS waiting. Every draft is `awaiting_approval`; nothing reaches Google without a person. Skips quietly when the AI
+    is not configured or the monthly allowance is used up."""
+    from app.models import GbpSnapshot
+    from app.services.agent.optimizer import search_terms_line
+    from app.services.ai_usage import quota_exceeded
+
+    made, prov, kb = 0, provider, kbs.context(db, tenant)
+    for gl in glocs[:MAX_AUTO_POST_LOCATIONS]:
+        pending = db.scalar(select(func.count()).select_from(ScheduledPost).where(ScheduledPost.google_location_id == gl.id, ScheduledPost.status == "awaiting_approval")) or 0
+        drafted_today = db.scalar(select(func.count()).select_from(ScheduledPost).where(
+            ScheduledPost.google_location_id == gl.id, ScheduledPost.generated_by_ai.is_(True), func.date(func.timezone(tenant.timezone or "Asia/Kolkata", ScheduledPost.created_at)) == today)) or 0
+        if pending >= MAX_PENDING_POSTS or drafted_today:
+            continue
+        if quota_exceeded(db, tenant.id, "post_draft"):
+            log.info("auto post draft skipped: subscription not active")
+            break
+        started = time.monotonic()
+        try:
+            prov = prov or metered(get_provider(), db, tenant.id, "post_draft")
+            recent = [p.summary for p in db.scalars(select(ScheduledPost).where(ScheduledPost.google_location_id == gl.id).order_by(ScheduledPost.created_at.desc()).limit(5))]
+            snap = db.scalar(select(GbpSnapshot).where(GbpSnapshot.google_location_id == gl.id))
+            intel = intelligence.build(db, tenant, kb, google_location_id=gl.id)
+            text, qa, _ptype = posts_svc.draft_post_scored(prov, tenant, kb, avoid=recent, terms=search_terms_line(snap), intel=intel)
+        except (AIUnavailable, TaskError) as exc:
+            log.info("auto post draft skipped: %s", exc)
+            break
+        p = ScheduledPost(tenant_id=tenant.id, google_location_id=gl.id, summary=text, language=tenant.language if tenant.language in ("en", "hi") else "en", status="draft", generated_by_ai=True)
+        db.add(p)
+        db.flush()
+        outcomes.record_generated(db, tenant.id, "post", p.id, text, model=prov.model, language=tenant.language, score=qa.score if qa else None)
+        p.visual_hint = posts_svc.visual_hint(prov, text, tenant.category)
+        posts_svc.move(p, "awaiting_approval")
+        log_generation(db, tenant_id=tenant.id, kind="post_draft", provider=prov.name, model=prov.model, language=tenant.language, input_chars=0, output_chars=len(text),
+                       status="ok", started=started, location_id=gl.location_id, usage=getattr(prov, "usage", None))
+        made += 1
+    return made
 
 
 def _loc_name(db: Session, location_id: uuid.UUID | None) -> str | None:
@@ -279,7 +383,8 @@ def draft_for_task(db: Session, tenant: Tenant, task: AgentTask, provider: LLMPr
     """Have the AI write the draft for a task. The result waits for approval; nothing is sent anywhere."""
     if task.status not in ("suggested", "failed"):
         raise TaskError("This task already has a draft or is finished.")
-    if quota_exceeded(db, tenant.id):
+    quota_kind = "reply_draft" if task.kind == "reply_review" else "agent_draft"  # a reply drafted by the agent draws on the reply allowance, nothing else does
+    if quota_exceeded(db, tenant.id, quota_kind):
         raise TaskError("Your monthly AI limit for this plan has been reached.", 402)
     kb = kbs.context(db, tenant)
     started = time.monotonic()
@@ -288,10 +393,15 @@ def draft_for_task(db: Session, tenant: Tenant, task: AgentTask, provider: LLMPr
             rv = db.get(Review, uuid.UUID(task.evidence["review_id"]))
             if rv is None or rv.google_reply_text is not None:
                 raise TaskError("That review is already answered or no longer exists.")
-            body, lang, reasons = draft_reply(provider, rv, tenant, _loc_name(db, rv.location_id), kb=kb)
-            d = ReplyDraft(tenant_id=tenant.id, review_id=rv.id, body=body, language=lang, generated_by_ai=True, created_by=user_id, requires_human_handling=bool(reasons), flag_reasons=reasons, status=ReplyStatus.draft)
+            intel = intelligence.build(db, tenant, kb, google_location_id=rv.google_location_id)
+            body, lang, reasons, qa = draft_reply_scored(provider, rv, tenant, _loc_name(db, rv.location_id), kb=kb, intel=intel)
+            risk = review_risk(provider.with_kind("review_risk") if hasattr(provider, "with_kind") else provider, rv.text, rv.rating, tenant.category)
+            reasons = list(dict.fromkeys([*reasons, *risk.reasons]))
+            d = ReplyDraft(tenant_id=tenant.id, review_id=rv.id, body=body, language=lang, generated_by_ai=True, created_by=user_id,
+                           requires_human_handling=bool(reasons) or risk.needs_human(), flag_reasons=reasons, risk_level=risk.level, status=ReplyStatus.draft)
             db.add(d)
             db.flush()
+            outcomes.record_generated(db, tenant.id, "reply", d.id, body, model=provider.model, language=lang, score=qa.score if qa else None)
             task.ref_type, task.ref_id = "reply_draft", d.id
             out_chars = len(body)
         elif task.kind == "create_post":
@@ -299,59 +409,83 @@ def draft_for_task(db: Session, tenant: Tenant, task: AgentTask, provider: LLMPr
             if gl is None:
                 raise TaskError("Connect Google and choose a location before drafting a post.")
             recent = [p.summary for p in db.scalars(select(ScheduledPost).where(ScheduledPost.tenant_id == tenant.id).order_by(ScheduledPost.created_at.desc()).limit(5))]
-            text, _ = posts_svc.draft_post(provider, tenant, kb, avoid=recent)
+            intel = intelligence.build(db, tenant, kb, google_location_id=gl.id)
+            text, qa, _ptype = posts_svc.draft_post_scored(provider, tenant, kb, avoid=recent, intel=intel)
             p = ScheduledPost(tenant_id=tenant.id, google_location_id=gl.id, summary=text, language=tenant.language if tenant.language in ("en", "hi") else "en",
                               status="draft", generated_by_ai=True, created_by=user_id)
             db.add(p)
             db.flush()
+            outcomes.record_generated(db, tenant.id, "post", p.id, text, model=provider.model, language=tenant.language, score=qa.score if qa else None)
             posts_svc.move(p, "awaiting_approval")
             task.ref_type, task.ref_id = "scheduled_post", p.id
             out_chars = len(text)
         elif task.kind == "profile_fix" and task.evidence.get("field") == "description":
-            text = provider.generate(
-                "You write the 'About' description for a Google Business Profile. 400 to 700 characters, plain text, factual, friendly. Use ONLY the facts provided; "
-                "never invent services, prices, offers, results, awards or opening times. No claims about outcomes. Output ONLY the description.",
-                kbs.render(kb) + "\n\nWrite the description.", max_tokens=400, temperature=0.4).strip().strip('"').strip()
-            bad = check_text(text, kb=kb, kind="profile")
-            if bad or len(text) < 60:
-                raise AIUnavailable("The description broke a safety rule or was too short, so it was not shown", code="rejected")
+            from app.models import GbpSnapshot
+            from app.services.agent.optimizer import search_terms_line
+            snap = db.scalar(select(GbpSnapshot).where(GbpSnapshot.google_location_id == uuid.UUID(task.evidence["google_location_id"]))) if task.evidence.get("google_location_id") else None
+            terms = search_terms_line(snap)
+            gid = uuid.UUID(task.evidence["google_location_id"]) if task.evidence.get("google_location_id") else None
+            intel = intelligence.build(db, tenant, kb, google_location_id=gid)
+            text, qa = draft_description(provider, tenant, kb, intel, terms_line=terms)
             task.draft = {"description": text[:750]}
+            outcomes.record_generated(db, tenant.id, "description", task.id, text[:750], model=provider.model, language=tenant.language, score=qa.score if qa else None)
             out_chars = len(text)
         else:
             raise TaskError("This kind of task has no AI draft: follow the suggested action.")
     except AIUnavailable as exc:
         log_generation(db, tenant_id=tenant.id, kind="agent_draft", provider=provider.name, model=provider.model, language=None, input_chars=0, output_chars=0, status="error",
-                       started=started, location_id=task.location_id, error=str(exc))
+                       started=started, location_id=task.location_id, error=str(exc), usage=getattr(provider, "usage", None))
         raise
-    log_generation(db, tenant_id=tenant.id, kind="agent_draft", provider=provider.name, model=provider.model, language=tenant.language, input_chars=0, output_chars=out_chars,
-                   status="ok", started=started, location_id=task.location_id)
+    log_generation(db, tenant_id=tenant.id, kind=quota_kind, provider=provider.name, model=provider.model, language=tenant.language, input_chars=0, output_chars=out_chars,
+                   status="ok", started=started, location_id=task.location_id, usage=getattr(provider, "usage", None))
     transition(db, task, "drafted", actor=actor, user_id=user_id, note="AI draft written from the knowledge base")
     transition(db, task, "awaiting_approval", actor=actor, user_id=user_id, note="Waiting for the owner")
     return task
 
 
-def execute_profile_description(db: Session, task: AgentTask, gloc: GoogleLocation, user_id: uuid.UUID, *, provider=None) -> AgentTask:
-    """Owner approved the description: write it to Google. The task is `published` only if Google's reply confirms it."""
+def execute_profile_description(db: Session, task: AgentTask, gloc: GoogleLocation, user_id: uuid.UUID, *, provider=None, role=None) -> AgentTask:
+    """The owner approved the description text. It is written to Google by the central executor (services/agent/executor.py): policy classification, evidence check
+    against the business knowledge, an approval bound to this exact text, a re-check of everything at execution time, the write, an independent read-back, and the
+    hash-chained history. The task becomes `published` only when Google's own profile shows the new text."""
+    from app.models import Role
+    from app.services.agent import autonomy_policy as pol
+    from app.services.agent import executor
+
     if task.status != "awaiting_approval" or not (task.draft or {}).get("description"):
         raise TaskError("There is no approved-ready description for this task.")
     text = task.draft["description"]
-    conn = db.get(GoogleConnection, gloc.connection_id)
-    transition(db, task, "approved", actor="user", user_id=user_id, note="Owner approved the text")
+    tenant = db.get(Tenant, task.tenant_id)
+    kb = kbs.context(db, tenant)
+    refs = [r for r in ("description", "services") if kb.get(r)]
     try:
-        provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider)
-        after = provider.update_location(token, gloc.google_location_name, {"description": text})
-    except Exception as exc:  # noqa: BLE001
-        reason, _ = posts_svc.describe_failure(exc)
-        task.failure_reason = reason
-        transition(db, task, "failed", actor="google", note=reason)
-        return task
-    if (after or {}).get("description", "").strip() == text.strip():
-        transition(db, task, "published", actor="google", user_id=user_id, note="Google returned the new description")
-    else:
-        task.failure_reason = "Google accepted the request but its profile does not show the new description yet."
-        transition(db, task, "failed", actor="google", note=task.failure_reason)
+        action = executor.propose(db, tenant, gloc, "description_improve", proposed=text, source={"kind": "business_knowledge", "refs": refs}, trigger="plan_task:profile_description",
+                                  problem=task.why, reason=task.title, evidence={"task_id": str(task.id), **(task.evidence or {})}, proposed_by="user", user_id=user_id, task_id=task.id)
+    except pol.PolicyError as exc:
+        raise TaskError(str(exc), 422)
+    if action.status == "blocked":
+        db.commit()  # the blocked proposal and why stay on record
+        raise TaskError("This description cannot be applied: " + (action.last_error or "the evidence is insufficient."), 422)
+    if action.status == "pending_approval":
+        try:
+            executor.decide(db, action, user_id=user_id, role=role or Role.admin, approve=True)
+        except executor.ActionError as exc:
+            db.commit()
+            raise TaskError(str(exc), exc.status)
+    transition(db, task, "approved", actor="user", user_id=user_id, note="Owner approved the text")
+    db.commit()  # the proposal, the approval and the task state are durable before anything external happens
+    res = executor.execute(db, action.id, provider=provider)
+    status = res["status"]
+    if status == "executed":
+        transition(db, task, "published", actor="google", user_id=user_id, note="Google returned the new description (read back from the profile)")
+    elif status == "failed":
+        task.failure_reason = action.last_error
+        transition(db, task, "failed", actor="google", note=action.last_error)
+    elif status in ("invalidated", "expired", "blocked", "canceled", "pending_approval"):
+        task.failure_reason = res.get("detail") or action.last_error or "The change could not be applied."
+        transition(db, task, "failed", actor="system", note=task.failure_reason)
+    # approved / held / retry: the executor keeps the action and will finish it (retry, emergency stop lifted, rate limit): the task stays approved
     return task
+
 
 
 def run_plan(db: Session, tenant: Tenant, *, manual: bool = False, provider: LLMProvider | None = None) -> dict:

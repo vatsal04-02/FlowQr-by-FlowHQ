@@ -1,7 +1,10 @@
 import time
 import uuid
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from app.core.deps import TenantContext, get_tenant_context, require_role
@@ -11,15 +14,18 @@ from app.models.base import utcnow
 from app.schemas.reviews import ApproveIn, DraftBodyIn, DraftOut, LogOut, ReviewDetail, ReviewList, ReviewOut
 from app.services import entitlements as ent
 from app.services import reviews as review_svc
+from app.services.agent import content_exec
 from app.services.ai import AIUnavailable, get_provider
 from app.services.agent.knowledge import context as kb_ctx
-from app.services.ai.replies import draft_reply, reason_labels
-from app.services.ai.safety import assess_review
-from app.services.ai_usage import log_generation, quota_exceeded
+from app.services.ai import intelligence, outcomes
+from app.services.ai.replies import draft_reply_scored, reason_labels
+from app.services.ai.risk import review_risk
+from app.services.ai.safety import assess_review, assess_risk
+from app.services.ai_usage import log_generation, metered, quota_exceeded
 from app.services.audit import audit
 
 router = APIRouter(tags=["reviews"])
-REPLY_STATES = {"none", "draft", "approved", "published", "failed"}
+REPLY_STATES = {"none", "draft", "approved", "publishing", "published", "failed"}
 
 
 def _latest_draft_status_sq():
@@ -119,34 +125,50 @@ def review_detail(review_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_
     )
 
 
+class GenerateIn(BaseModel):
+    tone: Literal["warm", "professional", "brief", "apologetic"] | None = None
+    language: Literal["en", "hi", "hinglish"] | None = None
+
+
 @router.post("/reviews/{review_id}/drafts/generate", response_model=DraftOut, status_code=201)
-def generate_draft(review_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+def generate_draft(review_id: uuid.UUID, request: Request, body: GenerateIn | None = None, ctx: TenantContext = Depends(get_tenant_context)):
     r = _review_or_404(ctx, review_id)
     ent.require_feature(ctx.db, ctx.tenant_id, "ai_replies")
-    if quota_exceeded(ctx.db, ctx.tenant_id):
-        raise HTTPException(status_code=402, detail="Monthly AI limit reached for your plan")
+    if quota_exceeded(ctx.db, ctx.tenant_id, "reply_draft"):
+        raise HTTPException(status_code=402, detail={"code": "reply_quota_reached", "message": "You have used this month's AI review replies for your plan. You can still write replies yourself."})
     started = time.monotonic()
     try:
-        provider = get_provider()
+        provider = metered(get_provider(), ctx.db, ctx.tenant_id, "reply_draft", actor_user_id=ctx.user.id)
     except AIUnavailable:
         raise HTTPException(status_code=503, detail="AI is not configured on this server. You can still write a reply manually.")
     names = _loc_names(ctx)
+    kb = kb_ctx(ctx.db, ctx.tenant)
+    intel = intelligence.build(ctx.db, ctx.tenant, kb, google_location_id=r.google_location_id)
     try:
-        body, lang, reasons = draft_reply(provider, r, ctx.tenant, names.get(r.location_id), kb=kb_ctx(ctx.db, ctx.tenant))
+        body_text, lang, reasons, qa = draft_reply_scored(provider, r, ctx.tenant, names.get(r.location_id), kb=kb,
+                                                          tone=body.tone if body else None, language=body.language if body else None, intel=intel)
     except AIUnavailable as exc:
+        if getattr(exc, "scope", None):  # a spending budget stopped it (services/ai_usage.BudgetExceeded): say so, don't call it a failure
+            raise HTTPException(status_code=402, detail=str(exc))
         log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="reply_draft", provider=provider.name, model=provider.model,
                        language=None, input_chars=len(r.text or ""), output_chars=0, status="error", started=started,
-                       location_id=r.location_id, error=str(exc))
+                       location_id=r.location_id, error=str(exc), usage=getattr(provider, "usage", None))
         ctx.db.commit()
         raise HTTPException(status_code=502, detail="The AI couldn't draft a reply. Try again or write one manually.")
+    risk = review_risk(provider.with_kind("review_risk") if hasattr(provider, "with_kind") else provider, r.text, r.rating, ctx.tenant.category)
+    reasons = list(dict.fromkeys([*reasons, *risk.reasons]))
     d = ReplyDraft(
-        tenant_id=ctx.tenant_id, review_id=r.id, body=body, language=lang, generated_by_ai=True, created_by=ctx.user.id,
-        requires_human_handling=bool(reasons), flag_reasons=reasons, status=ReplyStatus.draft,
+        tenant_id=ctx.tenant_id, review_id=r.id, body=body_text, language=lang, generated_by_ai=True, created_by=ctx.user.id,
+        requires_human_handling=bool(reasons) or risk.needs_human(), flag_reasons=reasons, risk_level=risk.level, status=ReplyStatus.draft,
     )
+    earlier = ctx.db.scalar(select(ReplyDraft.id).where(ReplyDraft.review_id == r.id, ReplyDraft.generated_by_ai.is_(True), ReplyDraft.status == ReplyStatus.draft)
+                            .order_by(ReplyDraft.created_at.desc()))
     ctx.db.add(d)
+    ctx.db.flush()
+    outcomes.record_generated(ctx.db, ctx.tenant_id, "reply", d.id, body_text, model=provider.model, language=lang, score=qa.score if qa else None, replaces=earlier)
     log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="reply_draft", provider=provider.name, model=provider.model,
-                   language=lang, input_chars=len(r.text or ""), output_chars=len(body), status="ok", started=started,
-                   location_id=r.location_id)
+                   language=lang, input_chars=len(r.text or ""), output_chars=len(body_text), status="ok", started=started,
+                   location_id=r.location_id, usage=getattr(provider, "usage", None))
     ctx.db.commit()
     ctx.db.refresh(d)
     return _draft_out(d)
@@ -155,9 +177,9 @@ def generate_draft(review_id: uuid.UUID, request: Request, ctx: TenantContext = 
 @router.post("/reviews/{review_id}/drafts", response_model=DraftOut, status_code=201)
 def create_manual_draft(review_id: uuid.UUID, body: DraftBodyIn, ctx: TenantContext = Depends(get_tenant_context)):
     r = _review_or_404(ctx, review_id)
-    reasons = assess_review(r.text, r.rating, ctx.tenant.category)
+    risk = assess_risk(r.text, r.rating, ctx.tenant.category)
     d = ReplyDraft(tenant_id=ctx.tenant_id, review_id=r.id, body=body.body.strip(), generated_by_ai=False,
-                   created_by=ctx.user.id, language=ctx.tenant.language, requires_human_handling=bool(reasons), flag_reasons=reasons)
+                   created_by=ctx.user.id, language=ctx.tenant.language, requires_human_handling=risk.needs_human(), flag_reasons=risk.reasons, risk_level=risk.level)
     ctx.db.add(d)
     ctx.db.commit()
     ctx.db.refresh(d)
@@ -182,6 +204,7 @@ def reject_draft(draft_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_co
     if d.status == ReplyStatus.published:
         raise HTTPException(status_code=409, detail="Already published")
     d.status = ReplyStatus.rejected
+    outcomes.record_decision(ctx.db, "reply", d.id, "rejected", reason="owner_rejected")
     ctx.db.commit()
 
 
@@ -195,6 +218,7 @@ def approve_draft(draft_id: uuid.UUID, body: ApproveIn, request: Request, ctx: T
                             "message": "This review was flagged for human handling. Confirm you've reviewed it personally.",
                             "reasons": reason_labels(d.flag_reasons or [])})
     d.status, d.approved_by, d.approved_at = ReplyStatus.approved, ctx.user.id, utcnow()
+    outcomes.record_decision(ctx.db, "reply", d.id, "approved", final_text=d.body)
     audit(ctx.db, action="reply.approve", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="reply_draft",
           entity_id=d.id, ip=client_ip(request))
     ctx.db.commit()
@@ -216,5 +240,8 @@ def publish_draft(draft_id: uuid.UUID, request: Request, replace_existing: bool 
         raise HTTPException(status_code=409, detail={"code": "reply_exists", "message": "Google already shows a reply to this review. Publishing will replace it."})
     audit(ctx.db, action="reply.publish_attempt", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="reply_draft",
           entity_id=d.id, ip=client_ip(request))
-    d = review_svc.publish_draft(ctx.db, d, by_user=ctx.user)
+    out = content_exec.run(ctx.db, "reply", d, by_user=ctx.user, role=ctx.role)  # governed: policy, emergency stop, claim, read-back, history; calls the existing publisher
+    if out["outcome"] == "held":
+        raise HTTPException(status_code=503 if out.get("reason") == "emergency_stop" else 409, detail=out.get("detail") or "This reply cannot be sent right now.")
+    ctx.db.refresh(d)
     return _draft_out(d)

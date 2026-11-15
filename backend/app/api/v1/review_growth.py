@@ -27,9 +27,9 @@ from app.services.ai import AIUnavailable, get_provider
 from app.services.ai.base import configured_identity
 from app.services.ai import health as ai_health
 from app.services.ai.review_generate import NeedsMoreDetail, ReviewDraftRejected, ReviewInput, clean_field, generate_review
-from app.services.ai_usage import log_generation, usage_this_month
+from app.services.ai_usage import log_generation, metered, usage_this_month
 from app.services.audit import audit
-from app.api.v1.qr import check_scannable, qr_response, slug, style_for
+from app.api.v1.qr import check_scannable, poster_response, qr_response, slug, style_for
 from app.schemas.qr import QRStyleIn
 from app.services.qr import campaign_url
 
@@ -223,6 +223,15 @@ def campaign_qr(campaign_id: uuid.UUID, fmt: str, size: int | None = Query(None,
     return qr_response(campaign_url(c.public_id), fmt, style, logo, f"flowqr-{slug(c.name, 'campaign')}", size_px=size)
 
 
+@router.get("/campaigns/{campaign_id}/poster.{fmt}")
+def campaign_poster(campaign_id: uuid.UUID, fmt: str, scale: int = Query(1, ge=1, le=3), size: str = Query("ref"),
+                    ctx: TenantContext = Depends(require_role(Role.admin))):
+    """The approved FlowQR review poster with this campaign's permanent code in it (PNG, SVG or print-ready PDF).
+    Only the code differs between businesses and campaigns. Downloading never changes the campaign's link."""
+    c = _own_campaign(ctx, campaign_id)
+    return poster_response(campaign_url(c.public_id), fmt, f"flowqr-{slug(c.name, 'campaign')}", scale=scale, size=size)
+
+
 @router.post("/locations/{location_id}/review-url")
 def set_review_url(location_id: uuid.UUID, body: ReviewUrlIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     """Attach the Google review link used by every campaign at this location. Either an admin-entered Google link (host-checked)
@@ -308,7 +317,7 @@ def test_ai(body: AITestIn, request: Request, ctx: TenantContext = Depends(requi
                  "latency_ms": None, "tokens": None, "draft": None, "rejected_text": None, "checks": None, "error": None}
     started, provider, status, err = time.monotonic(), None, "error", None
     try:
-        provider = get_provider()
+        provider = metered(get_provider(), ctx.db, ctx.tenant_id, "review_test")
         text = generate_review(provider, inp, language=body.language, style=body.style, business_name=ctx.tenant.name, category=ctx.tenant.category)
         out.update(ok=True, draft=text, checks={"passed": True, "reason": None, "fact_check": settings.review_verify_with_ai})
         status = "ok"

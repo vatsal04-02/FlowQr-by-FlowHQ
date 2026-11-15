@@ -17,6 +17,12 @@ def publish_draft(db: Session, draft: ReplyDraft, *, by_user, provider=None) -> 
     gloc = db.get(GoogleLocation, review.google_location_id)
     conn = db.get(GoogleConnection, gloc.connection_id)
     draft.attempts += 1
+    # Visible "publishing" state, committed BEFORE calling Google: other screens see it, a second click cannot start a second send
+    # (only approved/failed drafts can be published), and a send interrupted by a crash is found and recovered by the retry job.
+    # Google's reply call is an upsert (PUT), so recovering by sending again can never create a second reply.
+    draft.status = ReplyStatus.publishing
+    draft.failure_reason = None
+    db.commit()
     http_status, error, ok = None, None, False
     try:
         provider = provider or g.get_google_provider()

@@ -38,11 +38,17 @@ def build_summary(ctx: TenantContext, start: date | None, end: date | None, loca
     n = len(rows)
     replied = [r for r in rows if r.google_reply_text is not None]
     resp = [(r.google_reply_at - r.review_created_at).total_seconds() / 3600 for r in replied if r.google_reply_at and r.google_reply_at >= r.review_created_at]
-    unanswered_now = db.scalar(select(func.count()).select_from(Review).where(Review.tenant_id == t, Review.google_reply_text.is_(None), ctx.scope(Review.location_id))) or 0
+    uq = select(func.count()).select_from(Review).where(Review.tenant_id == t, Review.google_reply_text.is_(None), ctx.scope(Review.location_id))
+    if location_id:
+        uq = uq.where(Review.location_id == location_id)
+    unanswered_now = db.scalar(uq) or 0
     reputation = {"reviews": n, "average_rating": round(sum(r.rating for r in rows) / n, 2) if n else None, "replied": len(replied), "reply_rate": round(len(replied) / n, 3) if n else None,
                   "avg_response_hours": round(sum(resp) / len(resp), 1) if resp else None, "unanswered_now": unanswered_now,
                   "distribution": {str(i): sum(1 for r in rows if r.rating == i) for i in range(1, 6)}}
-    snaps = db.execute(select(GbpSnapshot, GoogleLocation.title).join(GoogleLocation, GoogleLocation.id == GbpSnapshot.google_location_id).where(GbpSnapshot.tenant_id == t, ctx.scope(GoogleLocation.location_id))).all()
+    sq = select(GbpSnapshot, GoogleLocation.title).join(GoogleLocation, GoogleLocation.id == GbpSnapshot.google_location_id).where(GbpSnapshot.tenant_id == t, ctx.scope(GoogleLocation.location_id))
+    if location_id:
+        sq = sq.where(GoogleLocation.location_id == location_id)
+    snaps = db.execute(sq).all()
     perf = [{"location": title, "last_28_days": s.performance["current"], "previous_28_days": s.performance["previous"], "fetched_at": s.fetched_at, "window": f'{s.performance["from"]} to {s.performance["to"]}'} for s, title in snaps if s.performance]
     google = {"available": bool(perf), "locations": perf, "note": "Customer actions on Google (calls, website clicks, directions, bookings, messages), as returned by Google at the time shown. Google's data lags a few days." if perf else
               "No Google performance data yet: Google is not connected or has not answered. Nothing is estimated.", "errors": [{"location": title, "error": s.error} for s, title in snaps if s.error]}
@@ -50,7 +56,8 @@ def build_summary(ctx: TenantContext, start: date | None, end: date | None, loca
     if not ctx.restricted:
         tot = rg_svc.analytics(db, tenant_id=t, tz=tz, start=start, end=end, lo=lo, hi=hi, campaign_id=None, fill=lambda *a, **k: [], location_id=location_id)["totals"]
         campaign_totals = {k: tot[k] for k in ("scans", "unique_visitors", "feedback_submitted", "drafts_approved", "google_redirects")}
-    out = {"range": {"from": start.isoformat(), "to": end.isoformat(), "timezone": tz}, "reputation": reputation, "google_performance": google, "campaigns": campaign_totals}
+    loc_name = db.scalar(select(Location.name).where(Location.id == location_id)) if location_id else None
+    out = {"range": {"from": start.isoformat(), "to": end.isoformat(), "timezone": tz}, "location": loc_name, "reputation": reputation, "google_performance": google, "campaigns": campaign_totals}
     if ctx.role.value != "staff":
         ai = db.execute(select(AIGenerationLog.kind, AIGenerationLog.status, func.count()).where(AIGenerationLog.tenant_id == t, AIGenerationLog.created_at >= lo, AIGenerationLog.created_at < hi).group_by(AIGenerationLog.kind, AIGenerationLog.status)).all()
         tasks = dict(db.execute(select(AgentTask.status, func.count()).where(AgentTask.tenant_id == t, AgentTask.created_at >= lo, AgentTask.created_at < hi).group_by(AgentTask.status)).all())
@@ -60,18 +67,23 @@ def build_summary(ctx: TenantContext, start: date | None, end: date | None, loca
     return out
 
 
+def _location(ctx: TenantContext, location_id: str | None):
+    """The optional location filter, validated the same way for the summary and every download: unknown or not visible = 404."""
+    import uuid
+    if not location_id:
+        return None
+    try:
+        loc = uuid.UUID(location_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid location")
+    if not ctx.can_access_location(loc) or not db_has(ctx, loc):
+        raise HTTPException(status_code=404, detail="Location not found")
+    return loc
+
+
 @router.get("/summary")
 def summary(start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"), location_id: str | None = None, ctx: TenantContext = Depends(get_tenant_context)):
-    import uuid
-    loc = None
-    if location_id:
-        try:
-            loc = uuid.UUID(location_id)
-        except ValueError:
-            raise HTTPException(status_code=422, detail="Invalid location")
-        if not ctx.can_access_location(loc) or not db_has(ctx, loc):
-            raise HTTPException(status_code=404, detail="Location not found")
-    return build_summary(ctx, start, end, loc)
+    return build_summary(ctx, start, end, _location(ctx, location_id))
 
 
 def db_has(ctx: TenantContext, loc) -> bool:
@@ -79,12 +91,14 @@ def db_has(ctx: TenantContext, loc) -> bool:
 
 
 @router.get("/summary.pdf")
-def summary_pdf(request: Request, start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"), ctx: TenantContext = Depends(get_tenant_context)):
+def summary_pdf(request: Request, start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"), location_id: str | None = None,
+                ctx: TenantContext = Depends(get_tenant_context)):
+    loc = _location(ctx, location_id)
     if not hit(f"report-pdf:{ctx.tenant_id}", 20, 3600):
         raise HTTPException(status_code=429, detail="Too many report downloads. Try again later.")
-    s = build_summary(ctx, start, end)
+    s = build_summary(ctx, start, end, loc)
     r, g, c = s["reputation"], s["google_performance"], s["campaigns"]
-    B = [("h1", f"{ctx.tenant.name}: reputation report"), ("small", f"{s['range']['from']} to {s['range']['to']} ({s['range']['timezone']}). Generated by FlowQR. Only real data is shown; missing data is marked as such."), ("gap", ""),
+    B = [("h1", f"{ctx.tenant.name}{' - ' + s['location'] if s['location'] else ''}: reputation report"), ("small", f"{s['range']['from']} to {s['range']['to']} ({s['range']['timezone']}){'. Location: ' + s['location'] if s['location'] else '. All locations'}. Generated by FlowQR. Only real data is shown; missing data is marked as such."), ("gap", ""),
          ("h2", "Reputation"), ("p", f"New reviews: {r['reviews']}\nAverage rating: {r['average_rating'] if r['average_rating'] is not None else 'no reviews in range'}\n"
                                    f"Replied: {r['replied']} ({round(100 * r['reply_rate']) if r['reply_rate'] is not None else '-'}%)\nAverage time to reply: {str(r['avg_response_hours']) + ' hours' if r['avg_response_hours'] is not None else 'not available'}\n"
                                    f"Reviews still unanswered right now: {r['unanswered_now']}\nRatings 1-5: " + ", ".join(f"{k}: {v}" for k, v in r["distribution"].items())), ("gap", ""),
@@ -98,7 +112,7 @@ def summary_pdf(request: Request, start: date | None = Query(None, alias="from")
     B.append(("p", "Not shown for location-restricted accounts." if c is None else f"QR scans: {c['scans']} (unique devices: {c['unique_visitors']})\nStarted a review: {c['feedback_submitted']}\nConfirmed a review: {c['drafts_approved']}\nContinued to Google: {c['google_redirects']}\nA tap on Google is not proof a review was posted."))
     if "ai_activity" in s:
         a = s["ai_activity"]
-        B += [("gap", ""), ("h2", "AI activity"), ("p", f"Replies published: {a['replies_published']}\nAI uses: {sum(x['count'] for x in a['ai_uses'])}\nAgent tasks: " + (", ".join(f"{k}: {v}" for k, v in a['tasks_by_status'].items()) or "none") +
+        B += [("gap", ""), ("h2", "AI activity (whole business)"), ("p", f"Replies published: {a['replies_published']}\nAI uses: {sum(x['count'] for x in a['ai_uses'])}\nAgent tasks: " + (", ".join(f"{k}: {v}" for k, v in a['tasks_by_status'].items()) or "none") +
                                                        "\nPosts: " + (", ".join(f"{k}: {v}" for k, v in a['posts_by_status'].items()) or "none"))]
     audit(ctx.db, action="report.pdf", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="report", ip=client_ip(request))
     ctx.db.commit()
@@ -106,9 +120,11 @@ def summary_pdf(request: Request, start: date | None = Query(None, alias="from")
 
 
 @router.get("/export/{name}.csv")
-def export_csv(name: str, request: Request, start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"), ctx: TenantContext = Depends(get_tenant_context)):
+def export_csv(name: str, request: Request, start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"), location_id: str | None = None,
+               ctx: TenantContext = Depends(get_tenant_context)):
     if name not in ("reviews", "posts", "tasks", "ai"):
         raise HTTPException(status_code=404, detail="Unknown report")
+    loc = _location(ctx, location_id)
     if name in ("tasks", "ai") and ctx.role.value == "staff":
         raise HTTPException(status_code=403, detail="Owners and admins only.")
     if not hit(f"report-csv:{ctx.tenant_id}", 30, 3600):
@@ -120,12 +136,18 @@ def export_csv(name: str, request: Request, start: date | None = Query(None, ali
     if name == "reviews":
         w.writerow(["review_date", "location", "reviewer", "rating", "review_text", "replied", "reply_text", "reply_date", "reply_state_on_google"])
         names = {l.id: l.name for l in db.scalars(select(Location).where(Location.tenant_id == t))}
-        for r in db.scalars(select(Review).where(Review.tenant_id == t, Review.review_created_at >= lo, Review.review_created_at < hi, ctx.scope(Review.location_id)).order_by(Review.review_created_at.desc()).limit(50000)):
+        rq = select(Review).where(Review.tenant_id == t, Review.review_created_at >= lo, Review.review_created_at < hi, ctx.scope(Review.location_id))
+        if loc:
+            rq = rq.where(Review.location_id == loc)
+        for r in db.scalars(rq.order_by(Review.review_created_at.desc()).limit(50000)):
             w.writerow([_cell(x) for x in (r.review_created_at, names.get(r.location_id), r.reviewer_name, r.rating, r.text, "yes" if r.google_reply_text is not None else "no", r.google_reply_text, r.google_reply_at, r.google_reply_state)])
     elif name == "posts":
         w.writerow(["created", "location", "status", "scheduled_for", "published_at", "ai_written", "text", "failure_reason"])
-        for p, title in db.execute(select(ScheduledPost, GoogleLocation.title).join(GoogleLocation, GoogleLocation.id == ScheduledPost.google_location_id).where(
-                ScheduledPost.tenant_id == t, ScheduledPost.created_at >= lo, ScheduledPost.created_at < hi, ctx.scope(GoogleLocation.location_id)).order_by(ScheduledPost.created_at.desc()).limit(50000)):
+        pq = select(ScheduledPost, GoogleLocation.title).join(GoogleLocation, GoogleLocation.id == ScheduledPost.google_location_id).where(
+            ScheduledPost.tenant_id == t, ScheduledPost.created_at >= lo, ScheduledPost.created_at < hi, ctx.scope(GoogleLocation.location_id))
+        if loc:
+            pq = pq.where(GoogleLocation.location_id == loc)
+        for p, title in db.execute(pq.order_by(ScheduledPost.created_at.desc()).limit(50000)):
             w.writerow([_cell(x) for x in (p.created_at, title, p.status, p.scheduled_for, p.published_at, "yes" if p.generated_by_ai else "no", p.summary, p.failure_reason)])
     elif name == "tasks":
         w.writerow(["created", "kind", "title", "status", "completed_at", "failure_reason"])

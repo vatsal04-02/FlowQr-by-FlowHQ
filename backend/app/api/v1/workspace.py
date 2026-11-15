@@ -49,6 +49,16 @@ def _google(ctx: TenantContext) -> dict:
     return {**base, "status": "attention", "detail": "Connected, but Google has not confirmed access yet.", "steps": ["Press Re-check on the Google connection page."]}
 
 
+@router.get("/getting-started")
+def getting_started(ctx: TenantContext = Depends(get_tenant_context)):
+    """The owner's checklist, computed from what actually exists (see services/onboarding.py). No sample data, no saved flags."""
+    from app.services import onboarding
+
+    out = onboarding.steps(ctx.db, ctx.tenant_id, ctx.user)
+    ctx.db.commit()
+    return out
+
+
 @router.get("/integrations")
 def integrations(ctx: TenantContext = Depends(get_tenant_context)):
     ai = {"id": "ai", "label": "AI provider", "href": "/settings/ai"}
@@ -67,10 +77,20 @@ def integrations(ctx: TenantContext = Depends(get_tenant_context)):
     def unbuilt(id_, label, have, steps, what):
         return {"id": id_, "label": label, "href": None, "status": "not_available" if have else "setup_required",
                 "detail": (f"Credentials are present, but FlowQR has no working {what} integration yet, so nothing is simulated." if have else f"Not configured. {what[0].upper() + what[1:]} is a planned release."), "steps": steps}
+    def _rank():
+        if settings.rank_provider == "google_places" and settings.rank_provider_key:
+            return {"id": "rank_provider", "label": "Local rank tracking (Google Places)", "href": "/gbp/rank", "status": "connected",
+                    "detail": f"Key configured. Each business may spend {settings.rank_monthly_check_cap} billed checks a month.", "steps": []}
+        if settings.rank_provider and settings.rank_provider != "google_places":
+            return {"id": "rank_provider", "label": "Local rank provider", "href": None, "status": "not_available",
+                    "detail": f"RANK_PROVIDER={settings.rank_provider!r} isn't supported, so nothing is simulated. Use google_places.", "steps": ["Set RANK_PROVIDER=google_places and RANK_PROVIDER_KEY."]}
+        return {"id": "rank_provider", "label": "Local rank tracking (Google Places)", "href": None, "status": "setup_required",
+                "detail": "Not configured. Local rank tracking needs a Places API (New) key.",
+                "steps": ["Enable Places API (New), link billing, create a restricted key, then set RANK_PROVIDER=google_places and RANK_PROVIDER_KEY."]}
     items = [_google(ctx), ai, pay, mail,
              unbuilt("meta", "Facebook & Instagram (Meta)", bool(settings.meta_app_id and settings.meta_app_secret), ["Create a Meta app, complete App Review for publishing permissions, then set META_APP_ID / META_APP_SECRET."], "Meta publishing"),
              unbuilt("whatsapp", "WhatsApp Business Platform", bool(settings.whatsapp_phone_number_id and settings.whatsapp_access_token), ["Register with the official WhatsApp Business Platform, get approved templates, then set WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN."], "WhatsApp messaging"),
-             unbuilt("rank_provider", "Local rank provider", bool(settings.rank_provider and settings.rank_provider_key), ["Choose a rank-tracking provider with an official API and set RANK_PROVIDER / RANK_PROVIDER_KEY. FlowQR never scrapes Google Maps."], "local-visibility")]
+             _rank()]
     return {"integrations": items}
 
 

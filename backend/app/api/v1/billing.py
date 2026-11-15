@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.db import get_db, set_rls_context
 from app.core.deps import TenantContext, ensure_verified, get_tenant_context, require_role
 from app.core.rate_limit import client_ip, limit_by_ip
-from app.models import BillingPlan, CardOrder, Payment, Role, Subscription
+from app.models import BillingPlan, CardOrder, Payment, PromotionalGrant, Role, Subscription, SubscriptionEvent
 from app.models.base import utcnow
 from app.schemas.billing import (
     CancelIn, CardOrderIn, CardOrderOut, ChangePlanIn, CheckoutIn, PaymentOut, PlanOut, VerifyOrderIn, VerifySubscriptionIn,
@@ -44,14 +44,17 @@ def plans(db: Session = Depends(get_db)):
     """Public: used by the pricing page."""
     set_rls_context(db, bypass=True)
     rows = db.scalars(select(BillingPlan).where(BillingPlan.is_active.is_(True)).order_by(BillingPlan.sort_order)).all()
+    offers = [{"code": o["code"], "quantity": o["quantity"], "price_paise": o["price_paise"], "includes": f"{settings.promo_card_days} days of {settings.promo_card_plan.title()}"} for o in (settings.card_offers or [])]
     return {"plans": [PlanOut.model_validate(p) for p in rows], "trial_days": settings.trial_days,
-            "billing": _config(), "card_price_paise": settings.card_price_paise, "card_ordering_enabled": bool(settings.card_price_paise) and settings.razorpay_configured}
+            "billing": _config(), "card_price_paise": settings.card_price_paise,
+            "card_ordering_enabled": (bool(settings.card_price_paise) or bool(offers)) and settings.razorpay_configured, "card_offers": offers,
+            "card_offer_note": "Card prices are one-time purchases, separate from any subscription. The included month is free access, not a subscription: nothing is charged when it ends."}
 
 
 @router.get("/subscription")
 def subscription(ctx: TenantContext = Depends(get_tenant_context)):
     sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
-    e = ent.compute(sub)
+    e = ent.for_tenant(ctx.db, ctx.tenant_id)
     plan = ctx.db.get(BillingPlan, sub.plan) if sub else None
     return {
         "billing": _config(),
@@ -62,10 +65,20 @@ def subscription(ctx: TenantContext = Depends(get_tenant_context)):
         "current_period_end": sub.current_period_end if sub else None, "cancel_at_period_end": bool(sub and sub.cancel_at_period_end),
         "pending_plan": sub.pending_plan if sub else None, "grace_until": e.grace_until, "source": sub.source if sub else None,
         "has_razorpay_subscription": bool(sub and sub.razorpay_subscription_id),
-        "limits": {"locations": e.max_locations, "ai_generations": e.monthly_ai_generations, "staff": e.max_staff, "features": sorted(e.features)},
+        "promo": None if not e.promo else {**e.promo, "note": "Included free with your card purchase. It ends on its own and nothing is charged."},
+        "limits": {"locations": e.max_locations, "ai_generations": e.monthly_ai_generations, "review_generations": e.review_generations, "review_replies": e.review_replies,
+                   "staff": e.max_staff, "features": sorted(e.features)},
         "usage": {"locations": ent.locations_used(ctx.db, ctx.tenant_id), "ai_generations": usage_this_month(ctx.db, ctx.tenant_id),
+                  "review_generations": usage_this_month(ctx.db, ctx.tenant_id, field="review_generations"), "review_replies": usage_this_month(ctx.db, ctx.tenant_id, field="review_replies"),
                   "staff": ent.seats_used(ctx.db, ctx.tenant_id)},
     }
+
+
+@router.get("/subscription/history")
+def subscription_history(ctx: TenantContext = Depends(require_role(Role.admin)), limit: int = Query(100, ge=1, le=500)):
+    """Everything that happened to this business's subscription, newest first (plan changes, payments failing, cancellations, refunds, promotional months)."""
+    rows = ctx.db.scalars(select(SubscriptionEvent).where(SubscriptionEvent.tenant_id == ctx.tenant_id).order_by(SubscriptionEvent.created_at.desc()).limit(limit)).all()
+    return {"events": [{"at": r.created_at, "kind": r.kind, "from_status": r.from_status, "to_status": r.to_status, "from_plan": r.from_plan, "to_plan": r.to_plan, "source": r.source, "meta": r.meta} for r in rows]}
 
 
 def _locked_sub(ctx: TenantContext) -> Subscription:
@@ -93,8 +106,13 @@ def checkout(body: CheckoutIn, request: Request, ctx: TenantContext = Depends(re
                 return {"subscription_id": sub.razorpay_subscription_id, "key_id": settings.razorpay_key_id, "plan": plan.code, "reused": True}
         rzp_plan_id = svc.ensure_razorpay_plan(ctx.db, client, plan)
         start_at = None
-        if sub.status == "trialing" and sub.trial_ends_at and sub.trial_ends_at > utcnow() + __import__("datetime").timedelta(minutes=10):
-            start_at = int(sub.trial_ends_at.timestamp())  # no charge until the trial ends
+        from datetime import timedelta
+        free_until = sub.trial_ends_at if sub.status == "trialing" and sub.trial_ends_at else None
+        promo = ent.active_promo(ctx.db, ctx.tenant_id)
+        if promo and (free_until is None or promo[0].ends_at > free_until):
+            free_until = promo[0].ends_at
+        if free_until and free_until > utcnow() + timedelta(minutes=10):
+            start_at = int(free_until.timestamp())  # no charge until the free period (trial or card month) ends; choosing a plan here is the explicit consent
         created = client.create_subscription(plan_id=rzp_plan_id, total_count=120, start_at=start_at,
                                              notes={"tenant_id": str(ctx.tenant_id), "plan": plan.code})
     except rz.RazorpayError as exc:
@@ -124,7 +142,9 @@ def verify(body: VerifySubscriptionIn, ctx: TenantContext = Depends(require_role
         remote = client.fetch_subscription(sub.razorpay_subscription_id)
     except rz.RazorpayError:
         raise HTTPException(status_code=502, detail="Couldn't confirm the payment with Razorpay yet. It will update automatically.")
+    before = svc.snapshot(sub)
     svc.sync_from_razorpay(ctx.db, sub, remote)
+    svc.record_change(ctx.db, sub, before, source="user", ref=body.razorpay_payment_id)
     audit(ctx.db, action="billing.verified", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="subscription",
           entity_id=sub.id, meta={"razorpay_status": remote.get("status")})
     ctx.db.commit()
@@ -143,9 +163,11 @@ def cancel(body: CancelIn, request: Request, ctx: TenantContext = Depends(requir
     except rz.RazorpayError as exc:
         ctx.db.rollback()
         raise HTTPException(status_code=502, detail="Razorpay couldn't cancel the subscription. Please try again.")
+    before = svc.snapshot(sub)
     sub.cancel_at_period_end = body.at_cycle_end
     if not body.at_cycle_end:
         sub.status, sub.canceled_at = "canceled", utcnow()
+    svc.record_change(ctx.db, sub, before, source="user", kind="cancel_requested" if body.at_cycle_end else "canceled", meta={"at_cycle_end": body.at_cycle_end})
     audit(ctx.db, action="billing.cancel", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="subscription",
           entity_id=sub.id, meta={"at_cycle_end": body.at_cycle_end}, ip=client_ip(request))
     ctx.db.commit()
@@ -180,11 +202,14 @@ def change_plan(body: ChangePlanIn, request: Request, ctx: TenantContext = Depen
     except rz.RazorpayError as exc:
         ctx.db.rollback()
         raise HTTPException(status_code=502, detail="Razorpay couldn't change the plan. Please try again.")
+    before = svc.snapshot(sub)
     if upgrade:
         svc.apply_plan(sub, target)  # Razorpay accepted an immediate change
         sub.pending_plan = None
+        svc.record_change(ctx.db, sub, before, source="user", kind="plan_changed", meta={"direction": "upgrade"})
     else:
         sub.pending_plan = target.code  # takes effect at the next cycle (webhook subscription.updated/charged)
+        svc.log_event(ctx.db, ctx.tenant_id, "plan_change_scheduled", source="user", from_plan=sub.plan, to_plan=target.code, meta={"effective": "next cycle", "data_kept": True})
     audit(ctx.db, action="billing.change_plan", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="subscription",
           entity_id=sub.id, meta={"to": target.code, "immediate": upgrade}, ip=client_ip(request))
     ctx.db.commit()
@@ -211,18 +236,21 @@ def card_orders(ctx: TenantContext = Depends(get_tenant_context)):
 def create_card_order(body: CardOrderIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner)),
                       idempotency_key: str | None = Header(default=None, max_length=80)):
     ensure_verified(ctx.user)
-    if not settings.card_price_paise:
-        raise HTTPException(status_code=503, detail={"code": "card_pricing_not_configured", "message": "Card ordering isn't open yet: card pricing hasn't been configured."})
-    if not (settings.card_order_min_qty <= body.quantity <= settings.card_order_max_qty):
-        raise HTTPException(status_code=422, detail=f"Order between {settings.card_order_min_qty} and {settings.card_order_max_qty} cards")
+    offer = svc.card_offer_for(body.quantity)  # the confirmed bundles (1 card, 2 cards) are priced as bundles, not per card
+    if offer is None:
+        if not settings.card_price_paise:
+            raise HTTPException(status_code=503, detail={"code": "card_pricing_not_configured", "message": "Card ordering isn't open yet: card pricing hasn't been configured."})
+        if not (settings.card_order_min_qty <= body.quantity <= settings.card_order_max_qty):
+            bundles = " or ".join(str(o["quantity"]) for o in (settings.card_offers or []))
+            raise HTTPException(status_code=422, detail=f"Order {bundles} cards, or between {settings.card_order_min_qty} and {settings.card_order_max_qty}.")
     if idempotency_key:
         prior = ctx.db.scalar(select(CardOrder).where(CardOrder.tenant_id == ctx.tenant_id, CardOrder.idempotency_key == idempotency_key))
         if prior:  # same request replayed: return the same order instead of creating another
             return {"order_id": prior.razorpay_order_id, "key_id": settings.razorpay_key_id, "amount_paise": prior.amount_paise,
                     "card_order_id": str(prior.id), "reused": True}
     client = _client()
-    amount = body.quantity * settings.card_price_paise
-    order = CardOrder(tenant_id=ctx.tenant_id, quantity=body.quantity, unit_price_paise=settings.card_price_paise, amount_paise=amount,
+    amount = offer["price_paise"] if offer else body.quantity * settings.card_price_paise
+    order = CardOrder(tenant_id=ctx.tenant_id, quantity=body.quantity, unit_price_paise=amount // body.quantity, amount_paise=amount, offer_code=offer["code"] if offer else None,
                       shipping=body.shipping.model_dump(), idempotency_key=idempotency_key, created_by=ctx.user.id)
     ctx.db.add(order)
     ctx.db.flush()

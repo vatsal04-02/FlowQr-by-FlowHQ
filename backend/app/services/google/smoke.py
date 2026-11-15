@@ -134,6 +134,12 @@ def run(args: argparse.Namespace) -> int:
         run.call("reviews.list", lambda: provider.list_reviews(at, account, location), lambda p: f"{len(p.reviews)} on first page, more={bool(p.next_page_token)}")
         run.call("localPosts.list", lambda: provider.list_posts(at, account, location), lambda p: f"{len(p)} post(s)")
         run.call("media.list", lambda: provider.list_media(at, account, location), lambda m: f"{len(m)} item(s)")
+        run.call("locations.get services/special hours/open status", lambda: provider.get_location_details(at, location),
+                 lambda d: f"services={len(d.get('services') or [])} special_hours={len(d.get('special_hours') or [])} open={d.get('open_status')}")
+        last = (end.replace(day=1) - timedelta(days=1))
+        first = (last.replace(day=1) - timedelta(days=62)).replace(day=1)
+        run.call("searchkeywords.impressions.monthly", lambda: provider.search_keywords(at, location, f"{first:%Y-%m}", f"{last:%Y-%m}", limit=100),
+                 lambda k: f"{len(k)} term(s) {first:%Y-%m}..{last:%Y-%m}; exact={sum(1 for x in k if x['value'] is not None)} below-threshold={sum(1 for x in k if x['value'] is None)}")
         run.call("performance.fetchMultiDaily", lambda: provider.fetch_performance(at, location, start.isoformat(), end.isoformat(), PERFORMANCE_METRICS),
                  lambda s: f"{len(s)}/{len(PERFORMANCE_METRICS)} metrics returned data")
         if args.validate_patch:

@@ -4,9 +4,6 @@ tenant data beyond what the customer should see, and customer text only ever sto
 Customer flow: GET page -> POST generate (their words -> draft, or mode "manual") -> POST regenerate (optional) -> POST approve (customer's final
 text) -> POST redirect (record the click, return the Google link). We never post to Google. Every customer gets the same
 flow whatever rating or sentiment they give."""
-import hashlib
-import json
-import random
 import re
 import time
 from datetime import timedelta
@@ -29,9 +26,9 @@ from app.services.ai.base import configured_identity
 from app.services.review_suggestions import MEANING, SENTIMENTS, follow_up_for, merged_context, topics_for
 from app.services.ai import health as ai_health
 from app.services.ai.review_generate import (
-    CLARIFY, RATING_SENTIMENT, NeedsMoreDetail, ReviewDraftRejected, ReviewInput, clean_field, generate_review, generate_starter, is_too_vague,
+    CLARIFY, RATING_SENTIMENT, NeedsMoreDetail, ReviewDraftRejected, ReviewInput, clean_field, generate_review, is_too_vague,
 )
-from app.services.ai_usage import log_generation, quota_exceeded
+from app.services.ai_usage import log_generation, metered, quota_exceeded
 from app.services.review_submit import SubmitRequest, SubmitUnavailable, provider_for
 
 router = APIRouter(prefix="/public/reviews", tags=["public"])
@@ -119,7 +116,7 @@ def landing(public_id: str, request: Request, db: Session = Depends(public_db)):
         "generator": {"styles": c.allowed_styles, "default_style": c.default_style, "default_language": default_lang,
                       "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": settings.review_max_drafts_per_session,
                       "max_input_chars": settings.public_ai_max_input_chars},
-        "ai_available": settings.ai_configured and not quota_exceeded(db, tenant.id) and ai_health.current() is None,
+        "ai_available": settings.ai_configured and not quota_exceeded(db, tenant.id, "review_generate") and ai_health.current() is None,
         "google_ready": bool(url),
         "review_url": url,  # the business's own public Google link: the page opens it straight from the customer's tap (never gated by rating)
         "review_url_kind": svc.review_url_kind(url),
@@ -188,13 +185,13 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
         db.commit()
         return _draft_payload(session, draft, ai_status=ai_status, message=message, retryable=retryable)
 
-    if quota_exceeded(db, tenant.id):
+    if quota_exceeded(db, tenant.id, "review_generate"):
         return fail("error", UNAVAILABLE_MESSAGE, "unavailable", "quota or subscription", False)
     paused = ai_health.current()
     if paused:  # a known-bad provider state: don't make the customer wait for a call that will fail
         return fail("error", UNAVAILABLE_MESSAGE, "unavailable", f"paused: {paused['code']}", False)
     try:
-        provider = get_provider()
+        provider = metered(get_provider(), db, tenant.id, "review_generate")
         text = generate_review(provider, inp, language=session.language, style=session.style, business_name=tenant.name,
                                category=tenant.category, location_name=loc.name, previous=previous,
                                context_text=bctx.prompt_block(), offered_terms=bctx.offered_terms(), stats=stats)
@@ -329,115 +326,6 @@ def refine(public_id: str, body: RefineIn, request: Request, db: Session = Depen
         started.rating = body.rating  # the distribution counts the rating they ended with, not the first star they tapped
     db.commit()
     return _run_generation(db, campaign, tenant, loc, session, draft, ip=ip, ua=ua, refine=True)
-
-
-# ------------------------------------------------------------------------------------------------------- starter draft (before any input)
-STARTER_POOL = 6            # different openers kept per business and language: a new visitor gets one at random, so each is "unique" without a model call per scan
-STARTER_TTL = 12 * 3600
-STARTER_COOLDOWN = 60       # after a failed generation, don't try again for a minute (a flood of scans must not become a flood of failing model calls)
-_starter_memory: dict[str, tuple[float, list[str]]] = {}
-
-
-def _starter_key(bctx, language: str) -> str:
-    """Changes whenever the owner edits anything that feeds the starter, so stale openers are never served."""
-    raw = json.dumps([bctx.business_name, bctx.category_label, bctx.location, bctx.description, list(bctx.services), language, settings.ai_provider])
-    return "rgstarter:" + hashlib.sha256(raw.encode()).hexdigest()[:24]
-
-
-def _pool_get(key: str) -> list[str]:
-    client = rate_limit._get_redis()
-    if client is not None:
-        try:
-            raw = client.get(key)
-            return list(json.loads(raw)) if raw else []
-        except Exception:
-            pass
-    exp, pool = _starter_memory.get(key, (0.0, []))
-    return list(pool) if exp > time.time() else []
-
-
-def _pool_put(key: str, pool: list[str]) -> None:
-    client = rate_limit._get_redis()
-    if client is not None:
-        try:
-            client.set(key, json.dumps(pool), ex=STARTER_TTL)
-            return
-        except Exception:
-            pass
-    _starter_memory[key] = (time.time() + STARTER_TTL, pool)
-
-
-def _cooling(key: str) -> bool:
-    client = rate_limit._get_redis()
-    if client is not None:
-        try:
-            return bool(client.get(key + ":cool"))
-        except Exception:
-            pass
-    return _starter_memory.get(key + ":cool", (0.0, []))[0] > time.time()
-
-
-def _cool(key: str) -> None:
-    client = rate_limit._get_redis()
-    if client is not None:
-        try:
-            client.set(key + ":cool", "1", ex=STARTER_COOLDOWN)
-            return
-        except Exception:
-            pass
-    _starter_memory[key + ":cool"] = (time.time() + STARTER_COOLDOWN, [])
-
-
-STARTER_NOTE = "AI suggestion: it says nothing about your visit. Add your stars, pick what applies or edit it, and keep only what is true for you."
-
-
-@router.get("/{public_id}/starter")
-def starter(public_id: str, request: Request, language: str = "en", db: Session = Depends(public_db)):
-    """A neutral, editable opening for the review box, ready before the customer does anything. It is built ONLY from the business's own
-    details (name, kind, place, owner-listed services), never from a customer, and says nothing about a visit, a feeling or a result. Served from a
-    small per-business pool so a busy QR code costs a handful of model calls, not one per scan. Never blocks the page: no starter -> empty box."""
-    ip, ua = client_ip(request), request.headers.get("user-agent")
-    if cards_svc.is_bot(ua):
-        raise HTTPException(status_code=403, detail="Automated requests are not supported.")
-    if not hit(f"rstart:{ip}:{public_id}", 40, 600) or not hit(f"rstart-ip:{ip}", 200, 3600):
-        raise HTTPException(status_code=429, detail="Too many attempts for now. You can still write your review in your own words.")
-    campaign, tenant, loc = _live(db, public_id)
-    bctx = merged_context(tenant, loc)
-    lang = language if language in bctx.languages else bctx.languages[0]
-    none = {"draft": None, "ai_status": "unavailable", "language": lang, "source": None}
-
-    def ok(text: str) -> dict:
-        return {"draft": text, "ai_status": "ok", "language": lang, "source": "ai_suggestion", "note": STARTER_NOTE}
-
-    if not settings.ai_configured or quota_exceeded(db, tenant.id) or ai_health.current():
-        return none
-    key = _starter_key(bctx, lang)
-    pool = _pool_get(key)
-    if len(pool) >= STARTER_POOL or (pool and _cooling(key)):
-        return ok(random.choice(pool))
-    if _cooling(key):
-        return none
-    started, stats, provider = time.monotonic(), {}, None
-    try:
-        provider = get_provider()
-        text = generate_starter(provider, language=lang, business_name=bctx.business_name, category_label=bctx.category_label, location_name=bctx.location,
-                                services=bctx.services, description=bctx.description, previous=tuple(pool), stats=stats)
-    except (ReviewDraftRejected, AIUnavailable) as exc:
-        if isinstance(exc, AIUnavailable) and not isinstance(exc, ReviewDraftRejected):
-            ai_health.mark_down(exc.code, exc.retry_after)
-        name, model = (provider.name, provider.model) if provider else configured_identity()
-        log_generation(db, tenant_id=tenant.id, kind="review_starter", provider=name, model=model, language=lang, input_chars=0, output_chars=0,
-                       status="rejected" if isinstance(exc, ReviewDraftRejected) else "error", started=started, location_id=loc.id,
-                       error=getattr(exc, "reason", None) or f"{exc.code}", usage=getattr(provider, "usage", None), stats=stats)
-        db.commit()
-        _cool(key)
-        return ok(random.choice(pool)) if pool else none
-    pool.append(text)
-    _pool_put(key, pool)
-    log_generation(db, tenant_id=tenant.id, kind="review_starter", provider=provider.name, model=provider.model, language=lang, input_chars=0, output_chars=len(text),
-                   status="ok", started=started, location_id=loc.id, usage=getattr(provider, "usage", None), stats=stats)
-    db.commit()
-    return ok(text)
 
 
 @router.post("/{public_id}/approve", dependencies=[Depends(limit_by_ip("rapprove", 60, 60))])

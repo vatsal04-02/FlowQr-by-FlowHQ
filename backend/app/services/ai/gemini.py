@@ -49,12 +49,14 @@ class GeminiProvider:
         except httpx.HTTPError as exc:
             raise AIUnavailable("AI service unreachable", code="provider_error") from exc
 
-    def generate(self, system: str, user: str, *, max_tokens: int = 600, temperature: float = 0.4) -> str:
+    def generate(self, system: str, user: str, *, max_tokens: int = 600, temperature: float = 0.4, json_mode: bool = False) -> str:
         body = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user}]}],
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
         }
+        if json_mode:
+            body["generationConfig"]["responseMimeType"] = "application/json"
         if self._thinking_level:
             body["generationConfig"]["thinkingConfig"] = {"thinkingLevel": self._thinking_level}
         r = self._post(body)

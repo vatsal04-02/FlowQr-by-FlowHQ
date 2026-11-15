@@ -9,7 +9,7 @@ from sqlalchemy import Date, cast, func, select
 
 from app.core.deps import TenantContext, get_tenant_context
 from app.models import (
-    AIGenerationLog, GoogleLocation, Location, QRCard, ReplyDraft, ReplyStatus, Review, ScanEvent, ScanEventType, Subscription,
+    AIGenerationLog, GoogleLocation, Location, QRCard, ReplyDraft, ReplyStatus, Review, ReviewCampaign, ScanEvent, ScanEventType, Subscription,
 )
 from app.services import entitlements as ent
 from app.services import insights as insights_svc
@@ -67,8 +67,10 @@ def overview(
     avg_resp = db.scalar(select(func.avg(func.extract("epoch", base.c.google_reply_at - base.c.review_created_at)))
                          .where(base.c.google_reply_at.is_not(None), base.c.google_reply_at >= base.c.review_created_at, in_range))
     day = cast(func.timezone(tz, base.c.review_created_at), Date)
-    r_rows = db.execute(select(day, func.count(), func.avg(base.c.rating)).where(in_range).group_by(day)).all()
-    review_series = _fill(start, end, {d: {"count": c, "avg_rating": round(float(a), 2) if a else 0} for d, c, a in r_rows}, ["count", "avg_rating"])
+    # low_count = 1-3 star reviews that day, so the dashboard can split the trend by rating without a second query
+    r_rows = db.execute(select(day, func.count(), func.avg(base.c.rating), func.count().filter(base.c.rating <= 3)).where(in_range).group_by(day)).all()
+    review_series = _fill(start, end, {d: {"count": c, "avg_rating": round(float(a), 2) if a else 0, "low_count": lo_n} for d, c, a, lo_n in r_rows},
+                          ["count", "avg_rating", "low_count"])
     dist = dict(db.execute(select(base.c.rating, func.count()).group_by(base.c.rating)).all())
 
     # ---------- Card engagement (bots excluded) ----------
@@ -84,11 +86,28 @@ def overview(
         series_map.setdefault(d, {})[et.value] = c
     engagement_series = _fill(start, end, series_map, ["scan", "landing_view", "google_click", "ai_assist"])
 
+    # The same card through its two doors. QR and NFC resolve to one card identity; only the way in is recorded.
+    by_channel: dict = {k: {"scans": 0, "unique_visitors": 0, "landing_views": 0, "google_clicks": 0} for k in ("qr", "nfc", "untracked")}
+    for ch, et, n, u in db.execute(select(ev.c.channel, ev.c.event_type, func.count(), func.count(func.distinct(ev.c.visitor_hash))).group_by(ev.c.channel, ev.c.event_type)):
+        slot = by_channel[ch or "untracked"]
+        if et == ET.scan:
+            slot["scans"], slot["unique_visitors"] = n, u
+        elif et == ET.landing_view:
+            slot["landing_views"] = n
+        elif et == ET.google_click:
+            slot["google_clicks"] = n
+
     # per card
     card_rows = db.execute(select(ev.c.card_id, ev.c.event_type, func.count()).group_by(ev.c.card_id, ev.c.event_type)).all()
     per_card: dict = {}
     for cid, et, c in card_rows:
         per_card.setdefault(cid, {})[et.value] = c
+    card_ch: dict = {}
+    for cid, ch, n in db.execute(select(ev.c.card_id, ev.c.channel, func.count()).where(ev.c.event_type == ET.scan).group_by(ev.c.card_id, ev.c.channel)):
+        card_ch.setdefault(cid, {})[ch or "untracked"] = n
+    card_uniq = dict(db.execute(select(ev.c.card_id, func.count(func.distinct(ev.c.visitor_hash))).where(ev.c.event_type == ET.scan).group_by(ev.c.card_id)).all())
+    card_last = dict(db.execute(select(ev.c.card_id, func.max(ev.c.created_at)).group_by(ev.c.card_id)).all())
+    camp_names = {c.id: c.name for c in db.scalars(select(ReviewCampaign).where(ReviewCampaign.tenant_id == t))}
     cards = {c.id: c for c in db.scalars(select(QRCard).where(QRCard.tenant_id == t, ctx.scope(QRCard.location_id)))}
     locs = {l.id: l.name for l in db.scalars(select(Location).where(Location.tenant_id == t, ctx.scope(Location.id)))}
     card_perf = []
@@ -96,8 +115,12 @@ def overview(
         if location_id and c.location_id != location_id:
             continue
         s = per_card.get(cid, {})
+        ch = card_ch.get(cid, {})
         card_perf.append({"card_code": c.card_code, "label": c.label, "location": locs.get(c.location_id), "status": c.status.value,
-                          "scans": s.get("scan", 0), "landing_views": s.get("landing_view", 0),
+                          "campaign": camp_names.get(c.campaign_id),
+                          "scans": s.get("scan", 0), "qr_scans": ch.get("qr", 0), "nfc_taps": ch.get("nfc", 0),
+                          "unique_visitors": card_uniq.get(cid, 0), "last_activity": card_last.get(cid),
+                          "landing_views": s.get("landing_view", 0),
                           "google_clicks": s.get("google_click", 0), "ai_assists": s.get("ai_assist", 0)})
     card_perf.sort(key=lambda r: r["scans"], reverse=True)
 
@@ -141,9 +164,11 @@ def overview(
         "engagement": {
             "scans": scans, "landing_views": views, "google_clicks": clicks, "ai_assists": totals.get("ai_assist", 0),
             "click_through_rate": round(clicks / views, 3) if views else None,
+            "by_channel": by_channel,
             "series": engagement_series,
             "definitions": {
                 "scans": "Times a QR code was scanned or an NFC card tapped (bots and rapid refreshes excluded).",
+                "channels": "QR scans and NFC taps open the same card; the way in is recorded separately. Visits before channel tracking began are shown as 'untracked'.",
                 "landing_views": "Times the review page actually loaded in a customer's browser.",
                 "google_clicks": "Taps on 'Continue to Google'. This does NOT mean a review was submitted.",
                 "submitted_reviews": "Only measurable for connected Google locations, from synced reviews. We cannot attribute a review to a specific scan.",

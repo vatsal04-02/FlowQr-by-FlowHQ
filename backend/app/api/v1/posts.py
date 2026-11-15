@@ -6,6 +6,7 @@ person approving that exact text; a post is `published` only after Google return
 import logging
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -18,11 +19,13 @@ from app.models import GoogleConnection, GoogleConnectionStatus, GoogleLocation,
 from app.models.base import utcnow
 from app.schemas.gbp import PostIn
 from app.services import entitlements as ent
+from app.services.agent import content_exec
 from app.services.agent import knowledge as kbs
 from app.services.agent import posts as svc
 from app.services.agent.safety import check_text
 from app.services.ai import AIUnavailable, get_provider
-from app.services.ai_usage import log_generation, quota_exceeded
+from app.services.ai import intelligence, outcomes
+from app.services.ai_usage import log_generation, metered, quota_exceeded
 from app.services.audit import audit
 
 log = logging.getLogger("flowqr.posts.api")
@@ -31,9 +34,28 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 class PostCreateIn(PostIn):
     google_location_id: uuid.UUID
+    topic_type: Literal["STANDARD", "OFFER", "EVENT"] = "STANDARD"
+    event_title: str | None = Field(default=None, max_length=58)
+    event_start: datetime | None = None
+    event_end: datetime | None = None
+    offer_coupon: str | None = Field(default=None, max_length=58)
+    offer_url: str | None = Field(default=None, max_length=500)
+    offer_terms: str | None = Field(default=None, max_length=1500)
 
 
-class PostEditIn(BaseModel):
+class TopicFields(BaseModel):
+    """Post type (Google LocalPostTopicType) and, for offers and events, Google's required title and schedule. Times are read in the
+    business's time zone when they carry no offset."""
+    topic_type: Literal["STANDARD", "OFFER", "EVENT"] | None = None
+    event_title: str | None = Field(default=None, max_length=58)
+    event_start: datetime | None = None
+    event_end: datetime | None = None
+    offer_coupon: str | None = Field(default=None, max_length=58)
+    offer_url: str | None = Field(default=None, max_length=500)
+    offer_terms: str | None = Field(default=None, max_length=1500)
+
+
+class PostEditIn(TopicFields):
     summary: str | None = Field(default=None, min_length=10, max_length=1500)
     cta_type: str | None = None
     cta_url: str | None = Field(default=None, max_length=500)
@@ -43,10 +65,33 @@ class PostEditIn(BaseModel):
 class AiDraftIn(BaseModel):
     google_location_id: uuid.UUID
     topic: str | None = Field(default=None, max_length=200)
+    # update = a normal post; offer = only from a verified offer in the knowledge base; event = from the title/dates the owner gives
+    kind: Literal["update", "offer", "event"] = "update"
+    event_title: str | None = Field(default=None, max_length=58)
+    event_start: datetime | None = None
+    event_end: datetime | None = None
 
 
 class ApproveIn(BaseModel):
     scheduled_for: datetime | None = None  # a time in the future; naive values are read in the business's time zone. Omit to publish now.
+
+
+def _local(ctx: TenantContext, d: datetime | None) -> datetime | None:
+    """A time without an offset means the business's own wall-clock time."""
+    if d is None or d.tzinfo is not None:
+        return d
+    return d.replace(tzinfo=ZoneInfo(ctx.tenant.timezone or "Asia/Kolkata"))
+
+
+def _apply_topic(ctx: TenantContext, p: ScheduledPost, data: dict) -> None:
+    for k in ("topic_type", "event_title", "event_start", "event_end", "offer_coupon", "offer_url", "offer_terms"):
+        if k in data:
+            v = data[k]
+            setattr(p, k, _local(ctx, v) if k in ("event_start", "event_end") else (v.strip() or None) if isinstance(v, str) else v)
+    if p.topic_type == "STANDARD":  # an update has no schedule or offer: clear leftovers so Google never receives them
+        p.event_title = p.event_start = p.event_end = p.offer_coupon = p.offer_url = p.offer_terms = None
+    elif p.topic_type == "EVENT":
+        p.offer_coupon = p.offer_url = p.offer_terms = None
 
 
 def _gloc(ctx: TenantContext, gid: uuid.UUID) -> GoogleLocation:
@@ -71,7 +116,9 @@ def _out(ctx: TenantContext, p: ScheduledPost, kb: dict | None = None) -> dict:
     return {"id": str(p.id), "google_location_id": str(p.google_location_id), "location_title": gl.title if gl else None, "summary": p.summary, "language": p.language,
             "cta_type": p.cta_type, "cta_url": p.cta_url, "photo_url": p.photo_url, "status": p.status, "scheduled_for": p.scheduled_for, "next_attempt_at": p.next_attempt_at,
             "published_at": p.published_at, "google_post_name": p.google_post_name, "attempts": p.attempts, "failure_reason": p.failure_reason, "generated_by_ai": p.generated_by_ai,
-            "approved_at": p.approved_at, "created_at": p.created_at, "violations": svc.validate_content(p, kb) if p.status in ("draft", "awaiting_approval", "failed", "approved") else []}
+            "approved_at": p.approved_at, "created_at": p.created_at, "violations": svc.validate_content(p, kb) if p.status in ("draft", "awaiting_approval", "failed", "approved") else [],
+            "topic_type": p.topic_type or "STANDARD", "event_title": p.event_title, "event_start": p.event_start, "event_end": p.event_end, "offer_coupon": p.offer_coupon,
+            "offer_url": p.offer_url, "offer_terms": p.offer_terms, "visual_hint": p.visual_hint, "topic_problems": svc.topic_problems(p)}
 
 
 def _wrap(fn):
@@ -123,7 +170,8 @@ def create_post(body: PostCreateIn, request: Request, ctx: TenantContext = Depen
     _need(ctx)
     gl = _gloc(ctx, body.google_location_id)
     p = ScheduledPost(tenant_id=ctx.tenant_id, google_location_id=gl.id, summary=body.summary.strip(), language=body.language, cta_type=body.cta_type, cta_url=body.cta_url,
-                      photo_url=body.photo_url, status="draft", created_by=ctx.user.id)
+                      photo_url=body.photo_url, status="draft", created_by=ctx.user.id, topic_type=body.topic_type)
+    _apply_topic(ctx, p, body.model_dump(include={"event_title", "event_start", "event_end", "offer_coupon", "offer_url", "offer_terms"}))
     ctx.db.add(p)
     ctx.db.flush()
     audit(ctx.db, action="post.draft_create", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="scheduled_post", entity_id=p.id, ip=client_ip(request))
@@ -137,33 +185,93 @@ def ai_draft(body: AiDraftIn, request: Request, ctx: TenantContext = Depends(get
     ent.require_active(ctx.db, ctx.tenant_id)
     _need(ctx)
     gl = _gloc(ctx, body.google_location_id)
-    if quota_exceeded(ctx.db, ctx.tenant_id):
-        raise HTTPException(status_code=402, detail="Monthly AI limit reached for your plan")
+    if quota_exceeded(ctx.db, ctx.tenant_id, "post_draft"):
+        raise HTTPException(status_code=402, detail="Your subscription is not active")
     try:
-        provider = get_provider()
+        provider = metered(get_provider(), ctx.db, ctx.tenant_id, "post_draft", actor_user_id=ctx.user.id)
     except AIUnavailable:
         raise HTTPException(status_code=503, detail="AI is not configured on this server. Setup required: add an AI provider key. You can still write a post yourself.")
     kb = kbs.context(ctx.db, ctx.tenant)
+    topic = body.topic
+    if body.kind == "offer":
+        if not kb["offers"]:
+            raise HTTPException(status_code=422, detail="Add a verified offer to your Business brain first. The AI never invents offers or discounts.")
+        topic = topic or "present one of the verified offers exactly as written, with its conditions"
+    elif body.kind == "event":
+        if not (body.event_title and body.event_start and body.event_end):
+            raise HTTPException(status_code=422, detail="Give the event a title, a start and an end. The AI writes the text; it doesn't invent events.")
+        topic = f"announce this event: {body.event_title}, from {_local(ctx, body.event_start):%d %b %Y %H:%M} to {_local(ctx, body.event_end):%d %b %Y %H:%M}. " + (topic or "")
     recent = [x.summary for x in ctx.db.scalars(select(ScheduledPost).where(ScheduledPost.tenant_id == ctx.tenant_id).order_by(ScheduledPost.created_at.desc()).limit(5))]
     import time as _t
     started = _t.monotonic()
     try:
-        text, _ = svc.draft_post(provider, ctx.tenant, kb, topic=body.topic, avoid=recent)
+        from app.models import GbpSnapshot
+        from app.services.agent.optimizer import search_terms_line
+        snap = ctx.db.scalar(select(GbpSnapshot).where(GbpSnapshot.google_location_id == gl.id))
+        intel = intelligence.build(ctx.db, ctx.tenant, kb, google_location_id=gl.id)
+        text, qa, _ptype = svc.draft_post_scored(provider, ctx.tenant, kb, topic=topic, avoid=recent, terms=search_terms_line(snap), intel=intel)
     except AIUnavailable as exc:
+        if getattr(exc, "scope", None):  # a spending budget stopped it (services/ai_usage.BudgetExceeded): say so, don't call it a failure
+            raise HTTPException(status_code=402, detail=str(exc))
         log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="post_draft", provider=provider.name, model=provider.model, language=None, input_chars=0, output_chars=0, status="error",
-                       started=started, location_id=gl.location_id, error=str(exc))
+                       started=started, location_id=gl.location_id, error=str(exc), usage=getattr(provider, "usage", None))
         ctx.db.commit()
         raise HTTPException(status_code=502, detail="The AI couldn't write a safe post. " + ("It broke a safety rule twice, so nothing is shown. " if exc.code == "rejected" else "") + "Try again or write one yourself.")
     log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="post_draft", provider=provider.name, model=provider.model, language=ctx.tenant.language, input_chars=len(body.topic or ""),
-                   output_chars=len(text), status="ok", started=started, location_id=gl.location_id)
+                   output_chars=len(text), status="ok", started=started, location_id=gl.location_id, usage=getattr(provider, "usage", None))
     p = ScheduledPost(tenant_id=ctx.tenant_id, google_location_id=gl.id, summary=text, language=ctx.tenant.language if ctx.tenant.language in ("en", "hi") else "en",
-                      status="draft", generated_by_ai=True, created_by=ctx.user.id)
+                      status="draft", generated_by_ai=True, created_by=ctx.user.id, topic_type={"update": "STANDARD", "offer": "OFFER", "event": "EVENT"}[body.kind])
+    if body.kind == "event":
+        _apply_topic(ctx, p, {"event_title": body.event_title, "event_start": body.event_start, "event_end": body.event_end})
+    p.visual_hint = svc.visual_hint(provider, text, ctx.tenant.category)
     ctx.db.add(p)
     ctx.db.flush()
+    outcomes.record_generated(ctx.db, ctx.tenant_id, "post", p.id, text, model=provider.model, language=ctx.tenant.language, score=qa.score if qa else None)
     svc.move(p, "awaiting_approval")
     audit(ctx.db, action="post.ai_draft", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="scheduled_post", entity_id=p.id, ip=client_ip(request))
     ctx.db.commit()
     return _out(ctx, p, kb)
+
+
+class IdeasIn(BaseModel):
+    google_location_id: uuid.UUID
+    count: int = Field(default=3, ge=2, le=5)
+    language: str | None = Field(default=None, pattern="^(en|hi|hinglish)$")
+
+
+@router.post("/ideas")
+def post_ideas(body: IdeasIn, ctx: TenantContext = Depends(get_tenant_context)):
+    """Several genuinely different post concepts (type, full text, a real photo to take, the business purpose), each already checked against the knowledge
+    base and against what was posted recently. Nothing is saved: pick one, edit it, and create it as a draft."""
+    ent.require_active(ctx.db, ctx.tenant_id)
+    _need(ctx)
+    gl = _gloc(ctx, body.google_location_id)
+    if quota_exceeded(ctx.db, ctx.tenant_id, "post_ideas"):
+        raise HTTPException(status_code=402, detail="Your subscription is not active")
+    try:
+        provider = metered(get_provider(), ctx.db, ctx.tenant_id, "post_ideas", actor_user_id=ctx.user.id)
+    except AIUnavailable:
+        raise HTTPException(status_code=503, detail="AI is not configured on this server. Setup required: add an AI provider key.")
+    kb = kbs.context(ctx.db, ctx.tenant)
+    intel = intelligence.build(ctx.db, ctx.tenant, kb, google_location_id=gl.id)
+    import time as _t
+    started = _t.monotonic()
+    from app.models import GbpSnapshot
+    from app.services.agent.optimizer import search_terms_line
+    snap = ctx.db.scalar(select(GbpSnapshot).where(GbpSnapshot.google_location_id == gl.id))
+    try:
+        ideas = svc.post_ideas(provider, ctx.tenant, kb, intel, n=body.count, language=body.language, terms=search_terms_line(snap))
+    except AIUnavailable as exc:
+        if getattr(exc, "scope", None):  # a spending budget stopped it (services/ai_usage.BudgetExceeded): say so, don't call it a failure
+            raise HTTPException(status_code=402, detail=str(exc))
+        log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="post_ideas", provider=provider.name, model=provider.model, language=None, input_chars=0, output_chars=0, status="error",
+                       started=started, location_id=gl.location_id, error=str(exc), usage=getattr(provider, "usage", None))
+        ctx.db.commit()
+        raise HTTPException(status_code=502, detail="The AI couldn't come up with safe ideas just now. Try again, or write a post yourself.")
+    log_generation(ctx.db, tenant_id=ctx.tenant_id, kind="post_ideas", provider=provider.name, model=provider.model, language=ctx.tenant.language, input_chars=0,
+                   output_chars=sum(len(i["text"]) for i in ideas), status="ok", started=started, location_id=gl.location_id, usage=getattr(provider, "usage", None))
+    ctx.db.commit()
+    return {"ideas": ideas, "missing": intel["missing"][:3], "note": "Each idea uses only facts from your Business brain. Edit anything before you approve; nothing is published until you do."}
 
 
 @router.patch("/{post_id}")
@@ -176,8 +284,11 @@ def edit_post(post_id: uuid.UUID, body: PostEditIn, ctx: TenantContext = Depends
         raise HTTPException(status_code=422, detail="Unsupported button")
     if data.get("cta_type") and data["cta_type"] != "CALL" and not (data.get("cta_url") or p.cta_url or "").startswith("https://"):
         raise HTTPException(status_code=422, detail="This button needs an https:// link")
+    topic_keys = {"topic_type", "event_title", "event_start", "event_end", "offer_coupon", "offer_url", "offer_terms"}
     for k, v in data.items():
-        setattr(p, k, v.strip() if isinstance(v, str) else v)
+        if k not in topic_keys:
+            setattr(p, k, v.strip() if isinstance(v, str) else v)
+    _apply_topic(ctx, p, {k: v for k, v in data.items() if k in topic_keys})
     if p.status == "awaiting_approval":
         svc.move(p, "draft")  # any edit voids a pending approval request: the approved text must be exactly what is published
     ctx.db.commit()
@@ -200,6 +311,12 @@ def reject(post_id: uuid.UUID, ctx: TenantContext = Depends(require_role(Role.ad
     return _out(ctx, p)
 
 
+def _publish(ctx: TenantContext, p: ScheduledPost) -> str:
+    """The one way a post reaches Google: through the governed engine (policy, emergency stop, claim, read-back, history), which calls the existing publisher."""
+    out = content_exec.run(ctx.db, "post", p, role=ctx.role)
+    return {"done": "published"}.get(out["outcome"], out["outcome"])
+
+
 @router.post("/{post_id}/approve")
 def approve(post_id: uuid.UUID, body: ApproveIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     """Approve exactly this text. With no time it is published right away (and you see Google's answer); with a time it waits for it."""
@@ -216,11 +333,12 @@ def approve(post_id: uuid.UUID, body: ApproveIn, request: Request, ctx: TenantCo
     if when is not None and when > utcnow() + timedelta(days=365):
         raise HTTPException(status_code=422, detail="Choose a time within the next year.")
     _wrap(lambda: svc.approve(p, user_id=ctx.user.id, when=when))
+    outcomes.record_decision(ctx.db, "post", p.id, "approved", final_text=p.summary)
     audit(ctx.db, action="post.approve", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="scheduled_post", entity_id=p.id,
           meta={"scheduled_for": p.scheduled_for.isoformat() if p.scheduled_for else None, "chars": len(p.summary)}, ip=client_ip(request))
     result = None
     if when is None or p.scheduled_for <= utcnow():
-        result = svc.publish(ctx.db, p)  # now: the owner sees Google's real answer
+        result = _publish(ctx, p)  # now: the owner sees Google's real answer
         audit(ctx.db, action=f"post.publish_{result}", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="scheduled_post", entity_id=p.id,
               meta={"status": p.status, "reason": p.failure_reason}, ip=client_ip(request))
     ctx.db.commit()
@@ -231,6 +349,7 @@ def approve(post_id: uuid.UUID, body: ApproveIn, request: Request, ctx: TenantCo
 def cancel(post_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     p = _post(ctx, post_id, lock=True)
     _wrap(lambda: svc.move(p, "canceled"))
+    outcomes.record_decision(ctx.db, "post", p.id, "rejected", reason="canceled")
     audit(ctx.db, action="post.cancel", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="scheduled_post", entity_id=p.id, ip=client_ip(request))
     ctx.db.commit()
     return _out(ctx, p)
@@ -244,7 +363,7 @@ def retry(post_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(req
     if bad:
         raise HTTPException(status_code=422, detail={"code": "safety_violation", "violations": bad, "message": "Edit this post first: it breaks a rule from your knowledge base."})
     _wrap(lambda: svc.retry(p))
-    result = svc.publish(ctx.db, p)
+    result = _publish(ctx, p)
     audit(ctx.db, action=f"post.retry_{result}", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="scheduled_post", entity_id=p.id,
           meta={"status": p.status, "reason": p.failure_reason}, ip=client_ip(request))
     ctx.db.commit()

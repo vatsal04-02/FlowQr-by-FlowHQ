@@ -13,18 +13,21 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.deps import TenantContext, get_tenant_context, require_role
 from app.core.rate_limit import client_ip, hit
 from app.models import Location, QRCard, QRStyle, ReviewCampaign, Role
 from app.schemas.qr import BulkIn, QRStyleIn, QRStyleOut
+from app.services import poster as poster_svc
 from app.services import qr_style as qs
 from app.services.audit import audit
-from app.services.qr import campaign_url, card_url
+from app.services.qr import campaign_url, card_qr_url, permanent_url_problem
 
 router = APIRouter(prefix="/qr", tags=["qr"])
 MIME = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}
 RENDER = {"png": qs.render_png, "svg": qs.render_svg, "pdf": qs.render_pdf}
 MAX_BULK = 200
+MAX_BULK_POSTER_FILES = 50  # each poster file is ~1 MB (the approved artwork); a print sheet holds any number
 SAMPLE_TOKEN = "PREVIEW-not-a-real-code0"  # same length as a real card token, so the sample has the same density as real codes
 
 
@@ -58,6 +61,50 @@ def qr_response(url: str, fmt: str, style: dict, logo: bytes | None, filename: s
         "Cache-Control": "private, no-store"})
 
 
+def print_blocker() -> str | None:
+    """Why codes must not be printed from this server right now (not a permanent public HTTPS domain), or None."""
+    return permanent_url_problem()
+
+
+def require_print_domain() -> None:
+    """Raise 409 when the public address is localhost, plain http, a bare IP or a temporary tunnel. Used for every batch / print-grade export."""
+    problem = print_blocker()
+    if problem:
+        raise HTTPException(status_code=409, detail={"code": "print_domain_not_permanent", "message": problem})
+
+
+POSTER_MIME = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}
+
+
+def poster_file(url: str, fmt: str, *, scale: int = 1, size: str = "ref") -> bytes:
+    """The approved poster with `url` as its QR code, in `fmt`. Raises 404 for an unknown format and 500 if the code could not be proven scannable."""
+    if fmt not in POSTER_MIME:
+        raise HTTPException(status_code=404, detail="Unsupported format")
+    try:
+        if fmt == "png":
+            return poster_svc.poster_png(url, scale=scale)
+        if fmt == "svg":
+            return poster_svc.poster_svg(url)
+        return poster_svc.poster_pdf(url, size=size)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except poster_svc.PosterError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+def poster_response(url: str, fmt: str, filename: str, *, scale: int = 1, size: str = "ref") -> Response:
+    """Download of one poster. In staging/production a non-permanent public address blocks it; elsewhere it is allowed (so the owner can
+    try it out) and flagged with a header and a note the UI shows."""
+    problem = print_blocker()
+    if problem and settings.hardened:
+        raise HTTPException(status_code=409, detail={"code": "print_domain_not_permanent", "message": problem})
+    body = poster_file(url, fmt, scale=scale, size=size)
+    headers = {"Content-Disposition": f'attachment; filename="{filename}-poster.{fmt}"', "X-FlowQR-Verified": "decoded", "Cache-Control": "private, no-store"}
+    if problem:
+        headers["X-FlowQR-Not-For-Print"] = "public address is not permanent"
+    return Response(body, media_type=POSTER_MIME[fmt], headers=headers)
+
+
 def slug(text: str, fallback: str = "qr") -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40] or fallback
 
@@ -69,6 +116,8 @@ def _out(db: Session, tenant_id: uuid.UUID) -> QRStyleOut:
 
 
 def _sample_url() -> str:
+    from app.services.qr import card_url
+
     return card_url(SAMPLE_TOKEN)
 
 
@@ -198,13 +247,16 @@ def bulk(body: BulkIn, request: Request, ctx: TenantContext = Depends(require_ro
         raise HTTPException(status_code=404, detail="Nothing to export")
     if len(cards) + len(campaigns) > MAX_BULK:
         raise HTTPException(status_code=422, detail=f"A bulk export is limited to {MAX_BULK} codes. Select fewer and export again.")
+    if body.design == "poster":
+        require_print_domain()
+        return _bulk_posters(ctx, body, cards, campaigns, request)
 
     style, logo = tenant_style(db, ctx.tenant_id)
     locs = {l.id: l.name for l in db.scalars(select(Location).where(Location.tenant_id == ctx.tenant_id))}
     items: list[dict] = []
     for c in cards:
         items.append({"kind": "card", "name": c.card_code, "file": c.card_code, "label": c.card_code + (f" - {c.label}" if c.label else ""),
-                      "url": card_url(c.public_token), "status": c.status.value, "location": locs.get(c.location_id, ""), "style": style})
+                      "url": card_qr_url(c), "status": c.status.value, "location": locs.get(c.location_id, ""), "style": style})
     seen: set[str] = set()
     for c in campaigns:
         base = f"campaign-{slug(c.name, 'campaign')}"
@@ -235,3 +287,38 @@ def bulk(body: BulkIn, request: Request, ctx: TenantContext = Depends(require_ro
         "Content-Disposition": f'attachment; filename="flowqr-codes-{slug(ctx.tenant.name, "business")}.zip"',
         "X-FlowQR-Codes": str(len(items)), "X-FlowQR-Style-Fallbacks": str(fallbacks), "Cache-Control": "private, no-store"})
 
+
+
+def _bulk_posters(ctx: TenantContext, body: BulkIn, cards: list, campaigns: list, request: Request) -> Response:
+    """ZIP of posters: each file is the approved artwork with that code in it, plus one A4 print sheet (4 per page) of all of them."""
+    db = ctx.db
+    items = [(c.card_code, card_qr_url(c), c.card_code, c.status.value) for c in cards]
+    seen: set[str] = set()
+    for c in campaigns:
+        base = f"campaign-{slug(c.name, 'campaign')}"
+        name = base if base not in seen else f"{base}-{c.public_id[:6]}"
+        seen.add(name)
+        items.append((name, campaign_url(c.public_id), c.name, c.status))
+    formats = list(dict.fromkeys(body.formats))
+    if formats and len(items) > MAX_BULK_POSTER_FILES:
+        raise HTTPException(status_code=422, detail=f"Poster files are large. Select up to {MAX_BULK_POSTER_FILES} for individual files, or choose only the print sheet for more.")
+    buf, manifest = io.BytesIO(), io.StringIO()
+    w = csv.writer(manifest)
+    w.writerow(["name", "permanent_url", "status", "verified_by_decoding"])
+    try:
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for file, url, _label, status in items:
+                for fmt in formats:
+                    z.writestr(f"{fmt}/{file}-poster.{fmt}", poster_file(url, fmt))
+                w.writerow([file, url, status, "yes"])
+            if body.sheet:
+                z.writestr("print-sheet-A4-posters.pdf", poster_svc.poster_sheet_pdf([(label, url) for _f, url, label, _s in items]))
+            z.writestr("manifest.csv", manifest.getvalue())
+    except poster_svc.PosterError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    audit(db, action="qr.bulk_export", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="qr",
+          meta={"cards": len(cards), "campaigns": len(campaigns), "formats": formats, "sheet": body.sheet, "design": "poster"}, ip=client_ip(request))
+    db.commit()
+    return Response(buf.getvalue(), media_type="application/zip", headers={
+        "Content-Disposition": f'attachment; filename="flowqr-posters-{slug(ctx.tenant.name, "business")}.zip"',
+        "X-FlowQR-Codes": str(len(items)), "Cache-Control": "private, no-store"})

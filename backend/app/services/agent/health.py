@@ -18,7 +18,7 @@ from app.models.base import utcnow
 from app.services.agent.snapshots import profile_completeness
 
 MIN_COVERAGE = 30
-WEIGHTS = {"profile": 25, "reply_coverage": 25, "review_activity": 15, "posting": 15, "photos": 10, "engagement": 10}
+WEIGHTS = {"profile": 25, "reply_coverage": 25, "review_activity": 15, "posting": 15, "photos": 10, "engagement": 10, "visibility": 10}
 FORMULA = ("Score = 100 × Σ(weight × value) ÷ Σ(weight), using only the measures that have real data. "
            "Measures: profile completeness 25, review reply coverage 25, review activity 15, posting consistency 15, photo freshness 10, engagement trend 10.")
 
@@ -115,6 +115,17 @@ def compute(db: Session, tenant: Tenant, *, location_ids: frozenset[uuid.UUID] |
     else:
         comps.append(_component("engagement", "Engagement trend", None, "", "Keep your profile, photos and posts fresh.",
                                 "No earlier Google performance data to compare with yet." if perfs else "Google performance data is not available yet."))
+
+    # 7 search visibility: only when tracked search terms have been MEASURED (Google Places, first 20 results). Left out entirely otherwise, so a business that tracks
+    # nothing is scored exactly as before. Share of tracked terms that show the business in the first 10 results; a measurement, not a Google Maps ranking.
+    from app.services.agent import learning
+    vis = [learning.rank_summary(db, g.id) for g in glocs]
+    vis = [v for v in vis if v and v["measured"]]
+    if vis:
+        measured = sum(v["measured"] for v in vis)
+        weak = sum(len(v["weak"]) for v in vis)
+        comps.append(_component("visibility", "Search visibility", (measured - weak) / measured, f"{measured - weak} of {measured} tracked search terms show your business in the first 10 results (measured, not a guaranteed ranking)",
+                                "Check the ranking page and the profile suggestions for the weak terms.", ""))
 
     avail = [c for c in comps if c["available"]]
     covered = sum(c["weight"] for c in avail)

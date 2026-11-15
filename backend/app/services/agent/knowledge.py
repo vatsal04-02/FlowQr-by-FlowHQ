@@ -32,7 +32,7 @@ def context(db: Session, tenant: Tenant) -> dict:
         "offers": list(row.offers or []), "hours": row.hours or "", "faqs": list(row.faqs or []),
         "brand_voice": row.brand_voice or tenant.brand_tone or "", "approved_claims": list(row.approved_claims or []),
         "prohibited_claims": list(row.prohibited_claims or []), "safety_profile": row.safety_profile,
-        "instructions": tenant.ai_instructions or "",
+        "instructions": tenant.ai_instructions or "", "audience": row.audience or "",
     }
 
 
@@ -76,6 +76,8 @@ def render(kb: dict) -> str:
         lines.append("- NEVER say or imply any of: " + "; ".join(kb["prohibited_claims"]))
     if kb["brand_voice"]:
         lines.append(f"- Brand voice: {kb['brand_voice']}")
+    if kb.get("audience"):
+        lines.append(f"- Customers the owner wants to reach: {kb['audience']}")
     if kb["instructions"]:
         lines.append(f"- Owner's extra instructions: {kb['instructions']}")
     lines.append("If a fact is not listed above, do not state it. Do not invent services, prices, offers, results, staff names, appointments or guarantees.")

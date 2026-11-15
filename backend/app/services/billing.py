@@ -7,12 +7,12 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import BillingPlan, CardOrder, Payment, Subscription, WebhookEvent
+from app.models import BillingPlan, CardOrder, Payment, PromotionalGrant, Subscription, SubscriptionEvent, WebhookEvent
 from app.models.base import utcnow
 from app.services.audit import audit
 
@@ -23,10 +23,41 @@ def ts(epoch: int | float | None) -> datetime | None:
     return datetime.fromtimestamp(epoch, tz=timezone.utc) if epoch else None
 
 
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+# subscription history: every change of status or plan leaves an append-only row saying what, from what, to what, by whom
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+def snapshot(sub: Subscription) -> tuple[str, str]:
+    return (sub.status, sub.plan)
+
+
+def log_event(db: Session, tenant_id: uuid.UUID, kind: str, *, source: str, from_status=None, to_status=None, from_plan=None, to_plan=None, ref: str | None = None,
+              meta: dict | None = None) -> SubscriptionEvent:
+    ev = SubscriptionEvent(tenant_id=tenant_id, created_at=utcnow(), kind=kind, from_status=from_status, to_status=to_status, from_plan=from_plan, to_plan=to_plan,
+                           source=source, ref=(ref or None) and ref[:120], meta=meta or {})
+    db.add(ev)
+    return ev
+
+
+def record_change(db: Session, sub: Subscription, before: tuple[str, str], *, source: str, ref: str | None = None, kind: str | None = None, meta: dict | None = None) -> SubscriptionEvent | None:
+    """Log what changed between `before` (from `snapshot`) and now. Nothing changed and no explicit kind: nothing is logged."""
+    b_status, b_plan = before
+    if kind is None:
+        if (sub.status, sub.plan) == before:
+            return None
+        if sub.plan != b_plan and sub.status == b_status:
+            kind = "plan_changed"
+        else:
+            kind = {"active": "renewed" if b_status == "active" else "activated", "past_due": "past_due", "canceled": "canceled", "expired": "expired"}.get(sub.status, "status_changed")
+    return log_event(db, sub.tenant_id, kind, source=source, from_status=b_status, to_status=sub.status, from_plan=b_plan, to_plan=sub.plan, ref=ref, meta=meta)
+
+
 def apply_plan(sub: Subscription, plan: BillingPlan) -> None:
     sub.plan = plan.code
     sub.max_locations = plan.max_locations
     sub.monthly_ai_generations = plan.monthly_ai_generations
+    sub.review_generations = plan.review_generations
+    sub.review_replies = plan.review_replies
+    sub.limits = dict(plan.limits or {})
     sub.max_staff = plan.max_staff
     sub.features = list(plan.features or [])
 
@@ -41,6 +72,7 @@ def start_trial(db: Session, tenant_id: uuid.UUID) -> Subscription:
         apply_plan(sub, plan)
         sub.plan = "trial"
     db.add(sub)
+    log_event(db, tenant_id, "trial_started", source="system", to_status="trialing", to_plan="trial", meta={"days": settings.trial_days, "features_of": settings.trial_plan})
     return sub
 
 
@@ -129,6 +161,80 @@ def upsert_payment(db: Session, *, tenant_id: uuid.UUID, kind: str, entity: dict
 def mark_card_order_paid(db: Session, order: CardOrder) -> None:
     if order.status in ("created", "failed"):
         order.status = "paid"
+        grant_card_promo(db, order)  # idempotent: one grant per order, however many times the payment event arrives
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+# promotional access: the Growth month that comes with a physical card
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+def card_offer_for(quantity: int) -> dict | None:
+    return next((o for o in (settings.card_offers or []) if o.get("quantity") == quantity), None)
+
+
+def grant_card_promo(db: Session, order: CardOrder, now: datetime | None = None) -> PromotionalGrant | None:
+    """One month of the promo plan for a paid card order. NOT a subscription: it never changes the subscription row, never becomes MRR, and nothing is charged when it ends.
+    Policy (owner decisions pending, see settings): at most `promo_max_grants_per_business` per business, starting when the payment is confirmed."""
+    existing = db.scalar(select(PromotionalGrant).where(PromotionalGrant.card_order_id == order.id))
+    if existing is not None:
+        return existing
+    prior = db.scalar(select(func.count()).select_from(PromotionalGrant).where(PromotionalGrant.tenant_id == order.tenant_id, PromotionalGrant.kind == "card_purchase",
+                                                                              PromotionalGrant.status != "revoked")) or 0
+    if prior >= settings.promo_max_grants_per_business:
+        log_event(db, order.tenant_id, "promo_denied", source="promo", ref=str(order.id), meta={"reason": "this business already received its card-purchase month"})
+        return None
+    now = now or utcnow()
+    g = PromotionalGrant(tenant_id=order.tenant_id, kind="card_purchase", plan=settings.promo_card_plan, status="active", starts_at=now,
+                         ends_at=now + timedelta(days=settings.promo_card_days), card_order_id=order.id, created_at=now, note=f"Included with card order {order.id}")
+    db.add(g)
+    db.flush()
+    log_event(db, order.tenant_id, "promo_granted", source="promo", to_plan=g.plan, ref=str(order.id), meta={"ends_at": g.ends_at.isoformat(), "days": settings.promo_card_days})
+    audit(db, action="billing.promo_granted", tenant_id=order.tenant_id, entity_type="promotional_grant", entity_id=g.id, meta={"plan": g.plan, "card_order": str(order.id)})
+    return g
+
+
+def end_expired_grants(db: Session, now: datetime | None = None) -> int:
+    """Mark grants whose month is over as ended (entitlements already stop honouring them at ends_at; this is the record). Nothing is charged."""
+    now = now or utcnow()
+    n = 0
+    for g in db.scalars(select(PromotionalGrant).where(PromotionalGrant.status == "active", PromotionalGrant.ends_at <= now)):
+        g.status = "ended"
+        log_event(db, g.tenant_id, "promo_ended", source="system", from_plan=g.plan, ref=str(g.card_order_id) if g.card_order_id else None)
+        n += 1
+    return n
+
+
+def process_refund(db: Session, event: dict, event_id: str) -> str:
+    """A refund is applied to the payment it belongs to. Policy: a refund NEVER deletes data and never cancels a subscription by itself (that is a person's decision,
+    shown in the admin payments view); a refunded CARD order ends the promotional month it carried."""
+    payload = event.get("payload", {})
+    ref_e = (payload.get("refund") or {}).get("entity") or {}
+    pay_e = (payload.get("payment") or {}).get("entity") or {}
+    payment_id = ref_e.get("payment_id") or pay_e.get("id")
+    pay = db.scalar(select(Payment).where(Payment.razorpay_payment_id == payment_id)) if payment_id else None
+    if pay is None:
+        return "ignored"
+    refunds = dict((pay.meta or {}).get("refunds") or {})
+    if ref_e.get("id") and ref_e["id"] in refunds:
+        return "processed"  # this refund was already applied (a redelivery): nothing changes, nothing is logged twice
+    if ref_e.get("id"):
+        refunds[ref_e["id"]] = int(ref_e.get("amount") or 0)
+    elif pay_e.get("amount_refunded"):
+        refunds["payment"] = int(pay_e["amount_refunded"])
+    pay.meta = {**(pay.meta or {}), "refunds": refunds}
+    total = sum(refunds.values())
+    if total >= pay.amount_paise > 0:
+        pay.status = "refunded"
+    log_event(db, pay.tenant_id, "refunded", source="webhook", ref=event_id, meta={"payment": payment_id, "refunded_paise": total, "kind": pay.kind, "full": pay.status == "refunded"})
+    audit(db, action="billing.refund", tenant_id=pay.tenant_id, entity_type="payment", entity_id=pay.id, meta={"refunded_paise": total, "event_id": event_id})
+    if pay.status == "refunded" and pay.card_order_id:
+        order = db.get(CardOrder, pay.card_order_id)
+        if order is not None:
+            order.status = "refunded"
+            g = db.scalar(select(PromotionalGrant).where(PromotionalGrant.card_order_id == order.id))
+            if g is not None and g.status == "active":
+                g.status, g.ends_at = "revoked", min(g.ends_at, utcnow())
+                log_event(db, g.tenant_id, "promo_revoked", source="webhook", from_plan=g.plan, ref=event_id, meta={"reason": "the card order was refunded"})
+    return "processed"
 
 
 def process_webhook(db: Session, event: dict, event_id: str) -> str:
@@ -147,7 +253,9 @@ def process_webhook(db: Session, event: dict, event_id: str) -> str:
     if etype.startswith("subscription."):
         if not sub:
             return "ignored"  # not one of ours / unknown subscription
+        before = snapshot(sub)
         sync_from_razorpay(db, sub, sub_entity, event_at=event_at)
+        record_change(db, sub, before, source="webhook", ref=event_id, meta={"event": etype})
         if pay_entity and etype in ("subscription.charged",):
             upsert_payment(db, tenant_id=sub.tenant_id, kind="subscription", entity=pay_entity, subscription_id=sub.razorpay_subscription_id)
         audit(db, action=f"billing.{etype}", tenant_id=sub.tenant_id, entity_type="subscription", entity_id=sub.id,
@@ -175,12 +283,16 @@ def process_webhook(db: Session, event: dict, event_id: str) -> str:
         if owner and entity:
             upsert_payment(db, tenant_id=owner.tenant_id, kind="subscription", entity=entity, subscription_id=sid)
             if etype == "payment.failed":
+                before = snapshot(owner)
                 owner.status = "past_due" if owner.status in ("active", "past_due") else owner.status
                 owner.past_due_since = owner.past_due_since or (event_at or utcnow())
+                record_change(db, owner, before, source="webhook", ref=event_id, kind="payment_failed", meta={"payment": entity.get("id"), "reason": entity.get("error_code")})
             audit(db, action=f"billing.{etype}", tenant_id=owner.tenant_id, entity_type="subscription", entity_id=owner.id,
                   meta={"event_id": event_id})
             return "processed"
         return "ignored"
+    if etype in ("refund.processed", "refund.created", "payment.refunded"):
+        return process_refund(db, event, event_id)
     return "ignored"
 
 
@@ -202,11 +314,16 @@ def refresh_statuses(db: Session) -> dict:
     expired = lapsed = 0
     for sub in db.scalars(select(Subscription).where(Subscription.status == "trialing", Subscription.trial_ends_at < now)):
         if not sub.razorpay_subscription_id:
+            before = snapshot(sub)
             sub.status = "expired"
+            record_change(db, sub, before, source="system", meta={"reason": "trial ended"})
             expired += 1
     for sub in db.scalars(select(Subscription).where(Subscription.status == "past_due")):
         if sub.past_due_since and sub.past_due_since + timedelta(days=settings.past_due_grace_days) < now:
+            before = snapshot(sub)
             sub.status = "halted"
+            record_change(db, sub, before, source="system", meta={"reason": f"payment still failing after the {settings.past_due_grace_days}-day grace period"})
             lapsed += 1
+    promos = end_expired_grants(db, now)
     db.commit()
-    return {"expired_trials": expired, "lapsed_past_due": lapsed}
+    return {"expired_trials": expired, "lapsed_past_due": lapsed, "promos_ended": promos}
