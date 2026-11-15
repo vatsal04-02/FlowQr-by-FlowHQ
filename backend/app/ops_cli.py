@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import io
+import os
 import smtplib
 import ssl
 import sys
@@ -201,8 +202,11 @@ def set_admin_password(args: argparse.Namespace) -> int:
 
 def _png(size: int = 480) -> bytes:
     from PIL import Image, ImageDraw
-    im = Image.new("RGB", (size, size), (240, 240, 245))
-    ImageDraw.Draw(im).text((20, size // 2), "FlowQR connection test - safe to ignore", fill=(60, 60, 70))
+    # Google rejects business photos under 10 KB (and under 250x250 px) with "400 invalid argument". A flat image with a line of text compresses to a few KB, so the first live run
+    # (2026-11-15) failed on that. Random pixels do not compress: a 480x480 PNG is about 700 KB, well inside Google's 10 KB to 5 MB range.
+    im = Image.frombytes("RGB", (size, size), os.urandom(size * size * 3))
+    ImageDraw.Draw(im).rectangle((10, size // 2 - 12, size - 10, size // 2 + 12), fill=(240, 240, 245))
+    ImageDraw.Draw(im).text((20, size // 2 - 5), "FlowQR connection test - safe to ignore", fill=(60, 60, 70))
     buf = io.BytesIO()
     im.save(buf, "PNG")
     return buf.getvalue()
@@ -356,7 +360,9 @@ def google_write_test(args: argparse.Namespace, *, provider=None, access_token: 
     if "profile" in steps:
         original = (details.get("description") or "").strip()
         marked = (original + TEST_MARK)[:750]
-        if len(original) + len(TEST_MARK) > 750:
+        if not original:
+            rep.add("profile: description round trip", SKIP, "the test profile has NO description, so there is nothing to restore it to and the result would prove nothing. Write a real description in Google Business Profile first; nothing was changed")
+        elif len(original) + len(TEST_MARK) > 750:
             rep.add("profile: description round trip", SKIP, "the current description is too long to add a marker safely; nothing was changed")
         else:
             applied = {"on": False}

@@ -12,9 +12,9 @@
 
 The reports written by the tools below say `"mode": "mocked"` or `"mode": "live"`. **Only `"live"` is evidence about Google**, and only for the steps marked `verified_by_read_back: true`. A mocked run can never print `live`.
 
-State on the day this was written: **no [LIVE] write of any kind has been run.** One read-only live check exists (`docs/LAUNCH_REPORT.md`).
+State on the day this was written: **no [LIVE] write of any kind had been run** (see section 9 for what has been run since). One read-only live check exists (`docs/LAUNCH_REPORT.md`).
 
-**Status on 2026-11-15: BLOCKED — external dependency.** No authorised test Business Profile has been named, so this runbook has not been started and its evidence log (section 9) is empty. Everything that can be prepared is prepared (tool, dry run, authorisation steps, stop conditions, tests with doubles). **No Google behaviour listed in `docs/PHASE_2_FINAL_ACCEPTANCE.md` as unproven becomes proven until a person runs this and fills in section 9.** Keep Admin > Work queue open while running it: failed, blocked or invalidated changes and waiting approvals show there across the platform.
+**Status on 2026-11-15, updated later that day: PARTLY STARTED.** The owner named a test profile ("FlowHQ", `flowhqofficial@gmail.com`) and authorised it. **Stage 1 raw API is done for post, photo and description (all read back from Google).** Stage 1 reply, stage 2 (governed path), stage 3, stage 4 (autonomy) and the 28-day follow-ups have **not** been run; section 9 shows exactly which. Everything that can be prepared is prepared (tool, dry run, authorisation steps, stop conditions, tests with doubles). **No Google behaviour listed in `docs/PHASE_2_FINAL_ACCEPTANCE.md` as unproven becomes proven until a person runs this and fills in section 9.** Keep Admin > Work queue open while running it: failed, blocked or invalidated changes and waiting approvals show there across the platform.
 
 ## 1. Hard rules
 
@@ -101,9 +101,9 @@ On the test business with a tracked search term and `RANK_PROVIDER` set: create 
 
 | Stage | Date | Run by | Profile (name) | Report file | Result | Notes |
 |---|---|---|---|---|---|---|
-| 1 raw API: post | | | | | | |
-| 1 raw API: photo | | | | | | |
-| 1 raw API: profile description | | | | | | |
+| 1 raw API: post | 2026-11-15 | the owner authorised `locations/6589197820321114990`; run by Claude Code | FlowHQ (`flowhqofficial@gmail.com`) | not kept (the first run's report path failed on Windows) | **PASS, read back from Google** | create, list shows same text, delete, list clean. Test profile |
+| 1 raw API: photo | 2026-11-15 | same | FlowHQ | `stage1b.json` (inside the API container, not kept) | **PASS on 2nd run, read back** | 1st run failed `400 invalid argument`: test image was under Google's 10 KB minimum (a tool bug, fixed: 660 KB image). Upload, read-back with live URL, delete, gone |
+| 1 raw API: profile description | 2026-11-15 | same | FlowHQ | `stage1c.json` (not kept) | **PASS, read back on two separate reads** | 1st run inconclusive: profile had no description. After the owner added one: marker appended, two reads show it, original restored and confirmed |
 | 1 raw API: reply | | | | | | |
 | 2 governed: profile change + restore | | | | | | |
 | 2 governed: post + delete | | | | | | |
@@ -113,7 +113,7 @@ On the test business with a tracked search term and `RANK_PROVIDER` set: create 
 | 4 Level 3 never autonomous | | | | | | |
 | 4 Emergency stop | | | | | | |
 | 4 28-day follow-ups | | | | | | |
-| 5 map scan and cost | | | | | | |
+| 5 map scan and cost | 2026-11-15 | Claude Code (via the service, not the runbook command) | Geeta Krishna Physiotherapy (a real clinic, **read-only**: Places only, no profile write) | none | **9 of 9 points returned; run twice by mistake (18 searches)** | proves the Places key works and one request is recorded per point. Cost unpriced (`API_PRICES` empty). Not a full stage 5: real billed requests per point still to be read from Cloud Console |
 
 **FlowQR may be called production-ready for autonomous Google writes only when:** stages 1, 2 and 4 are complete with `live` reports; stage 3 has no unexplained difference between what was sent and what Google read back; every Level 2 type that will be offered to owners has its own successful live read-back; and the open items in `docs/AGENT_AUDIT.md` ("Remaining blockers") are closed or knowingly accepted in writing.
 
