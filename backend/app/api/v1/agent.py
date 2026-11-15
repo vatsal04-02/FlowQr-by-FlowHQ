@@ -486,7 +486,7 @@ def _settings_out(s: AgentSettings) -> dict:
     return {"daily_plan": s.daily_plan, "auto_draft_replies": s.auto_draft_replies, "auto_draft_posts": bool(s.auto_draft_posts), "auto_publish": False,
             "notes": {"auto_draft_posts": "Each day your AI assistant writes one post per location from your business brain and Google's search terms. It waits for your approval; nothing is published without you.",
                       "auto_draft_replies": "New unanswered reviews get an AI draft prepared for your approval. Nothing is published without you.",
-                      "auto_publish": "Automatic publishing is not available. Every reply, post and profile change needs a person's approval."}}
+                      "auto_publish": "Posts, photos and profile changes still need a person. Replies to new positive reviews can be sent automatically from your template: see Auto-replies."}}
 
 
 @router.get("/settings", dependencies=[Depends(needs("growth_agent"))])
@@ -505,3 +505,65 @@ def put_settings(body: SettingsIn, request: Request, ctx: TenantContext = Depend
     audit(ctx.db, action="agent.settings", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=ctx.tenant_id, meta=changes, ip=client_ip(request))
     ctx.db.commit()
     return _settings_out(s)
+
+
+# ------------------------------------------------------------------ automatic template replies (services/auto_reply.py)
+class AutoReplyIn(BaseModel):
+    enabled: bool | None = None
+    min_rating: int | None = Field(default=None, ge=4, le=5)
+    daily_limit: int | None = Field(default=None, ge=1, le=100)
+    templates: list[str] | None = Field(default=None, max_length=10)
+
+
+def _auto_reply_out(ctx: TenantContext) -> dict:
+    from app.services import auto_reply as ar
+
+    s = plan_svc._settings(ctx.db, ctx.tenant_id)
+    ok, why = ar.master_switch(s)
+    recent = ctx.db.execute(select(ReplyDraft, Review).join(Review, Review.id == ReplyDraft.review_id).where(ReplyDraft.tenant_id == ctx.tenant_id, ReplyDraft.auto_published.is_(True))
+                            .order_by(ReplyDraft.created_at.desc()).limit(10)).all()
+    return {"enabled": bool(s.auto_reply_enabled), "running": ok, "not_running_because": None if ok else why, "min_rating": s.auto_reply_min_rating, "daily_limit": s.auto_reply_daily_limit,
+            "since": s.auto_reply_since, "templates": list(s.reply_templates or []), "using_built_in": not any(isinstance(t, str) for t in (s.reply_templates or [])),
+            "built_in": ar.DEFAULT_TEMPLATES, "placeholders": list(ar.PLACEHOLDERS), "allowance": ar.allowance(ctx.db, ctx.tenant_id), "limits": {"min_chars": ar.MIN_LEN, "max_chars": ar.MAX_LEN, "max_templates": ar.MAX_TEMPLATES},
+            "rules": ["Only new 4 and 5 star reviews (or 5 only, your choice) that contain nothing sensitive are answered.", "No AI writes these replies: only your templates, with the reviewer's first name and your business name filled in.",
+                      "Reviews posted before this was switched on are never answered automatically.", "Everything else, and every low or mixed review, waits for you.",
+                      "Each automatic reply counts against your plan's monthly reply allowance."],
+            "recent": [{"id": str(d.id), "review_id": str(r.id), "rating": r.rating, "body": d.body, "status": d.status.value, "at": d.created_at, "published_at": d.published_at, "error": d.failure_reason} for d, r in recent]}
+
+
+@router.get("/auto-reply", dependencies=[Depends(needs("ai_replies"))])
+def get_auto_reply(ctx: TenantContext = Depends(get_tenant_context)):
+    out = _auto_reply_out(ctx)
+    ctx.db.commit()
+    return out
+
+
+@router.put("/auto-reply", dependencies=[Depends(needs("ai_replies"))])
+def put_auto_reply(body: AutoReplyIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Switch automatic replies on or off, choose the lowest rating, set the daily limit, and edit the reply templates (an empty list goes back to the built-in set)."""
+    from app.services import auto_reply as ar
+
+    ent.require_active(ctx.db, ctx.tenant_id)
+    s = plan_svc._settings(ctx.db, ctx.tenant_id)
+    sent = body.model_fields_set
+    changes: dict = {}
+    if "templates" in sent and body.templates is not None:
+        clean, problems = ar.validate_templates(body.templates)
+        if problems:
+            raise HTTPException(status_code=422, detail=" ".join(problems))
+        s.reply_templates = clean
+        changes["templates"] = len(clean)
+    if body.enabled is not None:
+        if body.enabled and not s.auto_reply_enabled:
+            s.auto_reply_since = utcnow()  # switching it ON never answers reviews that arrived while it was off
+        s.auto_reply_enabled = body.enabled
+        changes["enabled"] = body.enabled
+    if body.min_rating is not None:
+        s.auto_reply_min_rating = body.min_rating
+        changes["min_rating"] = body.min_rating
+    if body.daily_limit is not None:
+        s.auto_reply_daily_limit = body.daily_limit
+        changes["daily_limit"] = body.daily_limit
+    audit(ctx.db, action="agent.auto_reply_settings", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=ctx.tenant_id, meta=changes, ip=client_ip(request))
+    ctx.db.commit()
+    return _auto_reply_out(ctx)

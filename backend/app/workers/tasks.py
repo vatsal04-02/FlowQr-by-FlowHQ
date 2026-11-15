@@ -60,6 +60,14 @@ def purge_review_sessions():
         db.close()
 
 
+@celery_app.task(name="flowqr.auto_replies")
+def auto_replies():
+    """Answer new, clearly positive reviews from the business's reply template. Every rule is in services/auto_reply.py; sending goes through the governed publisher."""
+    from app.services import auto_reply
+
+    return auto_reply.run_all()
+
+
 @celery_app.task(name="flowqr.retry_failed_replies")
 def retry_failed_replies():
     """Re-attempt replies that a human approved but Google rejected for a *transient* reason (429/5xx).
@@ -91,7 +99,7 @@ def retry_failed_replies():
             db.add(ReplyLog(tenant_id=d.tenant_id, review_id=d.review_id, draft_id=d.id, user_id=None, action="publish_interrupted", success=False,
                             http_status=503, error="interrupted before Google answered", created_at=utcnow()))
         db.commit()
-        ids = db.scalars(select(ReplyDraft.id).where(ReplyDraft.status == ReplyStatus.failed, ReplyDraft.approved_by.is_not(None), ReplyDraft.attempts < 4)).all()
+        ids = db.scalars(select(ReplyDraft.id).where(ReplyDraft.status == ReplyStatus.failed, (ReplyDraft.approved_by.is_not(None) | ReplyDraft.auto_published.is_(True)), ReplyDraft.attempts < 4)).all()
         for did in ids:
             d = db.scalar(select(ReplyDraft).where(ReplyDraft.id == did).with_for_update(skip_locked=True))
             if not d or d.status != ReplyStatus.failed:
@@ -99,7 +107,12 @@ def retry_failed_replies():
             last = db.scalar(select(ReplyLog).where(ReplyLog.draft_id == d.id).order_by(ReplyLog.created_at.desc()).limit(1))
             transient = last is not None and (last.http_status == 429 or (last.http_status or 0) >= 500)
             review = db.get(Review, d.review_id)
-            still_allowed = member_may_act(db, d.tenant_id, d.approved_by, review.location_id, Role.admin)
+            if d.auto_published and d.approved_by is None:  # decided by the template rule: re-check the RULE (switch, stop, still unanswered), not a person
+                from app.services import auto_reply
+
+                still_allowed = auto_reply.still_allowed(db, d)
+            else:
+                still_allowed = member_may_act(db, d.tenant_id, d.approved_by, review.location_id, Role.admin)
             if not transient or review.google_reply_text is not None or not ent.for_tenant(db, d.tenant_id).active or not still_allowed:
                 db.rollback()
                 continue

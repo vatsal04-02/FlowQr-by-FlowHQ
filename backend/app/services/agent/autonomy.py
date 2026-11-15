@@ -3,8 +3,10 @@ how a result is verified, and what it will never do. It is served to the app (AI
 
 Policy, enforced in code and covered by tests/test_autonomy.py:
   * The agent collects, analyses, recommends, drafts, schedules internal jobs, retries safe failures and reports ON ITS OWN.
-  * Anything public (a review reply, a Google Post, a photo, a profile change) needs an owner/admin to approve it. There is no switch that
+  * Anything public (a Google Post, a photo, a profile change, an AI-drafted review reply) needs an owner/admin to approve it. There is no switch that
     turns this off: `auto_publish` is always false.
+  * THE ONE EXCEPTION, an owner decision of 2026-11-15: a TEMPLATE reply to a new, clearly positive (4 and 5 star) review is sent without a person, with an off switch, a plan
+    allowance and the safety rules in services/auto_reply.py. No AI writes it.
   * Nothing is reported as done until Google's own response says so.
 """
 from __future__ import annotations
@@ -49,9 +51,10 @@ CAPABILITIES = [
         "id": "replies", "name": "AI review replies",
         "independent": ["Sync new reviews from Google every 30 minutes", "Draft a personal reply from the rating, the review text and your Business Brain (if auto-drafting is on)",
                         "Flag risky reviews (health, legal, abuse) for a human", "Retry a reply that failed for a safe reason (rate limit, Google outage)"],
-        "needs_approval": ["Publishing every reply, including 5-star ones"],
+        "needs_approval": ["Every AI-drafted reply", "Every reply to a review of 3 stars or less, or one that is mixed, critical or sensitive"],
+        "also_independent": ["Reply to NEW 4 and 5 star reviews from your own template (no AI), if automatic replies are on; they are on by default and you can switch them off"],
         "verification": "A reply counts as published only when Google returns it; if Google marks it rejected the review shows that and the owner is told.",
-        "never": ["Publish without approval", "Make promises, give medical advice or invent facts"],
+        "never": ["Answer a review that arrived before automatic replies were switched on", "Answer a sensitive, low or mixed review without a person", "Make promises, give medical advice or invent facts"],
         "sources": "Business Profile reviews API (live).",
     },
     {
@@ -86,10 +89,10 @@ CAPABILITIES = [
 
 
 def matrix() -> dict:
-    return {"stages": [{"id": i, "label": l, "actor": a} for i, l, a in STAGES], "capabilities": CAPABILITIES, "auto_publish": False,
-            "rule": "Review replies, Google Posts and photos always need a person's approval. Profile changes follow the Balanced Autonomy policy: Level 1 only runs on its own "
+    return {"stages": [{"id": i, "label": l, "actor": a} for i, l, a in STAGES], "capabilities": CAPABILITIES, "auto_publish": False, "auto_reply_templates": True,
+            "rule": "Google Posts, photos and AI-drafted review replies always need a person's approval; a template reply to a new positive review is sent automatically (owner decision, with an off switch). Profile changes follow the Balanced Autonomy policy: Level 1 only runs on its own "
                     "when the owner turns autonomy on, Level 2 only for action types the owner pre-authorised, Level 3 always needs the owner.",
-            "balanced_autonomy": {"policy_endpoint": "/agent/policy", "settings_endpoint": "/agent/autonomy-settings", "default": "off"}}
+            "balanced_autonomy": {"policy_endpoint": "/agent/policy", "settings_endpoint": "/agent/autonomy-settings", "default": "on"}}
 
 
 def pipeline_counts(db: Session, tenant_id: uuid.UUID, scope=None) -> dict:

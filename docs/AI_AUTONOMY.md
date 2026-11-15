@@ -11,9 +11,11 @@ The same matrix is served by `GET /api/v1/agent/autonomy` (with live counts for 
 
 ## The rule
 
-**Anything the public can see needs a person's approval. This cannot be switched off.** `auto_publish` is always `false`; sending it in a settings request is ignored (tested). Configurable automation is limited to *preparation*: a daily plan, a daily post draft, reply drafts. These are safe by construction because a draft touches nothing outside FlowQR.
+**Owner decision, 2026-11-15, replacing the rule that follows:** autonomy is ON for every business by default (each business has an off switch; Level 3 changes still always need the owner), and **a template reply to a new 4 or 5 star review is sent automatically** (off switch, plan allowance, safety rules: `backend/app/services/auto_reply.py`, panel AI > Autonomy > Automatic replies). No AI writes those replies. Posts, photos and AI-drafted replies still need a person. Live Google validation of automatic writes is NOT complete (see `LIVE_VALIDATION_RUNBOOK.md`).
 
-I did not add "auto-publish 5-star replies" or similar. It is technically possible and would be policy-compliant for some businesses, but a wrongly worded public reply cannot be recalled, and the value is small next to the risk. It can be added later as an explicit, per-business, off-by-default setting.
+**Earlier rule (still true for posts, photos and AI-drafted replies):** anything the public can see needs a person's approval. `auto_publish` is always `false`; sending it in a settings request is ignored (tested). Configurable automation is limited to *preparation*: a daily plan, a daily post draft, reply drafts. These are safe by construction because a draft touches nothing outside FlowQR.
+
+I originally did not add "auto-publish 5-star replies" or similar, and that decision was reversed by the owner on 2026-11-15 for TEMPLATE replies only. It is technically possible and would be policy-compliant for some businesses, but a wrongly worded public reply cannot be recalled, and the value is small next to the risk. It can be added later as an explicit, per-business, off-by-default setting.
 
 ## Matrix
 

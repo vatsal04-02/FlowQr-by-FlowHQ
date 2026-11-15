@@ -11,7 +11,7 @@ from app.services.google.tokens import get_access_token, note_not_approved
 def publish_draft(db: Session, draft: ReplyDraft, *, by_user, provider=None) -> ReplyDraft:
     if draft.status not in (ReplyStatus.approved, ReplyStatus.failed):
         raise ValueError("Only approved drafts can be published")
-    if draft.status == ReplyStatus.failed and not draft.approved_by:
+    if draft.status == ReplyStatus.failed and not draft.approved_by and not draft.auto_published:
         raise ValueError("Draft was never approved by a person")
     review = db.get(Review, draft.review_id)
     gloc = db.get(GoogleLocation, review.google_location_id)

@@ -157,6 +157,8 @@ class ReplyDraft(IdMixin, TimestampMixin, Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_reason: Mapped[str | None] = mapped_column(Text)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    auto_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # approved by the template rule (services/auto_reply.py), not by a person
+    template_index: Mapped[int | None] = mapped_column(SmallInteger)  # which template an automatic reply used (rotation)
 
     review: Mapped[Review] = relationship(back_populates="drafts")
 

@@ -105,6 +105,10 @@ def env(connected, fake, gid):  # noqa: F811
     db = SessionLocal(); set_rls_context(db, bypass=True)
     uid = owner_query("SELECT user_id FROM memberships WHERE tenant_id = :t LIMIT 1", t=uuid.UUID(connected.tenant_id))[0][0]
     e = SimpleNamespace(biz=connected, fake=fake, db=db, gid=gid, uid=uid, tenant=db.get(Tenant, uuid.UUID(connected.tenant_id)), gloc=db.get(GoogleLocation, uuid.UUID(gid)))
+    # Autonomy is ON by default since migration 0031 (owner decision 2026-11-15). These tests exercise the policy mechanics from a known baseline, so each starts with it OFF; the tests that
+    # need it on call autonomy(env). The default itself is tested in tests/test_template_auto_replies.py.
+    connected.get("/agent/autonomy-settings")  # creates the settings row through the API (it is created lazily); this session's identity map stays untouched
+    owner_exec("UPDATE agent_settings SET autonomy_enabled = false WHERE tenant_id = :t", t=connected.tenant_id)
     yield e
     db.close()
     # the test database is shared: do not leave measurements behind for tests that assert there are none
@@ -1046,6 +1050,6 @@ def test_the_policy_endpoint_publishes_the_same_table_the_code_enforces(env):
     assert not any(a["can_be_preauthorised"] for a in p["actions"] if a["level"] == 3) and any("ranking" in r.lower() for r in p["rules"])
 
 
-def test_the_autonomy_matrix_endpoint_still_says_replies_and_posts_are_never_automatic(env):
+def test_the_autonomy_matrix_endpoint_says_posts_photos_and_ai_drafted_replies_need_a_person_and_template_replies_do_not(env):
     m = env.biz.get("/agent/autonomy").json()
-    assert m["auto_publish"] is False and m["balanced_autonomy"]["default"] == "off" and "always need a person" in m["rule"]
+    assert m["auto_publish"] is False and m["balanced_autonomy"]["default"] == "on" and "always need a person" in m["rule"]

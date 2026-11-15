@@ -4,7 +4,8 @@ nothing here talks to Google except through them: this module decides whether th
 checks with a separate read that Google really holds what was published (`verify`). That is why there is no second publishing mechanism that could bypass policy.
 
 Policy for this kind of change (autonomy_policy.py): Posts, photos and replies are Level 2 and `person_only`: a named person approves each one, they cannot be
-pre-authorised or run by policy, and autonomy being switched on changes nothing about them. The person's approval already exists on the row (approved_by,
+pre-authorised or run by policy, and autonomy being switched on changes nothing about them. THE ONE EXCEPTION (owner decision 2026-11-15) is a template reply to a clearly positive,
+new review (services/auto_reply.py): the rule, not a person, approves it, it goes through everything below unchanged, and the approval on the action says so (`policy_rule`). The person's approval already exists on the row (approved_by,
 approved_at); this module records it as the approval of the action and refuses to run anything without it.
 
 What "executed" means: the publisher reported success AND a separate read of Google shows the item. If the read does not show it the ACTION is `failed`
@@ -58,11 +59,12 @@ class Subject:
     role: Role | None = None
     next_attempt_hint: Callable[[], datetime | None] | None = None
     extra: dict = field(default_factory=dict)
+    policy_rule: str | None = None  # ONLY "template_reply_v1" on a reply: approved by the rule in services/auto_reply.py instead of a person. Nothing else may set this.
 
 
 def _key(sub: Subject) -> str:
     return pol.fingerprint({"t": str(sub.tenant_id), "k": sub.kind, "s": str(sub.subject_id) if sub.subject_id else None, "c": pol.fingerprint(sub.content),
-                            "a": sub.approved_at.isoformat() if sub.approved_at else None, "u": str(sub.approved_by) if sub.approved_by else None})
+                            "a": sub.approved_at.isoformat() if sub.approved_at else None, "u": str(sub.approved_by) if sub.approved_by else sub.policy_rule})
 
 
 def _field_key(sub: Subject) -> str:
@@ -78,11 +80,14 @@ def _get_or_create(db: Session, sub: Subject, now: datetime) -> AgentAction:
     chash = pol.fingerprint(sub.content)
     a = AgentAction(
         tenant_id=sub.tenant_id, google_location_id=sub.google_location_id, subject_type=sub.kind[:16], subject_id=sub.subject_id, action_type=sub.action_type,
-        field_key=_field_key(sub), trigger="person_approved" if sub.subject_id else "owner_action", problem=f"A person approved this {sub.label} to be sent to Google.",
-        reason="A named person approved this exact content; FlowQR only sends what a person approved.", expected_outcome=CONTENT_OUTCOME, evidence={"approved_at": sub.approved_at.isoformat() if sub.approved_at else None},
+        field_key=_field_key(sub), trigger="template_rule" if sub.policy_rule else ("person_approved" if sub.subject_id else "owner_action"),
+        problem=(f"A new positive review is answered from the business's reply template ({sub.policy_rule})." if sub.policy_rule else f"A person approved this {sub.label} to be sent to Google."),
+        reason=("The business has automatic template replies switched on; this review is new, clearly positive and passed every check." if sub.policy_rule
+                else "A named person approved this exact content; FlowQR only sends what a person approved."), expected_outcome=CONTENT_OUTCOME, evidence={"approved_at": sub.approved_at.isoformat() if sub.approved_at else None},
         source={"kind": "person_approval", "refs": [sub.kind]}, current_value={"value": None}, proposed_value={"value": sub.content, "canonical": sub.content},
         base_fingerprint=pol.fingerprint(None), value_hash=chash, facts_fingerprint=chash, idempotency_key=key, policy_level=decision.level, effective_type=decision.effective_type,
-        risk_level=decision.risk, policy_reasons=decision.reasons, authorization="owner", status="approved", proposed_by="user", proposed_by_user=sub.approved_by,
+        risk_level=decision.risk, policy_reasons=decision.reasons, authorization="policy" if sub.policy_rule else "owner", status="approved", proposed_by="agent" if sub.policy_rule else "user",
+        proposed_by_user=sub.approved_by,
     )
     try:
         with db.begin_nested():
@@ -93,10 +98,15 @@ def _get_or_create(db: Session, sub: Subject, now: datetime) -> AgentAction:
         if racing is None:
             raise
         return racing
-    history.record(db, a, "proposed", actor="user", user_id=sub.approved_by, now=now, data={"action_type": sub.action_type, "subject": sub.kind, "subject_id": str(sub.subject_id) if sub.subject_id else None,
+    history.record(db, a, "proposed", actor="system" if sub.policy_rule else "user", user_id=sub.approved_by, now=now, data={"action_type": sub.action_type, "subject": sub.kind, "subject_id": str(sub.subject_id) if sub.subject_id else None,
                                                                                          "content": sub.content, "expected_outcome": CONTENT_OUTCOME})
     history.record(db, a, "policy_classified", actor="system", now=now, data={"level": decision.level, "label": pol.LABELS[decision.level], "effective_type": decision.effective_type, "risk": decision.risk,
-                                                                              "reasons": decision.reasons, "authorization": "owner", "person_only": True})
+                                                                              "reasons": decision.reasons, "authorization": "policy" if sub.policy_rule else "owner", "person_only": not sub.policy_rule,
+                                                                              "policy_rule": sub.policy_rule})
+    if sub.policy_rule:
+        ap = _add_approval(db, a, "auto_authorized", "template_reply_rule", None, "Approved by the business's automatic template-reply rule, not by a person.", sub.approved_at or now, None)
+        history.record(db, a, "auto_authorized", actor="system", now=now, data={"basis": "template_reply_rule", "rule": sub.policy_rule, "scope_hash": ap.scope_hash, "content": sub.content})
+        return a
     role_basis = {Role.owner: "owner", Role.admin: "admin"}.get(sub.role, "person")  # the scheduled job does not know the role; the approval still names the person
     ap = _add_approval(db, a, "approved", role_basis, sub.approved_by, "Approved by a person before it was sent.", sub.approved_at or now, None)
     history.record(db, a, "approved", actor="user", user_id=sub.approved_by, now=now, data={"basis": role_basis, "scope_hash": ap.scope_hash, "approved_at": sub.approved_at.isoformat() if sub.approved_at else None,
@@ -123,7 +133,9 @@ def govern(db: Session, sub: Subject, *, provider=None, now: datetime | None = N
     stop = controls.emergency_stop(db)
     if stop:
         return {"outcome": "held", "reason": "emergency_stop", "detail": stop["reason"]}
-    if sub.approved_by is None:
+    if sub.policy_rule is not None and not (sub.policy_rule == "template_reply_v1" and sub.kind == "reply"):
+        return {"outcome": "held", "reason": "bad_rule", "detail": "Only the template-reply rule may approve something without a person."}
+    if sub.approved_by is None and sub.policy_rule is None:
         return {"outcome": "held", "reason": "no_person_approval", "detail": "A person must approve this before it is sent to Google."}
     gloc = db.get(GoogleLocation, sub.google_location_id)
     conn = db.get(GoogleConnection, gloc.connection_id) if gloc else None
@@ -286,9 +298,10 @@ def reply_subject(db: Session, d: ReplyDraft, *, by_user, provider=None, role: R
                 break
         return {"matched": False, "detail": "The review was not found when reading Google back."}
 
+    auto = bool(getattr(d, "auto_published", False)) and d.approved_by is None  # decided by the template rule: services/auto_reply.py is the only code that creates these
     return Subject(kind="reply", action_type="reply_publish", tenant_id=d.tenant_id, google_location_id=review.google_location_id, subject_id=d.id, feature="ai_replies",
                    content={"review": review.external_id, "body": d.body, "risk": d.risk_level}, approved_by=d.approved_by, approved_at=d.approved_at, label="review reply", send=send,
-                   verify=verify, role=role)
+                   verify=verify, role=role, policy_rule="template_reply_v1" if auto else None)
 
 
 def run(db: Session, kind: str, row, *, provider=None, by_user=None, now: datetime | None = None, role: Role | None = None) -> dict:

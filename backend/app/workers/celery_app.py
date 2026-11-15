@@ -15,6 +15,7 @@ celery_app.conf.update(
         },
         "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
         "retry-failed-replies": {"task": "flowqr.retry_failed_replies", "schedule": 900.0},
+        "auto-replies": {"task": "flowqr.auto_replies", "schedule": 300.0},  # template replies to new positive reviews (services/auto_reply.py)
         "publish-due-posts": {"task": "flowqr.publish_due_posts", "schedule": 60.0},
         "publish-due-media": {"task": "flowqr.publish_due_media", "schedule": 60.0},
         "recover-stuck-posts": {"task": "flowqr.recover_stuck_posts", "schedule": 300.0},

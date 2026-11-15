@@ -70,6 +70,8 @@ role-admin	POST	/api/v1/agent/actions/{action_id}/reject
 member	GET	/api/v1/agent/activity
 member	GET	/api/v1/agent/ai-quality
 member	GET	/api/v1/agent/approvals
+member	GET	/api/v1/agent/auto-reply
+role-admin	PUT	/api/v1/agent/auto-reply
 member	GET	/api/v1/agent/autonomy
 member	GET	/api/v1/agent/autonomy-settings
 role-owner	PUT	/api/v1/agent/autonomy-settings

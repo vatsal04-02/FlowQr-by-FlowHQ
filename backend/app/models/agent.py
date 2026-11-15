@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
-from app.models.base import IdMixin, TimestampMixin
+from app.models.base import IdMixin, TimestampMixin, utcnow
 
 TASK_STATUSES = ("suggested", "drafted", "awaiting_approval", "approved", "scheduled", "published", "failed", "snoozed", "dismissed", "done")
 POST_STATUSES = ("draft", "awaiting_approval", "approved", "scheduled", "publishing", "published", "failed", "canceled")
@@ -46,8 +46,8 @@ class AgentSettings(IdMixin, TimestampMixin, Base):
     # One AI post draft per selected location per day, waiting for approval (never published without a person). Off by default.
     auto_draft_posts: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     last_plan_date: Mapped[date | None] = mapped_column(Date)
-    # Balanced Autonomy (migration 0027). OFF by default: nothing runs autonomously until an OWNER turns it on, and Level 3 actions can never be pre-authorised.
-    autonomy_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Balanced Autonomy (migration 0027). ON by default since migration 0031 (owner decision 2026-11-15) with an off switch; Level 3 actions can never be pre-authorised.
+    autonomy_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     autonomy_permissions: Mapped[dict] = mapped_column(JSONB, default=dict)  # {action_type: "auto" | "ask" | "off"}: a pre-authorisation is one specific type set to "auto"
     autonomy_permissions_by: Mapped[uuid.UUID | None] = mapped_column()
     autonomy_permissions_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -55,6 +55,12 @@ class AgentSettings(IdMixin, TimestampMixin, Base):
     autonomy_suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     autonomy_suspended_reason: Mapped[str | None] = mapped_column(Text)
     autonomy_failure_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Template-based automatic replies to positive reviews (migration 0031). ON by default, with an off switch. Only reviews newer than `auto_reply_since` are ever answered.
+    auto_reply_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    auto_reply_since: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=text("now()"))
+    auto_reply_min_rating: Mapped[int] = mapped_column(SmallInteger, default=4, server_default="4")
+    auto_reply_daily_limit: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
+    reply_templates: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))  # the owner's own templates; empty = the built-in set
 
 
 class AgentTask(IdMixin, TimestampMixin, Base):

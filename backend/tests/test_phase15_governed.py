@@ -438,7 +438,7 @@ def test_the_control_centre_reads_waiting_done_failed_and_usage_in_one_call(conn
     scheduled_post(connected, gid)
     publish_due_posts.run()
     cc = connected.get("/agent/control-centre").json()
-    assert cc["is_owner"] is True and cc["can_decide"] is True and cc["settings"]["enabled"] is False
+    assert cc["is_owner"] is True and cc["can_decide"] is True and cc["settings"]["enabled"] is True  # on by default since migration 0031
     assert [a["label"] for a in cc["problems"]] == ["Publish an approved Google Post"] and "not confirmed" in cc["problems"][0]["last_error"]
     u = cc["usage"]
     assert u["ai"]["generations_cap"] > 0 and "places" in u and u["autonomy"]["daily_limit"] == 3 and u["places"]["grid_enabled"] in (True, False)
