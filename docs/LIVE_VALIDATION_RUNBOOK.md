@@ -14,6 +14,8 @@ The reports written by the tools below say `"mode": "mocked"` or `"mode": "live"
 
 State on the day this was written: **no [LIVE] write of any kind has been run.** One read-only live check exists (`docs/LAUNCH_REPORT.md`).
 
+**Status on 2026-11-15: BLOCKED — external dependency.** No authorised test Business Profile has been named, so this runbook has not been started and its evidence log (section 9) is empty. Everything that can be prepared is prepared (tool, dry run, authorisation steps, stop conditions, tests with doubles). **No Google behaviour listed in `docs/PHASE_2_FINAL_ACCEPTANCE.md` as unproven becomes proven until a person runs this and fills in section 9.** Keep Admin > Work queue open while running it: failed, blocked or invalidated changes and waiting approvals show there across the platform.
+
 ## 1. Hard rules
 
 1. **Never run any step below on a customer's profile or on a profile you have not been told is a test profile.** "It is only a description with a marker" is not authorisation: customers see it, search sees it, and some changes (a post, a reply) are public the moment they exist.

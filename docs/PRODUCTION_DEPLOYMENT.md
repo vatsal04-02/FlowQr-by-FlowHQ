@@ -6,6 +6,24 @@ Single server (Docker Compose + Caddy). The first-time server setup, DNS, TLS, G
 
 **Development Complete — External Validation Pending.** FlowQR has not been deployed to production. The running local stack (`flowqr-*` containers) is on old code at migration 0025 and was deliberately not touched. No real Google write, no real Places scan and no live payment have been performed. Do not deploy Phase 2 to paying customers until the release gates in section 2 are ticked.
 
+### Preparation status (2026-11-15)
+
+Everything below is **written and rehearsed locally**; none of it has been run on a production server, which does not exist yet.
+
+| Part of the process | State |
+|---|---|
+| Environment configuration | Documented in `docs/ENVIRONMENT_VARIABLES.md` and `.env.example`; `deploy/staging/make-env.sh` generates fresh secrets; the strict config guard (`APP_ENV=production`) refuses development secrets, insecure cookies, localhost URLs, sink SMTP and test payment keys. **New in this pass: `NEXT_PUBLIC_SITE_URL` is a build-time setting**, set it before building the frontend |
+| Migration sequence | 0025 to 0030 rehearsed on a restored copy of real development data, with downgrade and re-upgrade (`docs/evidence/phase2/`). Not rehearsed on production-shaped paid data |
+| Backup procedure | `deploy/backup.sh` (encrypted, off-site, status file) and `deploy/verify-restore.sh` proven on staging with a directory as the off-site target. A real bucket or remote host is not tested. Use `BACKUP_DIR` if staging and production ever share a machine |
+| Health checks | `/api/health` (process and database), **`/api/ready`** (database, Redis, migration revision: for a load balancer or the deploy script), Admin > Operations (worker, scheduler, backup, sync). All working on local staging |
+| Monitoring | Sentry hooks and the Operations page exist; **no `SENTRY_DSN` is set and no alert destination is wired**: not met |
+| TLS | Caddy with automatic Let's Encrypt in production (HTTP to HTTPS 308, HSTS). Rehearsed only with Caddy's internal CA on staging; **real ACME issuance has not run** (needs the four DNS records and ports 80 and 443 reachable) |
+| Worker and scheduler | Separate `worker` and `beat` services, healthy on staging; beat must run **exactly once** |
+| Rollback and recovery | `docs/ROLLBACK_AND_RECOVERY.md`; the restore path is rehearsed; "roll the code back, keep the schema" is plausible (the previous API started on the new schema) but not proven |
+| Post-deployment verification | Section 4 below, plus `deploy/staging/check_routes.sh` (run it against the production hostnames with `RESOLVE_IP` unset and a real CA) |
+| Payments | **Deferred by the owner (Cashfree, after the live website).** No payment provider is wired. Launching without self-serve payment means an administrator sets each business's plan from Admin > Customers |
+| Administrator account | Must be verified before it has admin rights (new this pass). On the server: `docker compose exec api python -m app.cli set-admin-password --email <address in PLATFORM_ADMIN_EMAILS>` (verifies the address, grants the flag, signs the account out everywhere) |
+
 ## 1. Never do these
 
 * Do not run `alembic upgrade` (or start the stack, which runs it) against a database you have not backed up **and restored to staging first**.
@@ -24,14 +42,18 @@ Single server (Docker Compose + Caddy). The first-time server setup, DNS, TLS, G
 | 4 | Staging is on the same revision and **was upgraded from a restored copy of production data** | `alembic current` before and after; `snapshot.sh` before and after |
 | 5 | Backup taken, encrypted, off-site, **restore proven this week** | `backups/status.json` |
 | 6 | `preflight` passes on the production environment | output (`python -m app.cli preflight --smtp-test ... --sentry-test`) |
-| 7 | Razorpay live keys, webhook created, **a real small payment and refund made end to end** | dashboard export |
+| 7 | **Payments:** either the chosen provider (Cashfree) is integrated, live keys and webhook set, and a real small payment and refund made end to end, **or the owner has written down that launch is without self-serve payment** (plans set by an administrator) | dashboard export, or the owner's note |
 | 8 | **Live Google validation stages 1 to 4 complete** on an authorised test profile | the filled-in evidence log in `docs/LIVE_VALIDATION_RUNBOOK.md` §9 |
 | 9 | Places key, `API_PRICES` and the platform cap set; map allowances approved by the owner | Admin > Plans and limits shows nothing pending |
 | 10 | Owner decisions recorded (promo month length, one grant per business, retention periods) and legal review of the privacy and retention pages | written approvals |
 | 11 | Sentry DSN set and a test event seen | screenshot |
 | 12 | Rollback rehearsed on staging (`ROLLBACK_AND_RECOVERY.md` §4, step 3) | notes |
+| 13 | **Staging on a real host**: real domain, real certificates, real SMTP, the same overlay as production, with `deploy/staging/check_routes.sh`, `smoke_stack.py` and the browser test passing there | outputs |
+| 14 | Administrator account verified with a password the owner set; the second-factor decision (`PHASE_2_SECURITY_AUDIT.md` F7) recorded | owner's note |
+| 15 | `NEXT_PUBLIC_SITE_URL` set to the public marketing origin **before the frontend is built**; `sitemap.xml` and the canonical link on `/pricing` show it | `curl` output |
+| 16 | `RANK_PLATFORM_MONTHLY_CAP` set (0 means no platform ceiling on Google spend) | `.env` line (not the key) |
 
-Gates 4, 7, 8, 9, 10 and 12 are **not met today**.
+Gates 4, 7, 8, 9, 10, 12, 13, 14, 15 and 16 are **not met today**.
 
 ## 3. Deploy
 
@@ -55,7 +77,7 @@ If `migrate` exits non-zero: **stop**, read `docker compose logs migrate`, and u
 
 ## 4. Verify after deploying
 
-1. `curl -fsS https://api.<domain>/api/health` and `https://app.<domain>`.
+1. `curl -fsS https://api.<domain>/api/health`, `curl -fsS https://api.<domain>/api/ready` (must say `"ready":true`) and `https://app.<domain>`. Then `deploy/staging/check_routes.sh` with `STAGING_DOMAIN=<domain> RESOLVE_IP=none CADDY_ROOT_CA=` (empty: trust the system certificates) from a machine that resolves the real hostnames: marketing pages stay on the marketing host, the pricing page can load the plans, the card host serves only card routes.
 2. Admin > Operations: database, Redis, migrations match code, **worker and scheduler heartbeat fresh**, backup fresh, no failing jobs.
 3. `deploy/staging/snapshot.sh > snapshot-after.txt; diff snapshot-before.txt snapshot-after.txt`: row counts only grow; tables a migration did not touch have identical checksums.
 4. Admin > Plans and limits: Starter, Growth and Pro at ₹499 / ₹799 / ₹1,499; pending items listed (maps stay off until approved).

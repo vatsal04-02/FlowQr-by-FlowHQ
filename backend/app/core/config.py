@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     cookie_domain: str = ""
     session_ttl_hours: int = 24 * 14
+    admin_session_ttl_hours: int = 12  # platform admins sign in again at least this often
     password_reset_ttl_minutes: int = 30
     invitation_ttl_hours: int = 72
 
@@ -95,6 +96,7 @@ class Settings(BaseSettings):
     whatsapp_access_token: str = ""
     rank_provider: str = ""
     rank_provider_key: str = ""  # Google Places API (New) key when rank_provider == "google_places"; never logged or returned by the API
+    rank_max_keywords_per_location: int = 10  # search terms one location may track. PROVISIONAL (owner has not set the per-plan number); raise or lower here
     rank_monthly_check_cap: int = 300  # Places calls one business may spend per calendar month (each keyword check = 1 call): bounds your Google bill
     rank_radius_m: int = 3000  # how far around the location the search is biased (metres)
     rank_auto_check_days: int = 7  # keywords are re-checked automatically this often

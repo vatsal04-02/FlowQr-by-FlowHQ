@@ -17,6 +17,7 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 | `REDIS_URL` | local | Celery broker and rate limits. |
 | `COOKIE_SECURE`, `COOKIE_DOMAIN` | `false`, empty | `true` in production. |
 | `SESSION_TTL_HOURS` | 336 | Session lifetime (14 days). |
+| `ADMIN_SESSION_TTL_HOURS` | 12 | Platform administrators sign in again at least this often (the shorter of the two applies). Administrator rights also need a **verified** email address: a sign-up with an address on `PLATFORM_ADMIN_EMAILS` is an ordinary account until its mailbox is verified (or `set-admin-password` is run on the server). |
 | `CORS_ORIGINS`, `FRONTEND_URL`, `PUBLIC_CARD_BASE_URL` | localhost | **R.** `PUBLIC_CARD_BASE_URL` is printed into every QR/NFC card: set the final card domain **before** generating cards. |
 | `PLATFORM_ADMIN_EMAILS` | empty | Comma-separated; those accounts become platform admins when they register. |
 | `RATE_LIMIT_ENABLED`, `RL_*` | on | Rate limits per IP/visitor. |
@@ -24,6 +25,7 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 ## Domains (docker-compose.prod.yml / Caddy)
 
 `MARKETING_DOMAIN`, `APP_DOMAIN`, `API_DOMAIN`, `CARD_DOMAIN`, `ACME_EMAIL` (**R**): the four public hostnames and the address for certificate notices.
+`NEXT_PUBLIC_SITE_URL` (**R**, build-time): the marketing origin (for example `https://flowqr.co.in`). It is compiled into the frontend image for canonical links, social cards and `sitemap.xml`; changing it needs a frontend rebuild (`docker compose build frontend`). If it is empty they point at `http://localhost:3000`.
 
 ## Google
 
@@ -52,7 +54,7 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 | `API_PRICES` | `{}` | JSON, USD per unit by `"<provider>.<operation>"`, e.g. `{"places.searchText": 0.032}`. **Empty by default: an unconfigured price is recorded as unpriced, never as free.** Fill from your Google Cloud billing, not from memory. |
 | `AI_PRICE_IN_PER_MTOK`, `AI_PRICE_OUT_PER_MTOK` | 0 | USD per million tokens. |
 | `AI_TENANT_MONTHLY_BUDGET_USD`, `AI_TENANT_MONTHLY_TOKEN_BUDGET`, `AI_PLATFORM_HARD_LIMIT_USD`, `AI_PLATFORM_MONTHLY_TOKEN_LIMIT`, `AI_PLATFORM_SOFT_PCT` | 0 / 0 / 0 / 0 / 90 | 0 = no limit of that kind. A USD limit without prices fails closed. |
-| `RANK_MONTHLY_CHECK_CAP`, `RANK_PLATFORM_MONTHLY_CAP`, `RANK_COST_PER_CALL_USD`, `RANK_RADIUS_M`, `RANK_AUTO_CHECK_DAYS`, `RANK_GRID_*` | 300, 0, 0, 3000, 7, ... | Places spend controls. Map allowances per plan are **not** environment variables: they are plan limits an admin sets in Admin > Plans and limits. **D** |
+| `RANK_MAX_KEYWORDS_PER_LOCATION`, `RANK_MONTHLY_CHECK_CAP`, `RANK_PLATFORM_MONTHLY_CAP`, `RANK_COST_PER_CALL_USD`, `RANK_RADIUS_M`, `RANK_AUTO_CHECK_DAYS`, `RANK_GRID_MIN_SPACING_M`, `RANK_GRID_MAX_SPACING_M`, `RANK_GRID_AUTO_DAYS` | 10, 300, 0, 0, 3000, 7, 250, 10000, 7 | Places spend controls. Map allowances per plan are **not** environment variables: they are plan limits an admin sets in Admin > Plans and limits. **D** |
 | `USD_INR_RATE`, `HOSTING_MONTHLY_INR`, `SUPPORT_MONTHLY_INR`, `PAYMENT_FEE_PCT`, `CARD_UNIT_COST_INR`, `CARD_FULFILMENT_PER_ORDER_INR`, `MARKETING_SPEND_MONTHLY_INR` | unset | Inputs for Admin > Finance and usage. **Unset = shown as missing, never as zero.** `CARD_UNIT_COST_INR` (about 75) is a provisional estimate. |
 
 ## Autonomy and retention

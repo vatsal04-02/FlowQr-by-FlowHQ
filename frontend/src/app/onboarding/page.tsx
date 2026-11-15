@@ -1,19 +1,20 @@
 "use client";
 import clsx from "clsx";
-import { Check, Link2, Pencil } from "lucide-react";
+import { Check, Link2, Pencil, QrCode } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Brand";
 import { Button } from "@/components/ui/Button";
-import { Alert, Card, Spinner } from "@/components/ui/Card";
+import { Alert, Badge, Card, Spinner } from "@/components/ui/Card";
 import { ErrorSummary, Input, Select } from "@/components/ui/Form";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { CATEGORIES, LANGS, TIMEZONES } from "@/lib/format";
 import { emailRule, googleUrlRule, phoneRule, required, useForm } from "@/lib/form";
+import { useFetch } from "@/lib/use-api";
 import type { Location } from "@/lib/types";
 
-const STEPS = ["Your business", "First location", "Google reviews"];
+const STEPS = ["Your business", "First location", "Google reviews", "Plan and first page"];
 
 export default function Onboarding() {
   const { me, tenant, loading, refresh } = useAuth();
@@ -47,7 +48,8 @@ export default function Onboarding() {
         </ol>
         {step === 0 && <BusinessStep onDone={async () => { await refresh(); setStep(1); }} />}
         {step === 1 && <LocationStep onDone={() => setStep(2)} />}
-        {step === 2 && <GoogleStep />}
+        {step === 2 && <GoogleStep onManual={() => setStep(3)} />}
+        {step === 3 && <ReadyStep />}
       </main>
     </div>
   );
@@ -127,7 +129,7 @@ function LocationStep({ onDone }: { onDone: () => void }) {
   );
 }
 
-function GoogleStep() {
+function GoogleStep({ onManual }: { onManual: () => void }) {
   const { refresh } = useAuth();
   const router = useRouter();
   const [busy, setBusy] = useState<"manual" | "google" | null>(null);
@@ -136,6 +138,7 @@ function GoogleStep() {
   async function finish(next: "manual" | "google") {
     setBusy(next); setNotice(null);
     try {
+      if (next === "manual") { onManual(); setBusy(null); return; }  // the last step finishes the set-up
       await api("/tenant/complete-onboarding", { method: "POST" });
       if (next === "google") {
         try {
@@ -151,8 +154,6 @@ function GoogleStep() {
           throw e;
         }
       }
-      await refresh();
-      router.replace("/overview");
     } catch (e) { setNotice(errorMessage(e)); setBusy(null); }
   }
 
@@ -182,6 +183,75 @@ function GoogleStep() {
         <p className="mt-3"><b>No Google Business Profile yet?</b> Choose the first option. Your cards, AI writing help and scan analytics work without it; you can create a profile at business.google.com and connect it later.</p>
       </details>
       {busy && <p className="mt-4 text-center text-sm text-ink-500">Setting things up…</p>}
+    </Card>
+  );
+}
+
+interface Sub {
+  status: string; active: boolean; plan_name: string | null; trial_days_left: number | null; current_period_end: string | null;
+  promo: { plan_name: string; ends_at: string } | null;
+  limits: { locations: number; review_generations: number; review_replies: number; staff: number };
+}
+interface Campaign { id: string }
+
+/** Last step. Everything on it is read from the real account: the plan or trial the business is on, and whether it already has a review page. Nothing is pre-filled. */
+function ReadyStep() {
+  const { refresh } = useAuth();
+  const router = useRouter();
+  const sub = useFetch<Sub>("/billing/subscription");
+  const locs = useFetch<Location[]>("/locations");
+  const camps = useFetch<Campaign[]>("/review-growth/campaigns");
+  const [busy, setBusy] = useState<"campaign" | "finish" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const first = locs.data?.[0];
+  const hasCampaign = (camps.data?.length ?? 0) > 0;
+  const loading = sub.loading || locs.loading || camps.loading;
+
+  async function makeCampaign() {
+    if (!first) return;
+    setBusy("campaign"); setNotice(null);
+    try {
+      await api("/review-growth/campaigns", { method: "POST", body: { name: `${first.name} reviews`, location_id: first.id } });
+      camps.reload();
+    } catch (e) { setNotice(errorMessage(e)); } finally { setBusy(null); }
+  }
+  async function finish() {
+    setBusy("finish"); setNotice(null);
+    try {
+      await api("/tenant/complete-onboarding", { method: "POST" });
+      await refresh();
+      router.replace("/overview");
+    } catch (e) { setNotice(errorMessage(e)); setBusy(null); }
+  }
+
+  const s = sub.data;
+  const planLine = !s ? null
+    : s.promo ? `Your free ${s.promo.plan_name} month runs to ${new Date(s.promo.ends_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}. Nothing is charged when it ends.`
+    : s.status === "trialing" && s.trial_days_left !== null ? `Your free trial has ${s.trial_days_left} day${s.trial_days_left === 1 ? "" : "s"} left. Nothing is charged automatically.`
+    : s.active ? `You are on the ${s.plan_name ?? "current"} plan.` : "Your plan is not active. Choose one in Settings.";
+
+  return (
+    <Card>
+      <h1 className="text-2xl font-semibold">You are nearly ready</h1>
+      <p className="mt-1 text-ink-500">Here is where your account stands. You can change any of it later.</p>
+      {notice && <div className="mt-4"><Alert tone="error">{notice}</Alert></div>}
+      {loading ? <div className="mt-6 grid place-items-center py-6"><Spinner /></div> : (
+        <div className="mt-6 space-y-4">
+          <section aria-labelledby="ob-plan" className="rounded-lg border border-ink-200 p-4">
+            <div className="flex items-center justify-between gap-3"><h2 id="ob-plan" className="font-semibold">Your plan</h2>{s && <Badge tone={s.active ? "green" : "amber"}>{s.promo ? "free month" : s.status}</Badge>}</div>
+            {sub.error ? <p className="mt-2 text-sm text-neg">{sub.error}</p> : <>
+              <p className="mt-1 text-sm text-ink-700">{planLine}</p>
+              {s && <p className="mt-2 text-sm text-ink-500">Includes {s.limits.locations} location{s.limits.locations === 1 ? "" : "s"}, {s.limits.review_generations} review-writing helps and {s.limits.review_replies} AI replies a month.</p>}</>}
+          </section>
+          <section aria-labelledby="ob-camp" className="rounded-lg border border-ink-200 p-4">
+            <div className="flex items-center justify-between gap-3"><h2 id="ob-camp" className="font-semibold">Your first review page</h2><Badge tone={hasCampaign ? "green" : "gray"}>{hasCampaign ? "created" : "not yet"}</Badge></div>
+            <p className="mt-1 text-sm text-ink-700">{hasCampaign ? "Customers who scan your card or QR code land on it. Open Review campaigns to see the QR code and to print it." : first ? `This is the page customers see when they scan your card. We will make one for ${first.name}.` : "Add a location first."}</p>
+            {!hasCampaign && first && <div className="mt-3"><Button variant="secondary" loading={busy === "campaign"} onClick={() => void makeCampaign()}><QrCode className="h-4 w-4" aria-hidden /> Create my review page</Button></div>}
+            {!first?.review_url && <p className="mt-2 text-xs text-ink-500">Your Google review link is not set yet, so the page cannot send customers to Google. Add it under Locations after this step.</p>}
+          </section>
+          <Button size="lg" className="w-full" loading={busy === "finish"} onClick={() => void finish()}>Go to my dashboard</Button>
+          <p className="text-center text-xs text-ink-500">Your dashboard keeps a getting-started checklist until the essentials are done.</p>
+        </div>)}
     </Card>
   );
 }

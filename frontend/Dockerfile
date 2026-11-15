@@ -11,7 +11,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Where the Next.js server proxies /api/* (internal Docker network name). Baked into the build.
 ARG BACKEND_URL=http://api:8000
-ENV BACKEND_URL=$BACKEND_URL NEXT_TELEMETRY_DISABLED=1
+# The public marketing origin, inlined at build time: canonical links, social cards and sitemap.xml. Without it they point at localhost.
+ARG NEXT_PUBLIC_SITE_URL=
+ENV BACKEND_URL=$BACKEND_URL NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 FROM node:22-alpine AS run

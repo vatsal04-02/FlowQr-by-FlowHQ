@@ -37,7 +37,7 @@ def overview(google_location_id: uuid.UUID, ctx: TenantContext = Depends(get_ten
     ent.require_feature(ctx.db, ctx.tenant_id, "keyword_tracking")
     gl = _loc(ctx, google_location_id)
     kws = ctx.db.scalars(select(RankKeyword).where(RankKeyword.tenant_id == ctx.tenant_id, RankKeyword.google_location_id == gl.id).order_by(RankKeyword.created_at)).all()
-    out = {"configured": svc.enabled(), "usage": svc.usage(ctx.db, ctx.tenant_id), "max_keywords": svc.MAX_KEYWORDS_PER_LOCATION, "note": svc.NOTE,
+    out = {"configured": svc.enabled(), "usage": svc.usage(ctx.db, ctx.tenant_id), "max_keywords": svc.max_keywords(), "note": svc.NOTE,
            "location": {"title": gl.title, "has_place_id": bool(gl.place_id)}, "keywords": [svc.keyword_out(ctx.db, k) for k in kws]}
     ctx.db.commit()
     return out
@@ -56,8 +56,8 @@ def add_keyword(google_location_id: uuid.UUID, body: KeywordIn, ctx: TenantConte
     except svc.RankError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
     n = ctx.db.scalar(select(func.count()).select_from(RankKeyword).where(RankKeyword.google_location_id == gl.id)) or 0
-    if n >= svc.MAX_KEYWORDS_PER_LOCATION:
-        raise HTTPException(status_code=409, detail=f"You can track up to {svc.MAX_KEYWORDS_PER_LOCATION} search terms per location. Remove one first.")
+    if n >= svc.max_keywords():
+        raise HTTPException(status_code=409, detail=f"You can track up to {svc.max_keywords()} search terms per location. Remove one first.")
     if ctx.db.scalar(select(RankKeyword.id).where(RankKeyword.google_location_id == gl.id, func.lower(RankKeyword.keyword) == word.lower())):
         raise HTTPException(status_code=409, detail="You are already tracking that search term.")
     k = RankKeyword(tenant_id=ctx.tenant_id, google_location_id=gl.id, keyword=word, created_by=ctx.user.id)

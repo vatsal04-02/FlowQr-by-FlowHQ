@@ -1,6 +1,7 @@
 // FlowQR browser E2E for the FlowHQ Operations page (/admin/ops). Needs a RUNNING stack whose PLATFORM_ADMIN_EMAILS includes ADMIN_EMAIL.
 //   BASE_URL=http://localhost:3100 ADMIN_EMAIL=admin@flowhq-dev.example.com node e2e/ops.js
-const { chromium } = require('playwright');
+let chromium;
+try { ({ chromium } = require('playwright')); } catch { ({ chromium } = require('playwright-core')); }
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const EMAIL = process.env.ADMIN_EMAIL || 'admin@flowhq-dev.example.com';
 const PASSWORD = process.env.ADMIN_PASSWORD || 'Str0ngPassw0rd!';

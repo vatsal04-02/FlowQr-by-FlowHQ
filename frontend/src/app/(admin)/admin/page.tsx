@@ -27,7 +27,7 @@ export default function AdminHome() {
           <div className="grid gap-4 lg:grid-cols-3">
             <Panel title="Revenue" meta="software and cards kept separate">
               <dl className="divide-y divide-ink-100">
-                {[["MRR (Razorpay)", rupees(s.mrr_paise), `${s.subscriptions_by_status.active ?? 0} active · ${s.subscriptions_by_status.trialing ?? 0} trialing`], ["Software revenue", rupees(s.revenue_paise.subscription), "Captured subscription payments"], ["Card sales", rupees(s.revenue_paise.card_order), "Tracked separately from software"]].map(([k, v, h]) => (
+                {[["MRR (paid subscriptions)", rupees(s.mrr_paise), `${s.subscriptions_by_status.active ?? 0} active · ${s.subscriptions_by_status.trialing ?? 0} trialing`], ["Software revenue", rupees(s.revenue_paise.subscription), "Captured subscription payments"], ["Card sales", rupees(s.revenue_paise.card_order), "Tracked separately from software"]].map(([k, v, h]) => (
                   <div key={k} className="flex items-baseline justify-between gap-3 py-2.5 first:pt-0 last:pb-0"><div><dt className="text-sm font-medium">{k}</dt><dd className="text-xs text-ink-500">{h}</dd></div><dd className="num text-xl font-bold tracking-tight">{v}</dd></div>))}
               </dl>
             </Panel>

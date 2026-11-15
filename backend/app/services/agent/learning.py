@@ -34,7 +34,7 @@ NOTE = ("Observed after the change, not proof that the change caused it: ranking
 
 
 def tracked(db: Session, google_location_id: uuid.UUID) -> list[RankKeyword]:
-    return list(db.scalars(select(RankKeyword).where(RankKeyword.google_location_id == google_location_id).order_by(RankKeyword.created_at).limit(rank_svc.MAX_KEYWORDS_PER_LOCATION)))
+    return list(db.scalars(select(RankKeyword).where(RankKeyword.google_location_id == google_location_id).order_by(RankKeyword.created_at).limit(rank_svc.max_keywords())))
 
 
 def _latest(db: Session, keyword_id: uuid.UUID, ok_only: bool = False) -> RankCheck | None:

@@ -7,8 +7,28 @@ Staging is where every migration and every release is proven **before** producti
 | Item | State |
 |---|---|
 | Procedure and scripts (`deploy/staging/*`) | exist and were run for the 0024-era build |
-| A staging environment on the current code (0030) | **not built.** The throwaway test stack used for Phase 2 is not staging: it has no TLS, no real SMTP, no real integrations. |
-| "Staging validated" for any Phase 2 change | **no** |
+| A staging environment on the current code (0030) | **Built locally on 2026-11-15, not on a real host.** Same images, same `docker-compose.prod.yml` overlay, `APP_ENV=staging` with the strict config guard, its own project name, database, volumes, secrets and `.env.staging`; HTTPS through Caddy with its **internal CA** (`docker-compose.local-tls.yml`), mail to a Mailpit sink. It ran on a developer PC, so it has **no public DNS, no Let's Encrypt certificate, no real SMTP provider, no firewall, no real monitoring destination** and no Google, Places, AI or payment credentials |
+| "Staging validated" (rung 3 of the ladder in section 5) for the Phase 2 code | **Partly.** Passed on the local staging: 40 route and TLS checks, a 33-step end-to-end smoke, an 18-step browser run, the backup and isolated-restore rehearsal. **Not passed:** anything that needs a real host, a real domain or a real provider. Do not describe it as "staging validated" without saying "locally". Evidence: `docs/evidence/phase2/` |
+
+### What the local staging actually is, and the exact commands that were run
+
+```bash
+deploy/staging/make-env.sh flowqr-staging.dev            # writes .env.staging (mode 600, fresh random secrets; refuses to overwrite). Git-ignored
+export FLOWQR_TAG=staging-p2                              # IMPORTANT: a separate image tag, so building staging never retags the images of another stack on the same machine
+C="docker compose -p flowqr-staging --env-file .env.staging -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.mail-sink.yml -f docker-compose.local-tls.yml"
+$C build && $C up -d                                      # db, redis, migrate (exits 0), api, worker, beat, frontend, caddy, mailpit all healthy
+$C exec api alembic current                               # 0030 (head)
+# Caddy's CA, so clients can trust the certificates:
+$C exec -T caddy cat /data/caddy/pki/authorities/local/root.crt > caddy-root.crt
+# checks, from a container on the staging network (the hostnames resolve through Caddy's network aliases):
+docker run --rm --network flowqr-staging_default -v "$PWD/deploy/staging:/s:ro" -v "$PWD/caddy-root.crt:/ca.crt:ro" -e CADDY_ROOT_CA=/ca.crt -e RESOLVE_IP=none alpine sh -c "apk add -q bash curl && bash /s/check_routes.sh"
+docker run --rm --network flowqr-staging_default -v "$PWD/deploy/staging:/s:ro" -v "$PWD/caddy-root.crt:/ca.crt:ro" -e SSL_CERT_FILE=/ca.crt -e STAGING_DOMAIN=flowqr-staging.dev -e MAILPIT_URL=http://mailpit:8025 flowqr-backend:staging-p2 python /s/smoke_stack.py
+# browser test (see the header of e2e/phase2-onboarding-and-queue.js for the container command)
+```
+
+**Windows note.** On this PC a security product intercepted browser HTTPS on port 443 of the host (it answered "Certificate verification problem detected" with HTTP 499, instead of Caddy). Command-line curl and everything inside Docker were unaffected. That is why the checks run from containers on the staging network. It is not a FlowQR fault, but it is why nothing here was tried in a host browser.
+
+**What staging found that the 1,343-test suite could not.** Two defects that exist only behind Caddy or in a production build: the marketing site could not call its own API and every marketing page except two was redirected to the app domain (the pricing page would have shown "Talk to us for pricing"); and the sitemap, canonical links and social cards would have used `localhost`. A third problem, that a sign-up with an administrator address became an administrator without verifying the mailbox, was found by reading the code and then confirmed fixed end to end over HTTPS on staging (`docs/PHASE_2_SECURITY_AUDIT.md`). All fixed.
 
 ## 1. Create the environment
 

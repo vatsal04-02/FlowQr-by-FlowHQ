@@ -67,6 +67,7 @@ function expect(cond, msg) { if (!cond) throw new Error(msg); }
     expect(r.status() === 201, `register ${r.status()} ${await r.text()}`);
     csrf = (await r.json()).csrf_token;
     tenant = await (await ctx.request.post('/api/v1/tenants', { data: { name: `ZZ-E2E-${TAG}`, category: 'Physiotherapy clinic', language: 'en' }, headers: H() })).json();
+    sql(`UPDATE subscriptions SET max_locations = 10 WHERE tenant_id = '${tenant.id}';`);  // the trial plan (Growth) includes one location; these tests need several
     locA = await (await ctx.request.post('/api/v1/locations', { data: { name: 'E2E Main', city: 'Lucknow', review_url: 'https://g.page/r/ABC123/review' }, headers: H() })).json();
     locB = await (await ctx.request.post('/api/v1/locations', { data: { name: 'E2E Branch', city: 'Kanpur', review_url: 'https://g.page/r/XYZ789/review' }, headers: H() })).json();
     await ctx.request.post('/api/v1/tenant/complete-onboarding', { headers: H() });

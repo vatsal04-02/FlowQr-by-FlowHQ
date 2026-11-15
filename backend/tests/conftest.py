@@ -151,6 +151,10 @@ def admin():
         assert r.status_code == 200, r.text
     else:
         assert r.status_code == 201, r.text
+        # Administrator rights are granted only once the address is verified (a stranger must not become admin by typing the address into sign-up).
+        assert s.http.post("/api/v1/auth/verify-email", json={"token": latest_token(email, "verify-email")}).status_code == 204
+        r = s.http.post("/api/v1/auth/login", json={"email": email, "password": s.password})
+        assert r.status_code == 200, r.text
     s.csrf = r.json()["csrf_token"]
     return s
 

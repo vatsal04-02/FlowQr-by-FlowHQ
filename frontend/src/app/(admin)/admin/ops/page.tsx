@@ -1,6 +1,7 @@
 "use client";
 import { CheckCircle2, HelpCircle, OctagonAlert, TriangleAlert } from "lucide-react";
 import { Alert, Badge, Card, PageHeader, Skeleton } from "@/components/ui/Card";
+import { PlatformStop } from "@/components/admin/PlatformControls";
 import { Button } from "@/components/ui/Button";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
@@ -46,6 +47,7 @@ export default function AdminOps() {
           </Card>
         </>
       )}
+      <PlatformStop />
     </>
   );
 }

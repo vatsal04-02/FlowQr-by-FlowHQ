@@ -174,7 +174,7 @@ def set_admin_password(args: argparse.Namespace) -> int:
     db = system_session()
     try:
         u = db.scalar(select(User).where(User.email == email))
-        if not u or not u.is_platform_admin:
+        if not u or not (u.is_platform_admin or email in settings.platform_admin_email_set):
             print("No platform-admin account with that email. Nothing changed.")
             return 1
         pw = getpass.getpass("New password (not shown): ")
@@ -187,6 +187,9 @@ def set_admin_password(args: argparse.Namespace) -> int:
             print("Rejected: " + "; ".join(e["msg"].removeprefix("Value error, ") for e in exc.errors()))
             return 1
         u.password_hash = hash_password(pw)
+        u.is_platform_admin = True  # the address is on the PLATFORM_ADMIN_EMAILS list (checked above)
+        if not u.email_verified_at:
+            u.email_verified_at = utcnow()  # whoever can run this on the server controls the account; admin rights need a verified address
         n = db.execute(update(AuthSession).where(AuthSession.user_id == u.id, AuthSession.revoked_at.is_(None)).values(revoked_at=utcnow())).rowcount
         audit(db, action="auth.password_changed", user_id=u.id, meta={"source": "cli"})
         db.commit()

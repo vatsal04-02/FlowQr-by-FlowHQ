@@ -166,6 +166,9 @@ def require_role(minimum: Role):
 def require_platform_admin(auth: AuthContext = Depends(get_auth_context)) -> AuthContext:
     if not auth.user.is_platform_admin:
         raise HTTPException(status_code=403, detail="Platform admin only")
+    if settings.require_verified_email and not auth.user.email_verified_at:
+        # Defence in depth: administrator rights never work on an address nobody has proven they control.
+        raise HTTPException(status_code=403, detail="Verify your email address to use the admin console")
     set_rls_context(auth.db, bypass=True)
     return auth
 

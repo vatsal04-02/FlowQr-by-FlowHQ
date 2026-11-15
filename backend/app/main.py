@@ -19,6 +19,7 @@ assert_production_safe(settings)
 from app.core import monitoring  # noqa: E402
 
 monitoring.init("api")
+monitoring.redact_access_logs()
 
 app = FastAPI(
     title="FlowQR by FlowHQ API",

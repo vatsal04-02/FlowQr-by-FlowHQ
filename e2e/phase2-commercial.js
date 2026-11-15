@@ -162,8 +162,12 @@ db.commit()
     try {
       let r = await actx.request.post('/api/v1/auth/register', { data: { email: ADMIN, password: ADMIN_PW, full_name: 'ZZ P2 Admin' } });
       if (r.status() === 409) r = await actx.request.post('/api/v1/auth/login', { data: { email: ADMIN, password: ADMIN_PW } });
+      if (r.status() === 201 || r.status() === 200) {
+        // Administrator rights are granted only when the mailbox is verified (Phase 2 security fix). This stack has no mail, so the verification is seeded here, then the admin signs in again.
+        sql(`UPDATE users SET email_verified_at = now(), is_platform_admin = true WHERE email = '${ADMIN}';`);
+        r = await actx.request.post('/api/v1/auth/login', { data: { email: ADMIN, password: ADMIN_PW } });
+      }
       adminOk = r.ok() && (await (await actx.request.get('/api/v1/auth/me')).json()).user?.is_platform_admin === true;
-      if (r.status() === 201) sql(`UPDATE users SET email_verified_at = now() WHERE email = '${ADMIN}';`);
     } catch { adminOk = false; }
     if (!adminOk) {
       results.push(['platform admin sign-in (the stack must be started with PLATFORM_ADMIN_EMAILS including ADMIN_EMAIL)', false, 'not a platform admin']);

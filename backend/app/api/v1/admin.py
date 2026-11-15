@@ -740,6 +740,14 @@ def finance(month: str | None = _MONTH, ctx: AuthContext = Depends(require_platf
     return finance_svc.economics(ctx.db, month)
 
 
+@router.get("/work-queue")
+def work_queue(limit: int = Query(50, ge=1, le=200), ctx: AuthContext = Depends(require_platform_admin)):
+    """What needs a person across every business: failed or blocked Google changes and failed posts, approvals that have been waiting, and account deletion and export requests. Read-only, from real records."""
+    from app.services import work_queue as wq
+
+    return wq.snapshot(ctx.db, limit)
+
+
 @router.put("/tenants/{tenant_id}/budgets")
 def set_budgets(tenant_id: uuid.UUID, body: BudgetsIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
     """Review and change one business's spending ceilings (AI dollars per month, Places searches per month). Audited with the reason."""

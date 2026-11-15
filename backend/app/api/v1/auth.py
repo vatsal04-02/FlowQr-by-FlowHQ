@@ -28,6 +28,8 @@ def _start_session(db: Session, user: User, request: Request, response: Response
     now = utcnow()
     set_rls_context(db, bypass=True)
     memberships = list(db.scalars(select(Membership).where(Membership.user_id == user.id)))
+    # A platform admin can see every business, so their sign-in is short-lived (they sign in again each working day).
+    ttl_hours = min(settings.session_ttl_hours, settings.admin_session_ttl_hours) if user.is_platform_admin else settings.session_ttl_hours
     sess = AuthSession(
         user_id=user.id,
         token_hash=hash_token(token),
@@ -36,11 +38,11 @@ def _start_session(db: Session, user: User, request: Request, response: Response
         ip=client_ip(request),
         user_agent=(request.headers.get("user-agent") or "")[:300],
         created_at=now,
-        expires_at=now + timedelta(hours=settings.session_ttl_hours),
+        expires_at=now + timedelta(hours=ttl_hours),
     )
     db.add(sess)
     db.flush()
-    max_age = settings.session_ttl_hours * 3600
+    max_age = ttl_hours * 3600
     common = dict(max_age=max_age, secure=settings.cookie_secure, samesite="lax", path="/",
                   domain=settings.cookie_domain or None)
     response.set_cookie(SESSION_COOKIE, token, httponly=True, **common)
@@ -84,7 +86,7 @@ def register(body: RegisterIn, request: Request, response: Response, db: Session
         raise HTTPException(status_code=409, detail="An account with this email already exists")
     user = User(
         email=email, password_hash=hash_password(body.password), full_name=body.full_name.strip(),
-        phone=body.phone, is_platform_admin=email in settings.platform_admin_email_set,
+        phone=body.phone,  # NOT a platform admin yet: that is granted only once the address is proven (see verify_email)
     )
     db.add(user)
     db.flush()
@@ -228,6 +230,14 @@ def verify_email(body: VerifyEmailIn, db: Session = Depends(get_db)):
     user = db.get(User, row.user_id)
     row.used_at = utcnow()
     user.email_verified_at = user.email_verified_at or utcnow()
+    # Whoever types an admin address into the sign-up form must not become an administrator: only the person who can read that mailbox does.
+    if user.email in settings.platform_admin_email_set and not user.is_platform_admin:
+        user.is_platform_admin = True
+        # sessions opened before the grant were issued with an ordinary lifetime: bring them in line with an administrator's
+        db.execute(update(AuthSession).where(AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None),
+                                             AuthSession.expires_at > utcnow() + timedelta(hours=settings.admin_session_ttl_hours))
+                   .values(expires_at=utcnow() + timedelta(hours=settings.admin_session_ttl_hours)))
+        audit(db, action="auth.platform_admin_granted", user_id=user.id, entity_type="user", entity_id=user.id)
     set_rls_context(db, bypass=True)
     audit(db, action="auth.email_verified", user_id=user.id, entity_type="user", entity_id=user.id)
     db.commit()

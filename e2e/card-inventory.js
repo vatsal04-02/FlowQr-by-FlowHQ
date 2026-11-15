@@ -85,6 +85,7 @@ const pngSize = (b) => ({ w: b.readUInt32BE(16), h: b.readUInt32BE(20) });
     expect(r.status() === 201, `register ${r.status()} ${await r.text()}`);
     csrf = (await r.json()).csrf_token;
     tenant = await (await ownerCtx.request.post('/api/v1/tenants', { data: { name: NAME, category: 'Physiotherapy clinic', language: 'en' }, headers: H() })).json();
+    sql(`UPDATE subscriptions SET max_locations = 10 WHERE tenant_id = '${tenant.id}';`);  // the trial plan (Growth) includes one location; these tests need several
     locA = await (await ownerCtx.request.post('/api/v1/locations', { data: { name: 'Main clinic', city: 'Lucknow', review_url: 'https://g.page/r/AAA111/review' }, headers: H() })).json();
     locB = await (await ownerCtx.request.post('/api/v1/locations', { data: { name: 'Aliganj branch', city: 'Lucknow', review_url: 'https://g.page/r/BBB222/review' }, headers: H() })).json();
     await ownerCtx.request.post('/api/v1/tenant/complete-onboarding', { headers: H() });

@@ -5,6 +5,7 @@ attached. Customer review text and tokens live in request bodies and local varia
 from __future__ import annotations
 
 import logging
+import re
 
 from app.core.config import settings
 
@@ -55,3 +56,28 @@ def capture_message(msg: str, level: str = "error", **tags) -> None:
         for k, v in tags.items():
             scope.set_tag(k, str(v)[:60])
         sentry_sdk.capture_message(msg[:300], level=level)
+
+
+# One-time or secret values that can travel in a URL query string: the OAuth authorization code and state, and any token. The web server's access log would otherwise store them.
+_SECRET_QUERY = re.compile(r"(?i)([?&](?:code|state|token|access_token|id_token|refresh_token|key|api_key)=)[^&\s\"']+")
+
+
+def redact_url(url: str) -> str:
+    return _SECRET_QUERY.sub(r"\1[redacted]", url)
+
+
+class _RedactAccessLog(logging.Filter):
+    """uvicorn's access log line carries the request path with its query string as the third argument."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) >= 3 and isinstance(record.args[2], str):
+            a = list(record.args)
+            a[2] = redact_url(a[2])
+            record.args = tuple(a)
+        return True
+
+
+def redact_access_logs() -> None:
+    lg = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _RedactAccessLog) for f in lg.filters):
+        lg.addFilter(_RedactAccessLog())

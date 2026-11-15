@@ -12,6 +12,7 @@ import { api, errorMessage } from "@/lib/api";
 import { rupees } from "@/lib/billing";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
+import { SpendingCeilings } from "@/components/admin/SpendingCeilings";
 import { SUB_TONE, type TenantRow } from "@/lib/admin-ui";
 
 interface Detail {
@@ -57,6 +58,7 @@ export default function CustomerDetail() {
               ["Trial ends", fmtDate(s.trial_ends_at)], ["Period end", fmtDate(s.current_period_end)], ["Razorpay", s.razorpay_subscription_id ?? "–"], ["AI this month", d.ai_generations_this_month]].map(([k, v]) => <div key={k as string}><dt className="text-ink-500">{k}</dt><dd className="mt-0.5 break-all font-semibold">{v}</dd></div>)}
           </dl> : <p className="text-sm text-ink-500">No subscription.</p>}
         </Card>
+        <SpendingCeilings tenantId={id} />
         <Card><CardHeader title="Team" /><ul className="divide-y divide-ink-100 text-sm">{d.members.map((m) => (
           <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><div><p className="font-semibold">{m.full_name} <Badge tone={m.role === "owner" ? "blue" : "gray"}>{m.role}</Badge></p><p className="text-ink-500">{m.email}{!m.email_verified && " · unverified"}</p></div>
             <Button size="sm" variant={m.is_active ? "danger" : "secondary"} onClick={() => { if (confirm(`${m.is_active ? "Deactivate" : "Reactivate"} ${m.email}?`)) void run(() => api(`/admin/users/${m.user_id}`, { method: "PATCH", body: { is_active: !m.is_active } }), "User updated."); }}>{m.is_active ? "Deactivate" : "Reactivate"}</Button></li>))}</ul></Card>

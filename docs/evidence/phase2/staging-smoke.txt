@@ -1,0 +1,35 @@
+[PASS] platform admin account registered/signed in (email listed in PLATFORM_ADMIN_EMAILS)
+[PASS] platform admin rights granted only after email verification
+[PASS] owner registration
+[PASS] new account starts unverified
+[PASS] verification email delivered via SMTP  (Verify your FlowQR email)
+[PASS] unverified owner cannot invite staff
+[PASS] email verification link works
+[PASS] verification token is single-use
+[PASS] account now verified
+[PASS] location created  ({"id":"ffb1e7bf-51ae-4451-9202-ab6024e2278b","name":"Gomti Nagar","address_line")
+[PASS] onboarding completed
+[PASS] staff invitation created
+[PASS] invitation email delivered via SMTP
+[PASS] invitee registers
+[PASS] invitation cannot be accepted by a different email
+[PASS] invitee accepts invitation
+[PASS] staff role cannot create locations
+[PASS] staff can read locations
+[PASS] staff sees only the inviting business
+[PASS] password reset request accepted
+[PASS] reset request for unknown email gives the same answer
+[PASS] reset email delivered via SMTP
+[PASS] password reset confirmed
+[PASS] reset token is single-use
+[PASS] old sessions revoked after reset
+[PASS] old password rejected
+[PASS] new password works
+[PASS] card batch created; base URL recorded  (https://go.flowqr-staging.dev)
+[PASS] card URLs use the go. card domain (printed QR address is /q/)  (https://go.flowqr-staging.dev/q/LMhfgy9izfLIFiTiFuDkx5z8)
+[PASS] card assigned to location
+[PASS] public scan resolves business + review link via card domain
+[PASS] public payload leaks no internal IDs
+[PASS] scan event recorded  ({'scan': 1, 'unique_scan': 1, 'untracked_scan': 1, 'untracked_unique': 1})
+
+SUMMARY: 33 passed, 0 failed

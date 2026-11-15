@@ -203,3 +203,14 @@ def test_scheduled_task_does_nothing_without_a_key(connected, fake, loc, monkeyp
     from app.workers import tasks
     monkeypatch.setattr(settings, "rank_provider_key", "")
     assert tasks.check_ranks() == {"skipped": "not configured"}
+
+
+def test_the_keyword_limit_is_a_setting_not_a_hardcoded_number(connected, fake, loc, on, monkeypatch):  # noqa: F811
+    """Phase 2: the number of search terms per location is an owner decision that has not been made, so it must be changeable without a code change."""
+    monkeypatch.setattr(settings, "rank_max_keywords_per_location", 2)
+    assert add(connected, loc, "first term").status_code == 201
+    assert add(connected, loc, "second term").status_code == 201
+    r = add(connected, loc, "third term")
+    assert r.status_code == 409 and "up to 2 search terms" in r.json()["detail"]
+    monkeypatch.setattr(settings, "rank_max_keywords_per_location", 3)
+    assert add(connected, loc, "third term").status_code == 201

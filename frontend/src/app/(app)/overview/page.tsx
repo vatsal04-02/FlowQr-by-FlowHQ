@@ -1,14 +1,10 @@
 "use client";
 import { GettingStarted } from "@/components/overview/GettingStarted";
-import { Check } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
-import { FlowCard } from "@/components/CardArt";
 import { HealthCard } from "@/components/agent/HealthCard";
 import { Growth } from "@/components/dashboard/Growth";
 import { AiReply, CardToReview } from "@/components/dashboard/HowItWorks";
 import { Attention, Funnel, GoalCard, KeyTiles, Mentions, RatingCard, RecentActivity, ReviewTrend, Tile } from "@/components/overview/widgets";
-import { LinkButton } from "@/components/ui/Button";
 import { Alert, PageHeader } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
@@ -96,10 +92,10 @@ export default function Dashboard() {
 
       {ov.error && <div className="mb-5"><Alert tone="error" title="We couldn't load your numbers" action={<button type="button" onClick={() => { void ov.reload(); void prevOv.reload(); }} className="inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-semibold text-ink hover:bg-ink-50">Try again</button>}>{ov.error}</Alert></div>}
 
-      {o && !isNew && <GettingStarted />}
+      {o && <GettingStarted />}  {/* one checklist, computed by the server from what exists; it hides itself when the essentials are done */}
 
       {o && isNew ? (
-        <Setup locs={locs.data ?? []} cards={cards.data ?? []} googleActive={googleConnected} googleConfigured={!!google.data?.configured} />
+        <FirstRun />
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-flow-row-dense lg:grid-cols-2 xl:grid-cols-3">
           <RatingCard o={o} prev={p} locs={locs.data ?? []} days={days} loading={loading} googleConnected={googleConnected} />
@@ -122,38 +118,9 @@ export default function Dashboard() {
   );
 }
 
-/** First-run experience: a real checklist computed from the business's data, plus two pictures of how FlowQR works. */
-function Setup({ locs, cards, googleActive, googleConfigured }: { locs: Location[]; cards: Card[]; googleActive: boolean; googleConfigured: boolean }) {
-  const steps: { done: boolean; title: string; body: string; href?: string; cta?: string }[] = [
-    { done: true, title: "Create your business", body: "Your account and first location exist." },
-    { done: locs.length > 0 && locs.some((l) => l.review_url), title: "Add your Google review link", body: "Paste the link customers should land on. You can change it any time without reprinting cards.", href: "/gbp/locations", cta: "Add the link" },
-    { done: cards.length > 0, title: "Get your FlowQR cards", body: "The FlowQR team assigns cards to your locations after you order them.", href: "/settings/billing/payments", cta: "Order cards" },
-    { done: cards.some((c) => (c.stats.scan ?? 0) > 0), title: "Tap or scan one yourself", body: "Open the card with your phone to see exactly what customers see.", href: "/gbp/cards", cta: "See your cards" },
-    { done: googleActive, title: "Connect Google (optional)", body: googleConfigured ? "Your reviews arrive here and your AI assistant can help you reply." : "Reviews sync once Google access is switched on for this server. Cards work without it.", href: "/gbp/locations", cta: "Connect Google" },
-  ];
-  const next = steps.findIndex((s) => !s.done);
+/** First-run experience: the checklist above is the real one (from the server); this adds two labelled pictures of how FlowQR works. */
+function FirstRun() {
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <section aria-labelledby="setup-h" className="panel rv p-4 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 px-1"><h2 id="setup-h" className="text-lg font-semibold">Let&rsquo;s get you set up</h2><p className="text-[13px] text-muted">{steps.filter((s) => s.done).length} of {steps.length} done</p></div>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          <ol className="divide-y divide-line overflow-hidden rounded-tile bg-surface-2">
-            {steps.map((s, i) => (
-              <li key={s.title} className={`flex flex-wrap items-start gap-3 px-4 py-4 ${i === next ? "bg-accent-tint" : ""}`}>
-                <span aria-hidden className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${s.done ? "bg-pos text-pure-white dark:text-pure-ink" : i === next ? "bg-accent-ink text-pure-white dark:text-pure-ink" : "bg-surface text-muted"}`}>{s.done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}</span>
-                <div className="min-w-0 flex-1 basis-48"><p className={`text-[15px] ${s.done ? "text-muted line-through decoration-ink-300" : "font-semibold"}`}>{s.title}<span className="sr-only">{s.done ? " (done)" : ""}</span></p>{!s.done && <p className="mt-0.5 text-sm text-muted">{s.body}</p>}</div>
-                {!s.done && s.href && (i === next ? <LinkButton href={s.href} size="md" variant="brand">{s.cta}</LinkButton> : <Link href={s.href} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent-ink hover:underline sm:min-h-8">{s.cta}</Link>)}
-              </li>
-            ))}
-          </ol>
-          <div className="keep-light rounded-tile bg-surface-2 p-5">
-            <h3 className="text-sm font-semibold">Your card</h3>
-            <div className="mx-auto mt-3 w-full max-w-[200px]"><FlowCard code="FQR-0000" state="unassigned" /></div>
-            <p className="mt-3 text-[13px] text-muted">Once assigned, each card has its own permanent QR and NFC link. Scans, visits and clicks start appearing on this page.</p>
-          </div>
-        </div>
-      </section>
-      <section aria-label="How FlowQR works" className="panel rv grid gap-8 p-5 sm:p-6" style={{ "--d": "120ms" } as CSSProperties}><CardToReview /><div className="border-t border-line pt-6"><AiReply /></div></section>
-    </div>
+    <section aria-label="How FlowQR works" className="panel rv grid gap-8 p-5 sm:p-6"><CardToReview /><div className="border-t border-line pt-6"><AiReply /></div></section>
   );
 }

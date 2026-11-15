@@ -28,3 +28,6 @@ dump.rdb
 
 # stray Windows NUL redirect artefact
 /nul
+
+# Celery beat schedule files written when beat runs with the source folder mounted
+celerybeat-schedule*

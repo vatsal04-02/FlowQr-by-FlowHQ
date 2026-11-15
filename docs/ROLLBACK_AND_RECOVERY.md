@@ -74,3 +74,13 @@ If the previous image fails against the newer schema, you have found the limit o
 | A business asks to be deleted but is already in a backup | deletion is complete when the backup ages out (`BACKUP_KEEP_DAYS`, remote lifecycle); say so in the privacy notice. |
 | Wrong plan or allowance given to a customer | Admin > Customers > Subscription override (audited, with a note) or Admin > Plans and limits for plan-wide values. Never edit the database by hand: `subscription_events` and the audit log are the record. |
 | Suspected leaked secret | rotate it (`ENVIRONMENT_VARIABLES.md` §"Rotating a secret"), then review Admin > Audit. |
+
+## What was rehearsed on 2026-11-15, and what was not
+
+| Procedure | Rehearsed? | Result |
+|---|---|---|
+| Restore a staging backup into an isolated database and run the application on it | yes | checksums identical, API, worker and beat run, a restored user signs in, reads and writes. `docs/evidence/phase2/staging-backup-restore.txt` |
+| Downgrade 0030 to 0028 and upgrade again on a copy of real development data | yes | succeeded; customer tables identical afterwards; ledger, promotional-grant and subscription-history rows are **deleted by the downgrade** (as section 3 says) and plan allowances revert, so a downgrade after real sales loses history: prefer restoring the pre-release backup |
+| Previous API code against the upgraded schema (rollback of code only) | started only | the 0025 API started and answered `/api/health` and `/api/v1/billing/plans` on the 0030 schema. This suggests the migrations are additive enough for "roll back the image, keep the schema", **but it was one start-up and one read, not a regression of the old code**. Until it is rehearsed on staging with the old release's own tests, treat the restore as the safe path |
+| Restore from a real off-site bucket; point-in-time recovery; a production database | no | no bucket, no WAL archiving and no production exists |
+| Re-applying business deletions made after the backup (section 4) | no | procedure only |

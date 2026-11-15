@@ -18,7 +18,7 @@ export default function Privacy() {
           <li><b>Google Business Profile data, only if you connect it:</b> your accounts and the locations you select, their reviews (reviewer name, rating, text, replies), profile details, posts, photos and performance statistics. We access only the locations you choose.</li>
           <li><b>QR and NFC scans:</b> time, the card or campaign, and a daily-rotating hashed device fingerprint used to count unique scans. We do not store a customer&rsquo;s name, phone or email from a scan.</li>
           <li><b>Review assistant:</b> if a customer types a few words so the AI can draft a review, we store those words, the draft and the 1&ndash;5 rating they chose. This text is deleted automatically after {i?.review_session_retention_days ?? 90} days; only counts remain.</li>
-          <li><b>Payments:</b> handled by Razorpay. We keep plan, status and payment references, never card numbers.</li>
+          <li><b>Payments:</b> handled by a licensed payment provider (not yet switched on). We keep plan, status and payment references, never card numbers.</li>
           <li><b>Technical:</b> IP address and browser type for security, rate-limiting and audit logs.</li>
         </ul>
 
@@ -33,7 +33,7 @@ export default function Privacy() {
         <p>FlowQR&rsquo;s use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. We use Google data only to provide the review, reply, post and profile features you ask for. We do not use it to train general AI models, do not sell it, and do not allow humans to read it except where you ask for support, for security, or where the law requires. Google access tokens are encrypted at rest and never shown in the browser. You can disconnect at any time in FlowQR or at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">myaccount.google.com/permissions</a>.</p>
 
         <h2>Who else handles data</h2>
-        <p>Service providers who process data for us: cloud hosting, our AI provider, Razorpay (payments) and an email sender. They may use it only to provide their service to us.</p>
+        <p>Service providers who process data for us: cloud hosting, our AI provider, a payment provider (once payments are switched on) and an email sender. They may use it only to provide their service to us.</p>
 
         <h2>How long we keep it</h2>
         <ul><li>Account and business data: until you delete the business.</li><li>Customer review-assistant text: {i?.review_session_retention_days ?? 90} days.</li><li>After you delete a business: removed after a {i?.deletion_grace_days ?? 14}-day cancellable grace period. Security and billing records we are required to keep may remain for the legally required time.</li></ul>

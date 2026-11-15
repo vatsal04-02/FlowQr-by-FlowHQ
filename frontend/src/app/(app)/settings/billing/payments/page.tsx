@@ -30,7 +30,7 @@ export default function PaymentsPage() {
     <>
       <PageHeader eyebrow="Business" title="Payments" subtitle="Software subscription payments and physical card orders are tracked separately."
         actions={role === "owner" ? <Button size="sm" icon={<Package className="h-4 w-4" />} onClick={() => setOrderOpen(true)} disabled={!plans.data?.card_ordering_enabled}>Order cards</Button> : undefined} />
-      {plans.data && !plans.data.card_ordering_enabled && <div className="mb-4"><Alert tone="warning" title="Card ordering: configuration pending">{!plans.data.billing.configured ? "Card ordering opens once Razorpay is configured on this server." : "Card pricing hasn't been set yet. Please contact FlowQR."}</Alert></div>}
+      {plans.data && !plans.data.card_ordering_enabled && <div className="mb-4"><Alert tone="warning" title="Card ordering: configuration pending">{!plans.data.billing.configured ? "Card ordering opens once online payments are switched on." : "Card pricing hasn't been set yet. Please contact FlowQR."}</Alert></div>}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
         <Panel title="Card orders" meta="shipped after payment is confirmed" flush>

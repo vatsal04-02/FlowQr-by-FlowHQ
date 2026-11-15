@@ -1,0 +1,27 @@
+== 1. read-only dump of the running database (20261115T123508Z)
+dump bytes: 382750  sha256: 2e25b7572ecfac76
+gzip integrity ok
+source alembic version: 0025
+== 2. restore into throwaway PostgreSQL
+restore ok
+tables before: 47; non-empty: agent_runs=21 agent_settings=5 agent_task_events=14 agent_tasks=13 ai_generation_logs=39 ai_outputs=1 alembic_version=1 audit_logs=1236 auth_sessions=32 billing_plans=3 business_knowledge=5 card_batches=1 email_verification_tokens=23 gbp_snapshots=2 google_connections=4 google_locations=2 health_snapshots=5 leads=2 locations=5 memberships=5 notification_prefs=2 qr_cards=10 rank_checks=2 rank_keywords=1 reply_drafts=2 review_campaigns=3 review_drafts=20 review_events=128 review_sessions=20 reviews=964 scheduled_posts=3 subscriptions=5 tenants=5 users=6 
+== 3. alembic upgrade head (Phase 2 code)
+0025
+0030 (head)
+== 4. row counts: every table that existed before must have the same count (except billing_plans/subscriptions changes noted)
+CHANGED billing_plans: 3 -> 5
+new tables: agent_action_approvals agent_actions agent_intervention_events agent_rank_followups ai_call_ledger api_usage_ledger platform_controls promotional_grants rank_grid_points rank_grid_scans rank_grids subscription_events 
+== 5. plan catalogue and subscriptions after upgrade
+ERROR:  column "monthly_paise" does not exist
+LINE 1: select code, monthly_paise, review_generations, review_repli...
+                     ^
+ERROR:  column s.plan_code does not exist
+LINE 1: select s.plan_code, s.status, s.review_generations, s.review...
+               ^
+subscription_events rows=0
+== 6. privileges and RLS on the new tables (app role must be SELECT/INSERT only on ledgers)
+ai_call_ledger|t|t|INSERT,SELECT
+api_usage_ledger|t|t|INSERT,SELECT
+promotional_grants|t|t|INSERT,SELECT,UPDATE
+subscription_events|t|t|INSERT,SELECT
+(script part 1 done; the throwaway container flowqr-rehearse-pg stays up for the next steps)

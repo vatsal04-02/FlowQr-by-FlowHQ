@@ -70,11 +70,11 @@ export default function SubscriptionPage() {
   return (
     <>
       <PageHeader eyebrow="Business" title="Subscription" subtitle="Your plan, usage and billing." actions={<LinkButton href="/settings/billing/payments" size="sm" variant="secondary" icon={<CreditCard className="h-4 w-4" />}>Payment history</LinkButton>} />
-      {plans.data && !plans.data.billing.configured && <div className="mb-5"><Alert tone="warning" title="Online payments: configuration pending">Razorpay isn&rsquo;t configured on this server yet, so plans can&rsquo;t be purchased. Your trial and all features keep working meanwhile.</Alert></div>}
-      {plans.data?.billing.mode === "test" && <div className="mb-5"><Alert tone="info" title="Razorpay test mode">Payments are simulated by Razorpay&rsquo;s test environment. No real money moves.</Alert></div>}
+      {plans.data && !plans.data.billing.configured && <div className="mb-5"><Alert tone="warning" title="Online payments are not switched on yet">Paying online isn&rsquo;t available on this server yet, so plans can&rsquo;t be purchased here. Your trial and all features keep working meanwhile.</Alert></div>}
+      {plans.data?.billing.mode === "test" && <div className="mb-5"><Alert tone="info" title="Payment test mode">Payments are simulated by the payment provider&rsquo;s test environment. No real money moves.</Alert></div>}
       {err && <div className="mb-5"><Alert tone="error" title="Couldn't complete that">{err.message}</Alert></div>}
       {s && !s.active && <div className="mb-5"><Alert tone="error" title="Your subscription is not active" action={undefined}>{s.inactive_reason === "payment_failed" ? "Your last payment failed. Update your payment method or choose a plan to restore access." : s.inactive_reason === "trial_ended" ? "Your free trial has ended. Choose a plan to keep using reviews, replies and AI." : "Choose a plan to continue."} Your QR/NFC cards keep working for customers.</Alert></div>}
-      {s?.status === "past_due" && s.grace_until && <div className="mb-5"><Alert tone="warning" title="Payment failed">We couldn&rsquo;t charge your payment method. Access continues until {fmtDate(s.grace_until)} while Razorpay retries.</Alert></div>}
+      {s?.status === "past_due" && s.grace_until && <div className="mb-5"><Alert tone="warning" title="Payment failed">We couldn&rsquo;t charge your payment method. Access continues until {fmtDate(s.grace_until)} while the payment provider retries.</Alert></div>}
 
       {s?.promo && <div className="mb-5"><Alert tone="success" title={`Free ${s.promo.plan_name} until ${fmtDate(s.promo.ends_at)}`}>Included with your card purchase. {s.promo.note} Choose a plan whenever you like; you are only charged for a plan you pick yourself.</Alert></div>}
       <Card className="mb-6">
@@ -107,7 +107,7 @@ export default function SubscriptionPage() {
             onClick={() => void choose(p)}>{s?.plan === p.code ? "Current plan" : s?.has_razorpay_subscription && s.status === "active" ? `Switch to ${p.name}` : `Choose ${p.name}`}</Button>
         )} />
       ) : <Skeleton className="h-64" />}
-      <p className="mt-4 text-xs text-ink-500">Subscriptions renew monthly via Razorpay. A plan becomes active only after Razorpay confirms your payment. Physical cards are billed separately under Payments.</p>
+      <p className="mt-4 text-xs text-ink-500">Subscriptions renew monthly through our payment provider. A plan becomes active only after the provider confirms your payment. Physical cards are billed separately under Payments.</p>
 
       {history.data && history.data.events.length > 0 && (
         <section className="mt-8" aria-labelledby="sub-hist"><h2 id="sub-hist" className="mb-3 text-[15px] font-semibold">Subscription history</h2>

@@ -48,6 +48,7 @@ x-backend-env: &backend-env
   TRIAL_DAYS: ${TRIAL_DAYS:-14}
   CARD_PRICE_PAISE: ${CARD_PRICE_PAISE:-}  # no default: unset disables card ordering
   REQUIRE_VERIFIED_EMAIL: ${REQUIRE_VERIFIED_EMAIL:-true}
+  ADMIN_SESSION_TTL_HOURS: ${ADMIN_SESSION_TTL_HOURS:-12}  # platform administrators sign in again at least this often
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USER: ${SMTP_USER:-}
@@ -75,6 +76,14 @@ x-backend-env: &backend-env
   RANK_GRID_RETENTION_DAYS: ${RANK_GRID_RETENTION_DAYS:-400}
   RANK_PLATFORM_MONTHLY_CAP: ${RANK_PLATFORM_MONTHLY_CAP:-0}
   RANK_COST_PER_CALL_USD: ${RANK_COST_PER_CALL_USD:-0}
+  # Places spend and map controls. Each default is PROVISIONAL (the owner has not approved final numbers): docs/COMMERCIAL_LIMITS_AND_COSTS.md
+  RANK_MAX_KEYWORDS_PER_LOCATION: ${RANK_MAX_KEYWORDS_PER_LOCATION:-10}
+  RANK_MONTHLY_CHECK_CAP: ${RANK_MONTHLY_CHECK_CAP:-300}
+  RANK_RADIUS_M: ${RANK_RADIUS_M:-3000}
+  RANK_AUTO_CHECK_DAYS: ${RANK_AUTO_CHECK_DAYS:-7}
+  RANK_GRID_MIN_SPACING_M: ${RANK_GRID_MIN_SPACING_M:-250}
+  RANK_GRID_MAX_SPACING_M: ${RANK_GRID_MAX_SPACING_M:-10000}
+  RANK_GRID_AUTO_DAYS: ${RANK_GRID_AUTO_DAYS:-7}
   # Phase 2 commercial settings (docs/ENVIRONMENT_VARIABLES.md). Empty = not set: an unset price or cost input is shown as missing, never as zero.
   API_PRICES: ${API_PRICES:-}
   CARD_OFFERS: ${CARD_OFFERS:-}
@@ -187,6 +196,7 @@ services:
       context: ./frontend
       args:
         BACKEND_URL: http://api:8000
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
     restart: unless-stopped
     depends_on:
       api: { condition: service_healthy }

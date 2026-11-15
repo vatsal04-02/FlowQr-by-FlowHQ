@@ -8,7 +8,7 @@
 #   deploy/verify-restore.sh --from-remote         fetch the newest copy from BACKUP_REMOTE first (proves the OFF-SITE copy, the one that matters in a disaster)
 # Needs: docker, openssl (when encrypted). Settings: BACKUP_PASSPHRASE_FILE, BACKUP_REMOTE (see backup.sh), MIN_TABLES (default 20).
 set -uo pipefail
-DIR=backups
+DIR=${BACKUP_DIR:-backups}   # BACKUP_DIR lets staging and production keep separate folders and status files
 STATUS="$DIR/status.json"
 MIN_TABLES=${MIN_TABLES:-20}
 NAME="flowqr-restore-check-$$"

@@ -1,0 +1,20 @@
+PASS register an owner and land in the onboarding wizard
+PASS step 1: business details create the business
+PASS step 2: first location with a Google review link
+PASS step 3: choosing the manual link does not finish set-up yet, and the Google permissions are explained
+PASS step 4: plan status comes from the account (trial days, allowances), nothing invented
+PASS step 4: the first review page is created for real, then the dashboard opens with a checklist
+PASS the wizard is not shown again once finished
+PASS wizard and dashboard fit a phone screen
+PASS the owner exports their data and schedules deletion (real requests)
+PASS platform admin signs in and opens the Work queue from the admin navigation
+PASS the queue lists the owner’s deletion request and data export from real records
+PASS empty sections say so plainly instead of showing placeholders
+PASS the queue fits a phone screen
+PASS a business owner cannot open the admin queue (page or API)
+PASS cleanup: the owner cancels the deletion so nothing is removed by the daily job
+PASS admin sets one business's spending ceilings; the change is stored and audited
+PASS admin uses the platform emergency stop and resumes (a reason is required)
+PASS marketing pages stay on the marketing host and carry the public origin
+
+18/18 passed

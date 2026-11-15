@@ -25,7 +25,13 @@ from app.services import usage as api_usage
 PLACES_URL = "https://places.googleapis.com/v1"
 SEARCH_FIELDS = "places.id,places.displayName,places.rating,places.userRatingCount"
 PAGE_SIZE = 20
-MAX_KEYWORDS_PER_LOCATION = 10
+
+
+def max_keywords() -> int:
+    """Search terms one location may track. A platform setting (RANK_MAX_KEYWORDS_PER_LOCATION), not a plan feature: the per-plan number is an owner decision that has not been made."""
+    return max(1, settings.rank_max_keywords_per_location)
+
+
 TOP_KEPT = 10
 NOTE = ("Position among the first 20 results Google Places returns for this search around your location. It is measured, not estimated, "
         "but Google Maps itself can order results differently by device, exact spot and person.")

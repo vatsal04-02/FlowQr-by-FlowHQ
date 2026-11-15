@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Activity, CreditCard, Gauge, LayoutDashboard, LogOut, QrCode, ScrollText, ShieldCheck, SlidersHorizontal, UserSearch, Users } from "lucide-react";
+import { Activity, CreditCard, Gauge, LayoutDashboard, ListChecks, LogOut, QrCode, ScrollText, ShieldCheck, SlidersHorizontal, UserSearch, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
@@ -11,10 +11,10 @@ import { Alert, Spinner } from "./ui/Card";
 
 const NAV = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard }, { href: "/admin/customers", label: "Customers", icon: Users }, { href: "/admin/users", label: "Users", icon: UserSearch },
-  { href: "/admin/cards", label: "Card inventory", icon: QrCode }, { href: "/admin/billing", label: "Billing", icon: CreditCard },
-  { href: "/admin/plans", label: "Plans & limits", icon: SlidersHorizontal }, { href: "/admin/finance", label: "Finance & usage", icon: Gauge },
-  { href: "/admin/ops", label: "Operations", icon: Activity },
-  { href: "/admin/audit", label: "Audit & AI usage", icon: ScrollText },
+  { href: "/admin/cards", label: "Cards", icon: QrCode }, { href: "/admin/billing", label: "Billing", icon: CreditCard },
+  { href: "/admin/plans", label: "Plans", icon: SlidersHorizontal }, { href: "/admin/finance", label: "Finance", icon: Gauge },
+  { href: "/admin/queue", label: "Work queue", icon: ListChecks }, { href: "/admin/ops", label: "Operations", icon: Activity },
+  { href: "/admin/audit", label: "Audit", icon: ScrollText },
 ];
 
 /** Platform-admin console: separate chrome, only reachable by is_platform_admin (also enforced server-side on every /admin API). */

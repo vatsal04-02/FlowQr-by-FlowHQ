@@ -16,7 +16,7 @@
 set -uo pipefail
 COMPOSE=${COMPOSE:-docker compose}
 KEEP=${BACKUP_KEEP_DAYS:-14}
-DIR=backups
+DIR=${BACKUP_DIR:-backups}   # BACKUP_DIR lets staging and production keep separate folders and status files
 STATUS="$DIR/status.json"
 mkdir -p "$DIR"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
