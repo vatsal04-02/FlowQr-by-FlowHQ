@@ -72,6 +72,7 @@ def test_application_code_contains_no_mock_integrations():
 def test_card_order_disabled_without_price(monkeypatch, rzp, biz_a):
     from app.core.config import settings as live
     monkeypatch.setattr(live, "card_price_paise", None)
+    monkeypatch.setattr(live, "card_offers", [])  # no bundles configured either: ordering is closed
     shipping = {"name": "Dr A", "phone": "9876543210", "address_line": "1 Main Road", "city": "Lucknow", "state": "UP", "postal_code": "226001"}
     r = biz_a.post("/billing/card-orders", json={"quantity": 20, "shipping": shipping})
     assert r.status_code == 503 and r.json()["detail"]["code"] == "card_pricing_not_configured"

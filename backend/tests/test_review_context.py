@@ -12,7 +12,7 @@ from app.services.ai.review_generate import (
     _QUALITIES, ReviewDraftRejected, ReviewInput, generate_review, validate_draft,
 )
 from app.services.review_suggestions import CATALOG, SENTIMENT_ASK, category_options, resolve_category, topics_for
-from tests.conftest import Session, make_user, owner_query
+from tests.conftest import Session, make_user, owner_exec, owner_query
 from tests.test_openrouter import KEY, MODEL, provider
 from tests.test_review_growth import GOOD, StubLLM, campaign, llm, make_staff, pub  # noqa: F401  (llm = fixture)
 from tests.test_review_verify import route  # noqa: F401  (fixture)
@@ -24,6 +24,7 @@ def biz(category: str, name="Context Biz") -> Session:
     r = s.post("/tenants", json={"name": name, "category": category, "language": "en"})
     assert r.status_code == 201, r.text
     s.tenant_id = r.json()["id"]
+    owner_exec("UPDATE subscriptions SET max_locations = 10 WHERE tenant_id = :t", t=s.tenant_id)  # Growth includes one location; these tests need more (see conftest.make_business)
     r = s.post("/locations", json={"name": f"{name} - Main", "city": "Lucknow", "review_url": "https://g.page/r/CTX/review"})
     assert r.status_code == 201, r.text
     s.location_id = r.json()["id"]

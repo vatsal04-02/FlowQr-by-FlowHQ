@@ -427,7 +427,7 @@ def test_ai_unavailable_never_blocks_the_customer(biz_a, client, monkeypatch):
 
 def test_quota_exhaustion_degrades_gracefully(biz_a, client, llm, monkeypatch):
     c = campaign(biz_a)
-    monkeypatch.setattr("app.api.v1.review_public.quota_exceeded", lambda db, tid: True)
+    monkeypatch.setattr("app.api.v1.review_public.quota_exceeded", lambda db, tid, kind=None: True)
     d = generate(client, c).json()
     assert d["ai_status"] == "unavailable" and d["draft"] is None and llm.calls == []
     assert pub(client, "GET", c["public_id"]).json()["ai_available"] is False

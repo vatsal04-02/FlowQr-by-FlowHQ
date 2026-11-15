@@ -1,14 +1,13 @@
-"""One-tap review: the neutral AI starter shown before any input, in-place refinement, and the direct Google Write-a-review link.
+"""One-tap review: in-place refinement (from the customer's own stars and topics) and the direct Google Write-a-review link. The shared AI "starter" text was
+removed in Phase 0 (see tests/test_phase0_review_generation.py); nothing is pre-written for a customer.
 A scripted test double stands in for the model: these prove FlowQR's rules and plumbing around it, not model quality."""
 import uuid
 
 import pytest
 
-from app.api.v1 import review_public
 from app.core.config import settings
 from app.services import review_growth as svc
 from app.services.ai import health
-from app.services.ai.review_generate import ReviewDraftRejected, generate_starter, validate_starter
 from tests.conftest import owner_exec, owner_query
 from tests.test_review_context import biz  # noqa: F401
 from tests.test_review_growth import StubLLM, campaign, llm, pub  # noqa: F401  (llm = fixture)
@@ -19,10 +18,8 @@ V = dict(language="en", business_name=NAME, location_name=PLACE, category_label=
 
 @pytest.fixture(autouse=True)
 def fresh_pools():
-    review_public._starter_memory.clear()
     health.reset()
     yield
-    review_public._starter_memory.clear()
 
 
 def unique_biz(category="Physiotherapy clinic"):
@@ -70,163 +67,6 @@ def test_settings_warn_when_the_link_is_only_a_listing(client, llm):
     b = biz("Physiotherapy clinic", f"Warn Biz {uuid.uuid4().hex[:6]}")
     loc = b.post("/locations", json={"name": "Maps only", "city": "Agra", "review_url": "https://maps.google.com/?cid=123"}).json()["id"]
     assert [x["review_url_kind"] for x in b.get("/review-growth/settings").json()["locations"] if x["id"] == loc] == ["listing"]
-
-
-# ================================================================ the starter validator: who the review is about, nothing more
-
-@pytest.mark.parametrize("text", [
-    "Sharing my feedback on Sunrise Physio, a physiotherapy clinic in Gomti Nagar, Lucknow.",
-    "This is my review of Sunrise Physio in Gomti Nagar, Lucknow.",
-    "Writing about Sunrise Physio, which offers back pain rehabilitation in Lucknow.",  # a service the business offers: allowed; "pain" is the owner's own wording
-    "Leaving a review for Sunrise Physio.",
-])
-def test_neutral_openers_pass(text):
-    validate_starter(text, **V)
-
-
-@pytest.mark.parametrize("text,why", [
-    ("I visited Sunrise Physio last week and the staff were great.", "visit"),
-    ("I had back pain rehabilitation at Sunrise Physio.", "visit|experience"),
-    ("Sunrise Physio is an excellent clinic.", "praise|quality"),
-    ("Sunrise Physio is a professional clinic in Lucknow.", "quality"),
-    ("My review of Sunrise Physio: I would recommend it.", "experience|recommendation"),
-    ("Sunrise Physio, five stars.", "rating|number"),
-    ("Review of Sunrise Physio after 12 sessions.", "number"),
-    ("Sharing my feedback on a physiotherapy clinic in Lucknow.", "name the business"),
-    ("Sharing my feedback on Sunrise Physio and Dr Sharma.", "name"),
-    ("Sunrise Physio helped my back and I recovered fully.", "result|visit|experience"),
-    ("Sharing my feedback on Sunrise Physio. [add your experience here]", "meta|placeholder"),
-    ("Hi", "length"),
-])
-def test_anything_beyond_who_the_review_is_about_is_rejected(text, why):
-    with pytest.raises(ReviewDraftRejected, match=why):
-        validate_starter(text, **V)
-
-
-def test_a_hindi_opener_must_be_hindi_and_name_the_business():
-    validate_starter("Sunrise Physio, गोमती नगर लखनऊ के बारे में अपनी राय साझा कर रहा हूँ।", **{**V, "language": "hi"})
-    with pytest.raises(ReviewDraftRejected, match="Hindi"):
-        validate_starter("Sharing my feedback on Sunrise Physio in Lucknow.", **{**V, "language": "hi"})
-    with pytest.raises(ReviewDraftRejected, match="visit"):
-        validate_starter("मैं Sunrise Physio में इलाज करवाया था।", **{**V, "language": "hi"})
-
-
-def test_an_opener_must_differ_from_the_earlier_ones():
-    with pytest.raises(ReviewDraftRejected, match="similar"):
-        validate_starter("Sharing my feedback on Sunrise Physio in Lucknow.", **V, previous=("Sharing my feedback on Sunrise Physio, in Lucknow.",))
-
-
-class Seq:
-    name, model = "seq", "seq-1"
-
-    def __init__(self, *texts):
-        self.texts, self.calls, self.usage = list(texts), [], None
-
-    def generate(self, system, user, **kw):
-        self.calls.append((system, user, kw))
-        return self.texts.pop(0) if len(self.texts) > 1 else self.texts[0]
-
-
-def test_generate_starter_retries_once_with_a_hint_then_gives_up():
-    p = Seq("I visited Sunrise Physio and loved it.", "Sharing my feedback on Sunrise Physio in Lucknow.")
-    stats = {}
-    out = generate_starter(p, language="en", business_name=NAME, category_label="Physiotherapy", location_name="Lucknow", stats=stats)
-    assert out == "Sharing my feedback on Sunrise Physio in Lucknow." and stats["attempts"] == 2 and stats["rejects_rules"] == 1
-    assert "rejected" in p.calls[1][1] and "nothing about the visit" in p.calls[1][1]
-    with pytest.raises(ReviewDraftRejected):
-        generate_starter(Seq("I visited Sunrise Physio and loved it."), language="en", business_name=NAME)
-
-
-# ================================================================ the starter endpoint
-
-def starter(client, c, **q):
-    return pub(client, "GET", c["public_id"], "/starter", params=q)
-
-
-def test_starter_is_neutral_labelled_and_built_only_from_the_business(client, llm):
-    b, name = unique_biz()
-    b.put("/review-growth/context", json={"description": "Exercise-based rehabilitation clinic.", "services": ["Back pain rehabilitation"]})
-    c = campaign(b)
-    llm.texts = [f"Sharing my feedback on {name}, a physiotherapy clinic in Lucknow."]
-    d = starter(client, c).json()
-    assert d["ai_status"] == "ok" and d["source"] == "ai_suggestion" and d["draft"].startswith("Sharing my feedback on") and "says nothing about your visit" in d["note"]
-    system, user = llm.calls[0]
-    assert name in user and "Back pain rehabilitation" in user and "Exercise-based rehabilitation clinic." in user and "background only" in user
-    assert "customer_answers" not in user and "rating" not in user.lower()  # no customer data of any kind goes in
-    assert "Do not say they visited" in system and "NOTHING about this customer's visit" in system
-    log = owner_query("SELECT kind, status, input_chars FROM ai_generation_logs WHERE tenant_id=:t", t=b.tenant_id)
-    assert log == [("review_starter", "ok", 0)]
-    assert owner_query("SELECT count(*) FROM review_sessions WHERE campaign_id=:c", c=c["id"])[0][0] == 0  # nothing is stored about the visitor
-
-
-def test_a_busy_qr_code_costs_a_handful_of_model_calls_not_one_per_scan(client, llm):
-    b, name = unique_biz()
-    c = campaign(b)
-    llm.texts = [f"Sharing my feedback on {name}, a physiotherapy clinic in Lucknow.", f"This is my review of {name} in Lucknow.", f"A few words about {name}.",
-                 f"Writing about the clinic in Lucknow, {name}.", f"My review of {name}, a physiotherapy clinic.", f"Leaving a review for {name} from Lucknow."]
-    seen = {starter(client, c).json()["draft"] for _ in range(6)}
-    assert len(llm.calls) == 6 and len(seen) == 6  # the pool fills with six different openers
-    served = [starter(client, c).json()["draft"] for _ in range(20)]
-    assert len(llm.calls) == 6 and set(served) <= seen and len(set(served)) > 1  # then no more model calls: a random one of the six
-    assert starter(client, c, language="en").json()["ai_status"] == "ok"
-
-
-def test_editing_the_business_context_changes_the_pool(client, llm):
-    b, name = unique_biz()
-    c = campaign(b)
-    llm.texts = [f"Writing about {name} in Lucknow."]
-    starter(client, c)
-    first = len(llm.calls)
-    b.put("/review-growth/context", json={"services": ["Sports injury rehabilitation"]})
-    llm.texts = [f"Leaving a review for {name}, which offers sports injury rehabilitation."]
-    assert starter(client, c).json()["draft"].startswith("Leaving a review") and len(llm.calls) == first + 1  # a new key: no stale opener
-
-
-def test_an_invented_opener_is_never_served_and_a_failure_cools_down(client, llm):
-    b, name = unique_biz()
-    c = campaign(b)
-    llm.texts = [f"I visited {name} and the staff were excellent."]
-    d = starter(client, c).json()
-    assert d["draft"] is None and d["ai_status"] == "unavailable"
-    calls = len(llm.calls)
-    assert starter(client, c).json()["draft"] is None and len(llm.calls) == calls  # no hammering the model while cooling down
-    assert owner_query("SELECT status FROM ai_generation_logs WHERE tenant_id=:t AND kind='review_starter'", t=b.tenant_id) == [("rejected",)]
-
-
-def test_no_starter_when_ai_is_off_paused_or_the_account_is_out_of_quota(client, monkeypatch):
-    b, name = unique_biz()
-    c = campaign(b)
-    assert starter(client, c).json() == {"draft": None, "ai_status": "unavailable", "language": "en", "source": None}  # not configured in tests
-    stub = StubLLM([f"Writing about {name}."])
-    monkeypatch.setattr(settings, "gemini_api_key", "k")
-    monkeypatch.setattr("app.api.v1.review_public.get_provider", lambda: stub)
-    health.mark_down("credits")
-    assert starter(client, c).json()["draft"] is None and stub.calls == []
-    health.reset()
-    monkeypatch.setattr("app.api.v1.review_public.quota_exceeded", lambda db, t: True)
-    assert starter(client, c).json()["draft"] is None and stub.calls == []
-
-
-def test_starter_is_for_real_browsers_and_is_rate_limited_and_scoped(client, llm):
-    b, name = unique_biz()
-    c = campaign(b)
-    assert client.get(f"/api/v1/public/reviews/{c['public_id']}/starter", headers={"user-agent": "curl/8"}).status_code == 403
-    assert pub(client, "GET", "x" * 20, "/starter").status_code == 404
-    paused = campaign(b, "Paused")
-    b.patch(f"/review-growth/campaigns/{paused['id']}", json={"status": "paused"})
-    assert starter(client, paused).status_code == 410
-
-
-def test_starter_follows_the_supported_languages(client, llm):
-    b, name = unique_biz()
-    b.put("/review-growth/context", json={"languages": ["en"]})
-    c = campaign(b)
-    llm.texts = [f"Writing about {name}."]
-    assert starter(client, c, language="hi").json()["language"] == "en"  # an unsupported language falls back, never errors
-    b.put("/review-growth/context", json={"languages": ["en", "hi"]})
-    llm.texts = [f"{name} के बारे में अपनी राय साझा कर रहा हूँ।"]
-    d = starter(client, c, language="hi").json()
-    assert d["language"] == "hi" and "के बारे में" in d["draft"]
 
 
 # ================================================================ refining in place

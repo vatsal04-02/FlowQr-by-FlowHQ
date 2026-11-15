@@ -265,7 +265,8 @@ def test_media_create_and_list_and_logo_alias():
     out = p.add_media("AT", ACCT, LOC, "https://cdn.example.in/front.jpg", "EXTERIOR")
     assert wire.last().method == "POST" and str(wire.last().url) == f"{V4}/{ACCT}/{LOC}/media"
     assert body(wire.last()) == {"mediaFormat": "PHOTO", "sourceUrl": "https://cdn.example.in/front.jpg", "locationAssociation": {"category": "EXTERIOR"}}
-    assert out == {"name": item["name"], "category": "EXTERIOR", "url": item["googleUrl"], "thumbnail": item["thumbnailUrl"], "created_at": item["createTime"]}
+    assert out == {"name": item["name"], "category": "EXTERIOR", "url": item["googleUrl"], "thumbnail": item["thumbnailUrl"], "created_at": item["createTime"],
+                   "google_url": item["googleUrl"], "width": None, "height": None, "views": None}  # Google-served URL kept separately: "live" means Google serves it
     p.add_media("AT", ACCT, LOC, "https://cdn.example.in/logo.png", "LOGO")
     assert body(wire.last())["locationAssociation"] == {"category": "PROFILE"}  # LOGO is deprecated in favour of PROFILE
     p, wire = provider((200, {"mediaItems": [item], "totalMediaItemCount": 1}))

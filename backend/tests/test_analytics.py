@@ -18,6 +18,10 @@ def test_analytics_separates_funnel_stages_and_is_tenant_scoped(admin, connected
     assert data["reviews"]["total_synced"] == 2 and data["reviews"]["new_in_range"] == 2
     assert data["reviews"]["awaiting_reply"] == 1 and data["reviews"]["reply_rate_in_range"] == 0.5
     assert data["reviews"]["average_rating_all_time"] == 4.0
+    # the trend can be split by rating: one of the two reviews (the 3-star) is low, and the split never exceeds the daily count
+    series = data["reviews"]["series"]
+    assert sum(p["count"] for p in series) == 2 and sum(p["low_count"] for p in series) == 1
+    assert all(p["low_count"] <= p["count"] for p in series)
 
     today = connected.get("/analytics/overview").json()["engagement"]
     assert (today["scans"], today["landing_views"], today["google_clicks"]) == (1, 2, 1)

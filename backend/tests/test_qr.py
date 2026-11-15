@@ -270,7 +270,7 @@ def test_identifiers_are_random_unique_and_survive_everything_but_an_explicit_re
     assert len(c["public_id"]) == 22
     assert put_logo(biz_a).status_code == 200
     assert biz_a.put("/qr/style", json={"dark": "#1B46B8", "use_logo": True, "caption": "Review us"}).status_code == 200
-    assert biz_a.patch(f"/cards/{card['id']}", json={"location_id": second_loc, "label": "Till"}).status_code == 200  # editable destination
+    assert biz_a.patch(f"/cards/{card['id']}", json={"location_id": second_loc, "label": "Till", "confirm": True}).status_code == 200  # editable destination (confirmed)
     assert biz_a.post(f"/cards/{card['id']}/pause").status_code == 200 and biz_a.post(f"/cards/{card['id']}/activate").status_code == 200
     assert biz_a.patch(f"/review-growth/campaigns/{c['id']}", json={"location_id": second_loc, "status": "paused", "qr_style": {"dark": "#0B5D1E"}}).status_code == 200
     assert biz_a.patch(f"/review-growth/campaigns/{c['id']}", json={"status": "active"}).status_code == 200
@@ -576,7 +576,7 @@ def test_every_edit_keeps_the_printed_code_working_and_its_history(admin, biz_a,
     second = biz_a.post("/locations", json={"name": "Second branch", "review_url": "https://g.page/r/XYZ/review"}).json()["id"]
     put_logo(biz_a)
     edits = [
-        lambda: biz_a.patch(f"/cards/{card['id']}", json={"location_id": second}),
+        lambda: biz_a.patch(f"/cards/{card['id']}", json={"location_id": second, "confirm": True}),
         lambda: biz_a.patch(f"/cards/{card['id']}", json={"label": "Reception"}),
         lambda: biz_a.patch(f"/locations/{second}", json={"review_url": "https://g.page/r/NEW/review", "name": "Renamed branch"}),
         lambda: biz_a.put("/qr/style", json={"dark": "#1B46B8", "use_logo": True, "error_correction": "Q", "margin": 8, "caption": "Hi"}),
@@ -608,7 +608,7 @@ def test_every_edit_keeps_the_printed_code_working_and_its_history(admin, biz_a,
 
     # re-mapping the card to ANOTHER business keeps the token; the first business's scan history stays theirs
     other = make_business("Other Clinic")
-    assert admin.post(f"/admin/cards/{card['id']}/unassign").status_code == 200
+    assert admin.post(f"/admin/cards/{card['id']}/unassign", json={"confirm": True}).status_code == 200
     assert admin.post(f"/admin/cards/{card['id']}/assign", json={"tenant_id": other.tenant_id, "location_id": other.location_id}).status_code == 200
     assert client.get(f"/api/v1/public/c/{card['public_token']}", headers=UA).json()["business"]["name"] == "Other Clinic"
     assert owner_query("SELECT count(*) FROM scan_events WHERE card_id = :c AND tenant_id = :t", c=card["id"], t=biz_a.tenant_id)[0][0] >= 1

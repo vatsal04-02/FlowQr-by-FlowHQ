@@ -24,8 +24,8 @@ def test_batch_generates_unique_codes_and_unguessable_tokens(admin, batch):
     assert len(set(codes)) == 5 and all(c.startswith("FQR-") for c in codes)
     tokens = [c["public_token"] for c in items]
     assert len(set(tokens)) == 5 and all(len(t) >= 24 for t in tokens)
-    assert all(c["url"] == f"https://go.test.flowqr.example/c/{c['public_token']}" for c in items)
-    assert all(c["status"] == "unassigned" for c in items)
+    assert all(c["url"] == f"https://go.test.flowqr.example/q/{c['public_token']}" for c in items)
+    assert all(c["status"] == "generated" for c in items)
 
 
 def test_non_admin_cannot_use_admin_endpoints(biz_a, batch):
@@ -145,7 +145,8 @@ def test_reassignment_preserves_scan_history_and_review_link_can_change(admin, b
     body = client.get(f"/api/v1/public/c/{card['public_token']}", headers={"user-agent": "Mozilla/5.0 Other Safari/604.1"}).json()
     assert body["review_url"] == "https://g.page/r/NEWLINK/review"
     # platform reassigns to B
-    admin.post(f"/admin/cards/{card['id']}/unassign")
+    assert admin.post(f"/admin/cards/{card['id']}/unassign").status_code == 409  # a card in use needs an explicit confirmation
+    assert admin.post(f"/admin/cards/{card['id']}/unassign", json={"confirm": True}).status_code == 200
     admin.post(f"/admin/cards/{card['id']}/assign", json={"tenant_id": biz_b.tenant_id, "location_id": biz_b.location_id})
     detail = admin.get(f"/admin/cards/{card['id']}").json()
     assert len(detail["history"]) == 2

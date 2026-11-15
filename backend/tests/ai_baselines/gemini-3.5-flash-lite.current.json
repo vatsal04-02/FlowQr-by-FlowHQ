@@ -1,0 +1,270 @@
+{
+ "model": "gemini-3.5-flash-lite",
+ "variant": "current",
+ "recorded": "2026-11-14T20:27:50.609811+00:00",
+ "metric_version": 2,
+ "floors": {
+  "reply": {
+   "composite": 0.94,
+   "clean_rate": 0.92,
+   "max_unsupported_claims": 1
+  },
+  "post": {
+   "composite": 0.976,
+   "clean_rate": 0.92,
+   "max_unsupported_claims": 1
+  },
+  "description": {
+   "composite": 0.988,
+   "clean_rate": 0.92,
+   "max_unsupported_claims": 1
+  }
+ },
+ "outputs": [
+  {
+   "case": "reply-physio-1",
+   "task": "reply",
+   "text": "It is wonderful to hear that the desk exercises made such a difference for your back. Sitting long hours takes a real toll on posture, and understanding the root cause is always the first step. We are glad you are feeling much better and hope to see you whenever you need support."
+  },
+  {
+   "case": "reply-physio-2",
+   "task": "reply",
+   "text": "Sitting and waiting for forty minutes when you have a set time is never a good experience, especially when the session then feels hurried. We are sorry for the trouble this caused you today. Please reach out to us directly so we can look into what happened and make things right."
+  },
+  {
+   "case": "reply-physio-3",
+   "task": "reply",
+   "text": "Amit, aapka feedback padhkar accha laga ki therapist ne sab cheezein acche se samjhayi. Parking wali jo problem aapne batayi, uss par hum dhyan de rahe hain taaki next time aane mein thodi aasani ho. Agli baar jab bhi aana ho, aap humein phone karke bhi aa sakte hain."
+  },
+  {
+   "case": "reply-physio-4",
+   "task": "reply",
+   "text": "सुनीता जी, आपका अनुभव पढ़कर बहुत अच्छा लगा। हमारी टीम हमेशा मरीजों का पूरा ध्यान रखती है। अगली बार क्लिनिक आने पर आपका स्वागत है।"
+  },
+  {
+   "case": "reply-dental-1",
+   "task": "reply",
+   "text": "Pooja, aapka yeh review padhkar team ko bahut khushi hui. Bachon ke pehle visit ko aaramdayak banana hi hamari koshish hoti hai aur clinic ki safai par bhi hum poora dhyaan dete hain. Aage bhi kisi bhi check-up ke liye aap clinic par aa sakti hain."
+  },
+  {
+   "case": "reply-dental-2",
+   "task": "reply",
+   "text": "Vikas, aapko baar-baar bulana aur unexpected kharcha batana sahi nahi laga, iske liye hum aapse maafi chahte hain. Shuru mein hi clear communication hona chahiye tha jo is baar nahi ho paaya. Agar aap is baare mein baat karna chahte hain, toh clinic par directly contact kar sakte hain taaki hum ise theek kar sakein."
+  },
+  {
+   "case": "reply-dental-3",
+   "task": "reply",
+   "text": "Thanks for sharing this honest note with us, Karan. We are glad the treatment itself went well, but it is clear we need to manage our waiting area better so it does not feel so crowded. We will work on making the reception experience smoother for everyone."
+  },
+  {
+   "case": "reply-dental-4",
+   "task": "reply",
+   "text": "Shreya, it is so good to hear that the cleaning went well and that keeping things clear and hygienic made you comfortable. Knowing that step-by-step guidance helps put people at ease means a lot to our team here in Kothrud. Drop by whenever you need your next routine check-up."
+  },
+  {
+   "case": "reply-salon-1",
+   "task": "reply",
+   "text": "It means a lot to hear that your bridal makeup stayed fresh through all the celebrations. We always want brides to feel completely at ease from the trial right up to the big day ✨"
+  },
+  {
+   "case": "reply-salon-2",
+   "task": "reply",
+   "text": "Waiting an hour past a booked slot and ending up with the wrong colour is really disappointing, Meera. We are truly sorry for the frustration this caused you during your visit. Please reach out to us directly so we can make this right for you. ✨"
+  },
+  {
+   "case": "reply-salon-3",
+   "task": "reply",
+   "text": "Ritu, aapka facial ka experience sunkar bahut khushi hui ki skin glow kar rahi hai ✨ Humari team aise hi best results dene ki poori koshish karti hai. Next time aane se pehle call karke appointment book kar lena taaki aapka wait na ho."
+  },
+  {
+   "case": "reply-salon-4",
+   "task": "reply",
+   "text": "It means a lot to our team when someone takes the time to leave such a wonderful rating. We always aim to make every visit feel special and relaxing. Hope to see you back at the studio soon ✨"
+  },
+  {
+   "case": "reply-restaurant-1",
+   "task": "reply",
+   "text": "Sandeep, Sunday ki family outing ke liye humein choose karne ke liye shukriya. Dal makhani ka swad ghar jaisa laga ye sunkar poori team ka din ban gaya. Aapki family ko dobara serve karne ka intezaar rahega."
+  },
+  {
+   "case": "reply-restaurant-2",
+   "task": "reply",
+   "text": "Isha, waiting 45 minutes for cold tandoori starters and getting a shrug from the waiter is simply not right. I am genuinely sorry for that experience. Please reach out to us directly so we can make it right."
+  },
+  {
+   "case": "reply-restaurant-3",
+   "task": "reply",
+   "text": "Gaurav, aapko food pasand aaya yeh jaan kar bahut khushi hui. Weekend ki bheed aur parking ki dikkat ke liye hum samajh sakte hain ki thodi pareshani hoti hai. Aage se aap aane se pehle call kar sakte hain taaki hum kuch help kar sakein."
+  },
+  {
+   "case": "reply-restaurant-4",
+   "task": "reply",
+   "text": "Tara, thanks for letting us know how it went. We are glad our team treated you well during your visit. We will look closely at the food to make sure it delivers much better value next time."
+  },
+  {
+   "case": "reply-gym-1",
+   "task": "reply",
+   "text": "It is wonderful to hear that the beginner onboarding and form correction helped you settle in so well, Divya. We have noted your feedback about the general ambience and comfort around peak hours, and we are working on it. Keep up the steady work on the strength floor."
+  },
+  {
+   "case": "reply-gym-2",
+   "task": "reply",
+   "text": "Rahul, hearing that the treadmills have been out of order for weeks and that you were ignored by the manager is really disappointing. We are sorry for that experience. Please reach out to us directly so we can look into this and put it right."
+  },
+  {
+   "case": "reply-gym-3",
+   "task": "reply",
+   "text": "Faizan, aapka trainers ke baare mein yeh kehna ki woh helpful hain, sunkar accha laga. Yeh baat bilkul sahi hai ki evening rush ke time machines ke liye thoda wait karna padta hai. Aapki yeh concern humne note kar li hai aur ispe dhyan denge."
+  },
+  {
+   "case": "reply-gym-4",
+   "task": "reply",
+   "text": "नेहा, जिम का माहौल आपको पसंद आया यह जानकर बहुत अच्छा लगा। ट्रेनर हमेशा आपकी मदद के लिए फ्लोर पर मौजूद रहते हैं। अगली बार आएं तो किसी नई एक्सरसाइज पर ध्यान देंगे।"
+  },
+  {
+   "case": "reply-retail-1",
+   "task": "reply",
+   "text": "Mohit, phone ki screen repair ka kaam time par ho gaya aur aapko bill bhi mil gaya, ye sunkar accha laga. Humari koshish hamesha yahi rehti hai ki local students aur families ko straightforward aur helpful service mile. Kabhi bhi koi aur zaroorat ho toh dukaan par zaroor aana."
+  },
+  {
+   "case": "reply-retail-2",
+   "task": "reply",
+   "text": "Suresh, naya phone lene ke do din baad hi aisi problem aana aur wahan se madad na milna, yeh bilkul galat hua aur iske liye hum aapse maafi chahte hain. Aap please shop par ya phone par directly humse sampark karein, taaki hum isko theek karne mein aapki poori sahayta kar sakein."
+  },
+  {
+   "case": "reply-retail-3",
+   "task": "reply",
+   "text": "Glad you found the right phone for your budget here, Kunal. We know the shop gets quite cramped during peak hours, and we really appreciate your patience. Hope to see you again soon."
+  },
+  {
+   "case": "reply-retail-4",
+   "task": "reply",
+   "text": "Zoya, it is great to hear you had a smooth experience swapping your old phone with us. We always try to keep the process simple and straightforward for our customers here in Laxmi Nagar. Drop by anytime you need an accessory or help with your device."
+  },
+  {
+   "case": "reply-coaching-1",
+   "task": "reply",
+   "text": "राजेश जी, बेटी की मेहनत रंग ला रही है और उसके नंबर बढ़े हैं यह देखकर हमें बहुत खुशी हुई। हम ऐसे ही हर हफ्ते टेस्ट और डाउट क्लास के जरिए बच्चों की मदद करते रहेंगे। अगली क्लास में मिलते हैं।"
+  },
+  {
+   "case": "reply-coaching-2",
+   "task": "reply",
+   "text": "अनीता जी, बैच में बहुत ज्यादा भीड़ होने और पीछे बैठने पर ठीक से समझ न आने की आपकी बात सही है। डाउट पूछने का समय न मिल पाना भी बड़ी परेशानी है, इसके लिए हम खेद व्यक्त करते हैं। आप इस बारे में हमसे सीधे संपर्क करें ताकि हम इसे ठीक कर सकें।"
+  },
+  {
+   "case": "reply-coaching-3",
+   "task": "reply",
+   "text": "Prakash ji, teachers ki tareef aur test series ke baare me padhkar accha laga. Aapne jo class timing ko lekar bataya hai, use humne dhyan me rakh liya hai. Hum koshish karenge ki isko aur behtar banayein."
+  },
+  {
+   "case": "reply-coaching-4",
+   "task": "reply",
+   "text": "Meenal, it is wonderful to see your son working hard in the JEE foundation batch. The weekly tests and regular parent-teacher meetings really help students stay focused on their goals. We are glad to be a part of his learning journey here on Boring Road."
+  },
+  {
+   "case": "post-physio-1",
+   "task": "post",
+   "text": "When a nagging backache from heavy lifting or sports strains refuses to go away on its own, knowing when to get a professional assessment matters. A standard first visit at our Gomti Nagar clinic involves a 45-minute detailed evaluation of your movement and daily habits, without needing any doctor's referral to get started. Our physiotherapists take the time to explain every part of the plan so you understand what is happening. Call our clinic during opening hours, Monday to Saturday, to schedule your initial consultation."
+  },
+  {
+   "case": "post-physio-2",
+   "task": "post",
+   "text": "Kya pehli baar physiotherapy ke liye doctor ka referral lana zaroori hai? Gomti Physio & Rehab mein pehli back assessment ke liye kisi referral ki koi zaroorat nahi padti hai. Aap seedha clinic aa sakte hainMonday se Saturday subah 9 se shaam 7 baje ke beech."
+  },
+  {
+   "case": "post-dental-1",
+   "task": "post",
+   "text": "Root canal treatment ko lekar agar darr lagta hai, toh pehle ye jaan lena zaroori hai ki hum local anaesthesia ka use karte hain aur dentist start karne se pehle har ek step aaram se explain karte hain. Humare Kothrud clinic mein root canal treatment ke dauran aapko har process ki puri jankari di jati hai taaki aap comfortable rahein. Monday se Saturday subah 10 am se raat 8 pm ke beech aap kabhi bhi clinic visit kar sakte hain. Agar aapko is treatment ke bare mein aur kuch puchna hai ya details chahiye, toh aap humein call kar sakte hain."
+  },
+  {
+   "case": "post-dental-2",
+   "task": "post",
+   "text": "Wondering if it is time for a routine check-up for everyone at home before the busy wedding season starts? You can visit our free dental check-up camp happening on the first Sunday of the month from 10 am to 1 pm. This offer is priced at ₹0 and is valid until 2027-03-31. Drop by Smile Craft Dental in Kothrud or call us to plan your visit."
+  },
+  {
+   "case": "post-salon-1",
+   "task": "post",
+   "text": "Juggling wedding season parties and festive get-togethers right now means planning your schedule carefully. Walk-ins are always welcome at our Vaishali Nagar salon, but booking ahead ensures your haircut or hair colour gets our full attention without the wait. Drop by or give us a ring to reserve your chair today. ✨"
+  },
+  {
+   "case": "post-salon-2",
+   "task": "post",
+   "text": "Struggling to find a fresh haircut that actually suits your daily routine without needing endless styling? Drop by our Vaishali Nagar salon where we take the time to understand your hair texture and face shape before picking up the scissors. Walk-ins are always welcome here, though booking an appointment beforehand means you get seated right away. Stop by between 10 am and 9 pm on any day of the week to give your look a neat refresh."
+  },
+  {
+   "case": "post-restaurant-1",
+   "task": "post",
+   "text": "Sunday ko family ke saath kahan jaana hai, yeh sochne mein time waste mat karo. Sunday family thali — ₹349 (valid until 2027-06-30): unlimited thali for one ka maza lijiye hamare saath Vijay Nagar mein. Yeh offer poori family dining ke liye perfect hai jo accha khana pasand karte hain. Aaj hi aaiye aur table ke liye humein call karke visit plan karein."
+  },
+  {
+   "case": "post-restaurant-2",
+   "task": "post",
+   "text": "Planning a family get-together or office dinner this week? We are open every day from 11 am to 11 pm for your family dining plans. You can settle in for a hearty spread of tandoori starters and North Indian thali. Drop by Vijay Nagar whenever you are ready for a sit-down meal."
+  },
+  {
+   "case": "post-gym-1",
+   "task": "post",
+   "text": "Figuring out how to start strength training can feel confusing when you walk onto a busy gym floor for the very first time. Pick just three basic movement patterns like a squat, a push, and a pull for your first week instead of trying every machine in sight. Master the movement with light weights before you add heavy loads, and ask our trainers on the floor if you need help with your form. Drop by IronCore Fitness in Madhapur anytime between Monday and Saturday if you want to pick up a one-day trial pass at the front desk."
+  },
+  {
+   "case": "post-gym-2",
+   "task": "post",
+   "text": "Wondering if you can test the floor before committing to a membership? A one-day trial pass is available at the front desk so you can check out the equipment and see how the timings fit your workday. Drop by IronCore Fitness in Madhapur anytime between Monday and Saturday from 5 am to 10 pm to pick yours up."
+  },
+  {
+   "case": "post-retail-1",
+   "task": "post",
+   "text": "Agar aapka phone baar-baar hang ho raha hai ya screen par cracks aa gaye hain, toh naya phone lene ki jaldi nahi hai. Aap Sharma Mobile & Accessories par phone repair aur screen replacement ke liye aa sakte hain, jahan hum aapka device check karke seedhi baat batate hain. Har kaam transparent hota hai aur aap bina kisi tension ke shop visit kar sakte hain. Hum subah 10:30 se raat 9:00 baje tak open hain."
+  },
+  {
+   "case": "post-retail-2",
+   "task": "post",
+   "text": "Naya phone lene se pehle sabhi ke mann mein yehi sawaal hota hai ki bill aur warranty milegi ya nahi. Sharma Mobile & Accessories par milne wale har naye smartphone ke sath proper GST bill aur brand warranty di jaati hai, taaki aapko baad mein koi pareshani na ho. Aap naye smartphones ya phone repair ke liye kabhi bhi subah 10:30 se raat 9:00 baje ke beech dukan par aa sakte hain."
+  },
+  {
+   "case": "post-coaching-1",
+   "task": "post",
+   "text": "क्लास 9 से 12 तक के मैथ्स के सवालों में अक्सर एक छोटी सी कैलकुलेशन मिस्टेक पूरा जवाब गलत करा देती है। इससे बचने का सबसे आसान तरीका है कि हर स्टेप के बाद अपनी वर्किंग को एक बार पेंसिल से रीचेक जरूर करें। ऐसी ही सही आदतों और मजबूत बेस के लिए आप बोरिंग रोड सेंटर पर हमारी क्लास 9 to 12 maths की क्लासेस देख सकते हैं। आप चाहें तो पहली फ्री डेमो क्लास के लिए आ सकते हैं।"
+  },
+  {
+   "case": "post-coaching-2",
+   "task": "post",
+   "text": "Struggling to keep up with tricky concepts in class 9 to 12 maths before the next school exam? Every concept needs steady practice and clear answers, not just last-minute reading. In our weekly tests and doubt classes, students get time to ask questions until they actually understand the method. You can drop by on Boring Road between Monday and Saturday, 3 pm to 8 pm, to see how our classes work."
+  },
+  {
+   "case": "desc-physio",
+   "task": "description",
+   "text": "Gomti Physio & Rehab is a physiotherapy clinic in Gomti Nagar, Lucknow, helping office workers, sportspeople, and people recovering from surgery. We provide back and neck pain assessment, sports injury rehabilitation, post-surgery physiotherapy, and posture correction for desk workers. No doctor's referral is needed for a first assessment, and each session lasts about forty-five minutes. Get in touch to discuss how we can help you get started."
+  },
+  {
+   "case": "desc-dental",
+   "task": "description",
+   "text": "Smile Craft Dental Kothrud mein families aur college students ke liye ek trusted dental clinic hai. Aap yahan routine check-up aur cleaning, root canal treatment, braces aur aligners, aur children's dentistry ke liye aa sakte hain. Root canal treatment ke dauran local anaesthesia ka use hota hai aur dentist shuru karne se pehle har step explain karte hain. Aap free dental check-up camp ke liye bhi visit kar sakte hain jo first Sunday of the month, 10 am to 1 pm hota hai (valid until 2027-03-31, price ₹0). Visit shuru karne ke liye clinic se contact karein."
+  },
+  {
+   "case": "desc-salon",
+   "task": "description",
+   "text": "Glow Studio Salon in Vaishali Nagar, Jaipur is a unisex beauty salon for young professionals and brides-to-be looking for a fresh look. We offer haircut and styling, hair colour and smoothing, facials and skin care, and complete bridal makeup. Walk-ins are welcome every day, though appointments get priority so you can plan your visit easily. Drop by our studio to get started with your next style or makeup session."
+  },
+  {
+   "case": "desc-restaurant",
+   "task": "description",
+   "text": "Tandoor Junction ek casual family restaurant hai jo Vijay Nagar mein families aur office groups ke liye hearty meals serve karta hai. Aap yahan aakar garma-garam tandoori starters aur pet bhar ke North Indian thali enjoy kar sakte hain. Sunday family thali ₹349 mein milti hai, jo ek person ke liye unlimited thali hai. Hum party orders bhi lete hain, jiske liye 20 ya usse zyada logon ke order ke liye ek din pehle batana zaroori hai. Aaiye apne family aur friends ke sath, aur table book karne ke liye visit kariye."
+  },
+  {
+   "case": "desc-gym",
+   "task": "description",
+   "text": "IronCore Fitness is a gym in Madhapur built for IT professionals and first-time gym-goers looking to start their fitness journey. We provide a fully equipped strength floor alongside structured group cardio classes and beginner onboarding to help you get started comfortably. If you want dedicated guidance, our experienced team also offers personal training. You can drop by the front desk to ask for a one-day trial pass before deciding. Visit us to check out the space and begin your routine."
+  },
+  {
+   "case": "desc-retail",
+   "task": "description",
+   "text": "Sharma Mobile & Accessories Laxmi Nagar mein students aur families ke liye ek reliable mobile phone shop hai. Yahan aapko latest new smartphones, chargers aur sabhi tarah ke phone accessories milte hain. Agar aapka phone kharab ho gaya hai, toh humare yahan fast phone repair aur screen replacement ka kaam bhi hota hai. Aap apna purana phone exchange bhi kar sakte hain. Har phone ke sath GST bill aur official brand warranty milti hai. Visit karne ke liye seedhe shop par aayiye."
+  },
+  {
+   "case": "desc-coaching",
+   "task": "description",
+   "text": "विद्या पाठ क्लासेस बोरिंग रोड, पटना में स्कूल के विद्यार्थियों और उनके माता-पिता के लिए कोचिंग इंस्टिट्यूट है। यहाँ क्लास 9 to 12 maths and science की पढ़ाई होती है और JEE foundation batch की तैयारी कराई जाती है। बच्चों की प्रोग्रेस के लिए weekly tests and doubt classes के साथ parent-teacher meetings भी होती हैं। हर छात्र को सही मार्गदर्शन देने के लिए आप सोमवार से शनिवार शाम तीन बजे से आठ बजे के बीच आ सकते हैं। पहला क्लास डेमो होता है, इसलिए आप आकर देख सकते हैं।"
+  }
+ ]
+}

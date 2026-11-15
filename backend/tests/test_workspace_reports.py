@@ -21,6 +21,7 @@ def status_of(biz, id_):
 
 # ------------------------------------------------------------------ integration honesty
 def test_integration_status_never_claims_more_than_is_true(biz_a, monkeypatch):
+    monkeypatch.setattr(settings, "rank_provider", ""), monkeypatch.setattr(settings, "rank_provider_key", "")
     items = {i["id"]: i for i in biz_a.get("/workspace/integrations").json()["integrations"]}
     assert items["google"]["status"] == "not_connected" and items["ai"]["status"] == "setup_required" and items["razorpay"]["status"] == "setup_required"
     for k in ("meta", "whatsapp", "rank_provider"):
@@ -129,3 +130,22 @@ def test_pdf_report_is_a_real_pdf_and_states_missing_data(connected, gid):
     streams = [zlib.decompress(m) for m in re.findall(rb"stream\n(.*?)\nendstream", r.content, re.S)]
     text = b" ".join(streams).decode("latin-1")
     assert "reputation report" in text and "No Google performance data yet" in text and "Page 1 of 1" in text
+
+
+def test_report_and_every_download_follow_the_location_filter(connected, gid, biz_b):
+    other = connected.post("/locations", json={"name": "Second branch"}).json()["id"]
+    add_review(connected, gid, 5, "main branch", days_ago=2)
+    add_review(connected, gid, 1, "second branch", days_ago=2, loc=other)
+    everywhere = connected.get("/reports/summary").json()
+    only = connected.get("/reports/summary", params={"location_id": other}).json()
+    assert everywhere["location"] is None and everywhere["reputation"]["reviews"] == 2 and everywhere["reputation"]["unanswered_now"] == 2
+    assert only["location"] == "Second branch" and only["reputation"]["reviews"] == 1 and only["reputation"]["unanswered_now"] == 1
+    rows = list(csv.reader(io.StringIO(connected.get("/reports/export/reviews.csv", params={"location_id": other}).text.lstrip("﻿"))))[1:]
+    assert [row[4] for row in rows] == ["second branch"]
+    pdf = connected.get("/reports/summary.pdf", params={"location_id": other})
+    assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
+    # someone else's location, or nonsense, is refused the same way everywhere
+    foreign = biz_b.location_id
+    for path in ("/reports/summary", "/reports/summary.pdf", "/reports/export/reviews.csv"):
+        assert connected.get(path, params={"location_id": foreign}).status_code == 404, path
+        assert connected.get(path, params={"location_id": "nope"}).status_code == 422, path

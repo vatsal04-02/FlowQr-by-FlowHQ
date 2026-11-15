@@ -83,7 +83,7 @@ def test_expired_trial_pauses_writes_with_a_402_that_says_why_and_never_a_500(cl
 def test_an_expired_owner_can_still_check_out_and_the_data_is_still_there_after_paying(rzp, clinic):
     before = counts(clinic.tenant_id)
     expire(clinic.tenant_id)
-    sub = start_checkout(clinic, "growth")  # not blocked by the expired trial
+    sub = start_checkout(clinic, "pro")  # not blocked by the expired trial (Pro, because Growth includes one location and this test then adds a second)
     assert sub["subscription_id"] and sub["key_id"] == "rzp_test_abc123"
     assert clinic.get("/billing/subscription").json()["status"] in ("pending", "expired")
     pay = "pay_exp_1"

@@ -160,7 +160,7 @@ def test_returning_google_user_logs_in_by_sub_even_if_google_email_changes(googl
     _, r = sign_in(google, sub=sub, email=first_email)
     assert landing(r)[0] == "/onboarding"
     s2, r2 = sign_in(google, sub=sub, email=f"renamed-{uuid.uuid4().hex[:6]}@example.com")
-    assert landing(r2)[0] == "/dashboard"
+    assert landing(r2)[0] == "/overview"
     assert s2.get("/auth/me").json()["user"]["email"] == first_email
     assert owner_query("SELECT count(*) FROM users WHERE google_sub=:s", s=sub)[0][0] == 1
 
@@ -180,7 +180,7 @@ def test_logout_then_google_login_again(google):
     s.csrf = s.get("/auth/me").json()["csrf_token"]
     assert s.post("/auth/logout").status_code == 204 and s.get("/auth/me").status_code == 401
     s2, r = sign_in(google, sub=sub)
-    assert landing(r)[0] == "/dashboard" and s2.get("/auth/me").status_code == 200
+    assert landing(r)[0] == "/overview" and s2.get("/auth/me").status_code == 200
 
 
 def test_platform_admin_is_never_granted_through_an_unverified_google_email(google):
@@ -193,7 +193,7 @@ def test_platform_admin_is_never_granted_through_an_unverified_google_email(goog
 def test_links_to_existing_account_with_verified_email_and_password_still_works(google):
     u = make_user()  # registered AND email-verified
     s, r = sign_in(google, email=u.email)
-    assert landing(r)[0] == "/dashboard"
+    assert landing(r)[0] == "/overview"
     me = s.get("/auth/me").json()["user"]
     assert me["email"] == u.email and me["google_linked"] and me["has_local_login"]
     assert owner_query("SELECT count(*) FROM users WHERE email=:e", e=u.email)[0][0] == 1
@@ -248,7 +248,7 @@ def test_signed_in_user_can_link_google_via_post_only(google):
     google.claims = {"email": "someone-else@example.com"}  # linking does not require matching emails, only a verified Google identity
     s, state, _ = begin(google, u, link=True)
     r = finish(s, state)
-    assert landing(r) == ("/settings", {"google": "linked"})
+    assert landing(r) == ("/settings/account", {"google": "linked"})
     assert u.get("/auth/me").json()["user"]["google_linked"] is True
 
 

@@ -115,7 +115,7 @@ def activate(biz, rzp, plan="growth", client=None):
 
 def test_public_plans_in_inr(client):
     r = client.get("/api/v1/billing/plans").json()
-    assert [(p["code"], p["price_paise"]) for p in r["plans"]] == [("essential", 39900), ("growth", 79900), ("multi", 149900)]
+    assert [(p["code"], p["price_paise"]) for p in r["plans"]] == [("starter", 49900), ("growth", 79900), ("pro", 149900)]
     assert r["trial_days"] == settings.trial_days
 
 
@@ -123,7 +123,7 @@ def test_new_tenant_starts_in_configurable_trial(biz_a):
     s = biz_a.get("/billing/subscription").json()
     assert s["status"] == "trialing" and s["active"] and s["plan"] == "trial"
     assert s["trial_days_left"] in (settings.trial_days, settings.trial_days - 1)
-    assert s["limits"]["locations"] == 3 and "gbp_posts" in s["limits"]["features"]
+    assert "gbp_posts" in s["limits"]["features"]  # the exact Growth limits are asserted in test_phase2_plans.py
     assert s["usage"]["locations"] == 1
 
 
@@ -163,7 +163,7 @@ def test_verify_rejects_bad_signature_and_foreign_tenant(rzp, biz_a, biz_b):
 
 
 def test_verify_activates_only_when_razorpay_confirms(rzp, biz_a):
-    sid = start_checkout(biz_a, "essential")["subscription_id"]
+    sid = start_checkout(biz_a, "starter")["subscription_id"]
     rzp.subs[sid]["status"] = "authenticated"  # mandate authorised, nothing charged yet
     pay = "pay_abcde"
     r = biz_a.post("/billing/subscription/verify", json={"razorpay_payment_id": pay, "razorpay_subscription_id": sid, "razorpay_signature": sig(KEY_SECRET, f"{pay}|{sid}")})
@@ -172,7 +172,7 @@ def test_verify_activates_only_when_razorpay_confirms(rzp, biz_a):
     r = biz_a.post("/billing/subscription/verify", json={"razorpay_payment_id": pay, "razorpay_subscription_id": sid, "razorpay_signature": sig(KEY_SECRET, f"{pay}|{sid}")})
     assert r.json()["status"] == "active"
     s = biz_a.get("/billing/subscription").json()
-    assert s["plan"] == "essential" and s["limits"]["locations"] == 1 and s["source"] == "razorpay"
+    assert s["plan"] == "starter" and s["limits"]["locations"] == 1 and s["source"] == "razorpay"
 
 
 def test_webhook_signature_required(rzp, client, biz_a):
@@ -197,7 +197,7 @@ def test_webhook_charge_records_payment_and_is_idempotent(rzp, client, biz_a):
 
 
 def test_failed_payment_grace_then_lapse_blocks_writes(rzp, client, biz_a):
-    sid, _ = activate(biz_a, rzp)
+    sid, _ = activate(biz_a, rzp, "pro")  # Pro: Growth includes one location and this test adds a second
     webhook(client, sub_event("subscription.pending", {"id": sid, "status": "pending"}, created_at=int(time.time()) + 5))
     s = biz_a.get("/billing/subscription").json()
     assert s["status"] == "past_due" and s["active"] is True and s["grace_until"]  # still within grace
@@ -254,15 +254,15 @@ def test_cancel_failure_does_not_change_state(rzp, biz_a):
 
 
 def test_upgrade_immediate_downgrade_scheduled_and_guarded(rzp, biz_a):
-    sid, _ = activate(biz_a, rzp, "essential")
-    assert biz_a.post("/billing/subscription/change-plan", json={"plan": "essential"}).status_code == 409
-    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "multi"})
-    assert r.status_code == 200 and r.json()["plan"] == "multi"
+    sid, _ = activate(biz_a, rzp, "starter")
+    assert biz_a.post("/billing/subscription/change-plan", json={"plan": "starter"}).status_code == 409
+    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "pro"})
+    assert r.status_code == 200 and r.json()["plan"] == "pro"
     assert rzp.calls[-1][0] == "update" and rzp.calls[-1][3] is False  # applied now
     assert biz_a.get("/billing/subscription").json()["limits"]["locations"] == 10
     for i in range(2):
         assert biz_a.post("/locations", json={"name": f"Extra {i}"}).status_code == 201
-    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "essential"})  # 3 locations > 1
+    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "starter"})  # 3 locations > 1
     assert r.status_code == 409 and r.json()["detail"]["code"] == "downgrade_blocked"
     for loc in biz_a.get("/locations").json()[1:]:
         biz_a.delete(f"/locations/{loc['id']}")
@@ -271,7 +271,7 @@ def test_upgrade_immediate_downgrade_scheduled_and_guarded(rzp, biz_a):
 
 
 def test_plan_limits_enforced(rzp, biz_a):
-    activate(biz_a, rzp, "essential")  # 1 location, 3 team members
+    activate(biz_a, rzp, "starter")  # 1 location, 3 team members
     r = biz_a.post("/locations", json={"name": "Over the limit"})
     assert r.status_code == 402 and r.json()["detail"]["code"] == "plan_limit"
     assert biz_a.post("/staff/invitations", json={"email": "a1@example.com"}).status_code == 201
@@ -285,7 +285,7 @@ def test_feature_gating_by_plan(biz_a):
     from app.services import entitlements as ent
     db, sub = db_sub(biz_a.tenant_id)
     assert ent.compute(sub).has("gbp_posts")
-    sub.features = ["review_sync", "ai_replies", "gbp_info"]; sub.plan = "essential"; db.commit()
+    sub.features = ["review_sync", "ai_replies", "gbp_info"]; sub.plan = "starter"; db.commit()
     with pytest.raises(Exception) as e:
         ent.require_feature(db, sub.tenant_id, "gbp_posts")
     assert e.value.status_code == 402 and e.value.detail["code"] == "plan_upgrade_required"
@@ -310,7 +310,7 @@ def test_trial_expiry_blocks_writes_and_ai_but_not_card_scans(admin, biz_a, clie
 
 def test_card_order_flow_separate_from_subscription_payments(rzp, client, biz_a):
     shipping = {"name": "Dr Geeta", "phone": "9876543210", "address_line": "12 Hazratganj", "city": "Lucknow", "state": "Uttar Pradesh", "postal_code": "226001"}
-    assert biz_a.post("/billing/card-orders", json={"quantity": 2, "shipping": shipping}).status_code == 422  # below minimum
+    assert biz_a.post("/billing/card-orders", json={"quantity": 3, "shipping": shipping}).status_code == 422  # neither a bundle (1 or 2) nor a bulk order
     h = {"Idempotency-Key": "order-key-1"}
     a = biz_a.post("/billing/card-orders", json={"quantity": 20, "shipping": shipping}, headers=h)
     b = biz_a.post("/billing/card-orders", json={"quantity": 20, "shipping": shipping}, headers=h)

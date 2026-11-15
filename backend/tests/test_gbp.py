@@ -73,7 +73,8 @@ def test_info_read_and_update_returns_what_google_holds(connected, fake, gid):
     assert connected.get(f"/gbp/{gid}/info").json()["description"] == "Old"
     r = connected.patch(f"/gbp/{gid}/info", json={"description": "Physiotherapy in Gomti Nagar.", "hours": [{"day": "TUESDAY", "open": "10:00", "close": "17:30"}]})
     assert r.status_code == 200 and r.json()["description"] == "Physiotherapy in Gomti Nagar."
-    assert fake.writes and fake.writes[0][1]["hours"][0]["day"] == "TUESDAY"
+    # each field is its own governed change now (policy, claim, write, read-back, history): the hours reached Google as their own write
+    assert any((w[1].get("hours") or [{}])[0].get("day") == "TUESDAY" for w in fake.writes)
 
 
 @pytest.mark.parametrize("body", [
