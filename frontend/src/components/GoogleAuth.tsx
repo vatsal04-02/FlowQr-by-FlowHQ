@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import { useEffect, useState } from "react";
 import { buttonClass } from "@/components/ui/Button";
 
@@ -46,7 +47,7 @@ function GoogleG() {
 export function GoogleButton({ label = "Continue with Google" }: { label?: string }) {
   const [going, setGoing] = useState(false);
   return (
-    <a href="/api/v1/auth/google/start" onClick={() => setGoing(true)} aria-busy={going || undefined}
+    <a href={`${API_V1}/auth/google/start`} onClick={() => setGoing(true)} aria-busy={going || undefined}
       className={buttonClass("secondary", "lg", "w-full")}>
       <GoogleG />{going ? "Opening Google…" : label}
     </a>

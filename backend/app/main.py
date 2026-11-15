@@ -35,6 +35,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type", "X-CSRF-Token", "X-Tenant-Id"],
+    # The site and the API are different hosts in production (flowqr.site, api.flowqr.site), so the browser hides every response header that is not listed here. These are the
+    # ones the frontend reads (download file names, the "not for print" and "scannable" QR checks, export counts): without this list those warnings would silently vanish.
+    expose_headers=["Content-Disposition", "X-FlowQR-Codes", "X-FlowQR-Not-For-Print", "X-FlowQR-Scannable", "X-FlowQR-Style", "X-FlowQR-Style-Fallbacks", "X-FlowQR-Total", "X-FlowQR-Verified"],
 )
 
 

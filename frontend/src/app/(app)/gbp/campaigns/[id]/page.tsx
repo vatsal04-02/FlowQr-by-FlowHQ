@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import { PosterDownload } from "@/components/cards/PosterDownload";
 import { ArrowLeft, Download, ExternalLink, MapPin, Paintbrush, Palette, Pause, Play, RotateCcw, Sparkles, Trash2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
@@ -101,7 +102,7 @@ export default function CampaignDetail() {
   const place = [c.location_name].filter(Boolean).join("");
   const targets = (locations.data ?? []).filter((l) => l.is_active || l.id === c.location_id);
   const chosen = dest ?? c.location_id ?? "";
-  const qr = (fmt: string) => `/api/v1/review-growth/campaigns/${c.id}/qr.${fmt}`;
+  const qr = (fmt: string) => `${API_V1}/review-growth/campaigns/${c.id}/qr.${fmt}`;
 
   return (
     <>

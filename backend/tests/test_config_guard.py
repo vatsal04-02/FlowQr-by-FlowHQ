@@ -87,3 +87,26 @@ def test_prod_overlay_cannot_run_in_development_mode():
     assert any("requires APP_ENV" in p for p in config_problems(Settings(_env_file=None, app_env="development", require_hardened=True)))
     assert any("requires APP_ENV" in p for p in config_problems(Settings(_env_file=None, app_env="test", require_hardened=True)))
     assert config_problems(good(require_hardened=True)) == []
+
+
+# ---- the site (Vercel) and the API (VPS) on different hosts: flowqr.site and api.flowqr.site
+def split(**over):
+    base = dict(public_card_base_url="https://flowqr.site", frontend_url="https://flowqr.site", cors_origins="https://flowqr.site,https://www.flowqr.site", cookie_domain=".flowqr.site",
+                google_redirect_uri="https://api.flowqr.site/api/v1/google/callback", razorpay_key_id="", razorpay_key_secret="", razorpay_webhook_secret="", google_client_id="id", google_client_secret="sec")
+    base.update(over)
+    return good(**base)
+
+
+def test_the_split_host_production_configuration_boots():
+    assert config_problems(split()) == []
+
+
+@pytest.mark.parametrize("over,needle", [
+    (dict(cookie_domain=""), "COOKIE_DOMAIN is required"),
+    (dict(cookie_domain=".example.com"), "does not cover both"),
+    (dict(cookie_domain=".api.flowqr.site"), "does not cover both"),
+    (dict(cors_origins="https://www.flowqr.site"), "must include the site's own origin"),
+])
+def test_split_host_production_refuses_settings_that_would_log_everyone_out_or_block_every_request(over, needle):
+    problems = config_problems(split(**over))
+    assert any(needle in p for p in problems), problems

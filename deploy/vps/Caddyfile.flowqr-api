@@ -1,0 +1,41 @@
+# ADD this block to the EXISTING Caddy configuration. Do NOT replace the Caddyfile and do NOT start a second Caddy (ports 80 and 443 are taken).
+# Before adding it, read docs/PRODUCTION_INFRASTRUCTURE_AUDIT.md: it says how the existing Caddy runs (container or host service) and which upstream address to use.
+#
+# Upstream: the FlowQR API listens on the HOST at 127.0.0.1:18000 (docker-compose.vps.yml).
+#   * Caddy on the host           -> reverse_proxy 127.0.0.1:18000
+#   * Caddy in a container        -> reverse_proxy host.docker.internal:18000 (add `extra_hosts: ["host.docker.internal:host-gateway"]` to that container) or the host's docker0 address
+# Validate, then reload gracefully:  caddy validate --config <Caddyfile> && caddy reload --config <Caddyfile>
+api.flowqr.site {
+	encode zstd gzip
+	request_body {
+		max_size 12MB   # photo uploads (the API enforces its own, smaller limit and refuses anything that is not a real image)
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	# Only the API is served here. Documentation and the OpenAPI schema are already disabled by the application in production.
+	@api path /api/*
+	handle @api {
+		reverse_proxy 127.0.0.1:18000 {
+			transport http {
+				response_header_timeout 90s   # AI replies and review generation can take several seconds
+				dial_timeout 5s
+			}
+			health_uri /api/health
+			health_interval 30s
+		}
+	}
+	handle {
+		respond "FlowQR API" 200
+	}
+	log {
+		output file /var/log/caddy/flowqr-api.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+		format json
+	}
+}

@@ -1,3 +1,4 @@
+import { API_V1 } from "./config";
 // Thin fetch wrapper. Same-origin (/api is proxied to FastAPI), HTTP-only session cookie, CSRF header from the
 // readable csrf cookie. Google/AI secrets never reach the browser.
 export class ApiError extends Error {
@@ -48,7 +49,7 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
   }
   let res: Response;
   try {
-    res = await fetch(`/api/v1${path}${qs === "?" ? "" : qs}`, {
+    res = await fetch(`${API_V1}${path}${qs === "?" ? "" : qs}`, {
       method, headers, credentials: "include", signal: opts.signal, keepalive: opts.keepalive,
       body: opts.raw ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
     });
@@ -76,7 +77,7 @@ export async function apiFile(path: string, opts: { method?: string; body?: unkn
   if (method !== "GET") { const t = csrfToken(); if (t) headers["X-CSRF-Token"] = t; }
   let res: Response;
   try {
-    res = await fetch(`/api/v1${path}`, { method, headers, credentials: "include", signal: opts.signal, body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined });
+    res = await fetch(`${API_V1}${path}`, { method, headers, credentials: "include", signal: opts.signal, body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined });
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new ApiError(0, "Can't reach FlowQR right now. Check your connection and try again.");

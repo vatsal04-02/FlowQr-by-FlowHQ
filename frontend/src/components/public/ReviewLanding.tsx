@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import clsx from "clsx";
 import { Check, Clock, Copy, ExternalLink, Loader2, Pencil, QrCode, ShieldCheck, Sparkles, Star, TriangleAlert, UserCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -67,7 +68,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
     const v = viaRef.current;
     if (!v || (once && sent.current.has(type))) return;
     sent.current.add(type);
-    try { void fetch(`/api/v1/public/c/${v.token}/event`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, channel: v.channel }), keepalive: true }).catch(() => undefined); } catch { /* ignore */ }
+    try { void fetch(`${API_V1}/public/c/${v.token}/event`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, channel: v.channel }), keepalive: true }).catch(() => undefined); } catch { /* ignore */ }
   }, []);
   const [page, setPage] = useState<Landing | null>(null);
   const [fail, setFail] = useState<{ title: string; body: string; retry?: boolean } | null>(null);

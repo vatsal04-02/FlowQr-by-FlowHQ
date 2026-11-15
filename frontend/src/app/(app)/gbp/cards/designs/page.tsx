@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import { Download, ImagePlus, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QrPreview, QrStyleEditor, styleProblem } from "@/components/QrStyleEditor";
@@ -83,7 +84,7 @@ export default function QrPage() {
                 <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg border border-ink-100 bg-white">
                   {info.data.has_logo
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img key={logoVersion} src={`/api/v1/qr/style/logo.png?v=${logoVersion}`} alt="Your uploaded logo" className="h-full w-full object-contain" />
+                    ? <img key={logoVersion} src={`${API_V1}/qr/style/logo.png?v=${logoVersion}`} alt="Your uploaded logo" className="h-full w-full object-contain" />
                     : <ImagePlus className="h-5 w-5 text-ink-400" aria-hidden />}
                 </div>
                 <div className="min-w-0 flex-1"><p className="text-sm font-medium">Logo</p><p className="text-xs text-ink-500">{info.data.has_logo ? "Uploaded. PNG, JPEG or WebP, up to 512 KB." : "None yet. PNG, JPEG or WebP, up to 512 KB."}</p></div>

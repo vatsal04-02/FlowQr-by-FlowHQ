@@ -293,6 +293,20 @@ def config_problems(s: Settings) -> list[str]:
         why = _bad_host(o)
         if why:
             p.append(f"CORS_ORIGINS entry '{o}' {why}")
+    # The site and the API on different hosts (flowqr.site on Vercel, api.flowqr.site on the VPS): the browser only sends the session cookie if it is scoped to the parent domain, and the API only
+    # answers the site's own origin. Getting either wrong shows up as "everyone is logged out" or "the browser blocks every request", so refuse to start instead.
+    from urllib.parse import urlparse
+
+    fe = urlparse(s.frontend_url)
+    if fe.hostname and s.cors_origin_list and f"{fe.scheme}://{fe.netloc}" not in s.cors_origin_list:
+        p.append(f"CORS_ORIGINS must include the site's own origin {fe.scheme}://{fe.netloc} (FRONTEND_URL); the browser would block every request from it")
+    api_host = urlparse(s.google_redirect_uri).hostname if s.google_configured else None
+    if fe.hostname and api_host and api_host != fe.hostname:
+        cd = (s.cookie_domain or "").lstrip(".").lower()
+        if not cd:
+            p.append(f"COOKIE_DOMAIN is required because the site ({fe.hostname}) and the API ({api_host}) are different hosts: set it to their shared parent domain, e.g. .{'.'.join(fe.hostname.split('.')[-2:])}")
+        elif not (fe.hostname.lower() == cd or fe.hostname.lower().endswith("." + cd)) or not (api_host.lower() == cd or api_host.lower().endswith("." + cd)):
+            p.append(f"COOKIE_DOMAIN '{s.cookie_domain}' does not cover both the site ({fe.hostname}) and the API ({api_host}); sessions would not be sent")
     if any(m in s.database_url for m in _DEV_SECRET_MARKERS):
         p.append("DATABASE_URL still contains a development password")
     if not s.platform_admin_email_set:

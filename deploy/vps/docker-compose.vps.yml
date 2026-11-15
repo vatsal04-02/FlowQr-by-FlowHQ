@@ -1,0 +1,36 @@
+# FlowQR production stack on the SHARED Hostinger VPS (201.18.202.128). An overlay on ../../docker-compose.yml, used ONLY with its own project name and env file:
+#
+#   cd /opt/flowqr
+#   docker compose -p flowqr-production --env-file .env.production -f docker-compose.yml -f deploy/vps/docker-compose.vps.yml <command>
+#
+# What it changes, and why (the server already runs other applications that must not be touched):
+#  * the frontend is NOT started here: it is on Vercel (the base compose's frontend service is moved behind a profile that is never enabled)
+#  * the API is published ONLY on 127.0.0.1:${FLOWQR_API_PORT:-18000} (not on 8000, which may be taken), for the existing Caddy to proxy to. Nothing else is published:
+#    PostgreSQL, Redis, the worker and the scheduler have no ports at all
+#  * its own Compose project (volumes flowqr-production_pgdata and _redisdata, network flowqr-production_default): nothing is shared with the clinic, n8n or Grist
+#  * memory ceilings so a runaway FlowQR container cannot starve the neighbours (tune after watching `docker stats`)
+#  * no reverse proxy of its own: ports 80 and 443 belong to the existing Caddy
+x-hardened: &hardened
+  REQUIRE_HARDENED: "true"  # the app refuses to start unless APP_ENV is staging|production and the strict config guard passes
+  APP_ENV: ${APP_ENV:?set APP_ENV=production}
+
+services:
+  migrate:
+    environment: *hardened
+  api:
+    environment: *hardened
+    ports: !override ["127.0.0.1:${FLOWQR_API_PORT:-18000}:8000"]
+    mem_limit: ${FLOWQR_API_MEM:-768m}
+  worker:
+    environment: *hardened
+    mem_limit: ${FLOWQR_WORKER_MEM:-768m}
+  beat:
+    environment: *hardened
+    mem_limit: ${FLOWQR_BEAT_MEM:-256m}
+  db:
+    mem_limit: ${FLOWQR_DB_MEM:-1g}
+  redis:
+    mem_limit: ${FLOWQR_REDIS_MEM:-256m}
+  frontend:
+    profiles: ["never-on-the-vps"]
+    ports: !reset []

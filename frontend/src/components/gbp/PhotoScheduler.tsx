@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import clsx from "clsx";
 import { Check, Clock, ImagePlus, Loader2, RefreshCw, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
@@ -153,7 +154,7 @@ export function PhotoScheduler({ gid }: { gid: string }) {
               return (
                 <li key={m.id} className="overflow-hidden rounded-tile bg-surface-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/v1/gbp/${gid}/library/${m.id}/image`} alt={m.description ?? m.category_label} loading="lazy" className="aspect-[4/3] w-full bg-surface-3 object-cover" />
+                  <img src={`${API_V1}/gbp/${gid}/library/${m.id}/image`} alt={m.description ?? m.category_label} loading="lazy" className="aspect-[4/3] w-full bg-surface-3 object-cover" />
                   <div className="space-y-2 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-sm font-semibold">{m.category_label}</span>

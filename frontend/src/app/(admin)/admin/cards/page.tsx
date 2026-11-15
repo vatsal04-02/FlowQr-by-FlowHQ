@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import { Archive, Download, FileStack, FileText, Image as ImageIcon, Link2Off, PackageCheck, Plus, QrCode, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AssignCards } from "@/components/cards/AssignCards";
@@ -147,7 +148,7 @@ export default function AdminCards() {
       {reserve && <ReserveModal card={reserve} onClose={() => setReserve(null)} onDone={() => { setReserve(null); toast("Card reserved. The business can now give it a location."); refresh(); }} />}
       {view && <Modal open onClose={() => setView(null)} title={`${view.card_code}`} footer={<Button variant="secondary" onClick={() => setView(null)}>Done</Button>}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <div className="grid place-items-center"><img src={`/api/v1/admin/cards/${view.id}/qr.svg`} alt={`QR for ${view.card_code}`} className="h-56 w-56 rounded-xl border border-ink-100 p-2" /></div>
+        <div className="grid place-items-center"><img src={`${API_V1}/admin/cards/${view.id}/qr.svg`} alt={`QR for ${view.card_code}`} className="h-56 w-56 rounded-xl border border-ink-100 p-2" /></div>
         <dl className="mt-4 space-y-2 text-xs"><div><dt className="font-semibold text-ink-700">Printed QR address</dt><dd className="break-all rounded-xl bg-ink-50 p-3 font-mono">{view.url}</dd></div>
           <div><dt className="font-semibold text-ink-700">NFC tag address (write as a URL record)</dt><dd className="break-all rounded-xl bg-ink-50 p-3 font-mono">{view.nfc_url}</dd></div></dl>
       </Modal>}

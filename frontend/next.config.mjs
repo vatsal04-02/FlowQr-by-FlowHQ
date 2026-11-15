@@ -18,8 +18,9 @@ const nextConfig = {
   output: "standalone",
   // Same-origin API: the browser only talks to this origin, so session cookies stay first-party
   // (SameSite=Lax) and no CORS is needed. Secrets never reach the browser.
+  // With NEXT_PUBLIC_API_URL set (production on Vercel) the browser talks to the API host directly and nothing is proxied; without it (development, the Docker demo) /api is proxied here.
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }];
+    return process.env.NEXT_PUBLIC_API_URL ? [] : [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }];
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

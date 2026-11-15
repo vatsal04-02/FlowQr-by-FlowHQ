@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import { ArrowLeft, Ban, Copy, Download, Pause, Pencil, Play, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -79,12 +80,12 @@ To stop it temporarily, use Pause instead.`)) void act("retire", "Card retired. 
         <div className="min-w-0 space-y-4">
           <FlowCard code={card.card_code} state={cardState(card.status)} className="mx-auto max-w-[300px]" />
           <Panel title="QR and link" action={isAdmin && live ? <span className="flex gap-1">
-            <a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`/api/v1/cards/${card.id}/qr.png`} download><Download className="h-3.5 w-3.5" aria-hidden />PNG</a>
-            <a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`/api/v1/cards/${card.id}/qr.svg`} download><Download className="h-3.5 w-3.5" aria-hidden />SVG</a>
-            <a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`/api/v1/cards/${card.id}/qr.pdf`} download><Download className="h-3.5 w-3.5" aria-hidden />PDF</a></span> : undefined}>
+            <a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`${API_V1}/cards/${card.id}/qr.png`} download><Download className="h-3.5 w-3.5" aria-hidden />PNG</a>
+            <a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`${API_V1}/cards/${card.id}/qr.svg`} download><Download className="h-3.5 w-3.5" aria-hidden />SVG</a>
+            <a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`${API_V1}/cards/${card.id}/qr.pdf`} download><Download className="h-3.5 w-3.5" aria-hidden />PDF</a></span> : undefined}>
             {isAdmin && live && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={`/api/v1/cards/${card.id}/qr.svg`} alt={`Scannable QR code for card ${card.card_code}`} className="mx-auto mb-3 h-40 w-40 rounded-lg border border-ink-100 p-2" />
+              <img src={`${API_V1}/cards/${card.id}/qr.svg`} alt={`Scannable QR code for card ${card.card_code}`} className="mx-auto mb-3 h-40 w-40 rounded-lg border border-ink-100 p-2" />
             )}
             <p className="break-all rounded-lg bg-ink-50 p-2.5 font-mono text-xs text-ink-700">{card.url}</p>
             <Button size="sm" variant="secondary" className="mt-2" icon={<Copy className="h-3.5 w-3.5" />} onClick={async () => { await copyText(card.url); toast("Link copied."); }}>Copy link</Button>

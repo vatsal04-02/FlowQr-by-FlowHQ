@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import { Check, Copy, ExternalLink, Info, Loader2, QrCode, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/ui/Brand";
@@ -27,7 +28,7 @@ const COPY = {
 } as const;
 
 async function track(token: string, type: "landing_view" | "copy" | "google_click", channel: Channel) {
-  try { await fetch(`/api/v1/public/c/${token}/event`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, channel }), keepalive: true }); } catch { /* analytics must never block the customer */ }
+  try { await fetch(`${API_V1}/public/c/${token}/event`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, channel }), keepalive: true }); } catch { /* analytics must never block the customer */ }
 }
 
 /**

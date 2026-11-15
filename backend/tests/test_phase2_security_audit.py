@@ -298,3 +298,42 @@ def test_access_logs_never_keep_oauth_codes_or_tokens_from_query_strings():
     rec = logging.LogRecord("uvicorn.access", logging.INFO, "x", 1, '%s - "%s %s HTTP/%s" %d', ("1.2.3.4:5", "GET", "/api/v1/auth/google/callback?code=SECRET&state=S2", "1.1", 303), None)
     assert all(f.filter(rec) for f in lg.filters)
     assert "SECRET" not in rec.getMessage() and "S2" not in rec.getMessage() and "[redacted]" in rec.getMessage()
+
+
+# --------------------------------------------------------------------------------------------- production topology: the site and the API are different hosts
+
+def test_cross_origin_browser_calls_work_for_the_site_and_only_the_site(monkeypatch):
+    """Production: flowqr.site (Vercel) calls api.flowqr.site. The API must answer the preflight for the listed origins with credentials, refuse everyone else, and expose the response
+    headers the frontend reads. (The CORS middleware reads its origins at start-up, so this builds an app with the production list.)"""
+    import re as _re
+    from pathlib import Path as _P
+
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+
+    src = (_P(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
+    exposed = _re.search(r"expose_headers=\[(.*?)\]", src, _re.S).group(1)
+    exposed = [h.strip().strip('"') for h in exposed.split(",") if h.strip()]
+    # every custom header the API emits must be exposed, or the browser hides it from the frontend
+    emitted = set()
+    for f in (_P(__file__).resolve().parents[1] / "app").rglob("*.py"):
+        emitted |= set(_re.findall(r"X-FlowQR-[A-Za-z-]+", f.read_text(encoding="utf-8")))
+    assert emitted <= set(exposed), f"headers the API sends but the browser would hide: {sorted(emitted - set(exposed))}"
+    assert "Content-Disposition" in exposed
+
+    app2 = FastAPI()
+    app2.add_middleware(CORSMiddleware, allow_origins=["https://flowqr.site", "https://www.flowqr.site"], allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
+                        allow_headers=["Content-Type", "X-CSRF-Token", "X-Tenant-Id"], expose_headers=exposed)
+
+    @app2.get("/x")
+    def x():
+        return {"ok": True}
+
+    c = TestClient(app2)
+    for origin in ("https://flowqr.site", "https://www.flowqr.site"):
+        r = c.options("/x", headers={"Origin": origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,x-csrf-token"})
+        assert r.status_code == 200 and r.headers["access-control-allow-origin"] == origin and r.headers["access-control-allow-credentials"] == "true"
+    for evil in ("https://evil.example", "https://flowqr.site.evil.example", "http://flowqr.site", "https://api.flowqr.site"):
+        r = c.options("/x", headers={"Origin": evil, "Access-Control-Request-Method": "POST"})
+        assert "access-control-allow-origin" not in r.headers, evil
+    assert "x-flowqr-not-for-print" in c.get("/x", headers={"Origin": "https://flowqr.site"}).headers["access-control-expose-headers"].lower()

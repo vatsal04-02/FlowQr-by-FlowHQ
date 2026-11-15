@@ -13,6 +13,10 @@ x-backend-env: &backend-env
   PUBLIC_CARD_BASE_URL: ${PUBLIC_CARD_BASE_URL:-http://localhost:3000}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}  # REQUIRED when the site and the API are different hosts (flowqr.site + api.flowqr.site): .flowqr.site; empty = host-only cookies
+  SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+  LEGAL_COMPANY_NAME: ${LEGAL_COMPANY_NAME:-FlowHQ}
+  SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-336}
   PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

@@ -1,4 +1,5 @@
 "use client";
+import { API_V1 } from "@/lib/config";
 import { Download, Plus, QrCode } from "lucide-react";
 import { PosterDownload } from "@/components/cards/PosterDownload";
 import Link from "next/link";
@@ -70,7 +71,7 @@ export default function CampaignsPage() {
                 <Link href={`/gbp/campaigns/${c.id}`} className="group flex items-center gap-4 p-4" aria-label={`Open ${c.name}`}>
                   <span className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-lg border border-ink-100 bg-white">
                     {isAdmin && c.status !== "archived"
-                      ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/api/v1/review-growth/campaigns/${c.id}/qr.svg`} alt={`QR code for ${c.name}`} className="h-full w-full object-contain p-1" loading="lazy" />
+                      ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={`${API_V1}/review-growth/campaigns/${c.id}/qr.svg`} alt={`QR code for ${c.name}`} className="h-full w-full object-contain p-1" loading="lazy" />
                       : <QrCode className="h-8 w-8 text-ink-300" aria-hidden />}
                   </span>
                   <span className="min-w-0"><span className="block truncate font-semibold group-hover:text-brand-700">{c.name}</span>
@@ -83,7 +84,7 @@ export default function CampaignsPage() {
                 </dl>
                 <div className="flex items-center justify-between gap-2 border-t border-ink-100 px-4 py-2 text-xs text-ink-500">
                   <span>Created {timeAgo(c.created_at)}{!c.review_url_ready && <span className="ml-2 font-medium text-amber-800">No Google link</span>}</span>
-                  {isAdmin && c.status !== "archived" && <span className="flex items-center gap-1"><PosterDownload path={`/review-growth/campaigns/${c.id}/poster`} filename={`flowqr-${c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "campaign"}`} label="Poster" variant="ghost" /><a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`/api/v1/review-growth/campaigns/${c.id}/qr.png`} download><Download className="h-3.5 w-3.5" aria-hidden />PNG</a></span>}
+                  {isAdmin && c.status !== "archived" && <span className="flex items-center gap-1"><PosterDownload path={`/review-growth/campaigns/${c.id}/poster`} filename={`flowqr-${c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "campaign"}`} label="Poster" variant="ghost" /><a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`${API_V1}/review-growth/campaigns/${c.id}/qr.png`} download><Download className="h-3.5 w-3.5" aria-hidden />PNG</a></span>}
                 </div>
               </li>
             ))}
