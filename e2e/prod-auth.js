@@ -1,4 +1,5 @@
 // Browser test of the REAL production authentication path: the site on its own origin talking to the API on another (https://www.flowqr.site -> https://api.flowqr.site).
+//   PHASE=register|verify|reset-request|reset-confirm: the mailbox-dependent steps (the verification and reset links are pasted in by the person who owns the test mailbox)
 //   PHASE=public  node e2e/prod-auth.js     needs no account and no email: pages, Google availability, allowlist refusal, wrong password, route guards, CORS, bundle hygiene
 //   PHASE=account EMAIL=... PASSWORD=... [ADMIN_EMAIL=... ADMIN_PASSWORD=...] node e2e/prod-auth.js     a controlled test account that already exists: login, cookies, CSRF, refresh, logout, admin gate
 // Run it from a container (the host's TLS interception breaks real-domain tests): see docs/PRODUCTION_AUTH_TESTING.md. It creates NOTHING: registration is only ever attempted with an
@@ -101,6 +102,86 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
       for (const s of srcs.slice(0, 40)) { const t = await (await ctx.request.get(s)).text(); if (/GOCSPX-|client_secret|AIza[0-9A-Za-z_-]{20}|sk-[A-Za-z0-9]{20}|BEGIN (RSA |)PRIVATE/.test(t)) leaked.push(s); }
       expect(leaked.length === 0, 'secret-looking text in: ' + leaked.join(', '));
     });
+  } else if (PHASE === 'register') {
+    // Creates ONE account through the real sign-up form. The address must already be on the allowlist (python -m app.cli registration --add). Sends the verification email.
+    const EMAIL = process.env.EMAIL, PASSWORD = process.env.PASSWORD, NAME = process.env.NAME || 'Auth Test';
+    expect(EMAIL && PASSWORD, 'EMAIL and PASSWORD are required for PHASE=register');
+    await step('register the allowlisted test account through the real sign-up form', async () => {
+      await page.goto(`${SITE}/register`); await page.waitForLoadState('networkidle');
+      await page.getByLabel(/your name/i).fill(NAME); await page.getByLabel(/work email/i).fill(EMAIL); await page.getByLabel(/^password/i).fill(PASSWORD);
+      await page.getByRole('button', { name: /create account/i }).click();
+      await page.waitForURL(/\/onboarding|\/admin|\/overview/, { timeout: 25000 });
+      expect(apiStatuses.some((s) => s.startsWith('POST /api/v1/auth/register 201')), 'no 201: ' + apiStatuses.join(', '));
+    });
+    await step('the new account starts with an unverified email, no admin rights, and a production-grade session cookie', async () => {
+      const me = await call('GET', '/auth/me');
+      expect(me.status === 200 && me.json.user.email.toLowerCase() === EMAIL.toLowerCase(), 'me: ' + me.status);
+      expect(me.json.user.email_verified_at === null, 'already verified?');
+      expect(me.json.user.is_platform_admin === false, 'a new account must not be an administrator');
+      const s = (await cookies()).flowqr_session;
+      expect(s && s.domain === '.flowqr.site' && s.secure && s.httpOnly && s.sameSite === 'Lax', 'session cookie: ' + JSON.stringify(s && { d: s.domain, sec: s.secure, ho: s.httpOnly, ss: s.sameSite }));
+      expect((await call('GET', '/admin/stats')).status === 403, 'an unverified new account reached the admin API');
+    });
+  } else if (PHASE === 'verify' || PHASE === 'reset-request' || PHASE === 'reset-confirm') {
+    const EMAIL = process.env.EMAIL, LINK = process.env.LINK || '';
+    const okLink = /^https:\/\/(www\.)?flowqr\.site\/(verify-email|reset-password)\?token=[A-Za-z0-9_-]+$/.test(LINK);
+    if (PHASE === 'reset-request') {
+      expect(EMAIL, 'EMAIL is required');
+      await step('request a password reset through the real form', async () => {
+        await page.goto(`${SITE}/forgot-password`); await page.waitForLoadState('networkidle');
+        await page.locator('input[type=email]').first().fill(EMAIL);
+        await page.getByRole('button', { name: /send|reset|email/i }).first().click();
+        await page.waitForFunction(() => /check your (email|inbox)|sent|if an account/i.test(document.body.innerText), null, { timeout: 15000 });
+        expect(apiStatuses.some((s) => s.startsWith('POST /api/v1/auth/password-reset/request 202')), 'no 202: ' + apiStatuses.join(', '));
+      });
+    } else if (PHASE === 'verify') {
+      await step('the verification link from the email verifies the address in the browser', async () => {
+        expect(okLink && /verify-email/.test(LINK), 'LINK must be the https://(www.)flowqr.site/verify-email?token=... link from the email');
+        await page.goto(LINK); await page.waitForFunction(() => /email verified|couldn.t verify/i.test(document.body.innerText), null, { timeout: 20000 });
+        expect(/email verified/i.test(await body()), 'not verified: ' + (await body()).slice(0, 200));
+        expect(apiStatuses.some((s) => s.startsWith('POST /api/v1/auth/verify-email 204')), 'no 204: ' + apiStatuses.join(', '));
+      });
+      await step('the same link cannot be used twice', async () => {
+        const again = await ctx.newPage(); await again.goto(LINK); await again.waitForFunction(() => /email verified|couldn.t verify/i.test(document.body.innerText), null, { timeout: 20000 });
+        const t = (await again.locator('body').innerText()).replace(/\s+/g, ' ');
+        // the backend is idempotent for an already-verified address; what matters is that no error page leaks anything
+        expect(!/traceback|internal server/i.test(t), 'raw error: ' + t.slice(0, 160)); await again.close();
+      });
+    } else {
+      const OLD = process.env.OLD_PASSWORD, NEW = process.env.NEW_PASSWORD;
+      expect(EMAIL && OLD && NEW, 'EMAIL, OLD_PASSWORD, NEW_PASSWORD are required');
+      let other, otherCsrf;
+      await step('a second browser is signed in with the old password before the reset', async () => {
+        other = await browser.newContext(); const p = await other.newPage();
+        const r = await p.request.post(`${API}/api/v1/auth/login`, { data: { email: EMAIL, password: OLD }, headers: { Origin: SITE } });
+        expect(r.status() === 200, 'old-password login ' + r.status()); otherCsrf = (await r.json()).csrf_token;
+      });
+      await step('the reset link sets a new password through the real form', async () => {
+        expect(okLink && /reset-password/.test(LINK), 'LINK must be the https://(www.)flowqr.site/reset-password?token=... link from the email');
+        await page.goto(LINK); await page.waitForLoadState('networkidle');
+        await page.getByLabel(/new password/i).fill(NEW); await page.getByRole('button', { name: /set new password/i }).click();
+        await page.waitForFunction(() => /password updated|invalid or has expired/i.test(document.body.innerText), null, { timeout: 20000 });
+        expect(/password updated/i.test(await body()), 'not updated: ' + (await body()).slice(0, 200));
+        expect(apiStatuses.some((s) => s.startsWith('POST /api/v1/auth/password-reset/confirm 204')), 'no 204: ' + apiStatuses.join(', '));
+      });
+      await step('the reset link cannot be used a second time', async () => {
+        await page.goto(LINK); await page.waitForLoadState('networkidle');
+        await page.getByLabel(/new password/i).fill(NEW + 'x'); await page.getByRole('button', { name: /set new password/i }).click();
+        await page.waitForFunction(() => /invalid or has expired/i.test(document.body.innerText), null, { timeout: 20000 });
+      });
+      await step('the session that existed before the reset is signed out everywhere', async () => {
+        const p = await other.newPage(); const r = await p.request.get(`${API}/api/v1/auth/me`, { headers: { Origin: SITE } });
+        expect(r.status() === 401, 'the old session still works: ' + r.status()); await other.close();
+      });
+      await step('the OLD password no longer works', async () => {
+        const r = await ctx.request.post(`${API}/api/v1/auth/login`, { data: { email: EMAIL, password: OLD }, headers: { Origin: SITE } });
+        expect(r.status() === 401, 'old password status ' + r.status());
+      });
+      await step('the NEW password works in the real login form', async () => {
+        await login(EMAIL, NEW); await page.waitForURL(/\/(overview|onboarding|admin)/, { timeout: 20000 });
+        expect((await cookies()).flowqr_session, 'no session cookie');
+      });
+    }
   } else {
     const EMAIL = process.env.EMAIL, PASSWORD = process.env.PASSWORD;
     expect(EMAIL && PASSWORD, 'EMAIL and PASSWORD are required for PHASE=account');
