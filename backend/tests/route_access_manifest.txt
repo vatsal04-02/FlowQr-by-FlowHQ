@@ -113,6 +113,7 @@ signed-in	GET	/api/v1/auth/me
 public	POST	/api/v1/auth/password-reset/confirm
 public	POST	/api/v1/auth/password-reset/request
 signed-in	PATCH	/api/v1/auth/profile
+public	GET	/api/v1/auth/providers
 public	POST	/api/v1/auth/register
 public	GET	/api/v1/auth/registration
 signed-in	POST	/api/v1/auth/resend-verification

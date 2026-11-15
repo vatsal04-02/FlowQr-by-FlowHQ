@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
-import { GoogleButton, OrDivider, useGoogleError } from "@/components/GoogleAuth";
+import { GoogleSignIn, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
 import { ErrorSummary, Input } from "@/components/ui/Form";
 import { api, errorMessage } from "@/lib/api";
@@ -28,7 +28,8 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await api("/auth/login", { method: "POST", body: { email: f.values.email.trim(), password: f.values.password } });
-      await refresh();
+      // Only move on once the browser really holds a session. If it refused the cookie (blocked third-party/site data), say so instead of bouncing back to this page silently.
+      if (!(await refresh())) { f.fail("You were signed in, but your browser did not keep the session. Allow cookies for flowqr.site and try again."); return; }
       router.replace("/overview");
     } catch (err) { f.fail(errorMessage(err)); } finally { setBusy(false); }
   }
@@ -37,8 +38,7 @@ export default function LoginPage() {
     <AuthShell title="Welcome back" subtitle="Log in to manage your reviews and cards."
       pitch={{ title: "Pick up where you left off.", body: "Reviews to answer, posts to approve and cards to track, all in one place." }}
       footer={<>New to FlowQR? <Link href="/register" className="font-semibold text-[#C94C00] underline">Create an account</Link></>}>
-      <GoogleButton />
-      <OrDivider />
+      <GoogleSignIn divider="or use email" />
       <form onSubmit={submit} noValidate className="space-y-4">
         <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
         <Input label="Email" type="email" autoComplete="email" inputMode="email" required {...f.bind("email")} />

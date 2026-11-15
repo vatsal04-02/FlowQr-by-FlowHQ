@@ -1,5 +1,6 @@
 "use client";
 import { API_V1 } from "@/lib/config";
+import { api } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { buttonClass } from "@/components/ui/Button";
 
@@ -61,4 +62,28 @@ export function OrDivider({ children = "or use email" }: { children?: string }) 
       <span className="h-px flex-1 bg-ink-200" /><span>{children}</span><span className="h-px flex-1 bg-ink-200" />
     </div>
   );
+}
+
+/** Does THIS server offer Google sign-in? Asked once per page load (GET /auth/providers: a single boolean the backend derives from GOOGLE_LOGIN_CLIENT_ID/SECRET). `null` while we do not
+ *  know yet; an unreachable or failing server counts as "no", so the page never offers a button that cannot work. Email and password never depend on this. */
+let providersRequest: Promise<boolean> | null = null;
+function loadGoogleAvailable(): Promise<boolean> {
+  providersRequest ??= api<{ google?: boolean }>("/auth/providers").then((r) => r.google === true).catch(() => { providersRequest = null; return false; }); // a failure is not remembered
+  return providersRequest;
+}
+export function useGoogleAvailable(): boolean | null {
+  const [available, setAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadGoogleAvailable().then((v) => { if (live) setAvailable(v); });
+    return () => { live = false; };
+  }, []);
+  return available;
+}
+
+/** The "Continue with Google" button plus its "or" divider, shown only when Google sign-in is really configured. Otherwise nothing: the email form is the whole page. */
+export function GoogleSignIn({ label, divider }: { label?: string; divider: string }) {
+  const available = useGoogleAvailable();
+  if (!available) return null;
+  return (<><GoogleButton label={label} /><OrDivider>{divider}</OrDivider></>);
 }

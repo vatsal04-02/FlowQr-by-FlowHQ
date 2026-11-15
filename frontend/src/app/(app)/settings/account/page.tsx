@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useGoogleError } from "@/components/GoogleAuth";
+import { useGoogleAvailable, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, PageHeader } from "@/components/ui/Card";
 import { ErrorSummary, Input } from "@/components/ui/Form";
@@ -32,6 +32,7 @@ function ProfilePanels({ email, name, phone, hasLocalLogin, googleLinked, onSave
   const first = useForm({ new_password: "" }, { new_password: passwordRule });
   const [b1, setB1] = useState(false), [b2, setB2] = useState(false), [b3, setB3] = useState(false), [b4, setB4] = useState(false);
   const googleError = useGoogleError();
+  const googleAvailable = useGoogleAvailable();
   const [linkError, setLinkError] = useState<string | null>(null);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("google") === "linked") {
@@ -58,7 +59,8 @@ function ProfilePanels({ email, name, phone, hasLocalLogin, googleLinked, onSave
             ["Email and password", hasLocalLogin ? <Badge key="pw" tone="green">On</Badge> : <Badge key="pw">Not set</Badge>],
             ["Google", googleLinked ? <Badge key="g" tone="green">Connected</Badge> : <Badge key="g">Not connected</Badge>],
           ]} />
-          {!googleLinked && <Button variant="secondary" loading={b4} onClick={() => void connectGoogle()}>Connect Google account</Button>}
+          {!googleLinked && googleAvailable && <Button variant="secondary" loading={b4} onClick={() => void connectGoogle()}>Connect Google account</Button>}
+          {!googleLinked && googleAvailable === false && <p className="text-sm text-ink-700">Signing in with Google is not available on this server yet. Your email and password keep working.</p>}
           <p className="text-xs text-ink-500">This only lets you sign in with Google. It is separate from connecting your Google Business Profile for reviews.</p>
         </div></Panel></section>
       <section id="you" className="scroll-mt-6"><Panel title="Your profile" meta={email}>

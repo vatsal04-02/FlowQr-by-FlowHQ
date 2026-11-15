@@ -30,6 +30,7 @@ PUBLIC_PREFIXES = (
     "/api/v1/invitations/accept", "/api/v1/public/", "/api/v1/r/", "/api/v1/review-public", "/api/v1/billing/razorpay/webhook", "/api/v1/google/callback",
     "/api/v1/legal", "/api/v1/leads", "/api/v1/billing/plans",
     "/api/v1/auth/registration",  # GET: only the registration MODE (closed/allowlist/open), nothing about any address
+    "/api/v1/auth/providers",  # GET: one boolean, whether Google sign-in is configured
 )
 FILL = {"uuid": "00000000-0000-0000-0000-000000000001"}
 

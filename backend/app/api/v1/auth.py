@@ -127,6 +127,13 @@ def registration_mode():
     return {"mode": registration.mode()}
 
 
+@router.get("/providers")
+def sign_in_providers():
+    """Public. Which optional ways to sign in this server really offers, so the login and sign-up pages show "Continue with Google" only when it can work. A boolean and nothing else:
+    never a client id, a secret or an address. Email and password is always on and does not depend on any of this."""
+    return {"google": settings.google_login_configured}
+
+
 @router.post("/logout", status_code=204)
 def logout(response: Response, ctx: AuthContext = Depends(get_auth_context)):
     ctx.session.revoked_at = utcnow()

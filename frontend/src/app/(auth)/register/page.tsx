@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { trialTerms, usePlans } from "@/lib/plans";
 import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
-import { GoogleButton, OrDivider, useGoogleError } from "@/components/GoogleAuth";
+import { GoogleSignIn, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Card";
 import { ErrorSummary, Input } from "@/components/ui/Form";
@@ -38,7 +38,7 @@ export default function RegisterPage() {
     try {
       const v = f.values;
       await api("/auth/register", { method: "POST", body: { full_name: v.full_name.trim(), email: v.email.trim(), phone: v.phone.trim() || null, password: v.password } });
-      await refresh();
+      if (!(await refresh())) { f.fail("Your account was created, but your browser did not keep the session. Allow cookies for flowqr.site, then log in."); return; }
       router.replace("/onboarding");
     } catch (err) { f.fail(errorMessage(err)); } finally { setBusy(false); }
   }
@@ -55,8 +55,7 @@ export default function RegisterPage() {
   return (
     <AuthShell title="Create your FlowQR account" subtitle={`Takes about two minutes. ${trialTerms(cardRequired)}`} footer={footer}>
       {mode === "allowlist" && <div className="mb-4"><Alert tone="info">FlowQR is open to approved businesses only at the moment. Register with the email address you gave us. Other addresses are not accepted yet.</Alert></div>}
-      <GoogleButton label="Sign up with Google" />
-      <OrDivider>or sign up with email</OrDivider>
+      <GoogleSignIn label="Sign up with Google" divider="or sign up with email" />
       <form onSubmit={submit} noValidate className="space-y-4">
         <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
         <Input label="Your name" autoComplete="name" required {...f.bind("full_name")} />
