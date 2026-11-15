@@ -25,3 +25,6 @@ dump.rdb
 *.rdb
 *.log
 .env.staging
+
+# stray Windows NUL redirect artefact
+/nul
