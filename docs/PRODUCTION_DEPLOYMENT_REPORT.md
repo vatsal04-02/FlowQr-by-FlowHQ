@@ -6,7 +6,7 @@ Written 2026-11-15. Statuses: **PASS**, **FAIL**, **BLOCKED**, **NOT TESTED**. T
 
 **FlowQR is NOT deployed to production.** The frontend builds and is deployed on Vercel (protected, on a `*.vercel.app` address, with no custom domain). The backend has **not** been deployed: the VPS cannot be reached (no working SSH access) and DNS for `flowqr.site` is at GoDaddy, which only you can edit. Everything that could be prepared, tested and verified without those two things is done.
 
-**Exact Git commit prepared for deployment:** `GIT_SHA` on branch `phase-2/commercial-readiness` (pushed to `origin`). The Vercel deployment was made from the working tree by the Vercel CLI (not from Git) before that commit existed: **redeploy from the commit** (or connect the repository, below) so that what runs is what is recorded.
+**Exact Git commit prepared for deployment:** `7302031` on branch `phase-2/commercial-readiness` (pushed to `origin`). The Vercel deployment was made from the working tree by the Vercel CLI (not from Git) before that commit existed: **redeploy from the commit** (or connect the repository, below) so that what runs is what is recorded.
 
 ## Status table
 
