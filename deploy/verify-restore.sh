@@ -13,7 +13,7 @@ STATUS="$DIR/status.json"
 MIN_TABLES=${MIN_TABLES:-20}
 NAME="flowqr-restore-check-$$"
 WORK=$(mktemp -d)
-trap 'docker rm -f "$NAME" >/dev/null 2>&1; rm -rf "$WORK"' EXIT
+trap 'docker rm -fv "$NAME" >/dev/null 2>&1; rm -rf "$WORK"' EXIT
 die() { echo "RESTORE CHECK FAILED: $1" >&2; exit 1; }
 
 FILE=${1:-}

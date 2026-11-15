@@ -35,6 +35,6 @@ exit $rc
 EOS
 chmod 700 run-backup.sh
 LINE='10 2 * * * /opt/flowqr/run-backup.sh'
-( crontab -l 2>/dev/null | grep -v -F '/opt/flowqr/run-backup.sh'; echo "$LINE" ) | crontab -
+{ crontab -l 2>/dev/null | grep -v -F '/opt/flowqr/run-backup.sh' || true; echo "$LINE"; } | crontab -   # '|| true': grep exits 1 on an empty crontab, which pipefail would turn into an abort
 echo "installed. crontab for flowqr:"; crontab -l
 echo "now: 1) save .backup.pass in your password manager  2) set BACKUP_REMOTE in /opt/flowqr/.env.backup  3) run /opt/flowqr/run-backup.sh once and check: cat /opt/flowqr/backups/status.json"
