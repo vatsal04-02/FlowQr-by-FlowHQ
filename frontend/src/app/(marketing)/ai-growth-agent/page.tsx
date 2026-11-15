@@ -29,7 +29,7 @@ export default function AiGrowthAgent() {
   return (
     <>
       <Hero line1={c.hero.line1} line2={c.hero.line2}
-        actions={<><MButton href="/demo" event="demo_cta_click">Book a demo</MButton><MButton href="#workflow" variant="secondary" lead={<Sparkles className="h-4 w-4" strokeWidth={1.5} />}>How it works</MButton></>}
+        actions={<><MButton href="/register" event="signup_cta_click">Sign up</MButton><MButton href="#workflow" variant="secondary" lead={<Sparkles className="h-4 w-4" strokeWidth={1.5} />}>How it works</MButton></>}
         center={<PlanCard />} left={{ icon: <ClipboardList className="h-4 w-4" strokeWidth={1.5} />, text: c.hero.left }}
         chips={[<MicroChip key="a" icon={<ClipboardList className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[0]}</MicroChip>, <MicroChip key="b" icon={<ShieldCheck className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[1]}</MicroChip>, <MicroChip key="c" icon={<History className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[2]}</MicroChip>]} />
 

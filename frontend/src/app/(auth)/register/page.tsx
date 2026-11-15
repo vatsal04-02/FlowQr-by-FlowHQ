@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { trialTerms, usePlans } from "@/lib/plans";
 import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton, OrDivider, useGoogleError } from "@/components/GoogleAuth";
@@ -14,6 +15,7 @@ import { emailRule, passwordRule, phoneRule, required, useForm } from "@/lib/for
 export default function RegisterPage() {
   const { refresh } = useAuth();
   const router = useRouter();
+  const { cardRequired } = usePlans();
   const [busy, setBusy] = useState(false);
   const f = useForm({ full_name: "", email: "", phone: "", password: "" }, {
     full_name: required("Your name"), email: emailRule, password: passwordRule, phone: phoneRule,
@@ -51,7 +53,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthShell title="Create your FlowQR account" subtitle="Takes about two minutes. No card needed." footer={footer}>
+    <AuthShell title="Create your FlowQR account" subtitle={`Takes about two minutes. ${trialTerms(cardRequired)}`} footer={footer}>
       {mode === "allowlist" && <div className="mb-4"><Alert tone="info">FlowQR is open to approved businesses only at the moment. Register with the email address you gave us. Other addresses are not accepted yet.</Alert></div>}
       <GoogleButton label="Sign up with Google" />
       <OrDivider>or sign up with email</OrDivider>

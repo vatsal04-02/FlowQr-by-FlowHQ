@@ -56,7 +56,7 @@ export function Nav() {
         </nav>
         <div className="flex items-center gap-1">
           <Link href="/login" className={clsx(link, "hidden sm:inline-flex")}>Log in</Link>
-          <MButton href="/demo" event="demo_cta_click" className="hidden sm:inline-flex">Book a demo</MButton>
+          <MButton href="/register" event="signup_cta_click" className="hidden sm:inline-flex">Sign up</MButton>
           <button ref={btn} type="button" aria-expanded={open} aria-controls="site-menu" aria-label={open ? "Close menu" : "Open menu"} onClick={() => setOpen((v) => !v)}
             className="grid h-11 w-11 place-items-center rounded-full text-m-ink hover:bg-m-ink/[.05] lg:hidden">
             {open ? <X className="h-5 w-5" strokeWidth={1.5} aria-hidden /> : <Menu className="h-5 w-5" strokeWidth={1.5} aria-hidden />}
@@ -71,7 +71,7 @@ export function Nav() {
               <li key={h}><Link href={h} onClick={() => setOpen(false)} className="flex min-h-14 items-center text-[20px] font-medium tracking-[-.02em] text-m-ink">{t}</Link></li>
             ))}
           </ul>
-          <MButton href="/demo" event="demo_cta_click" className="mt-6 w-full justify-between" onClick={() => setOpen(false)}>Book a demo</MButton>
+          <MButton href="/register" event="signup_cta_click" className="mt-6 w-full justify-between" onClick={() => setOpen(false)}>Sign up</MButton>
         </nav>
       )}
     </header>

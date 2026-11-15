@@ -8,7 +8,7 @@ import { BlurWords, Pop, Rise } from "./motion";
  * at every intersection, fading at the edges. Left: icon + one line. Centre: a product card. Right: stacked micro-chips.
  */
 export function Hero({ line1, line2, actions, center, left, chips, sub, leftNode, rightNode, below, kicker, flow }: {
-  line1: string; line2: string; actions: ReactNode; center?: ReactNode; left?: { icon: ReactNode; text: string }; chips?: ReactNode[]; sub?: string;
+  line1: string; line2: string; actions?: ReactNode; center?: ReactNode; left?: { icon: ReactNode; text: string }; chips?: ReactNode[]; sub?: string;
   /** Richer side columns (a product card each) instead of the one-line left text and the chips. */
   leftNode?: ReactNode; rightNode?: ReactNode; below?: ReactNode; kicker?: ReactNode;
   /** One flow strip in place of the three-column product grid. The hero is also tightened so the strip starts higher on the page. */
@@ -19,12 +19,12 @@ export function Hero({ line1, line2, actions, center, left, chips, sub, leftNode
       <HeroBackdrop />
       <div className="relative mkt-wrap text-center">
         {kicker && <Rise className={clsx("flex justify-center", flow ? "mb-4" : "mb-6")}>{kicker}</Rise>}
-        <h1 className={clsx("t-display mx-auto max-w-[900px] text-m-ink", flow && "max-sm:!text-[length:min(8.7vw,40px)] max-sm:!leading-[1.04] lg:!text-[clamp(44px,4.4vw,64px)]")}>
+        <h1 className={clsx("t-display mx-auto text-m-ink", !flow && "max-w-[900px]", flow && "max-w-[980px] max-sm:!text-[length:min(8.7vw,38px)] max-sm:!leading-[1.08] sm:!text-[clamp(30px,4.9vw,46px)] sm:!leading-[1.08] sm:!tracking-[-.035em] lg:!text-[clamp(40px,3.7vw,54px)]")}>
           <BlurWords as="div" text={line1} />
           <BlurWords as="div" text={line2} delay={0.18} className="text-m-accentText" />
         </h1>
         {sub && <Rise delay={0.3}><p className={clsx("mx-auto text-pretty text-[17px] leading-relaxed text-m-ink2 md:text-[19px]", flow ? "mt-4 max-w-[640px] lg:max-w-[860px]" : "mt-6 max-w-[640px]")}>{sub}</p></Rise>}
-        <Rise delay={0.35} className={clsx("flex flex-wrap items-center justify-center gap-2.5", flow ? "mt-5" : "mt-7")}>{actions}</Rise>
+        {actions && <Rise delay={0.35} className={clsx("flex flex-wrap items-center justify-center gap-2.5", flow ? "mt-5" : "mt-7")}>{actions}</Rise>}
       </div>
       {flow && <div className="relative mx-auto mt-7 max-w-[1120px] px-4 md:mt-6">{flow}</div>}
       {center && (

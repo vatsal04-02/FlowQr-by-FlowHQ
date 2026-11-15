@@ -66,7 +66,7 @@ const ok = (c, m) => { if (!c) throw new Error(m); };
     await q.click(); ok((await q.getAttribute("aria-expanded")) === "false", "closes");
   });
 
-  await step("nav: Product menu, Industries, Pricing, About, Log in, Book a demo; all links resolve", async () => {
+  await step("nav: Product menu, Industries, Pricing, About, Log in, Sign up; all links resolve", async () => {
     await page.goto("/", { waitUntil: "networkidle" });
     const nav = page.getByRole("navigation", { name: "Site" });
     await nav.getByRole("button", { name: /Product/ }).click();

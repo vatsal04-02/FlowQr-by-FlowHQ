@@ -1,9 +1,9 @@
 "use client";
 import { motion, useInView, useReducedMotion } from "motion/react";
-import { BarChart3, Check, ClipboardList, ListChecks, MessageSquareReply, Nfc, Search, Sparkles, Star } from "lucide-react";
+import { BarChart3, Check, MapPin, MessageSquareReply, Search, Sparkles, Star } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LogoMark } from "../ui/Brand";
-import { MButton, SampleTag } from "./kit";
+import { GoogleG, MButton, SampleTag } from "./kit";
 import { Rise } from "./motion";
 
 /**
@@ -15,10 +15,11 @@ const I = (Icon: typeof Search) => <Icon className="h-5 w-5" strokeWidth={1.5} a
 
 const CTA: [string, string] = ["See Google Business", "/google-business"];
 
-/** Two per job (finding, reviews, repeat customers), in column order, so the 3 x 2 grid reads by job. Nothing repeated. */
+/** The flagship engines, two per column (finding you, reviews, optimisation), so the 3 x 2 grid reads by column. Each is a built feature:
+ *  local ranking and the geo-grid map, the review cards + inbox + reply drafts, and the profile check + daily plan + insights. */
 const TILES: [ReactNode, string, string][] = [
-  [I(Search), "Profile check", "Spot what's missing, fix it fast"], [I(Nfc), "Tap or scan", "QR + NFC on one card"], [I(ClipboardList), "Daily plan", "What to do today"],
-  [I(MessageSquareReply), "Review replies", "Every review answered, you approve"], [I(Sparkles), "AI Review Assistant", "Their words, said clearly"], [I(ListChecks), "Approvals", "Nothing public without you"],
+  [I(Search), "Local SEO Engine", "Track where you appear on Google, measured not guessed"], [I(Star), "Review Engine", "QR + NFC cards, one review page, one inbox"], [I(Sparkles), "AI Optimisation", "Profile checks and a daily plan of what to do next"],
+  [I(MapPin), "Local Rank Map", "See your visibility street by street"], [I(MessageSquareReply), "AI Reply Drafts", "Replies written for you. You approve them"], [I(BarChart3), "Profile Insights", "Calls, searches and scans in one view"],
 ];
 
 function Tick({ on, children }: { on: boolean; children: ReactNode }) {
@@ -83,7 +84,7 @@ export function AgentShowcase({ title, sub }: { title: string; sub: string }) {
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-m-surface shadow-[var(--shadow-card)] ring-4 ring-white/60"><LogoMark size={28} /></span>
                 <p className="flex items-center gap-1.5 text-[14px] font-medium text-m-ink2"><Sparkles className="h-4 w-4 text-m-accentStrong" strokeWidth={1.5} aria-hidden />by FlowQR</p>
               </div>
-              <h2 id="agents-h" className="t-display mt-6 text-m-ink [text-wrap:wrap] max-sm:!text-[length:min(10vw,40px)]">{title.slice(0, cut)} <span className="text-m-accentText">{title.slice(cut + 1)}</span></h2>
+              <h2 id="agents-h" className="t-display mt-6 text-m-ink [text-wrap:wrap] max-sm:!text-[length:min(10vw,40px)]"><GoogleG size="0.78em" className="mr-[.22em] translate-y-[-.06em] align-middle shadow-[var(--shadow-card)]" />{title.slice(0, cut)} <span className="text-m-accentText">{title.slice(cut + 1)}</span></h2>
               <p className="mt-5 max-w-[560px] text-pretty text-[16px] leading-relaxed text-m-ink2 md:text-[17px]">{sub}</p>
             </Rise>
             <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">

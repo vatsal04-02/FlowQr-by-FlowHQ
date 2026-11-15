@@ -15,7 +15,7 @@ export const metadata: Metadata = pageMeta("/industries", c.meta.title, c.meta.d
 export default function Industries() {
   return (
     <>
-      <Hero line1={c.hero.line1} line2={c.hero.line2} actions={<MButton href="/demo" event="demo_cta_click">Book a demo</MButton>} />
+      <Hero line1={c.hero.line1} line2={c.hero.line2} actions={<MButton href="/register" event="signup_cta_click">Sign up</MButton>} />
       <IndustryTabs items={c.list.map(([id, name]) => [id, name])} />
       <div className="mkt-wrap space-y-3 pb-16 pt-8">
         {c.list.map(([id, name, where, topics], i) => (
@@ -33,6 +33,7 @@ export default function Industries() {
           </Rise>
         ))}
         <p className="pt-4 text-center text-[13px] text-m-muted">{c.note}</p>
+        <p className="text-center text-[12px] leading-relaxed text-m-muted">Pictures: <a className="underline" href="https://commons.wikimedia.org/w/index.php?curid=16489092">Beauty salon, Deccan Odyssey</a> by Simon Pielow, CC BY-SA 2.0; <a className="underline" href="https://commons.wikimedia.org/wiki/File:A_store_inside_Moazzam_Jahi_Market_in_Hyderabad.jpg">A store inside Moazzam Jahi Market, Hyderabad</a> by Mouryan, CC BY-SA 4.0; <a className="underline" href="https://commons.wikimedia.org/w/index.php?curid=150240815">Kebab &amp; Curry Indian Restaurant</a> by Chongkian, CC BY-SA 4.0. Via Wikimedia Commons.</p>
       </div>
       <FinalCTA line1={c.cta.line1} line2={c.cta.line2} />
     </>

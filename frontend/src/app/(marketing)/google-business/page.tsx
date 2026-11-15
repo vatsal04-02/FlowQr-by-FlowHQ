@@ -29,7 +29,7 @@ export default function GoogleBusiness() {
   return (
     <>
       <Hero line1={c.hero.line1} line2={c.hero.line2}
-        actions={<><MButton href="/demo" event="demo_cta_click">Book a demo</MButton><MButton href="#connect" variant="secondary" lead={<Store className="h-4 w-4" strokeWidth={1.5} />}>How connecting works</MButton></>}
+        actions={<><MButton href="/register" event="signup_cta_click">Sign up</MButton><MButton href="#connect" variant="secondary" lead={<Store className="h-4 w-4" strokeWidth={1.5} />}>How connecting works</MButton></>}
         center={<InboxCard />} left={{ icon: <Store className="h-4 w-4" strokeWidth={1.5} />, text: c.hero.left }}
         chips={[<MicroChip key="a" icon={<ShieldCheck className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[0]}</MicroChip>, <MicroChip key="b" icon={<BadgeCheck className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[1]}</MicroChip>, <MicroChip key="c" icon={<MapPin className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[2]}</MicroChip>]} />
 

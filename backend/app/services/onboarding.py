@@ -39,6 +39,10 @@ def steps(db: Session, tenant_id: uuid.UUID, user: User) -> dict:
         plan_state = ("done", f"You are on the {sub.plan.title()} plan.")
     elif e.promo:
         plan_state = ("free", f"Your free {e.promo['plan_name']} month runs to {e.promo['ends_at']:%d %b %Y}. Nothing is charged when it ends; choose a plan when you are ready.")
+    elif sub and sub.status == "trialing" and e.reason == "card_required":
+        plan_state = ("todo", "Add a card to start your free trial. You won't be charged until the trial ends, and you can cancel before then.")
+    elif sub and sub.status == "trialing" and e.active and sub.card_status == "on_file":
+        plan_state = ("free", f"Your free trial has {e.trial_days_left} days left. Your card is on file and is charged only when the trial ends, for the plan you chose. Cancel any time before then from Billing.")
     elif sub and sub.status == "trialing" and e.active:
         plan_state = ("free", f"Your free trial has {e.trial_days_left} days left. You choose whether to continue; nothing is charged automatically.")
     else:

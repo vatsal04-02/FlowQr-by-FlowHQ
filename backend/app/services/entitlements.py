@@ -67,8 +67,11 @@ def _compute(sub: Subscription | None) -> Entitlements:
     if status == "trialing":
         if sub.trial_ends_at and sub.trial_ends_at <= now:
             active, status, reason = False, "expired", "trial_ended"
-        elif sub.trial_ends_at:
-            trial_days_left = max(0, (sub.trial_ends_at - now).days)
+        else:
+            if sub.trial_ends_at:
+                trial_days_left = max(0, (sub.trial_ends_at - now).days)
+            if sub.card_status == "required":
+                active, reason = False, "card_required"  # a new trial stays locked until a card is authorised
     elif status == "past_due":
         since = sub.past_due_since or now
         grace_until = since + timedelta(days=settings.past_due_grace_days)
@@ -107,7 +110,8 @@ def require_active(db: Session, tenant_id: uuid.UUID) -> Entitlements:
     if not ent.active:
         raise HTTPException(status_code=402, detail={
             "code": "subscription_inactive", "reason": ent.reason,
-            "message": "Your FlowQR subscription isn't active. Choose a plan to continue.",
+            "message": ("Add a card to start your free trial. You won't be charged until the trial ends." if ent.reason == "card_required"
+                        else "Your FlowQR subscription isn't active. Choose a plan to continue."),
         })
     return ent
 

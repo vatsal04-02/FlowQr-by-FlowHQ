@@ -147,7 +147,7 @@ def test_checkout_idempotent_and_trial_defers_first_charge(rzp, biz_a):
     assert a["subscription_id"] == b["subscription_id"] and b["reused"] is True
     assert sum(1 for c in rzp.calls if c[0] == "create_subscription") == 1
     start_at = [c for c in rzp.calls if c[0] == "create_subscription"][0][2]
-    assert start_at and start_at > time.time() + 10 * 86400  # first charge only after the trial
+    assert start_at and start_at > time.time() + (settings.trial_days - 1) * 86400  # first charge only after the trial
     assert a["key_id"] == "rzp_test_abc123"
 
 
@@ -388,3 +388,25 @@ def test_payment_id_never_crosses_tenants(rzp, client, biz_a, biz_b):
     a = biz_a.get("/billing/payments").json()
     assert [(p["razorpay_payment_id"], p["amount_paise"]) for p in a] == [("pay_shared_id_1", 79900)]
     assert biz_b.get("/billing/payments").json() == []
+
+
+def test_card_required_trial_is_locked_until_a_card_is_authorised(rzp, biz_a):
+    db, sub = db_sub(biz_a.tenant_id)
+    sub.card_status = "required"; db.commit(); db.close()
+    s = biz_a.get("/billing/subscription").json()
+    assert s["card_required"] is True and s["active"] is False and s["inactive_reason"] == "card_required" and s["status"] == "trialing"
+    # checkout still works while locked, and defers the first charge until the trial ends
+    sid = start_checkout(biz_a, "starter")["subscription_id"]
+    start_at = [c for c in rzp.calls if c[0] == "create_subscription"][0][2]
+    assert start_at and start_at > time.time() + (settings.trial_days - 1) * 86400
+    rzp.subs[sid]["status"] = "authenticated"  # mandate authorised, nothing charged yet
+    pay = "pay_card1"
+    r = biz_a.post("/billing/subscription/verify", json={"razorpay_payment_id": pay, "razorpay_subscription_id": sid, "razorpay_signature": sig(KEY_SECRET, f"{pay}|{sid}")})
+    assert r.status_code == 200 and r.json()["status"] == "trialing"
+    s = biz_a.get("/billing/subscription").json()
+    assert s["card_required"] is False and s["card_on_file"] is True and s["active"] is True and s["inactive_reason"] is None
+
+
+def test_card_not_required_by_default_for_new_trials(biz_a):
+    s = biz_a.get("/billing/subscription").json()
+    assert s["card_required"] is False and s["active"] is True

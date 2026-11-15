@@ -6,7 +6,7 @@ import { APP_PREFIXES } from "@/lib/nav";
 import { themeBootScript } from "@/lib/theme-boot";
 
 export const metadata: Metadata = {
-  title: { default: "FlowQR — Your local AI marketing team", template: "%s | FlowQR" },
+  title: { default: "FlowQR — Google reviews and review cards for local businesses", template: "%s | FlowQR" },
   description: "Get found on Google, get genuine reviews and manage your online presence in one place. Google Business management, an AI Review Assistant, QR/NFC review cards and human-approved replies and posts.",
   robots: { index: true, follow: true },
 };

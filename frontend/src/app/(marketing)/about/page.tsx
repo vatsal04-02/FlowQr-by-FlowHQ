@@ -14,7 +14,7 @@ const ICONS = [HeartHandshake, ShieldCheck, Database, BadgeCheck];
 export default function About() {
   return (
     <>
-      <Hero line1={c.hero.line1} line2={c.hero.line2} actions={<><MButton href="/demo" event="demo_cta_click">Book a demo</MButton><MButton href="#services" variant="secondary">FlowHQ services</MButton></>} />
+      <Hero line1={c.hero.line1} line2={c.hero.line2} actions={<><MButton href="/register" event="signup_cta_click">Sign up</MButton><MButton href="#services" variant="secondary">FlowHQ services</MButton></>} />
       <ScrollStatement text={c.statement.text} strong={c.statement.strong} chip={<Sparkles className="h-[.6em] w-[.6em]" strokeWidth={2} />} />
       <section className="pb-24 md:pb-36">
         <div className="mkt-wrap">

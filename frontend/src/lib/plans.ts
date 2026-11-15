@@ -11,5 +11,8 @@ export const FALLBACK_PLANS: Plan[] = [
 
 export function usePlans() {
   const { data } = useFetch<PlansResponse>("/billing/plans");
-  return { plans: data?.plans ?? FALLBACK_PLANS, trialDays: data?.trial_days ?? 14 };
+  return { plans: data?.plans ?? FALLBACK_PLANS, trialDays: data?.trial_days ?? 7, cardRequired: data?.trial_requires_card ?? true };
 }
+
+/** The card rule next to "N-day free trial", read from the server like the length, so the site never contradicts what the app does. */
+export const trialTerms = (cardRequired: boolean) => (cardRequired ? "Card required, no charge until the trial ends." : "No card needed.");

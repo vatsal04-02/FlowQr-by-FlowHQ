@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Logo } from "./ui/Brand";
 import { Poster } from "./marketing/Poster";
-import { TrialHeadline } from "./marketing/TrialHeadline";
+import { TrialHeadline, TrialPitch } from "./marketing/TrialHeadline";
 
 /**
  * Sign-in and sign-up frame. Left: the brand panel (orange tint) with a short pitch and the real card, centred as one block so the panel
@@ -21,7 +21,7 @@ export function AuthShell({ title, subtitle, children, footer, pitch }: {
               {pitch?.title ?? <TrialHeadline />}
             </h2>
             <p className="mt-5 max-w-[34ch] text-[17px] leading-relaxed text-m-ink">
-              {pitch?.body ?? "No card needed. Connect your Google profile, put a FlowQR card on your counter, and approve everything before it goes live."}
+              {pitch ? pitch.body : <TrialPitch />}
             </p>
           </div>
           <div className="w-[260px] max-w-full" style={{ filter: "drop-shadow(0 22px 26px rgba(0,0,0,.18))" }}><Poster /></div>

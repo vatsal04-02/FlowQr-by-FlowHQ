@@ -49,7 +49,8 @@ x-backend-env: &backend-env
   RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
   RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
   RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
-  TRIAL_DAYS: ${TRIAL_DAYS:-14}
+  TRIAL_DAYS: ${TRIAL_DAYS:-7}
+  TRIAL_REQUIRES_CARD: ${TRIAL_REQUIRES_CARD:-true}  # new trials need a card (charged only after the trial ends); set false for no-card trials
   CARD_PRICE_PAISE: ${CARD_PRICE_PAISE:-}  # no default: unset disables card ordering
   REQUIRE_VERIFIED_EMAIL: ${REQUIRE_VERIFIED_EMAIL:-true}
   REGISTRATION_MODE: ${REGISTRATION_MODE:-}  # closed | allowlist | open. EMPTY = allowlist when APP_ENV is staging/production, open in development

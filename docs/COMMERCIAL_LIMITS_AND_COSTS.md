@@ -22,7 +22,7 @@ Nothing here has been checked against a real invoice from Google, a payment prov
 | Locations per plan | Starter 1, **Growth 1**, **Pro 10** | PROVISIONAL (Growth: "multi-location is No by default" in the brief; Pro: carried over from the retired Multi plan) | `billing_plans.max_locations` | DECISION |
 | Team seats | 3 / 10 / 50 | PROVISIONAL (carried over from the retired plans) | `billing_plans.max_staff` | DECISION |
 | Starter's feature set | manual profile editing yes; Google Posts, Photos, autonomy start at Growth | PROVISIONAL | `billing_plans.features` | DECISION |
-| Trial | 14 days, no card | carried over, not re-confirmed | `TRIAL_DAYS` | |
+| Trial | 7 days, card required (charged after the trial) | owner decision 2026-11-15 (was 14 days, no card) | `TRIAL_DAYS` | |
 | Search terms tracked per location | 10 | PROVISIONAL (was a hardcoded constant until this pass; now a setting) | `RANK_MAX_KEYWORDS_PER_LOCATION` | DECISION: a per-plan number needs a schema change, not built because no number has been chosen |
 
 ## 2. Local ranking and maps (each one spends Google money)

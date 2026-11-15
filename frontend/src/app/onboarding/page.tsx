@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Brand";
 import { Button } from "@/components/ui/Button";
+import { PlanCards } from "@/components/PlanCards";
 import { Alert, Badge, Card, Spinner } from "@/components/ui/Card";
 import { ErrorSummary, Input, Select } from "@/components/ui/Form";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { openCheckout } from "@/lib/billing";
 import { CATEGORIES, LANGS, TIMEZONES } from "@/lib/format";
 import { emailRule, googleUrlRule, phoneRule, required, useForm } from "@/lib/form";
 import { useFetch } from "@/lib/use-api";
-import type { Location } from "@/lib/types";
+import type { Location, Plan, PlansResponse } from "@/lib/types";
 
 const STEPS = ["Your business", "First location", "Google reviews", "Plan and first page"];
 
@@ -20,6 +22,7 @@ export default function Onboarding() {
   const { me, tenant, loading, refresh, logout } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<number | null>(null);
+  const cardSub = useFetch<{ card_required?: boolean }>(tenant ? "/billing/subscription" : null);
 
   useEffect(() => {
     if (loading) return;
@@ -30,7 +33,8 @@ export default function Onboarding() {
     api<Location[]>("/locations").then((l) => setStep(l.length ? 2 : 1)).catch(() => setStep(1));
   }, [loading, me, tenant, router, step]);
 
-  if (step === null) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
+  if (step === null || (tenant && !cardSub.data && cardSub.loading)) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
+  const needsCard = !!tenant && !!cardSub.data?.card_required;
   return (
     <div className="min-h-dvh bg-ink-50">
       <header className="border-b border-ink-100 bg-white"><div className="container-page flex items-center justify-between py-3"><Logo /><div className="flex items-center gap-3"><p className="hidden text-sm text-ink-500 sm:block">{me?.user.email}</p><button type="button" onClick={() => void logout()} className="tap inline-flex items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-ink-700 hover:bg-ink-100"><LogOut className="h-4 w-4" aria-hidden />Sign out</button></div></div></header>
@@ -46,12 +50,58 @@ export default function Onboarding() {
             </li>
           ))}
         </ol>
-        {step === 0 && <BusinessStep onDone={async () => { await refresh(); setStep(1); }} />}
-        {step === 1 && <LocationStep onDone={() => setStep(2)} />}
-        {step === 2 && <GoogleStep onManual={() => setStep(3)} />}
-        {step === 3 && <ReadyStep />}
+        {needsCard ? <CardStep onDone={() => void cardSub.reload()} /> : <>
+          {step === 0 && <BusinessStep onDone={async () => { await refresh(); setStep(1); }} />}
+          {step === 1 && <LocationStep onDone={() => setStep(2)} />}
+          {step === 2 && <GoogleStep onManual={() => setStep(3)} />}
+          {step === 3 && <ReadyStep />}
+        </>}
       </main>
     </div>
+  );
+}
+
+/** Shown right after the business is created, and in place of every later step, until a card is authorised (the free trial needs one). No charge is made today:
+ *  the subscription is created with its first charge scheduled for the day the trial ends. */
+function CardStep({ onDone }: { onDone: () => void }) {
+  const { me } = useAuth();
+  const sub = useFetch<{ trial_ends_at: string | null }>("/billing/subscription");
+  const plans = useFetch<PlansResponse>("/billing/plans");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const ends = sub.data?.trial_ends_at ? new Date(sub.data.trial_ends_at).toLocaleDateString("en-IN", { dateStyle: "medium" }) : "the day your trial ends";
+
+  async function start(p: Plan) {
+    setBusy(p.code); setErr(null);
+    try {
+      const c = await api<{ subscription_id: string; key_id: string }>("/billing/subscription/checkout", { method: "POST", body: { plan: p.code } });
+      await openCheckout({
+        key: c.key_id, subscription_id: c.subscription_id, description: `FlowQR ${p.name}: free trial`, prefill: { name: me?.user.full_name, email: me?.user.email },
+        onDismiss: () => setBusy(null),
+        onSuccess: async (r) => {
+          try {
+            await api("/billing/subscription/verify", { method: "POST", body: { razorpay_payment_id: r.razorpay_payment_id, razorpay_subscription_id: r.razorpay_subscription_id, razorpay_signature: r.razorpay_signature } });
+            onDone();
+          } catch (e) { setErr(errorMessage(e)); setBusy(null); }
+        },
+      });
+    } catch (e) { setErr(errorMessage(e)); setBusy(null); }
+  }
+
+  return (
+    <Card>
+      <h1 className="text-2xl font-semibold">Add a card to start your free trial</h1>
+      <p className="mt-2 text-ink-700">You won&rsquo;t be charged today. Pick the plan you want after the trial: your card is charged for it on {ends}, unless you cancel before then. You can cancel any time from Billing.</p>
+      {err && <div className="mt-4"><Alert tone="error">{err}</Alert></div>}
+      <div className="mt-5">
+        {plans.data ? (
+          <PlanCards plans={plans.data.plans} current={null} action={(p) => (
+            <Button className="w-full" variant={p.code === "growth" ? "primary" : "secondary"} loading={busy === p.code} disabled={!!busy || !plans.data!.billing.configured} onClick={() => void start(p)}>Start free trial with {p.name}</Button>
+          )} />
+        ) : <div className="grid place-items-center py-6"><Spinner /></div>}
+      </div>
+      <p className="mt-4 text-xs text-ink-500">Your card details go straight to our payment provider; FlowQR never sees or stores them. The trial opens as soon as the provider confirms your card.</p>
+    </Card>
   );
 }
 
@@ -207,6 +257,7 @@ function GoogleStep({ onManual }: { onManual: () => void }) {
 }
 
 interface Sub {
+  card_on_file?: boolean;
   status: string; active: boolean; plan_name: string | null; trial_days_left: number | null; current_period_end: string | null;
   promo: { plan_name: string; ends_at: string } | null;
   limits: { locations: number; review_generations: number; review_replies: number; staff: number };
@@ -246,7 +297,7 @@ function ReadyStep() {
   const s = sub.data;
   const planLine = !s ? null
     : s.promo ? `Your free ${s.promo.plan_name} month runs to ${new Date(s.promo.ends_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}. Nothing is charged when it ends.`
-    : s.status === "trialing" && s.trial_days_left !== null ? `Your free trial has ${s.trial_days_left} day${s.trial_days_left === 1 ? "" : "s"} left. Nothing is charged automatically.`
+    : s.status === "trialing" && s.trial_days_left !== null ? `Your free trial has ${s.trial_days_left} day${s.trial_days_left === 1 ? "" : "s"} left. ${s.card_on_file ? "Your card is charged when it ends, for the plan you chose. Cancel any time from Billing." : "Nothing is charged automatically."}`
     : s.active ? `You are on the ${s.plan_name ?? "current"} plan.` : "Your plan is not active. Choose one in Settings.";
 
   return (

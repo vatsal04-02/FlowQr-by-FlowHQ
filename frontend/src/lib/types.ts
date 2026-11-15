@@ -63,11 +63,11 @@ export interface Overview {
 
 export interface Plan { code: string; name: string; price_paise: number; currency: string; interval: string; max_locations: number; monthly_ai_generations: number; review_generations: number; review_replies: number; max_staff: number; features: string[] }
 export interface CardOffer { code: string; quantity: number; price_paise: number; includes: string }
-export interface PlansResponse { plans: Plan[]; trial_days: number; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null }; card_price_paise: number | null; card_ordering_enabled: boolean; card_offers: CardOffer[]; card_offer_note: string }
+export interface PlansResponse { plans: Plan[]; trial_days: number; trial_requires_card?: boolean; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null }; card_price_paise: number | null; card_ordering_enabled: boolean; card_offers: CardOffer[]; card_offer_note: string }
 export interface SubscriptionInfo {
   billing: PlansResponse["billing"]; status: string; active: boolean; inactive_reason: string | null; plan: string | null; plan_name: string | null; price_paise: number | null;
   trial_ends_at: string | null; trial_days_left: number | null; current_period_end: string | null; cancel_at_period_end: boolean; pending_plan: string | null;
-  grace_until: string | null; source: string | null; has_razorpay_subscription: boolean;
+  grace_until: string | null; source: string | null; has_razorpay_subscription: boolean; card_required?: boolean; card_on_file?: boolean;
   limits: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number; features: string[] };
   usage: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number };
   promo: { plan: string; plan_name: string; ends_at: string; kind: string; note: string } | null;

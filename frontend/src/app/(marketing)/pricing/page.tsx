@@ -13,7 +13,7 @@ export const metadata: Metadata = pageMeta("/pricing", c.meta.title, c.meta.desc
 export default function Pricing() {
   return (
     <>
-      <Hero line1={c.hero.line1} line2={c.hero.line2} actions={<><MButton href="/register">Start free trial</MButton><MButton href="/demo" variant="secondary">Book a demo</MButton></>} />
+      <Hero line1={c.hero.line1} line2={c.hero.line2} actions={<><MButton href="/register">Start free trial</MButton><MButton href="/login" variant="secondary">Log in</MButton></>} />
       <section className="pb-24">
         <div className="mkt-wrap"><PlanCards /></div>
       </section>

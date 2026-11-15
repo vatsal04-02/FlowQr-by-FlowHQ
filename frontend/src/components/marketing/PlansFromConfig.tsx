@@ -4,6 +4,7 @@ import { Check, Minus } from "lucide-react";
 import { FEATURE_LABELS, rupees } from "@/lib/billing";
 import type { PlansResponse } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
+import { trialTerms } from "@/lib/plans";
 import { MButton } from "./kit";
 import { EASE, Rise } from "./motion";
 import { motion } from "motion/react";
@@ -21,8 +22,8 @@ function TalkToUs() {
   return (
     <div className="mkt-card mx-auto max-w-[520px] p-8 text-center">
       <p className="t-h3 text-m-ink">Talk to us for pricing</p>
-      <p className="mt-3 text-[15px] text-m-muted">We couldn&rsquo;t load the current plans just now. Book a demo and we&rsquo;ll walk you through them.</p>
-      <MButton href="/demo" event="demo_cta_click" className="mt-6">Book a demo</MButton>
+      <p className="mt-3 text-[15px] text-m-muted">We couldn&rsquo;t load the current plans just now. Please try again in a moment, or sign up to get started.</p>
+      <MButton href="/register" event="signup_cta_click" className="mt-6">Sign up</MButton>
     </div>
   );
 }
@@ -35,7 +36,7 @@ export function PlanCards() {
   const rec = plans.find((p) => p.code === "growth")?.code ?? plans[Math.floor(plans.length / 2)]?.code;
   return (
     <>
-      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial. No card needed.</p>
+      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial. {trialTerms(data.trial_requires_card ?? true)}</p>
       <div className="grid gap-3 md:grid-cols-3">
         {plans.map((p, i) => {
           const hot = p.code === rec;

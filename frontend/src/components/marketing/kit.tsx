@@ -1,29 +1,26 @@
 "use client";
 import clsx from "clsx";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { track } from "@/lib/track";
 
-/** DESIGN.md §5.2. Primary: orange pill with a white circle holding + or →. Text on orange is navy (white would be 2.9:1). */
-export function MButton({ href, children, variant = "primary", icon = "plus", lead, sub, className, event, onClick }: {
-  href: string; children: ReactNode; variant?: "primary" | "secondary" | "dark"; icon?: "plus" | "arrow" | "none"; lead?: ReactNode; sub?: string; className?: string; event?: string; onClick?: () => void;
+/** Pill button, regular weight. Primary: orange fill. `icon="arrow"` adds a plain arrow after the label. Text on orange is navy (white would be 2.9:1). */
+export function MButton({ href, children, variant = "primary", icon = "none", lead, sub, className, event, onClick }: {
+  href: string; children: ReactNode; variant?: "primary" | "secondary" | "dark"; icon?: "arrow" | "none"; lead?: ReactNode; sub?: string; className?: string; event?: string; onClick?: () => void;
 }) {
-  const base = "group inline-flex min-h-11 items-center gap-2 rounded-full text-[14px] font-medium tracking-[-.01em] transition-colors duration-200";
+  const base = "group inline-flex min-h-11 items-center gap-2 rounded-full text-[14px] font-normal tracking-[-.01em] transition-colors duration-200";
   const v = {
-    primary: "bg-m-accent text-m-ink pl-5 pr-1.5 hover:bg-[#F06000]",
-    dark: "bg-white text-m-navy pl-5 pr-1.5 hover:bg-white/90",
+    primary: "bg-m-accent text-m-ink px-5 hover:bg-[#F06000]",
+    dark: "bg-white text-m-navy px-5 hover:bg-white/90",
     secondary: "border border-m-ink/70 text-m-ink px-5 hover:bg-m-ink/[.04]",
   }[variant];
   return (
     <Link href={href} className={clsx(base, v, className)} onClick={() => { if (event) track(event); onClick?.(); }}>
       {lead && <span className="grid h-4 w-4 place-items-center" aria-hidden>{lead}</span>}
       {sub ? <span className="flex flex-col py-1 leading-tight"><span className="text-[10px] font-semibold uppercase tracking-[.04em] text-m-muted">{sub}</span><span>{children}</span></span> : children}
-      {variant !== "secondary" && icon !== "none" && (
-        <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-white text-m-accentStrong">
-          {icon === "plus" ? <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" strokeWidth={2} /> : <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[3px]" strokeWidth={2} />}
-        </span>
-      )}
+      {icon === "arrow" && <ArrowRight aria-hidden className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[3px]" strokeWidth={1.75} />}
     </Link>
   );
 }
@@ -31,6 +28,17 @@ export function MButton({ href, children, variant = "primary", icon = "plus", le
 /** Label chip on bento cards (§5.3). */
 export function Chip({ icon, children, tone = "white", className }: { icon?: ReactNode; children: ReactNode; tone?: "white" | "tint"; className?: string }) {
   return <span className={clsx("inline-flex h-8 items-center gap-1.5 rounded-[10px] px-3 t-small text-m-ink2", tone === "white" ? "bg-m-surface" : "bg-m-tint", className)}>{icon && <span aria-hidden className="text-m-accentStrong">{icon}</span>}{children}</span>;
+}
+
+/** Uppercase section badge ("SET UP IN ONE DAY"). Navy text on the peach tint; the orange dot carries the accent (orange text this small would miss 4.5:1). */
+export function Badge({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={clsx("inline-flex h-7 items-center gap-2 rounded-full bg-m-tint px-3 text-[11px] font-semibold uppercase tracking-[.08em] text-m-ink2", className)}><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-m-accent" />{children}</span>;
+}
+
+/** The Google "G" (the supplied image sits on a light grey square, so the round tile matches it). `size` is px, or a CSS length such as "0.8em" to scale with a heading. */
+export function GoogleG({ size = 28, className }: { size?: number | string; className?: string }) {
+  const css = typeof size === "number" ? `${size}px` : size;
+  return <span aria-hidden className={clsx("inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-[#F5F5F5] ring-1 ring-m-line", className)} style={{ width: css, height: css }}><Image src="/marketing/google-g.webp" alt="" width={96} height={96} className="h-full w-full object-cover" /></span>;
 }
 
 /** Micro chip (hero right side). */

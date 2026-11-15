@@ -1,11 +1,12 @@
 "use client";
 import clsx from "clsx";
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
-import { Check, Minus } from "lucide-react";
+import { ArrowRight, Check, Minus } from "lucide-react";
 import Image from "next/image";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { track } from "@/lib/track";
 import { Accent, Chip, MButton, SectionHead } from "./kit";
+import { TrialNote } from "./TrialNote";
 import { HeroBackdrop } from "./Depth";
 import { EASE, Rise } from "./motion";
 
@@ -34,22 +35,32 @@ function Word({ children, p, range, reduced, strong }: { children: string; p: Mo
   return <motion.span style={{ color: reduced ? (strong ? "#C94C00" : "#0B0F2E") : color }}>{children} </motion.span>;
 }
 
-/* ======================================================================= How it works (one row of three numbered steps, above the bento) */
-export function HowItWorks({ title, steps }: { title: string; steps: string[] }) {
+/* ======================================================================= How it works (three connected, numbered cards with a small illustration each) */
+export function HowItWorks({ title, sub, steps, art }: { title: string; sub?: string; steps: [string, string][]; art: ReactNode[] }) {
   return (
-    <section aria-labelledby="how-h" className="pb-8 md:pb-10">
+    <section id="how-it-works" aria-labelledby="how-h" className="scroll-mt-24 py-14 md:py-20">
       <div className="mkt-wrap">
-        <Rise y={20} blur={false} className="mkt-card px-2 py-6 sm:px-8 md:px-12 md:py-8">
-          <h2 id="how-h" className="text-center t-small text-m-muted">{title}</h2>
-          <ol className="mt-5 grid grid-cols-3 gap-2 sm:gap-4">
-            {steps.map((s, i) => (
-              <li key={s} className="relative flex flex-col items-center text-center after:absolute after:left-[calc(50%+30px)] after:top-[18px] after:w-[calc(100%-44px)] after:border-t after:border-dashed after:border-m-accent/60 after:content-[''] last:after:hidden sm:after:top-5">
-                <span className="relative z-10 grid h-9 w-9 place-items-center rounded-full bg-m-accent text-[15px] font-semibold text-m-ink sm:h-10 sm:w-10">{i + 1}</span>
-                <p className="mt-3 max-w-[180px] text-[13px] font-medium leading-snug tracking-[-.01em] text-m-ink sm:text-[16px]">{s}</p>
-              </li>
-            ))}
-          </ol>
-        </Rise>
+        <Rise><SectionHead id="how-h" title={title} sub={sub} /></Rise>
+        <ol className="mt-12 grid gap-8 md:grid-cols-3">
+          {steps.map(([t, b], i) => (
+            <Rise as="li" key={t} delay={i * 0.12} y={20} blur={false}
+              className="relative flex flex-col rounded-[20px] bg-m-surface p-3.5 shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-float)]">
+              <div className="h-[184px] overflow-hidden rounded-[14px] bg-m-tint">{art[i]}</div>
+              <div className="px-2 pb-2 pt-5">
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[.08em] text-m-ink2">Step<span className="grid h-7 w-7 place-items-center rounded-full bg-m-accent text-[13px] tracking-normal text-m-ink">{i + 1}</span></span>
+                <h3 className="mt-3 text-[22px] font-medium leading-tight tracking-[-.025em] text-m-ink">{t}</h3>
+                <p className="mt-2 text-[15px] leading-relaxed text-m-muted">{b}</p>
+              </div>
+              {i < steps.length - 1 && (
+                <>
+                  <span aria-hidden className="absolute left-full top-[92px] hidden h-0 w-8 border-t-2 border-dashed border-m-accent md:block" />
+                  <span aria-hidden className="absolute left-full top-[92px] z-10 ml-[2px] hidden h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-m-accent text-m-ink md:grid"><ArrowRight className="h-4 w-4" strokeWidth={2} /></span>
+                  <span aria-hidden className="absolute left-1/2 top-full h-8 w-0 -translate-x-1/2 border-l-2 border-dashed border-m-accent md:hidden" />
+                </>
+              )}
+            </Rise>
+          ))}
+        </ol>
       </div>
     </section>
   );
@@ -83,62 +94,52 @@ export function BentoCard({ chip, title, body, visual, tone = "white", delay = 0
   );
 }
 
-/* ======================================================================= ComparisonTable (07) */
+/* ======================================================================= ComparisonTable (07)
+   One compact table at every width (no horizontal scroll, no stacked cards on phones): feature | brand | the others. The brand column is the orange highlight. */
 export type Cell = string | boolean;
-export function ComparisonTable({ title, sub, columns, rows, brandIndex = 0, tight }: { title: string; sub?: string; columns: string[]; rows: { feature: string; icon?: ReactNode; cells: Cell[] }[]; brandIndex?: number; tight?: boolean }) {
+export function ComparisonTable({ title, sub, columns, rows, brandIndex = 0, tight, note }: { title: string; sub?: string; columns: string[]; rows: { feature: string; icon?: ReactNode; cells: Cell[] }[]; brandIndex?: number; tight?: boolean; note?: string }) {
   const reduced = useReducedMotion();
-  const cell = (c: Cell, brand: boolean) => c === true ? <Check className={clsx("mx-auto h-4 w-4", brand ? "text-m-ink" : "text-[#157347]")} strokeWidth={2} aria-label="Yes" /> : c === false ? <Minus className="mx-auto h-4 w-4 text-m-muted2" strokeWidth={1.5} aria-label="No" /> : c;
+  const cell = (c: Cell, brand: boolean) => c === true
+    ? <><Check className={clsx("mx-auto h-5 w-5", brand ? "text-m-ink" : "text-[#157347]")} strokeWidth={2.25} aria-hidden /><span className="sr-only">Yes</span></>
+    : c === false
+      ? <><Minus className="mx-auto h-4 w-4 text-m-muted" strokeWidth={1.75} aria-hidden /><span className="sr-only">No</span></>
+      : c;
   return (
     <section className={tight ? "py-12 md:py-16" : "mkt-section"}>
       <div className="mkt-wrap">
         <Rise><SectionHead title={title} sub={sub} /></Rise>
-        <ul className="mt-8 space-y-3 md:hidden">
-          {rows.map((r) => (
-            <li key={r.feature} className="rounded-[16px] bg-m-surface p-4 shadow-[var(--shadow-card)]">
-              <p className="flex items-center gap-2.5 text-[15px] font-medium leading-snug text-m-ink">
-                {r.icon && <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-m-tint text-m-accentStrong">{r.icon}</span>}{r.feature}
-              </p>
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-m-accent px-3.5 py-2.5 text-[14px] font-medium text-m-ink">
-                <span>{columns[brandIndex]}</span><span className="text-right">{cell(r.cells[brandIndex], true)}</span>
-              </div>
-              <dl className="mt-2 grid grid-cols-3 gap-2">
-                {columns.map((c, i) => i === brandIndex ? null : (
-                  <div key={c} className="rounded-[10px] bg-m-tint/60 px-2.5 py-2">
-                    <dt className="text-[11px] leading-tight text-m-muted">{c}</dt>
-                    <dd className="mt-1 text-[13px] font-medium leading-tight text-m-ink2">{r.cells[i] === true ? "Yes" : r.cells[i] === false ? "No" : r.cells[i]}</dd>
-                  </div>
-                ))}
-              </dl>
-            </li>
-          ))}
-        </ul>
-        <div className="relative mt-12 hidden overflow-x-auto pb-4 md:block">
-          <table className="w-full min-w-[720px] border-separate border-spacing-0 text-center text-[13px]">
+        <Rise delay={0.1} y={14} blur={false} className="mt-8 md:mt-10">
+          <table className="w-full table-fixed border-separate border-spacing-0 text-center text-[13px] md:text-[14px]">
+            <caption className="sr-only">{title}</caption>
             <thead>
               <tr>
-                <th scope="col" className="sticky left-0 z-10 w-[26%] bg-m-bg px-4 pb-4 text-left font-medium text-m-muted">Feature</th>
+                <th scope="col" className="w-[36%] px-1 pb-3 text-left text-[12px] font-medium text-m-muted sm:px-4 md:w-[30%] md:text-[13px]">Feature</th>
                 {columns.map((c, i) => (
-                  <th key={c} scope="col" className={clsx("px-3 pb-4 align-bottom font-medium", i === brandIndex ? "relative text-[15px] text-m-ink" : "text-m-ink2")}>
-                    {i === brandIndex && <motion.span aria-hidden className="absolute inset-x-0 -top-2 rounded-t-[14px] bg-m-accent" style={{ bottom: 0 }} initial={{ scaleY: reduced ? 1 : 0.96 }} whileInView={{ scaleY: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, ease: EASE }} />}
+                  <th key={c} scope="col" className={clsx("relative px-1 pb-3 align-bottom text-[12px] font-medium md:text-[14px]", i === brandIndex ? "text-[13px] text-m-ink md:text-[15px]" : "text-m-ink2")}>
+                    {i === brandIndex && <motion.span aria-hidden className="absolute inset-x-0.5 -top-2 rounded-t-[12px] bg-m-accent md:inset-x-2" style={{ bottom: 0 }} initial={{ scaleY: reduced ? 1 : 0.96 }} whileInView={{ scaleY: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, ease: EASE }} />}
                     <span className="relative">{c}</span>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, ri) => (
-                <motion.tr key={r.feature} initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: reduced ? 0 : ri * 0.04 }}>
-                  <th scope="row" className={clsx("sticky left-0 z-10 h-14 border-b border-m-line bg-m-bg px-4 text-left font-medium text-m-ink2", ri === 0 && "rounded-tl-[14px]")}>
-                    <span className="flex items-center gap-2.5">{r.icon && <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-m-surface text-m-muted">{r.icon}</span>}{r.feature}</span>
-                  </th>
-                  {r.cells.map((c, i) => (
-                    <td key={i} className={clsx("h-14 px-3", i === brandIndex ? "border-b border-white/25 bg-m-accent font-medium text-m-ink" : "border-b border-m-line bg-m-tint/50 text-m-ink2", i === brandIndex && ri === rows.length - 1 && "rounded-b-[14px] border-b-0")}>{cell(c, i === brandIndex)}</td>
-                  ))}
-                </motion.tr>
-              ))}
+              {rows.map((r, ri) => {
+                const last = ri === rows.length - 1;
+                return (
+                  <tr key={r.feature}>
+                    <th scope="row" className="h-12 border-b border-m-line px-1 text-left text-[13px] font-medium leading-tight text-m-ink2 sm:px-4 md:h-[52px] md:text-[14px]">
+                      <span className="flex items-center gap-2.5">{r.icon && <span aria-hidden className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-m-surface text-m-muted md:grid">{r.icon}</span>}{r.feature}</span>
+                    </th>
+                    {r.cells.map((c, i) => (
+                      <td key={i} className={clsx("h-12 px-1 leading-tight md:h-[52px]", i === brandIndex ? clsx("mx-0.5 border-b border-white/25 bg-m-accent font-medium text-m-ink", last && "rounded-b-[12px] border-b-0") : "border-b border-m-line bg-m-tint/50 text-m-ink2")}>{cell(c, i === brandIndex)}</td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        </div>
+        </Rise>
+        {note && <p className="mx-auto mt-4 max-w-[640px] text-center text-[12.5px] leading-relaxed text-m-muted md:text-[13px]">{note}</p>}
       </div>
     </section>
   );
@@ -194,16 +195,17 @@ export function Marquee({ items }: { items: MarqueeItem[] }) {
 }
 
 /* ======================================================================= Final CTA (09) */
-export function FinalCTA({ line1, line2, primary = "Book a demo", primaryHref = "/demo", secondary = true }: { line1: string; line2: string; primary?: string; primaryHref?: string; secondary?: boolean }) {
+export function FinalCTA({ line1, line2, primary = "Sign up", primaryHref = "/register", secondary = true }: { line1: string; line2: string; primary?: string; primaryHref?: string; secondary?: boolean }) {
   return (
     <section className="relative isolate overflow-hidden pb-24 pt-16 md:pb-32">
       <HeroBackdrop />
       <div className="relative mkt-wrap text-center">
         <Rise><h2 className="t-statement mx-auto max-w-[680px] text-m-ink">{line1}<br /><span className="text-m-muted">{line2}</span></h2></Rise>
         <Rise delay={0.15} className="mx-auto mt-8 flex max-w-[340px] flex-col items-stretch gap-3 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-2.5">
-          <MButton href={primaryHref} className="w-full justify-between sm:w-auto" event={primaryHref === "/demo" ? "demo_cta_click" : undefined}>{primary}</MButton>
-          {secondary && <MButton href="/about#services" variant="secondary" className="w-full justify-center sm:w-auto" sub="Need something custom?">Talk to FlowHQ</MButton>}
+          <MButton href={primaryHref} className="w-full justify-between sm:w-auto" event={primaryHref === "/register" ? "signup_cta_click" : undefined}>{primary}</MButton>
+          {secondary && <MButton href="/login" variant="secondary" className="w-full justify-center sm:w-auto">Log in</MButton>}
         </Rise>
+        {primaryHref === "/register" && <Rise delay={0.2}><TrialNote className="mt-4 text-[14px] text-m-muted" /></Rise>}
       </div>
     </section>
   );
