@@ -29,6 +29,7 @@ PUBLIC_PREFIXES = (
     "/api/health", "/api/ready", "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/password-reset", "/api/v1/auth/verify-email", "/api/v1/auth/google",
     "/api/v1/invitations/accept", "/api/v1/public/", "/api/v1/r/", "/api/v1/review-public", "/api/v1/billing/razorpay/webhook", "/api/v1/google/callback",
     "/api/v1/legal", "/api/v1/leads", "/api/v1/billing/plans",
+    "/api/v1/auth/registration",  # GET: only the registration MODE (closed/allowlist/open), nothing about any address
 )
 FILL = {"uuid": "00000000-0000-0000-0000-000000000001"}
 
