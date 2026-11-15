@@ -328,11 +328,12 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
     });
     await step('CSRF: a state-changing call without the header is refused, with it is accepted', async () => {
       const csrf = (await cookies()).flowqr_csrf.value;
-      const no = await call('PATCH', '/auth/profile', { full_name: 'Prod Auth Test' });
+      const curName = (await call('GET', '/auth/me')).json.user.full_name || 'Test';  // write back the SAME name: this step must not change the account
+      const no = await call('PATCH', '/auth/profile', { full_name: curName });
       expect(no.status === 403, 'without the header: ' + no.status);
-      const bad = await call('PATCH', '/auth/profile', { full_name: 'Prod Auth Test' }, { 'X-CSRF-Token': 'wrong' });
+      const bad = await call('PATCH', '/auth/profile', { full_name: curName }, { 'X-CSRF-Token': 'wrong' });
       expect(bad.status === 403, 'wrong header: ' + bad.status);
-      const ok = await call('PATCH', '/auth/profile', { full_name: 'Prod Auth Test' }, { 'X-CSRF-Token': csrf });
+      const ok = await call('PATCH', '/auth/profile', { full_name: curName }, { 'X-CSRF-Token': csrf });
       expect(ok.status === 200, 'with the header: ' + ok.status);
     });
     await step('nothing sensitive is kept in browser storage', async () => {
@@ -340,16 +341,30 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
       expect(!/token|session|password|secret|csrf/i.test(store), 'storage: ' + store.slice(0, 200));
     });
     if (process.env.ADMIN_EXPECTED === 'yes') {
-      await step('the administrator reaches the admin console', async () => {
+      await step('the administrator has the role and reaches the admin console', async () => {
+        const me = await call('GET', '/auth/me');
+        expect(me.json.user.is_platform_admin === true && me.json.user.email_verified_at, 'role/verification: ' + JSON.stringify({ a: me.json.user.is_platform_admin, v: !!me.json.user.email_verified_at }));
         await page.goto(`${SITE}/admin`); await page.waitForLoadState('networkidle');
         expect(/FlowHQ staff|Platform admin/i.test(await body()) && !/Platform admins only/i.test(await body()), 'admin console not shown: ' + (await body()).slice(0, 160));
-        expect((await call('GET', '/admin/stats')).status === 200, 'admin API refused');
+      });
+      await step('the admin API answers the administrator (read) and still demands the CSRF header (write)', async () => {
+        for (const path of ['/admin/stats', '/admin/registration', '/admin/work-queue']) { const r = await call('GET', path); expect(r.status === 200, `${path}: ${r.status}`); }
+        const reg = await call('GET', '/admin/registration'); expect(reg.json.mode === 'allowlist', 'registration mode must stay allowlist, got ' + reg.json.mode);
+        const noCsrf = await call('POST', '/admin/registration/allowlist', { email: `must-not-be-added-${TAG}@example.com` }); expect(noCsrf.status === 403, 'an admin write without the CSRF header was accepted: ' + noCsrf.status);
+        const after = await call('GET', '/admin/registration'); expect(!JSON.stringify(after.json).includes('must-not-be-added'), 'the refused write changed the allowlist');
+      });
+      await step('the administrator session is the short 12-hour kind', async () => {
+        const s = (await cookies()).flowqr_session; const hours = (s.expires - Date.now() / 1000) / 3600;
+        expect(hours > 11 && hours <= 12.1, 'admin session lasts ' + hours.toFixed(2) + ' hours (expected about 12)');
       });
     } else {
       await step('an ordinary account cannot open the admin console or its API', async () => {
         await page.goto(`${SITE}/admin`); await page.waitForLoadState('networkidle');
         expect(/Platform admins only/i.test(await body()), 'the admin page was not refused: ' + (await body()).slice(0, 160));
-        expect((await call('GET', '/admin/stats')).status === 403, 'admin API answered an ordinary account');
+        const csrf = (await cookies()).flowqr_csrf.value;
+        for (const [m, path, d] of [['GET', '/admin/stats'], ['GET', '/admin/registration'], ['GET', '/admin/work-queue'], ['POST', '/admin/registration/allowlist', { email: `must-not-be-added-${TAG}@example.com` }]]) {
+          const r = await call(m, path, d, { 'X-CSRF-Token': csrf }); expect(r.status === 403, `${m} ${path} answered an ordinary account with ${r.status}`);
+        }
       });
     }
     await step('log out clears both cookies and the old session no longer works', async () => {
