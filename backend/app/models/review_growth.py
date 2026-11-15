@@ -106,3 +106,17 @@ class RetiredCampaignId(IdMixin, Base):
     retired_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     retired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # when a newer code was issued
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # NULL = still works
+
+
+class ReviewRequestTemplate(IdMixin, TimestampMixin, Base):
+    """A reusable, neutral message asking a customer for a review (WhatsApp, SMS, email or a printed line). Neutral by rule: the same
+    words for every customer, no incentive, no rating mentioned, no "only if you were happy" (checked on save)."""
+    __tablename__ = "review_request_templates"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    channel: Mapped[str] = mapped_column(String(16), default="whatsapp")  # whatsapp | sms | email | print
+    language: Mapped[str] = mapped_column(String(8), default="en")
+    body: Mapped[str] = mapped_column(Text)  # may contain {customer}, {business}, {link}
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+

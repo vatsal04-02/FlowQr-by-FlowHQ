@@ -55,12 +55,15 @@ class BulkIn(BaseModel):
     campaign_ids: list[uuid.UUID] = Field(default_factory=list, max_length=200)
     all_cards: bool = False
     all_campaigns: bool = False
-    formats: list[Format] = Field(default_factory=lambda: ["png", "svg", "pdf"], min_length=1, max_length=3)
-    sheet: bool = True  # also include an A4 print sheet (PDF, 12 codes per page)
+    formats: list[Format] = Field(default_factory=lambda: ["png", "svg", "pdf"], max_length=3)  # may be empty for a poster print sheet only
+    sheet: bool = True  # also include an A4 print sheet (PDF, 12 codes per page; for posters, 4 per page)
+    design: Literal["code", "poster"] = "code"  # "poster": the approved FlowQR review poster with each code in it
     size_px: int | None = Field(default=None, ge=256, le=4096)
 
     @model_validator(mode="after")
     def _some(self):
         if not (self.card_ids or self.campaign_ids or self.all_cards or self.all_campaigns):
             raise ValueError("Choose at least one card or campaign")
+        if not self.formats and not (self.design == "poster" and self.sheet):
+            raise ValueError("Choose at least one format")
         return self

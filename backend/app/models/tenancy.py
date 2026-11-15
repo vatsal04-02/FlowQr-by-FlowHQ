@@ -2,8 +2,9 @@
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint, text
+from sqlalchemy import Integer, Boolean, DateTime, Enum, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,6 +27,8 @@ class Tenant(IdMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(80), unique=True)
     category: Mapped[str | None] = mapped_column(String(80))
+    ai_monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))  # per-business monthly AI budget; NULL = the platform default
+    places_monthly_cap: Mapped[int | None] = mapped_column(Integer)  # per-business ceiling on Places searches (single checks + map points); NULL = only the plan's own limits
     email: Mapped[str | None] = mapped_column(String(254))
     phone: Mapped[str | None] = mapped_column(String(32))
     address: Mapped[str | None] = mapped_column(Text)
@@ -45,6 +48,8 @@ class Tenant(IdMixin, TimestampMixin, Base):
     support_note: Mapped[str | None] = mapped_column(Text)
     # Review Growth business context, owner-edited: {category_key, description, services[], disabled_suggestions[], languages[]}
     review_context: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
+    # reviews per calendar month the owner aims for (Overview "Monthly review goal"); NULL = not set, the dashboard suggests one
+    review_goal: Mapped[int | None] = mapped_column(Integer)
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="tenant")
 

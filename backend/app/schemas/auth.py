@@ -93,6 +93,7 @@ class TenantOut(ORM):
     suspended_at: datetime | None = None
     suspension_reason: str | None = None
     support_status: str = "none"
+    review_goal: int | None = None
 
 
 class MembershipOut(BaseModel):
@@ -142,6 +143,7 @@ class TenantUpdateIn(BaseModel):
     logo_url: str | None = Field(default=None, max_length=500)
     brand_tone: str | None = Field(default=None, max_length=300)
     ai_instructions: str | None = Field(default=None, max_length=2000)
+    review_goal: int | None = Field(default=None, ge=1, le=100000)
 
     _phone = field_validator("phone")(lambda v: normalize_phone(v))
     _lang = field_validator("language")(lambda v: v if v is None else validate_language(v))

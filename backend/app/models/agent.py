@@ -6,7 +6,7 @@ code that has just received Google's confirmation.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, SmallInteger, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, SmallInteger, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,6 +31,7 @@ class BusinessKnowledge(IdMixin, TimestampMixin, Base):
     brand_voice: Mapped[str | None] = mapped_column(Text)
     approved_claims: Mapped[list] = mapped_column(JSONB, default=list)
     prohibited_claims: Mapped[list] = mapped_column(JSONB, default=list)
+    audience: Mapped[str | None] = mapped_column(Text)  # who the owner wants to reach: "office workers nearby", "parents of school children"
     safety_profile: Mapped[str] = mapped_column(String(16), default="general")  # general | health
     updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
@@ -42,7 +43,18 @@ class AgentSettings(IdMixin, TimestampMixin, Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
     daily_plan: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_draft_replies: Mapped[bool] = mapped_column(Boolean, default=False)  # drafts only: publishing always needs a person
+    # One AI post draft per selected location per day, waiting for approval (never published without a person). Off by default.
+    auto_draft_posts: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     last_plan_date: Mapped[date | None] = mapped_column(Date)
+    # Balanced Autonomy (migration 0027). OFF by default: nothing runs autonomously until an OWNER turns it on, and Level 3 actions can never be pre-authorised.
+    autonomy_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    autonomy_permissions: Mapped[dict] = mapped_column(JSONB, default=dict)  # {action_type: "auto" | "ask" | "off"}: a pre-authorisation is one specific type set to "auto"
+    autonomy_permissions_by: Mapped[uuid.UUID | None] = mapped_column()
+    autonomy_permissions_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    autonomy_daily_limit: Mapped[int] = mapped_column(Integer, default=3, server_default="3")  # autonomous executions per 24 h
+    autonomy_suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    autonomy_suspended_reason: Mapped[str | None] = mapped_column(Text)
+    autonomy_failure_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class AgentTask(IdMixin, TimestampMixin, Base):
@@ -124,6 +136,58 @@ class ScheduledPost(IdMixin, TimestampMixin, Base):
     attempts: Mapped[int] = mapped_column(SmallInteger, default=0)
     failure_reason: Mapped[str | None] = mapped_column(Text)
     generated_by_ai: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Google LocalPostTopicType: STANDARD (update) | OFFER | EVENT. OFFER and EVENT need a title and a full start/end (Google rule).
+    topic_type: Mapped[str] = mapped_column(String(16), default="STANDARD", server_default="STANDARD")
+    event_title: Mapped[str | None] = mapped_column(String(58))
+    event_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    event_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    offer_coupon: Mapped[str | None] = mapped_column(String(58))
+    offer_url: Mapped[str | None] = mapped_column(String(500))
+    offer_terms: Mapped[str | None] = mapped_column(Text)
+    visual_hint: Mapped[str | None] = mapped_column(Text)  # AI's suggestion for a photo to pair with the post (text only)
+    # Crash-safe publishing (migration 0026): the atomic "publishing" claim is committed BEFORE Google is called; these let a retry or the
+    # recovery job tell whether an earlier attempt may already have created the post on Google.
+    publishing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    publish_token: Mapped[uuid.UUID | None] = mapped_column()
+
+
+class ScheduledMedia(IdMixin, TimestampMixin, Base):
+    """A photo in FlowQR's library on its way to Google: uploaded -> awaiting_approval -> scheduled -> publishing -> published | failed.
+
+    `published` means Google returned a MediaItem for it (with its resource name). Google may still be processing it, or hold it until
+    the profile is verified; that is tracked separately (`google_url` appears once Google serves it). An upload into FlowQR alone is
+    never shown as published."""
+    __tablename__ = "scheduled_media"
+    __table_args__ = (
+        CheckConstraint("status in ('awaiting_approval','scheduled','publishing','published','failed','canceled')", name="ck_scheduled_media_status"),
+        Index("ix_scheduled_media_due", "status", "scheduled_for"),
+        Index("ix_scheduled_media_tenant", "tenant_id", "status"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    google_location_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("google_locations.id", ondelete="CASCADE"))
+    category: Mapped[str] = mapped_column(String(24))
+    description: Mapped[str | None] = mapped_column(String(300))
+    file_name: Mapped[str | None] = mapped_column(String(200))
+    content_type: Mapped[str] = mapped_column(String(32))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    width: Mapped[int] = mapped_column(Integer)
+    height: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64))
+    data: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
+    status: Mapped[str] = mapped_column(String(20), default="awaiting_approval")
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(SmallInteger, default=0)
+    failure_reason: Mapped[str | None] = mapped_column(Text)
+    google_media_name: Mapped[str | None] = mapped_column(String(300))
+    google_url: Mapped[str | None] = mapped_column(String(1000))
+    google_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when Google returned the MediaItem
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

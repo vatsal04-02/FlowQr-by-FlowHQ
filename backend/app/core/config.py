@@ -46,6 +46,16 @@ class Settings(BaseSettings):
     google_login_redirect_uri: str = "http://localhost:3000/api/v1/auth/google/callback"
 
     # AI
+    # API prices (USD per unit), keyed "<provider>.<operation>", e.g. {"places.searchText": 0.032}. EMPTY BY DEFAULT: an unconfigured price is recorded as unpriced, never as free.
+    api_prices: dict = {}
+    # Cost inputs for the finance view (all optional; a missing one is shown as MISSING and is never treated as zero). INR unless the name says otherwise.
+    usd_inr_rate: float | None = None  # needed to put USD API costs next to INR revenue
+    hosting_monthly_inr: float | None = None
+    payment_fee_pct: float | None = None  # the provider's fee as a % of each captured payment (check the current rate in your Razorpay dashboard)
+    card_unit_cost_inr: float | None = None  # PROVISIONAL: about 75 per card (150 for two) was an estimate; packaging, shipping and fulfilment are not confirmed
+    card_fulfilment_per_order_inr: float | None = None
+    support_monthly_inr: float | None = None
+    marketing_spend_monthly_inr: float | None = None  # for CAC
     ai_provider: str = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash"  # gemini-2.5-flash is closed to new API keys
@@ -63,6 +73,18 @@ class Settings(BaseSettings):
     ai_extra_ca_bundle: str = ""
     openrouter_disable_reasoning: bool = True  # skip hidden chain-of-thought: faster, cheaper, and no null replies from reasoning models
     ai_timeout_seconds: int = 25
+    # Balanced Autonomy (services/agent/autonomy_policy.py, executor.py). Autonomy itself is OFF per business until an owner turns it on.
+    autonomy_emergency_stop: bool = False  # platform-wide: no autonomous or approved profile write runs, scheduled publishing jobs hold. Also flippable at runtime.
+    autonomy_failure_suspend: int = 3  # consecutive failed executions after which a business's autonomy is suspended
+    autonomy_max_attempts: int = 4  # attempts per action for transient Google errors
+    autonomy_approval_ttl_hours: int = 72  # a person's approval is valid this long
+    autonomy_auto_auth_ttl_hours: int = 24  # an automatic (policy / pre-authorised) authorisation is valid this long: stale ones are re-evaluated
+    autonomy_proposal_ttl_days: int = 7  # a proposal nobody decides on expires
+    autonomy_stuck_minutes: int = 10  # an action "executing" this long was left behind by a crash
+    # Data retention (docs/DATA_RETENTION.md). 0 = keep until the business is deleted.
+    autonomy_history_retention_days: int = 730  # finished actions, their approvals and their tamper-evident history are erased this long after they were created
+    rank_grid_retention_days: int = 400  # geo-grid scans and their points
+    ai_review_risk_check: bool = True  # an AI safety read of each review when a reply is drafted, on top of the deterministic rules (services/ai/risk.py)
     public_ai_max_input_chars: int = 1200
 
     # Review Growth (QR campaigns + AI review drafts)
@@ -72,7 +94,17 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_access_token: str = ""
     rank_provider: str = ""
-    rank_provider_key: str = ""
+    rank_provider_key: str = ""  # Google Places API (New) key when rank_provider == "google_places"; never logged or returned by the API
+    rank_monthly_check_cap: int = 300  # Places calls one business may spend per calendar month (each keyword check = 1 call): bounds your Google bill
+    rank_radius_m: int = 3000  # how far around the location the search is biased (metres)
+    rank_auto_check_days: int = 7  # keywords are re-checked automatically this often
+    # Geo-grid ranking. Every grid point is ONE billed Places search, so all of this is about bounding the Google bill.
+    # Map allowances (maps per location, points per map, searches per month) are NOT set here: they are plan limits (billing_plans.limits.geo), unapproved by the owner, and maps stay off until set.
+    rank_grid_min_spacing_m: int = 250  # closer points would be the same search twice
+    rank_grid_max_spacing_m: int = 10000
+    rank_grid_auto_days: int = 7  # an active grid is re-scanned automatically this often (only when the whole scan fits the monthly allowance)
+    rank_platform_monthly_cap: int = 0  # Places searches the whole platform may spend per month across every business (0 = no platform cap)
+    rank_cost_per_call_usd: float = 0.0  # your Places price per search, to show estimated spend (0 = unpriced: only call counts are shown)
     account_deletion_grace_days: int = 14  # how long an owner can cancel a deletion request
     support_email: str = ""  # shown on the legal pages; empty = pages say it is not configured
     legal_company_name: str = "FlowHQ"
@@ -103,7 +135,12 @@ class Settings(BaseSettings):
     trial_plan: str = "growth"  # trial grants this plan's limits/features
     past_due_grace_days: int = 7
     # Per physical card, INR paise. Deliberately NO default: unset => card ordering is disabled (never a silent placeholder price).
-    card_price_paise: int | None = None
+    card_price_paise: int | None = None  # legacy per-card price; the bundles in `card_offers` take precedence when the quantity matches one
+    # Physical-card bundles (the confirmed offer). Revenue from these is ONE-TIME, never MRR. Setting this to [] turns the bundles off.
+    card_offers: list = [{"code": "one", "quantity": 1, "price_paise": 80000}, {"code": "two", "quantity": 2, "price_paise": 100000}]
+    promo_card_plan: str = "growth"  # the plan a card purchase includes for a month
+    promo_card_days: int = 30  # OWNER DECISION PENDING: length of 'one month' (30 days assumed)
+    promo_max_grants_per_business: int = 1  # OWNER DECISION PENDING: a second card order does not earn a second free month unless this is raised
     card_order_min_qty: int = 10
     card_order_max_qty: int = 1000
     email_verification_ttl_hours: int = 72
@@ -116,6 +153,24 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "FlowQR <no-reply@localhost>"
     smtp_starttls: bool = True
+
+    # Operations: error reporting, AI budget, backup freshness. All optional; the ops dashboard says plainly when one is not set.
+    sentry_dsn: str = ""  # Sentry (or any Sentry-compatible) DSN for API, worker and beat. Empty = errors are only logged.
+    sentry_environment: str = ""  # defaults to APP_ENV
+    sentry_traces_sample_rate: float = 0.0
+    ai_monthly_budget_usd: float = 0.0  # platform-wide AI spend alert/cap. 0 = no budget set
+    ai_price_in_per_mtok: float = 0.0  # USD per 1M input tokens, used only when the provider reports no cost. 0 = unknown
+    ai_price_out_per_mtok: float = 0.0
+    # AI cost enforcement (services/ai_usage.py). Every model call is written to ai_call_ledger and checked against these BEFORE it is made, retries
+    # included. 0 = no limit of that kind. A USD limit needs the prices above: with a USD limit set and no price known, generation is blocked (fail closed)
+    # rather than silently unenforced. Customer-facing review writing and the review-risk check are "essential": they stop only at the platform HARD limit.
+    ai_tenant_monthly_budget_usd: float = 0.0  # default monthly budget for one business (a business can have its own: tenants.ai_monthly_budget_usd)
+    ai_tenant_monthly_token_budget: int = 0  # input + output tokens per business per month
+    ai_platform_hard_limit_usd: float = 0.0  # platform-wide monthly hard stop for ALL generation
+    ai_platform_monthly_token_limit: int = 0
+    ai_platform_soft_pct: int = 90  # at this % of a platform limit, nonessential generation (drafts, agent, posts) stops; essential continues to 100%
+    backup_status_file: str = ""  # JSON written by deploy/backup.sh (mount ./backups read-only into the api container)
+    backup_max_age_hours: int = 30
 
     @property
     def is_production(self) -> bool:

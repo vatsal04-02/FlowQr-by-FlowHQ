@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint,
+    Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -82,6 +82,8 @@ class GoogleLocation(IdMixin, TimestampMixin, Base):
     title: Mapped[str | None] = mapped_column(String(300))
     address: Mapped[str | None] = mapped_column(String(500))
     place_id: Mapped[str | None] = mapped_column(String(200))
+    lat: Mapped[float | None] = mapped_column(Float)  # cached from Places once (centre of the local-rank search)
+    lng: Mapped[float | None] = mapped_column(Float)
     review_url: Mapped[str | None] = mapped_column(String(1000))
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -96,6 +98,7 @@ class GoogleLocation(IdMixin, TimestampMixin, Base):
 class ReplyStatus(str, enum.Enum):
     draft = "draft"
     approved = "approved"
+    publishing = "publishing"  # sent to Google, waiting for Google's answer (committed before the call so it is visible)
     published = "published"
     failed = "failed"
     rejected = "rejected"
@@ -147,6 +150,7 @@ class ReplyDraft(IdMixin, TimestampMixin, Base):
     generated_by_ai: Mapped[bool] = mapped_column(Boolean, default=False)
     requires_human_handling: Mapped[bool] = mapped_column(Boolean, default=False)
     flag_reasons: Mapped[list] = mapped_column(JSONB, default=list)
+    risk_level: Mapped[str | None] = mapped_column(String(8))  # low | medium | high (services/ai/safety.assess_risk)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

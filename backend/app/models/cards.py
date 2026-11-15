@@ -12,12 +12,16 @@ from app.models.base import IdMixin, TimestampMixin
 
 
 class CardStatus(str, enum.Enum):
-    unassigned = "unassigned"
+    generated = "generated"  # created in a batch, not yet marked printed / in stock
+    unassigned = "unassigned"  # in stock: printed, belongs to nobody
     assigned = "assigned"
     active = "active"
     deactivated = "deactivated"
     lost = "lost"
     paused = "paused"  # temporarily off: scans show the inactive notice until the business resumes it
+    reserved = "reserved"  # set aside for one business (tenant_id set, no location yet); scans still show "not set up"
+    archived = "archived"  # taken out of stock lists, reversible (only while it belongs to nobody)
+    retired = "retired"  # permanently out of use; the history stays, the card can never go live again
 
 
 class CardBatch(IdMixin, TimestampMixin, Base):
@@ -29,6 +33,7 @@ class CardBatch(IdMixin, TimestampMixin, Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     notes: Mapped[str | None] = mapped_column(Text)
     base_url: Mapped[str | None] = mapped_column(String(300))  # PUBLIC_CARD_BASE_URL at generation time (printed on the cards)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # marked printed / in stock (generated -> unassigned)
 
 
 class QRCard(IdMixin, TimestampMixin, Base):
@@ -46,6 +51,12 @@ class QRCard(IdMixin, TimestampMixin, Base):
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenants.id", ondelete="SET NULL"))
     location_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"))
     label: Mapped[str | None] = mapped_column(String(120))  # e.g. "Reception desk"
+    # The review campaign this card opens. NULL = the plain card landing page (how every card behaved before campaigns existed).
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("review_campaigns.id", ondelete="SET NULL"), index=True)
+    # Which public path the PRINTED QR encodes: 'c' for cards that existed before inventory batches, 'q' for new ones.
+    # The NFC address (/n/<token>) is the same for all cards. Never changed after a card exists: it is what is on paper.
+    qr_path: Mapped[str] = mapped_column(String(1), default="q", server_default="c")
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
 
@@ -59,8 +70,10 @@ class CardAssignment(IdMixin, Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     location_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"))
     assigned_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("review_campaigns.id", ondelete="SET NULL"))
     assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     unassigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_reason: Mapped[str | None] = mapped_column(String(24))  # reassigned | unassigned | retired
 
 
 class ScanEventType(str, enum.Enum):
@@ -87,6 +100,7 @@ class ScanEvent(IdMixin, Base):
     event_type: Mapped[ScanEventType] = mapped_column(Enum(ScanEventType, name="scan_event_type"))
     visitor_hash: Mapped[str | None] = mapped_column(String(64))  # salted daily hash of ip+ua, not reversible
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False)
+    channel: Mapped[str | None] = mapped_column(String(8))  # 'qr' | 'nfc'; NULL for events recorded before the channel was tracked
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

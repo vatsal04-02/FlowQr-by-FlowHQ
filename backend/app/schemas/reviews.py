@@ -17,6 +17,7 @@ class DraftOut(ORM):
     requires_human_handling: bool
     flag_reasons: list
     flag_messages: list[str] = []
+    risk_level: str | None = None  # low | medium | high
     approved_at: datetime | None
     published_at: datetime | None
     failure_reason: str | None
