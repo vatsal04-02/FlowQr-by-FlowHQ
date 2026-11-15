@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Check, Link2, Pencil, QrCode } from "lucide-react";
+import { Check, Link2, LogOut, Pencil, QrCode } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Brand";
@@ -17,7 +17,7 @@ import type { Location } from "@/lib/types";
 const STEPS = ["Your business", "First location", "Google reviews", "Plan and first page"];
 
 export default function Onboarding() {
-  const { me, tenant, loading, refresh } = useAuth();
+  const { me, tenant, loading, refresh, logout } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<number | null>(null);
 
@@ -33,7 +33,7 @@ export default function Onboarding() {
   if (step === null) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
   return (
     <div className="min-h-dvh bg-ink-50">
-      <header className="border-b border-ink-100 bg-white"><div className="container-page flex items-center justify-between py-3"><Logo /><p className="text-sm text-ink-500">{me?.user.email}</p></div></header>
+      <header className="border-b border-ink-100 bg-white"><div className="container-page flex items-center justify-between py-3"><Logo /><div className="flex items-center gap-3"><p className="hidden text-sm text-ink-500 sm:block">{me?.user.email}</p><button type="button" onClick={() => void logout()} className="tap inline-flex items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-ink-700 hover:bg-ink-100"><LogOut className="h-4 w-4" aria-hidden />Sign out</button></div></div></header>
       <main className="mx-auto max-w-xl px-4 py-8 sm:py-12">
         <ol className="mb-8 flex items-center gap-2" aria-label="Progress">
           {STEPS.map((s, i) => (
