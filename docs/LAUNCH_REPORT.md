@@ -40,3 +40,26 @@ No photo file upload; no review date/sentiment filters; global location picker o
 ## Production launch checklist
 
 See `CHECKLIST.md` and `STAGING_READINESS.md`; additionally: backup before migrating (done locally: `flowqr-before-0016-0017.dump`), set strict config secrets, confirm beat is running, confirm `publish_due_posts` runs every 60s.
+
+---
+
+# Update: five workspaces, branded poster, pre-printed card inventory (2026-11-12)
+
+Details, API, security model and the hardware tests still required: `docs/CARD_INVENTORY.md`. Nothing from this update is committed or deployed.
+
+| Gate | Result | Kind |
+|---|---|---|
+| Backend suite | **844 passed, 0 failed** (8m21s). 53 new tests: inventory/lifecycle/security (32), poster (21) | mocked Google/AI, real Postgres |
+| Frontend typecheck, production build (Docker image build) | clean / compiled | n/a |
+| Browser e2e: card inventory (`e2e/card-inventory.js`) | **16/16**, including a camera scan of the real poster through Chrome's fake camera | local stack, seeded data |
+| Browser e2e: agent, navigation, posts, reports (`e2e/agent-and-posts.js`) | **25/25** (nav steps rewritten for the new workspaces; all 43 existing URLs sit under exactly one tab) | local stack |
+| Browser e2e: QR, access (`e2e/qr-and-access.js`) | **23/23** regression | local stack |
+| Migration 0018 | upgrade, rollback, re-upgrade on a fresh DB with pre-existing cards: existing cards keep status and `/c/` path | real Postgres |
+| Poster vs your supplied PDF | 0 pixels differ outside the QR card area, for 3 different codes; fingerprint pinned in a test | measured |
+| Poster scan checks | PNG 1x/2x/3x, SVG, PDF (approved size, A6, A5, A4) decode to the exact URL in ZXing; OpenCV also reads the code; simulated phone photos | mocked camera input only |
+| Local stack | rebuilt, healthy, at 0018, tenant/user/review/campaign/location/subscription fingerprints unchanged | live local |
+| **Physical phones, printed cards, real NFC tags** | **NOT TESTED** | required before launch |
+
+Defects found by the browser tests and fixed: the app's `Permissions-Policy` blocked the camera everywhere (`camera=()`), so no scanner could ever have worked; the card domain's Caddy rules forwarded only `/c/` and `/r/`, so `/q/` and `/n/` would have bounced to the login page; two controls on one page were both named "Location".
+
+Deliberate deviation from the approved poster, inside the QR area only: lightly rounded finder rings and a 12% deeper orange, because the exact artwork style failed an independent decoder (explained and measured in `CARD_INVENTORY.md`).

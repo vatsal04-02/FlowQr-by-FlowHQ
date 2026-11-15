@@ -62,7 +62,7 @@ Reviews, posts and media still live on the v4 surface and are not on Google's de
    | `PASS` on accounts, locations, reviews, posts, media, performance | Reads work. Writes are still untested; see "Testing sequence". |
 7. **Configure the OAuth consent screen**
    - User type **External**; app name "FlowQR by FlowHQ"; support email; developer contact email.
-   - App home page, **privacy policy URL** and terms URL (these pages **do not exist yet**: build them first).
+   - App home page, **privacy policy URL** and terms URL: `https://<marketing domain>/privacy` and `/terms` already exist in the app (data deletion: `/data-deletion`). They have **not been reviewed by a lawyer**; do that before submitting, because Google reads them during verification.
    - **Authorised domains**: your marketing and app root domain, verified in Google Search Console 🔎.
    - Add the scope `https://www.googleapis.com/auth/business.manage`.
    - **Publishing status: "In production".** Google documents that an External app in *Testing* is issued refresh tokens that **expire after 7 days** (unless only name/email/profile scopes are requested, which is not the case here). That would disconnect every customer weekly. FlowQR marks such a connection *revoked* and asks to reconnect, but it is not an acceptable steady state.
@@ -106,6 +106,43 @@ In every one of these states manual review-link mode (cards, QR campaigns, AI wr
 4. Draft → approve → publish a reply on a **test location you control**; confirm it appears on Google and `reply_logs.success = true`. Retry/failed paths: temporarily revoke access in your Google account security settings and confirm FlowQR marks the connection *revoked*.
 5. Try each Profile tool (info/hours/category, post, photo, performance). The request and response shapes were audited against Google's reference on 2026-11-10 ([GOOGLE_API_AUDIT.md](GOOGLE_API_AUDIT.md)), but **no successful call has been made yet, so still expect surprises on first contact**. Do the first reply, post and profile edit by hand on a test location you control: there is no sandbox.
 6. Check that a reply shows Google's moderation state. A reply Google marks `REJECTED` must appear in FlowQR as failed, not published.
+
+## Production OAuth: the exact values (your checklist)
+
+Do these in Google Cloud Console for the **production** project; none can be done from code.
+
+| Item | Value |
+|---|---|
+| Business Profile OAuth client, authorised redirect URI | `https://<APP_DOMAIN>/api/v1/google/callback` (must equal `GOOGLE_REDIRECT_URI` exactly) |
+| "Continue with Google" client (a **separate** client) redirect URI | `https://<APP_DOMAIN>/api/v1/auth/google/callback` (= `GOOGLE_LOGIN_REDIRECT_URI`) |
+| Authorised JavaScript origins | not needed (server-side flow); leave empty |
+| Scope for the Business Profile client | `https://www.googleapis.com/auth/business.manage` (sensitive). Plus `openid email` for the userinfo call |
+| Scopes for the sign-in client | `openid`, `email`, `profile` only (non-sensitive, no Google review needed) |
+| Consent screen | External, **In production**, app name "FlowQR by FlowHQ", support email, privacy `https://<MARKETING_DOMAIN>/privacy`, terms `/terms`, authorised domain = your root domain verified in Search Console |
+| Verification package | Domain ownership; privacy policy that names the Business Profile data used and why; scope justification (use the text above); a screen recording of the full flow (connect, choose location, approve a reply, see it on Google) |
+| APIs to enable | My Business Account Management, My Business Business Information, Business Profile Performance, Google My Business API (v4, appears only after access is approved) |
+| Optional later | My Business Notifications + Pub/Sub (push instead of 30-minute polling), My Business Verifications, Places API (New) for Local ranking |
+
+Then run `docker compose exec api python -m app.cli preflight` (it prints the redirect URIs it will use) and `google-smoke` for the read check.
+
+## Controlled live write test (needs your explicit go-ahead)
+
+Reads are verified live; writes are not. The command below exists so the first write is deliberate, small and cleaned up. It is a **dry run** unless you add both `--execute` and `--confirm-location` with the location repeated.
+
+```
+# 1. See exactly what would be sent. Sends nothing.
+docker compose exec api python -m app.cli google-write-test --connection <connection id> --location locations/<test location id> --post --photo
+
+# 2. Run it for real on a test location you own (creates, checks Google lists it, then DELETES: a test post and a grey test image)
+docker compose exec api python -m app.cli google-write-test --connection <id> --location locations/<id> --post --photo \
+    --execute --confirm-location locations/<id>
+
+# 3. A reply is public and this API cannot delete it afterwards, so it is a separate, deliberate step on a review you choose
+docker compose exec api python -m app.cli google-write-test --connection <id> --location locations/<id> \
+    --reply-review <review id> --reply-text "Thank you for your feedback." --execute --confirm-location locations/<id>
+```
+
+Expect the post and photo to be visible on Google for a few seconds before cleanup. A photo may stay "processing" on an unverified profile; the output says so. Also try one reply, one post, one photo and one profile edit once through the app UI to exercise FlowQR's own approval path. Report any FAIL line back before launch.
 
 ## What was actually verified against Google
 

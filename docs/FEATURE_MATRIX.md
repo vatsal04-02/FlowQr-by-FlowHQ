@@ -25,7 +25,7 @@ Legend: ✅ built and tested · 🟡 partial · ⬜ missing
 | Posts: create, edit, delete | ✅ Mocked | `api/v1/gbp.py` posts routes | Publishes immediately. **No AI drafts, no approval step, no scheduler, no calendar, no failure diagnostics/history.** Google does not schedule posts for us; this needs our own Celery scheduler. |
 | Photos and media | 🟡 Mocked | `api/v1/gbp.py` media routes | Add by URL, list, delete. **No file upload** (Google needs a public URL or an upload reference), no processing status. |
 | Performance | ✅ Mocked | `api/v1/gbp.py:performance` | Totals and daily series for the current metric list. **No location comparison, no CSV/PDF export, no "last synced" stamp.** |
-| Local Visibility (rank provider) | ⬜ | | Nothing built. |
+| Local ranking (Google Places API (New)) | ✅ | | GBP Manager › Local ranking: tracked search terms per location, measured positions (first 20 results around the location), history, weekly auto-check, monthly per-business cap. Live-verified 2026-11-14 with a real key (read-only); not Google Maps' exact order |
 | Quotas, retries, token refresh, revoked access | ✅ | `services/google/sync.py`, `provider.py` | 10 edits/min/location enforced locally; backoff on 429/5xx. |
 | **Live read/write against Google** | **Blocked** | | All four Business Profile APIs returned HTTP 403 `SERVICE_DISABLED` on 2026-11-10 for the previous project. No Business Profile call has ever succeeded. See `GOOGLE_API_AUDIT.md`. |
 
@@ -118,7 +118,7 @@ The tables above are the audit taken **before** this work and are kept as the ba
 | Posts | 🟡 | ✅ Mocked | Draft → approval → scheduled → Celery publish; calendar; failures kept with reason; "published" only after Google confirms |
 | Photos | 🟡 | 🟡 | Still by URL. **No file upload** |
 | Performance | ✅ | ✅ | Unchanged; shown in reports |
-| Local Visibility | ⬜ | 🟡 | Page + "Setup required" (no rank provider). No fake data |
+| Local ranking | ✅ | ✅ | `/gbp/rank`; `/overview/visibility` redirects here. Shows "not set up" without a key; failed checks shown as failed, "Not in top 20" never replaced by a number |
 | Knowledge Base + healthcare defaults | 🟡 | ✅ | Seeded prohibited claims; deterministic checker blocks invented prices/offers, appointment and health claims |
 | Health Score | ⬜ | ✅ | Formula shown; unavailable measures are left out, not counted as zero |
 | Daily Plan, approve/snooze/dismiss | ⬜ | ✅ | Built from real data only |
@@ -130,3 +130,17 @@ The tables above are the audit taken **before** this work and are kept as the ba
 | Content Studio, Inbox/Leads, Meta, WhatsApp | ⬜ | 🟡 | Structure + honest "Setup required". **No functionality**; needs Meta/WhatsApp credentials |
 | Auto-publish | n/a | ⬜ by design | Disabled; owner approval is always required |
 | Plan gating for agent, GST invoices, error monitoring | ⬜ | ⬜ | Not built |
+
+# Autonomous agent and operations (2026-11-15)
+
+| Area | State | Where | Notes |
+|---|---|---|---|
+| Six capabilities as one connected agent | ✅ | `services/agent/autonomy.py`, `GET /agent/autonomy`, AI › Automations, [AI_AUTONOMY.md](AI_AUTONOMY.md) | The matrix is served from code with live counts per workflow stage; tested against real rows |
+| Public actions need approval | ✅ | `auto_publish` is always false | Settings requests that try to set it are ignored (tested). Preparation (plan, post draft, reply draft) can run unattended |
+| Operations dashboard for FlowHQ admins | ✅ | `/admin/ops`, `services/ops.py` | Database, Redis, migrations vs code, worker and scheduler heartbeat, failing jobs, failed publishing and sync, Google health and quota, AI budget, subscriptions, Razorpay, backups, error reporting, email, config guard |
+| Alerts when something turns critical | ✅ | `workers/monitor.py` (`ops_watch`, every 15 min) | Emails `PLATFORM_ADMIN_EMAILS`; once per day while it stays critical (tested). Needs real SMTP |
+| Error reporting | 🟡 | `core/monitoring.py` | Sentry for API, worker, beat and browser crashes of signed-in users; scrubbed. Dormant until `SENTRY_DSN` is set, and the dashboard says so |
+| Encrypted off-site backups + proven restore | ✅ | `deploy/backup.sh`, `deploy/verify-restore.sh` | Restore of an encrypted off-site copy into a throwaway database verified (46 tables, migration, RLS). Real remote storage is yours to choose and configure |
+| Go-live preflight, admin password, live-write test | ✅ | `python -m app.cli preflight / set-admin-password / google-write-test` | The live-write test is a dry run until you pass `--execute` and repeat the location |
+| AI budget monitoring | ✅ | `ops.ai_spend` | Month-to-date spend vs `AI_MONTHLY_BUDGET_USD`; warns at 80%, critical at 100%. Provider-reported cost where available, else tokens × your configured prices. It alerts; it does not cut customers off |
+

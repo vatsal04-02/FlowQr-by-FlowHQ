@@ -33,3 +33,9 @@ The browser only talks to the Next.js origin. Next.js proxies `/api/*` to FastAP
 
 ## Design system
 Swiss-minimal SaaS (UI/UX Pro Max guidance), white surfaces, rounded cards, subtle shadows. Blue `brand` = primary actions, orange `flow` = FlowQR accent (dark text on orange for contrast), Google-style multicolour used only as decoration and chart hues (series also differ by line style). Poppins headings / Open Sans body. 44 px touch targets, visible focus rings, `prefers-reduced-motion`, inline validation on blur + focusable error summary, charts with legend + keyboard tooltip + data-table fallback.
+
+## Phase 2: commercial layer
+* **One catalogue** (`services/plans.py`) is the specification; `billing_plans` is what runs; a test compares them. Features gate routes (`require_feature`), workers (`has(...)`) and the autonomy executor. A free card month is layered on top of a subscription at read time (`entitlements.for_tenant`), never written into it.
+* **Quotas** are enforced at the backend call site by `ai_usage.quota_exceeded(db, tenant, kind)`: review generations and replies are counted separately, successes only.
+* **One usage ledger per kind of cost**: AI in `ai_call_ledger`, Google in `api_usage_ledger`. `services/finance.py` reads both and the payment tables; it never invents a figure.
+* **Honest status everywhere**: finance figures are actual, estimated or missing; the release ladder (`app/release_gates.json`) is edited by a person with evidence and is never computed.

@@ -63,3 +63,23 @@ Base path `/api/v1`. Interactive OpenAPI at `/api/docs` when `APP_ENV != product
 
 ## Platform admin additions — `/admin` (PA only)
 `GET /admin/tenants` (search/status, paged `{total,items}`) · `GET /admin/tenants/{id}` · `POST .../suspend|unsuspend` · `PATCH .../support` · `POST .../subscription` (manual override, reason required) · `PATCH /admin/users/{id}` (deactivate + kill sessions) · `GET /admin/subscriptions|payments|card-orders|ai-usage|audit|stats` · `PATCH /admin/card-orders/{id}` (fulfilment; refuses unpaid orders).
+
+## Phase 2 additions (plans, usage, finance, readiness)
+
+Roles: S = any member of the business, A = owner or admin, O = owner, PA = platform admin. Plan features are enforced here, not in the browser: a route whose feature is not in the plan answers `402 {"code": "plan_upgrade_required", "feature": "...", "message": "<Feature name> isn't included in your current plan..."}`.
+
+| Method & path | Who | Purpose |
+|---|---|---|
+| `GET /api/ready` | public | readiness: database, Redis and migration revision. `200` or `503`; statuses only, no detail. The worker heartbeat is deliberately excluded. |
+| `GET /billing/plans` | public | the confirmed plans (Starter, Growth, Pro) with `review_generations` and `review_replies` allowances, the card bundles (`card_offers`) and the one-time-purchase note |
+| `GET /billing/subscription` | S | plan, status, limits (`review_generations`, `review_replies`, locations, staff, features) and usage for both allowances; `promo` is the active free card month, if any |
+| `GET /billing/subscription/history` | A | everything that happened to the subscription: trial, activation, plan changes, failed payments, cancellation, refunds, free months |
+| `POST /billing/card-orders` | O | `quantity` 1 or 2 are the ₹800 / ₹1,000 bundles; 10 to 1000 is a bulk order at `CARD_PRICE_PAISE` (if set). A paid order grants one free Growth month (see settings) |
+| `GET /workspace/getting-started` | S | the onboarding checklist, computed from real records |
+| `GET /admin/plans` | PA | plans, pending owner configuration, assumptions, promotion settings |
+| `PUT /admin/plans/{code}/limits` | PA | approve or clear the map allowances (all three, or none); audited with a note; `apply_to_existing` |
+| `GET /admin/costs?month=YYYY-MM&top=` | PA | AI and Google/Places usage and cost, by feature, operation and business; unpriced calls are counted, never priced at zero |
+| `GET /admin/finance?month=YYYY-MM` | PA | MRR, one-time card revenue, costs and unit economics; every figure is `actual`, `estimated` or `missing` |
+| `GET` / `PUT /admin/tenants/{id}/budgets` | PA | one business's AI dollar budget and Places search ceiling; audited |
+| `GET /admin/release-gates` | PA | the release ladder and its evidence (never computed) |
+| `POST /billing/razorpay/webhook` | signed | now also handles `refund.processed`, `refund.created`, `payment.refunded` (idempotent; a refund never cancels a subscription by itself) |
