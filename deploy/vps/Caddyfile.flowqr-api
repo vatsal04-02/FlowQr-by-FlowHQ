@@ -1,10 +1,13 @@
 # ADD this block to the EXISTING Caddy configuration. Do NOT replace the Caddyfile and do NOT start a second Caddy (ports 80 and 443 are taken).
 # Before adding it, read docs/PRODUCTION_INFRASTRUCTURE_AUDIT.md: it says how the existing Caddy runs (container or host service) and which upstream address to use.
 #
-# Upstream: the FlowQR API listens on the HOST at 127.0.0.1:18000 (docker-compose.vps.yml).
-#   * Caddy on the host           -> reverse_proxy 127.0.0.1:18000
-#   * Caddy in a container        -> reverse_proxy host.docker.internal:18000 (add `extra_hosts: ["host.docker.internal:host-gateway"]` to that container) or the host's docker0 address
-# Validate, then reload gracefully:  caddy validate --config <Caddyfile> && caddy reload --config <Caddyfile>
+# Upstream, VERIFIED against this server's audit (2026-11-15): Caddy runs in the container gkp-final-build-caddy-1 on the network gkp-final-build_default (172.18.0.0/16) with its Caddyfile
+# bind-mounted from /home/deploy/GKP-Final-Build/Caddyfile. A container cannot reach the host's 127.0.0.1, so the FlowQR API is also published on the docker0 gateway 172.17.0.1:18000
+# (private, not internet-reachable; see deploy/vps/docker-compose.vps.yml). Nothing about the clinic's compose file or network needs to change.
+# Apply (as the owner of that directory): add this block to the END of the Caddyfile, then
+#   docker exec gkp-final-build-caddy-1 caddy validate --config /etc/caddy/Caddyfile
+#   docker exec gkp-final-build-caddy-1 caddy reload   --config /etc/caddy/Caddyfile      # graceful: existing sites are not interrupted
+# If the validate step fails, do NOT reload; remove the block. If api.flowqr.site returns 502 afterwards the upstream is unreachable: only this site is affected.
 api.flowqr.site {
 	encode zstd gzip
 	request_body {
@@ -19,7 +22,7 @@ api.flowqr.site {
 	# Only the API is served here. Documentation and the OpenAPI schema are already disabled by the application in production.
 	@api path /api/*
 	handle @api {
-		reverse_proxy 127.0.0.1:18000 {
+		reverse_proxy 172.17.0.1:18000 {
 			transport http {
 				response_header_timeout 90s   # AI replies and review generation can take several seconds
 				dial_timeout 5s

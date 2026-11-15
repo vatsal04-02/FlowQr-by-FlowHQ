@@ -3,34 +3,54 @@
 #   cd /opt/flowqr
 #   docker compose -p flowqr-production --env-file .env.production -f docker-compose.yml -f deploy/vps/docker-compose.vps.yml <command>
 #
-# What it changes, and why (the server already runs other applications that must not be touched):
-#  * the frontend is NOT started here: it is on Vercel (the base compose's frontend service is moved behind a profile that is never enabled)
-#  * the API is published ONLY on 127.0.0.1:${FLOWQR_API_PORT:-18000} (not on 8000, which may be taken), for the existing Caddy to proxy to. Nothing else is published:
-#    PostgreSQL, Redis, the worker and the scheduler have no ports at all
-#  * its own Compose project (volumes flowqr-production_pgdata and _redisdata, network flowqr-production_default): nothing is shared with the clinic, n8n or Grist
-#  * memory ceilings so a runaway FlowQR container cannot starve the neighbours (tune after watching `docker stats`)
-#  * no reverse proxy of its own: ports 80 and 443 belong to the existing Caddy
+# The server already runs the clinic's applications (project gkp-final-build: n8n, Grist, the clinic app and the Caddy that owns ports 80 and 443). NOTHING here touches them:
+#  * its own Compose project, network (flowqr-production_default), volumes (flowqr-production_pgdata, _redisdata) and container names (flowqr-production-<service>-1)
+#  * the frontend is NOT started here: it is on Vercel (the base compose's frontend service sits behind a profile that is never enabled)
+#  * no reverse proxy: ports 80 and 443 belong to the existing Caddy, which runs in a container on the clinic's network and so cannot reach this host's 127.0.0.1. The API is therefore
+#    published on TWO private addresses only: 127.0.0.1 (health checks and tests on the server) and the docker0 gateway 172.17.0.1 (what the existing Caddy proxies to).
+#    Neither is reachable from the internet. PostgreSQL, Redis, the worker and the scheduler publish nothing at all
+#  * hard CPU and memory ceilings, lower CPU priority than the neighbours (cpu_shares), a process cap, and capped log files (Docker's default is unlimited)
 x-hardened: &hardened
   REQUIRE_HARDENED: "true"  # the app refuses to start unless APP_ENV is staging|production and the strict config guard passes
   APP_ENV: ${APP_ENV:?set APP_ENV=production}
 
+x-limits: &limits
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+  pids_limit: 512
+  cpu_shares: 512  # half the default weight: under contention the clinic's containers win
+
 services:
   migrate:
+    <<: *limits
     environment: *hardened
+    mem_limit: ${FLOWQR_MIGRATE_MEM:-384m}
   api:
+    <<: *limits
     environment: *hardened
-    ports: !override ["127.0.0.1:${FLOWQR_API_PORT:-18000}:8000"]
-    mem_limit: ${FLOWQR_API_MEM:-768m}
+    ports: !override ["127.0.0.1:${FLOWQR_API_PORT:-18000}:8000", "${FLOWQR_API_DOCKER0:-172.17.0.1}:${FLOWQR_API_PORT:-18000}:8000"]
+    mem_limit: ${FLOWQR_API_MEM:-512m}
+    cpus: ${FLOWQR_API_CPUS:-0.75}
   worker:
+    <<: *limits
     environment: *hardened
-    mem_limit: ${FLOWQR_WORKER_MEM:-768m}
+    mem_limit: ${FLOWQR_WORKER_MEM:-512m}
+    cpus: ${FLOWQR_WORKER_CPUS:-0.75}
   beat:
+    <<: *limits
     environment: *hardened
-    mem_limit: ${FLOWQR_BEAT_MEM:-256m}
+    mem_limit: ${FLOWQR_BEAT_MEM:-192m}
+    cpus: ${FLOWQR_BEAT_CPUS:-0.25}
   db:
-    mem_limit: ${FLOWQR_DB_MEM:-1g}
+    <<: *limits
+    mem_limit: ${FLOWQR_DB_MEM:-768m}
+    cpus: ${FLOWQR_DB_CPUS:-0.75}
   redis:
+    <<: *limits
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
     mem_limit: ${FLOWQR_REDIS_MEM:-256m}
+    cpus: ${FLOWQR_REDIS_CPUS:-0.25}
   frontend:
     profiles: ["never-on-the-vps"]
     ports: !reset []
