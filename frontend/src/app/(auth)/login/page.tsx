@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   const googleError = useGoogleError();
 
-  useEffect(() => { if (!loading && me) router.replace("/dashboard"); }, [loading, me, router]);
+  useEffect(() => { if (!loading && me) router.replace("/overview"); }, [loading, me, router]);
   useEffect(() => { if (googleError) f.fail(googleError); }, [googleError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(e: React.FormEvent) {
@@ -29,21 +29,22 @@ export default function LoginPage() {
     try {
       await api("/auth/login", { method: "POST", body: { email: f.values.email.trim(), password: f.values.password } });
       await refresh();
-      router.replace("/dashboard");
+      router.replace("/overview");
     } catch (err) { f.fail(errorMessage(err)); } finally { setBusy(false); }
   }
 
   return (
     <AuthShell title="Welcome back" subtitle="Log in to manage your reviews and cards."
-      footer={<>New to FlowQR? <Link href="/register" className="font-semibold text-brand-700 hover:underline">Create an account</Link></>}>
+      pitch={{ title: "Pick up where you left off.", body: "Reviews to answer, posts to approve and cards to track, all in one place." }}
+      footer={<>New to FlowQR? <Link href="/register" className="font-semibold text-[#C94C00] underline">Create an account</Link></>}>
       <GoogleButton />
       <OrDivider />
       <form onSubmit={submit} noValidate className="space-y-4">
         <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
         <Input label="Email" type="email" autoComplete="email" inputMode="email" required {...f.bind("email")} />
         <Input label="Password" type="password" autoComplete="current-password" required {...f.bind("password")} />
-        <div className="flex justify-end"><Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline">Forgot password?</Link></div>
-        <Button type="submit" size="lg" className="w-full" loading={busy}>Log in</Button>
+        <div className="flex justify-end"><Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-semibold text-[#C94C00] underline">Forgot password?</Link></div>
+        <Button type="submit" size="lg" variant="brand" className="w-full" loading={busy}>Log in</Button>
       </form>
     </AuthShell>
   );

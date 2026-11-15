@@ -28,7 +28,7 @@ function Inner() {
     <form onSubmit={submit} noValidate className="space-y-4">
       <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
       <Input label="New password" type="password" autoComplete="new-password" required hint="At least 10 characters, upper and lower case." {...f.bind("password")} />
-      <Button type="submit" size="lg" className="w-full" loading={busy}>Set new password</Button>
+      <Button type="submit" size="lg" variant="brand" className="w-full" loading={busy}>Set new password</Button>
     </form>
   );
 }

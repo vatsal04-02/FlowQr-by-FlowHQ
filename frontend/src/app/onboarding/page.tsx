@@ -23,7 +23,7 @@ export default function Onboarding() {
   useEffect(() => {
     if (loading) return;
     if (!me) { router.replace("/login"); return; }
-    if (tenant?.onboarding_completed) { router.replace("/dashboard"); return; }
+    if (tenant?.onboarding_completed) { router.replace("/overview"); return; }
     if (step !== null) return;
     if (!tenant) { setStep(0); return; }
     api<Location[]>("/locations").then((l) => setStep(l.length ? 2 : 1)).catch(() => setStep(1));
@@ -37,7 +37,7 @@ export default function Onboarding() {
         <ol className="mb-8 flex items-center gap-2" aria-label="Progress">
           {STEPS.map((s, i) => (
             <li key={s} className="flex flex-1 items-center gap-2" aria-current={i === step ? "step" : undefined}>
-              <span className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold", i < step ? "bg-ok text-white" : i === step ? "bg-brand-600 text-white" : "bg-ink-100 text-ink-500")}>
+              <span className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold", i < step ? "bg-ok text-white" : i === step ? "bg-brand-600 text-navy" : "bg-ink-100 text-ink-500")}>
                 {i < step ? <Check className="h-4 w-4" aria-label="done" /> : i + 1}
               </span>
               <span className={clsx("hidden text-sm font-semibold sm:block", i === step ? "text-ink" : "text-ink-400")}>{s}</span>
@@ -145,14 +145,14 @@ function GoogleStep() {
         } catch (e) {
           if (e instanceof ApiError && e.code === "google_config_pending") {
             await refresh();
-            router.replace("/google");
+            router.replace("/gbp/locations");
             return;
           }
           throw e;
         }
       }
       await refresh();
-      router.replace("/dashboard");
+      router.replace("/overview");
     } catch (e) { setNotice(errorMessage(e)); setBusy(null); }
   }
 
@@ -171,6 +171,16 @@ function GoogleStep() {
           <span><span className="block font-semibold">Connect my Google Business Profile</span><span className="mt-0.5 block text-sm text-ink-500">Also syncs reviews and lets you approve AI-drafted replies. Requires Google access approval for FlowQR.</span></span>
         </button>
       </div>
+      <details className="mt-5 rounded-lg bg-ink-50 p-4 text-sm text-ink-700">
+        <summary className="cursor-pointer font-semibold">What does connecting Google allow?</summary>
+        <ul className="mt-2 list-disc space-y-1.5 pl-5">
+          <li>FlowQR can <b>read</b> your Business Profile and your reviews.</li>
+          <li>It can change your profile, publish a Google Post or photo, or post a reply <b>only after you (or a teammate you chose) approve that exact change</b>. Posts, photos and replies are never sent on their own.</li>
+          <li>You choose which locations to connect, you can switch everything off with one button, and you can disconnect Google at any time (Google Account &gt; Security &gt; Third-party access also lists it).</li>
+          <li>Signing in with Google is separate: it only proves who you are. It never gives access to a Business Profile.</li>
+        </ul>
+        <p className="mt-3"><b>No Google Business Profile yet?</b> Choose the first option. Your cards, AI writing help and scan analytics work without it; you can create a profile at business.google.com and connect it later.</p>
+      </details>
       {busy && <p className="mt-4 text-center text-sm text-ink-500">Setting things up…</p>}
     </Card>
   );

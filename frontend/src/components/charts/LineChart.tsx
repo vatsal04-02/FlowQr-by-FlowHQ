@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-export interface Series { key: string; label: string; color: string; dash?: string }
+export interface Series { key: string; label: string; color: string; dash?: string; /** fill under the first series (defaults to its line colour) */ area?: string }
 type Point = { date: string; [k: string]: number | string };
 
 function niceMax(v: number) {
@@ -76,17 +76,17 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
           }} onBlur={() => setActive(null)}>
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} stroke="#E6E8EB" strokeWidth="1" strokeDasharray="2 4" />
-              <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="12" fill="#6B717B">{Number.isInteger(t) ? t : t.toFixed(1)}</text>
+              <line x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} stroke="rgb(var(--c-ink-100))" strokeWidth="1" strokeDasharray="2 4" />
+              <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" fontSize="12" fill="rgb(var(--c-ink-500))">{Number.isInteger(t) ? t : t.toFixed(1)}</text>
             </g>
           ))}
           {data.map((d, i) => i % xStep === 0 && (
-            <text key={d.date} x={x(i)} y={height - 6} textAnchor="middle" fontSize="12" fill="#6B717B">{label(d.date)}</text>
+            <text key={d.date} x={x(i)} y={height - 6} textAnchor="middle" fontSize="12" fill="rgb(var(--c-ink-500))">{label(d.date)}</text>
           ))}
           <defs>
             {series.map((s) => (
               <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={s.color} stopOpacity=".16" /><stop offset="100%" stopColor={s.color} stopOpacity="0" />
+                <stop offset="0%" stopColor={s.area ?? s.color} stopOpacity=".2" /><stop offset="100%" stopColor={s.area ?? s.color} stopOpacity="0" />
               </linearGradient>
             ))}
           </defs>
@@ -98,32 +98,32 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
             )}
             {series.map((s) => (
               <g key={s.key}>
-                <path fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash} d={pathFor(s.key)} />
+                <path fill="none" stroke={s.color} strokeWidth={s.dash ? 1.5 : 2.25} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash} d={pathFor(s.key)} />
                 {gaps && data.map((d, i) => Number(d[s.key]) > 0 && <circle key={d.date} cx={x(i)} cy={y(Number(d[s.key]))} r="2.5" fill={s.color} />)}
               </g>
             ))}
           </g>
           {active !== null && data[active] && (
             <g>
-              <line x1={x(active)} x2={x(active)} y1={pad.t} y2={pad.t + ih} stroke="#8B919A" strokeDasharray="3 3" />
-              {series.map((s) => <circle key={s.key} cx={x(active)} cy={y(Number(data[active][s.key]) || 0)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.5" />)}
+              <line x1={x(active)} x2={x(active)} y1={pad.t} y2={pad.t + ih} stroke="rgb(var(--c-ink-300))" strokeDasharray="3 3" />
+              {series.map((s) => <circle key={s.key} cx={x(active)} cy={y(Number(data[active][s.key]) || 0)} r="5" fill="rgb(var(--c-surface))" stroke={s.color} strokeWidth="3" />)}
             </g>
           )}
         </svg>}
         {empty && <p className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-ink-400">No data in this period yet</p>}
         {active !== null && data[active] && (
-          <div className="pointer-events-none absolute top-2 z-10 min-w-[140px] rounded-xl border border-ink-100 bg-white p-2.5 text-xs shadow-pop"
+          <div className="pointer-events-none absolute top-2 z-10 min-w-[140px] rounded-inner bg-ink-solid p-2.5 text-xs text-ink-on shadow-lift"
             style={{ left: Math.min(Math.max(x(active) - 70, 0), width - 150) }}>
-            <p className="mb-1 font-semibold text-ink">{label(data[active].date)}</p>
-            {series.map((s) => <p key={s.key} className="flex justify-between gap-3 text-ink-700"><span>{s.label}</span><b className="tabular-nums">{String(data[active][s.key] ?? 0)}</b></p>)}
+            <p className="mb-1 font-semibold">{label(data[active].date)}</p>
+            {series.map((s) => <p key={s.key} className="flex justify-between gap-3 opacity-90"><span>{s.label}</span><b className="tabular-nums">{String(data[active][s.key] ?? 0)}</b></p>)}
           </div>
         )}
       </div>
       <details className="mt-2 text-sm">
-        <summary className="inline-flex min-h-11 items-center text-brand-700 hover:underline sm:min-h-8">View data as table</summary>
-        <div className="max-h-56 overflow-auto rounded-xl border border-ink-100">
+        <summary className="inline-flex min-h-11 items-center font-medium text-accent-ink hover:underline sm:min-h-8">View data as table</summary>
+        <div className="max-h-56 overflow-auto rounded-inner bg-surface-2">
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-ink-50"><tr><th className="px-3 py-2">Date</th>{series.map((s) => <th key={s.key} className="px-3 py-2">{s.label}</th>)}</tr></thead>
+            <thead className="sticky top-0 bg-surface-3"><tr><th className="px-3 py-2">Date</th>{series.map((s) => <th key={s.key} className="px-3 py-2">{s.label}</th>)}</tr></thead>
             <tbody>{data.map((d) => <tr key={d.date} className="border-t border-ink-100"><td className="px-3 py-1.5">{label(d.date)}</td>{series.map((s) => <td key={s.key} className="px-3 py-1.5 tabular-nums">{String(d[s.key] ?? 0)}</td>)}</tr>)}</tbody>
           </table>
         </div>

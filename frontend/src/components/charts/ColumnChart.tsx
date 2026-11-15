@@ -7,7 +7,7 @@ type Point = { date: string; [k: string]: number | string };
  * Daily columns for counts (e.g. new reviews). Every column has a native tooltip and the total is in the label,
  * so nothing depends on colour or hover alone.
  */
-export function ColumnChart({ data, valueKey, label, color = "#A56A00", height = 170, ariaLabel }: { data: Point[]; valueKey: string; label: string; color?: string; height?: number; ariaLabel: string }) {
+export function ColumnChart({ data, valueKey, label, color = "rgb(var(--c-accent))", height = 170, ariaLabel }: { data: Point[]; valueKey: string; label: string; color?: string; height?: number; ariaLabel: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(0);
   useEffect(() => {
@@ -32,8 +32,8 @@ export function ColumnChart({ data, valueKey, label, color = "#A56A00", height =
         <svg width={w} height={height} role="img" aria-label={`${ariaLabel}: ${total} in total`} className="block">
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={pad.l} x2={w - pad.r} y1={pad.t + ih - (t / max) * ih} y2={pad.t + ih - (t / max) * ih} stroke="#E8E5DF" strokeDasharray={t === 0 ? undefined : "2 4"} />
-              <text x={pad.l - 6} y={pad.t + ih - (t / max) * ih + 4} textAnchor="end" fontSize="11" fill="#6B6860">{t}</text>
+              <line x1={pad.l} x2={w - pad.r} y1={pad.t + ih - (t / max) * ih} y2={pad.t + ih - (t / max) * ih} stroke="rgb(var(--c-ink-100))" strokeDasharray={t === 0 ? undefined : "2 4"} />
+              <text x={pad.l - 6} y={pad.t + ih - (t / max) * ih + 4} textAnchor="end" fontSize="11" fill="rgb(var(--c-ink-500))">{t}</text>
             </g>
           ))}
           {data.map((d, i) => {
@@ -41,7 +41,7 @@ export function ColumnChart({ data, valueKey, label, color = "#A56A00", height =
             return (
               <g key={d.date}>
                 <rect x={x} y={pad.t + ih - bh} width={bw} height={Math.max(v ? 2 : 0, bh)} rx={1.5} fill={color}><title>{`${fmt(d.date)}: ${v} ${label}`}</title></rect>
-                {i % step === 0 && <text x={x + bw / 2} y={height - 5} textAnchor="middle" fontSize="11" fill="#6B6860">{fmt(d.date)}</text>}
+                {i % step === 0 && <text x={x + bw / 2} y={height - 5} textAnchor="middle" fontSize="11" fill="rgb(var(--c-ink-500))">{fmt(d.date)}</text>}
               </g>
             );
           })}

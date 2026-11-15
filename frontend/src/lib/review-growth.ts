@@ -21,7 +21,7 @@ export interface Copy {
   rateLabel: string; rateHint: string; rateWords: [string, string, string, string, string]; star: string; stars: string; needStars: string; needTopics: string;
   topicsLabel: string; topicsHint: string;
   editorLabel: string; editorPh: string; tooShort: string; askMore: string;
-  badgeStarter: string; badgeRefined: string; badgeEdited: string; badgeCopied: string; loadingStarter: string; tailoring: string; blank: string; another: string; undo: string;
+  badgeRefined: string; badgeEdited: string; badgeCopied: string; tailoring: string; another: string; undo: string;
   cta: string; ctaCopyOnly: string; ctaHint: string; confirmNote: string;
   copiedH: string; copiedSub: string; copyFailedH: string; copyFailedSub: string; copyAgain: string; openAgain: string; copyBtn: string; copied: string; welcomeBack: string;
   refineQ: string; refineYes: string; refineNo: string; followUp: string; followUpBtn: string;
@@ -38,8 +38,8 @@ export const COPY: Record<Lang, Copy> = {
     topicsLabel: "What stood out? (optional)", topicsHint: "Pick only what truly applies. We tailor the review to it.",
     editorLabel: "Your review", editorPh: "Write your review here…", tooShort: "Write at least a short sentence to continue.",
     askMore: "Could you add a little more? For example, what you came in for, or one thing you remember about the visit.",
-    badgeStarter: "AI suggestion · edit freely", badgeRefined: "Written from your answers · edit freely", badgeEdited: "Your review · edited by you", badgeCopied: "Copied · ready to paste",
-    loadingStarter: "Preparing a suggestion…", tailoring: "Tailoring your review…", blank: "Start blank", another: "Try another wording", undo: "Undo",
+    badgeRefined: "Written from your answers · edit freely", badgeEdited: "Your review · edited by you", badgeCopied: "Copied · ready to paste",
+    tailoring: "Tailoring your review…", another: "Try another wording", undo: "Undo",
     cta: "Copy & Continue to Google", ctaCopyOnly: "Copy review", ctaHint: "Your review will be copied. Paste it into Google's review box.",
     confirmNote: "Continuing confirms it is your own experience. You post it yourself.",
     copiedH: "Your review is copied.", copiedSub: "Paste it into Google's review box, then choose your own star rating and post it yourself.",
@@ -67,8 +67,8 @@ export const COPY: Record<Lang, Copy> = {
     topicsLabel: "क्या खास लगा? (वैकल्पिक)", topicsHint: "केवल वही चुनें जो सच में लागू हो। हम रिव्यू को उसी के अनुसार ढालेंगे।",
     editorLabel: "आपका रिव्यू", editorPh: "अपना रिव्यू यहाँ लिखें…", tooShort: "आगे बढ़ने के लिए कम से कम एक छोटा वाक्य लिखें।",
     askMore: "क्या आप थोड़ा और बता सकेंगे? जैसे आप किस काम से आए थे, या इस विज़िट की कोई एक बात जो आपको याद रही।",
-    badgeStarter: "AI का सुझाव · बेझिझक बदलें", badgeRefined: "आपके जवाबों से लिखा गया · बेझिझक बदलें", badgeEdited: "आपका रिव्यू · आपने बदला", badgeCopied: "कॉपी हो गया · पेस्ट करने के लिए तैयार",
-    loadingStarter: "सुझाव तैयार हो रहा है…", tailoring: "आपके जवाबों के अनुसार रिव्यू ढाला जा रहा है…", blank: "खाली से शुरू करें", another: "दूसरा रूप दिखाएँ", undo: "वापस लाएँ",
+    badgeRefined: "आपके जवाबों से लिखा गया · बेझिझक बदलें", badgeEdited: "आपका रिव्यू · आपने बदला", badgeCopied: "कॉपी हो गया · पेस्ट करने के लिए तैयार",
+    tailoring: "आपके जवाबों के अनुसार रिव्यू ढाला जा रहा है…", another: "दूसरा रूप दिखाएँ", undo: "वापस लाएँ",
     cta: "कॉपी करें और Google पर जाएँ", ctaCopyOnly: "रिव्यू कॉपी करें", ctaHint: "आपका रिव्यू कॉपी हो जाएगा। उसे Google के रिव्यू बॉक्स में पेस्ट करें।",
     confirmNote: "आगे बढ़ना मानना है कि यह आपका अपना अनुभव है। पोस्ट आप खुद करते हैं।",
     copiedH: "आपका रिव्यू कॉपी हो गया है।", copiedSub: "Google के रिव्यू बॉक्स में पेस्ट करें, फिर अपनी स्टार रेटिंग खुद चुनकर पोस्ट करें।",

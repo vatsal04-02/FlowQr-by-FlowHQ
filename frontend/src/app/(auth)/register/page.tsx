@@ -36,7 +36,7 @@ export default function RegisterPage() {
 
   return (
     <AuthShell title="Create your FlowQR account" subtitle="Takes about two minutes. No card needed."
-      footer={<>Already have an account? <Link href="/login" className="font-semibold text-brand-700 hover:underline">Log in</Link></>}>
+      footer={<>Already have an account? <Link href="/login" className="font-semibold text-[#C94C00] underline">Log in</Link></>}>
       <GoogleButton label="Sign up with Google" />
       <OrDivider>or sign up with email</OrDivider>
       <form onSubmit={submit} noValidate className="space-y-4">
@@ -45,7 +45,7 @@ export default function RegisterPage() {
         <Input label="Work email" type="email" autoComplete="email" inputMode="email" required {...f.bind("email")} />
         <Input label="Mobile number (optional)" type="tel" autoComplete="tel" inputMode="tel" placeholder="98765 43210" hint="Indian mobile number" {...f.bind("phone")} />
         <Input label="Password" type="password" autoComplete="new-password" required hint="At least 10 characters with upper and lower case letters." {...f.bind("password")} />
-        <Button type="submit" size="lg" className="w-full" loading={busy}>Create account</Button>
+        <Button type="submit" size="lg" variant="brand" className="w-full" loading={busy}>Create account</Button>
         <p className="text-center text-xs text-ink-500">By creating an account you agree to use FlowQR honestly: no fake reviews, no review gating.</p>
       </form>
     </AuthShell>

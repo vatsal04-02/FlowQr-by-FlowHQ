@@ -1,0 +1,43 @@
+// PRD §8 route migration: every URL the app used before the four-section layout, and where it lives now.
+// next.config.mjs serves these as permanent (308) redirects that keep the query string, so emails, bookmarks, printed links,
+// invitation links and the Google return URL of older deployments keep working. Keep for at least 90 days (PRD §8).
+// Order matters: the more specific path comes first.
+/** @type {[string, string][]} */
+export const LEGACY_ROUTES = [
+  ["/dashboard", "/overview"],
+  ["/analytics", "/overview/reviews"],
+  ["/cards/analytics", "/overview/funnel"],
+  ["/performance", "/overview/performance"],
+  ["/local-visibility", "/gbp/rank"],
+  ["/overview/visibility", "/gbp/rank"],  // moved into GBP Manager as "Local ranking"
+  ["/reports", "/overview/reports"],
+  ["/review-growth/analytics", "/overview/campaigns"],
+  ["/review-growth/campaigns/:id", "/gbp/campaigns/:id"],
+  ["/review-growth/campaigns", "/gbp/campaigns"],
+  ["/review-growth/customize", "/gbp/campaigns/landing"],
+  ["/review-growth/generator", "/ai/assistant"],
+  ["/review-growth/settings", "/ai/assistant/settings"],
+  ["/review-growth", "/gbp/campaigns/guide"],
+  ["/reviews/:id", "/gbp/reviews/:id"],
+  ["/reviews", "/gbp/reviews"],
+  ["/profile", "/gbp/info"],
+  ["/posts", "/gbp/posts"],
+  ["/media", "/gbp/photos"],
+  ["/locations", "/gbp/locations"],
+  ["/google", "/gbp/locations"],
+  ["/cards/:id", "/gbp/cards/:id"],
+  ["/cards", "/gbp/cards"],
+  ["/qr", "/gbp/cards/designs"],
+  ["/inbox/:path*", "/gbp/inbox/:path*"],
+  ["/agent/recommendations", "/ai/tasks"],
+  ["/agent/approvals", "/ai/approvals"],
+  ["/agent/activity", "/ai/activity"],
+  ["/agent/knowledge", "/ai/brain"],
+  ["/agent/automations", "/ai/automations"],
+  ["/agent", "/ai/today"],
+  ["/studio/:path*", "/ai/studio/:path*"],
+  ["/settings/ai", "/ai/usage"],
+  ["/staff", "/settings/team"],
+  ["/subscription", "/settings/billing"],
+  ["/payments", "/settings/billing/payments"],
+];

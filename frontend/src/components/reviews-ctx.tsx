@@ -6,6 +6,7 @@ export const REPLY_STATE: Record<Review["reply_state"], { tone: "ok" | "warn" | 
   none: { tone: "warn", label: "Needs reply", bar: "bg-amber-500" },
   draft: { tone: "info", label: "Draft ready", bar: "bg-brand-600" },
   approved: { tone: "info", label: "Approved, not published", bar: "bg-brand-600" },
+  publishing: { tone: "info", label: "Sending to Google", bar: "bg-brand-600" },
   published: { tone: "ok", label: "Replied", bar: "bg-transparent" },
   failed: { tone: "bad", label: "Publish failed", bar: "bg-red-600" },
 };

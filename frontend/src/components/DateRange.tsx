@@ -11,7 +11,7 @@ export function presetRange(preset: string): Range {
   return { from: isoDay(from), to: isoDay(to), preset };
 }
 
-const input = "min-h-11 rounded-lg border border-ink-300 bg-white px-2.5 text-sm text-ink sm:min-h-8";
+const input = "min-h-11 rounded-full bg-surface px-4 text-sm font-medium text-ink shadow-pill sm:min-h-10";
 
 /** Presets as a segmented control; "Custom" reveals the two date inputs. */
 export function DateRange({ value, onChange }: { value: Range; onChange: (r: Range) => void }) {
@@ -19,7 +19,7 @@ export function DateRange({ value, onChange }: { value: Range; onChange: (r: Ran
   const current = custom || value.preset === "custom" ? "custom" : value.preset;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Segmented label="Date range" value={current} options={[["7", "7d"], ["30", "30d"], ["90", "90d"], ["365", "12m"], ["custom", "Custom"]] as const}
+      <Segmented tone="solid" label="Date range" value={current} options={[["7", "7d"], ["30", "30d"], ["90", "90d"], ["365", "12m"], ["custom", "Custom"]] as const}
         onChange={(v) => { if (v === "custom") { setCustom(true); onChange({ ...value, preset: "custom" }); } else { setCustom(false); onChange(presetRange(v)); } }} />
       {current === "custom" && (
         <span className="flex items-center gap-1.5">

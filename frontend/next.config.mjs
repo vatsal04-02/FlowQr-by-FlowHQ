@@ -1,3 +1,5 @@
+import { LEGACY_ROUTES } from "./src/lib/legacy-routes.mjs";
+
 /** @type {import('next').NextConfig} */
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -5,7 +7,9 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Frame-Options", value: "DENY" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // Safe subset of a CSP (no script-src yet: Next.js inline scripts would need nonces). Blocks plugins, base-tag hijack, framing and off-site form posts.
+  { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'" },
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
 ];
 
 const nextConfig = {
@@ -19,6 +23,10 @@ const nextConfig = {
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  // PRD §8: the pre-redesign URLs move permanently (308) to the four sections; Next keeps the query string.
+  async redirects() {
+    return LEGACY_ROUTES.map(([source, destination]) => ({ source, destination, permanent: true }));
   },
 };
 

@@ -13,8 +13,8 @@ import { useAuth } from "@/lib/auth";
 import { timeAgo } from "@/lib/format";
 
 const OPEN_LINK: Partial<Record<Task["kind"], [string, string]>> = {
-  connect_google: ["/google", "Open Google connection"], complete_knowledge: ["/agent/knowledge", "Open Knowledge Base"], add_photo: ["/media", "Open Photos & Media"],
-  profile_fix: ["/profile", "Open Profile Manager"],
+  connect_google: ["/gbp/locations", "Open Google connection"], complete_knowledge: ["/ai/brain", "Open Knowledge Base"], add_photo: ["/gbp/photos", "Open Photos & Media"],
+  profile_fix: ["/gbp/info", "Open Profile Manager"],
 };
 const AI_KINDS = new Set(["reply_review", "create_post"]);
 
@@ -67,13 +67,13 @@ export function TaskCard({ t, onChange }: { t: Task; onChange: () => void }) {
         </div>)}
       {t.status === "failed" && t.failure_reason && <p className="mt-2 text-sm text-red-700">{t.failure_reason}</p>}
       {t.status === "approved" && reply && <p className="mt-2 text-sm text-ink-500">Approved. Waiting to be published to Google.</p>}
-      {(t.status === "scheduled" || t.status === "approved") && t.post && <p className="mt-2 text-sm text-ink-500">{t.post.scheduled_for ? `Goes out ${new Date(t.post.scheduled_for).toLocaleString("en-IN")}` : "Approved."} Track it in <Link className="text-brand-700 underline" href="/posts">Posts</Link>.</p>}
+      {(t.status === "scheduled" || t.status === "approved") && t.post && <p className="mt-2 text-sm text-ink-500">{t.post.scheduled_for ? `Goes out ${new Date(t.post.scheduled_for).toLocaleString("en-IN")}` : "Approved."} Track it in <Link className="text-brand-700 underline" href="/gbp/posts">Posts</Link>.</p>}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {t.status === "suggested" && AI_KINDS.has(t.kind) && <Button size="sm" icon={<Sparkles className="h-4 w-4" />} loading={busy === "draft"} onClick={() => void run("draft", () => api(`/agent/tasks/${t.id}/draft`, { method: "POST" }), "Draft ready for your approval.")}>Draft with AI</Button>}
         {t.status === "suggested" && t.kind === "profile_fix" && t.evidence.field === "description" && <Button size="sm" icon={<Sparkles className="h-4 w-4" />} loading={busy === "draft"} onClick={() => void run("draft", () => api(`/agent/tasks/${t.id}/draft`, { method: "POST" }), "Draft ready for your approval.")}>Draft with AI</Button>}
         {t.status === "suggested" && OPEN_LINK[t.kind] && !(t.kind === "profile_fix" && t.evidence.field === "description") && <LinkButton href={OPEN_LINK[t.kind]![0]} size="sm" variant="secondary" icon={<ExternalLink className="h-4 w-4" />}>{OPEN_LINK[t.kind]![1]}</LinkButton>}
-        {t.status === "suggested" && t.kind === "reply_review" && t.evidence.review_id && <LinkButton href={`/reviews/${t.evidence.review_id}`} size="sm" variant="secondary">Open review</LinkButton>}
+        {t.status === "suggested" && t.kind === "reply_review" && t.evidence.review_id && <LinkButton href={`/gbp/reviews/${t.evidence.review_id}`} size="sm" variant="secondary">Open review</LinkButton>}
 
         {t.status === "awaiting_approval" && reply && isAdmin && (
           <Button size="sm" icon={<Check className="h-4 w-4" />} loading={busy === "approve"} disabled={flagged && !ack} onClick={() => void run("approve", async () => {
@@ -87,7 +87,7 @@ export function TaskCard({ t, onChange }: { t: Task; onChange: () => void }) {
             if (editing && text !== desc) { const r = await api<{ violations: Violation[] }>(`/agent/tasks/${t.id}/draft`, { method: "PATCH", body: { description: text } }); setViol(r.violations); if (r.violations.length) throw new Error("Fix the highlighted text first."); }
             await api(`/agent/tasks/${t.id}/approve`, { method: "POST" });
           }, "Description updated on Google.")}>Approve &amp; publish to Google</Button>)}
-        {t.status === "awaiting_approval" && t.post && <LinkButton href="/agent/approvals" size="sm">Review &amp; approve</LinkButton>}
+        {t.status === "awaiting_approval" && t.post && <LinkButton href="/ai/approvals" size="sm">Review &amp; approve</LinkButton>}
         {t.status === "awaiting_approval" && !isAdmin && <span className="text-[13px] text-ink-500">An owner or admin has to approve this.</span>}
 
         {["suggested", "awaiting_approval", "failed"].includes(t.status) && <Button size="sm" variant="ghost" icon={<Clock className="h-4 w-4" />} loading={busy === "snooze"} onClick={() => void run("snooze", () => api(`/agent/tasks/${t.id}/snooze`, { method: "POST", body: { days: 1 } }), "Snoozed until tomorrow.")}>Snooze</Button>}

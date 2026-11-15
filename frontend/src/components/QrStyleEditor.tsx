@@ -115,7 +115,7 @@ export function QrPreview({ value, version = 0 }: { value: QRStyle; version?: nu
 
   return (
     <div className="space-y-2">
-      <div className="mx-auto grid aspect-square w-full max-w-[260px] place-items-center rounded-xl border border-ink-100 bg-white p-2">
+      <div className="keep-light mx-auto grid aspect-square w-full max-w-[260px] place-items-center rounded-inner bg-white p-2">
         {problem ? <p className="px-3 text-center text-sm text-ink-500">Fix the colours to see a preview.</p>
           : !url && loading ? <Skeleton className="h-full w-full" />
           /* eslint-disable-next-line @next/next/no-img-element */

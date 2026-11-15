@@ -23,15 +23,15 @@ function Inner() {
   );
   async function accept() {
     setBusy(true); setErr(null);
-    try { await api("/invitations/accept", { method: "POST", body: { token } }); await refresh(); router.replace("/dashboard"); }
+    try { await api("/invitations/accept", { method: "POST", body: { token } }); await refresh(); router.replace("/overview"); }
     catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
   return (
     <div className="space-y-4">
       <p className="text-ink-700">You're signed in as <b>{me.user.email}</b>.</p>
       {err && <Alert tone="error">{err}</Alert>}
-      <Button size="lg" className="w-full" loading={busy} onClick={() => void accept()}>Accept invitation</Button>
-      <p className="text-center text-sm"><Link href="/dashboard" className="text-brand-700 hover:underline">Not now</Link></p>
+      <Button size="lg" variant="brand" className="w-full" loading={busy} onClick={() => void accept()}>Accept invitation</Button>
+      <p className="text-center text-sm"><Link href="/overview" className="text-brand-700 hover:underline">Not now</Link></p>
     </div>
   );
 }

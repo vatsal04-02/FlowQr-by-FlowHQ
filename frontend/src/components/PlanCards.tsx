@@ -16,7 +16,8 @@ export function PlanCards({ plans, current, action }: { plans: Plan[]; current?:
   const rows: [string, (p: Plan) => ReactNode][] = [
     ["Locations", (p) => <span className="num font-medium">{p.max_locations}</span>],
     ["Team members", (p) => <span className="num font-medium">{p.max_staff}</span>],
-    ["AI generations / month", (p) => <span className="num font-medium">{p.monthly_ai_generations.toLocaleString("en-IN")}</span>],
+    ["AI review generations / month", (p) => <span className="num font-medium">{p.review_generations.toLocaleString("en-IN")}</span>],
+    ["AI review replies / month", (p) => <span className="num font-medium">{p.review_replies.toLocaleString("en-IN")}</span>],
     ["QR/NFC scans", () => <span className="font-medium">Unlimited</span>],
     ...features.map((k): [string, (p: Plan) => ReactNode] => [FEATURE_LABELS[k] ?? k, (p) => p.features.includes(k) ? <Check className="h-4 w-4 text-ok" aria-label="Included" /> : <Minus className="h-4 w-4 text-ink-300" aria-label="Not included" />]),
   ];

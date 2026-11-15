@@ -20,10 +20,12 @@ export interface PostItem {
   status: "draft" | "awaiting_approval" | "approved" | "scheduled" | "publishing" | "published" | "failed" | "canceled"; scheduled_for: string | null; next_attempt_at: string | null;
   published_at: string | null; google_post_name: string | null; attempts: number; failure_reason: string | null; generated_by_ai: boolean; approved_at: string | null; created_at: string;
   violations: Violation[]; publish_result?: string | null;
+  topic_type?: "STANDARD" | "OFFER" | "EVENT"; event_title?: string | null; event_start?: string | null; event_end?: string | null;
+  offer_coupon?: string | null; offer_url?: string | null; offer_terms?: string | null; visual_hint?: string | null; topic_problems?: string[];
 }
 export interface Offer { name: string; price_inr: number | null; details: string | null; valid_until: string | null }
 export interface Knowledge {
-  business: string; category: string | null; description: string; services: string[]; offers: Offer[]; hours: string; faqs: { q: string; a: string }[]; brand_voice: string;
+  business: string; category: string | null; description: string; services: string[]; offers: Offer[]; hours: string; faqs: { q: string; a: string }[]; brand_voice: string; audience: string;
   approved_claims: string[]; prohibited_claims: string[]; safety_profile: "general" | "health"; completeness: { missing: string[]; complete: boolean }; health_defaults: string[]; grounding_preview: string;
 }
 export interface Activity {
@@ -37,6 +39,8 @@ export interface Activity {
 export interface Integration { id: string; label: string; href: string | null; status: "connected" | "attention" | "not_connected" | "setup_required" | "not_available"; detail: string; steps: string[] }
 export interface ReportSummary {
   range: { from: string; to: string; timezone: string };
+  /** the selected location name, or null for all locations */
+  location?: string | null;
   reputation: { reviews: number; average_rating: number | null; replied: number; reply_rate: number | null; avg_response_hours: number | null; unanswered_now: number; distribution: Record<string, number> };
   google_performance: { available: boolean; note: string; locations: { location: string; last_28_days: number; previous_28_days: number; fetched_at: string; window: string }[]; errors: { location: string; error: string }[] };
   campaigns: { scans: number; unique_visitors: number; feedback_submitted: number; drafts_approved: number; google_redirects: number } | null;

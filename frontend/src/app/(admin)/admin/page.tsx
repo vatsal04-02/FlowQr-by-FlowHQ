@@ -48,7 +48,7 @@ export default function AdminHome() {
             </Panel>
           </div>
           <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-            <Panel title="New customers" meta="last 30 days"><LineChart ariaLabel="New customers per day" data={s.signups_30d} series={[{ key: "count", label: "Sign-ups", color: "#1B46B8" }]} height={200} /></Panel>
+            <Panel title="New customers" meta="last 30 days"><LineChart ariaLabel="New customers per day" data={s.signups_30d} series={[{ key: "count", label: "Sign-ups", color: "#FE6A05" }]} height={200} /></Panel>
             <Panel title="Platform totals" flush><div className="px-4 py-1"><KV rows={[["Customers", <span key="a" className="num">{fmtNum(s.tenants)}</span>], ["Locations", <span key="b" className="num">{fmtNum(s.locations)}</span>], ["Synced reviews", <span key="c" className="num">{fmtNum(s.synced_reviews)}</span>], ["AI generations this month", <span key="d" className="num">{fmtNum(s.ai_generations_this_month)}</span>]]} /></div></Panel>
           </div>
         </div>

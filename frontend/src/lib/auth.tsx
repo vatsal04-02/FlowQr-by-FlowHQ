@@ -1,4 +1,5 @@
 "use client";
+import { MARKETING_ROUTES } from "./site";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api, ApiError } from "./api";
@@ -21,7 +22,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
-  const isPublicCard = pathname.startsWith("/c/") || pathname.startsWith("/r/"); // customers on a QR/NFC or campaign landing page never need the session
+  const isPublicCard = ["/c/", "/q/", "/n/", "/r/"].some((p) => pathname.startsWith(p)); // customers on a QR/NFC or campaign landing page never need the session
+  // The public marketing pages never use the session either; skipping it avoids a 401 on every visit.
+  const isMarketing = MARKETING_ROUTES.includes(pathname);
 
   const refresh = useCallback(async () => {
     try {
@@ -36,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  useEffect(() => { if (isPublicCard) { setLoading(false); return; } void refresh(); }, [refresh, isPublicCard]);
+  useEffect(() => { if (isPublicCard || isMarketing) { setLoading(false); return; } void refresh(); }, [refresh, isPublicCard, isMarketing]);
 
   const logout = useCallback(async () => {
     try { await api("/auth/logout", { method: "POST" }); } catch { /* already logged out */ }

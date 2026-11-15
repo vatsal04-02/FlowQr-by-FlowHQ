@@ -47,7 +47,6 @@ export function PreviewForm({ lang = "en", ai = true, topics }: { lang?: "en" | 
           <span key={s.en} className={`inline-flex min-h-10 items-center rounded-full px-3.5 text-sm font-medium ring-1 ${i === 0 ? "bg-[var(--brand)] text-[var(--on-brand)] ring-transparent" : "bg-white text-ink-700 ring-ink-300"}`}>{lang === "hi" ? s.hi : s.en}</span>))}
       </div>
       <div className="mt-4 rounded-2xl bg-white p-3.5 shadow-panel ring-1 ring-black/5">
-        {ai && <p className="mb-1.5 text-xs font-medium text-ink-500">✦ {c.badgeStarter}</p>}
         <div className="h-16 text-sm leading-relaxed text-ink-400">{c.editorPh}</div>
       </div>
       <div className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 text-[15px] font-semibold text-[var(--on-brand)] shadow-panel">{c.cta}</div>
