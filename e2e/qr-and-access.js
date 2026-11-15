@@ -28,6 +28,9 @@ const docker = (args, input) => execFileSync('docker', ['compose', 'exec', '-T',
 const seed = (code) => docker(['api', 'python', '-'], code).trim();
 const sql = (q) => docker(['db', 'psql', '-U', 'flowqr', '-d', 'flowqr', '-At', '-v', 'ON_ERROR_STOP=1'], `BEGIN; SELECT set_config('app.bypass_rls','on',true); ${q} COMMIT;`).trim();
 
+// playwright-core can reject a pending navigation promise while the browser closes; that is teardown noise, not a test failure.
+process.on('unhandledRejection', (e) => { if (!/Target page, context or browser has been closed/.test(String(e && e.message))) { console.error(e); process.exit(1); } });
+
 function expect(cond, msg) { if (!cond) throw new Error(msg); }
 
 (async () => {
@@ -120,7 +123,7 @@ db.commit()
     });
     await step('google: declining on Google and an unticked permission each get their own message', async () => {
       await page.goto('/api/v1/google/callback?error=access_denied');
-      await page.waitForURL('**/google?error=access_denied');
+      await page.waitForURL('**/gbp/locations?error=access_denied');
       await page.getByText('You declined access, so nothing was connected.').waitFor();
       await page.goto('/google?error=scope_missing');
       await page.getByText('the Business Profile permission was not granted').waitFor();
@@ -158,7 +161,7 @@ db.commit()
       await page.getByRole('button', { name: 'Re-check' }).click();   // the seeded row has no token: the server must answer "revoked"
       await toast('revoked');
       await page.goto('/google');
-      await page.getByText('Needs attention').waitFor({ timeout: 20000 });
+      await page.getByText('Needs attention').first().waitFor({ timeout: 20000 });
       await page.getByRole('button', { name: 'Reconnect' }).waitFor();
       expect(await page.getByText('Awaiting Google approval').count() === 0, 'revoked state still shows awaiting approval');
       const s = await (await ctx.request.get('/api/v1/google/status')).json();
@@ -220,6 +223,7 @@ db.commit()
     await step('bulk export: nothing selected is explained; selecting all exports a ZIP of 3 codes', async () => {
       await page.goto('/qr');
       await page.getByRole('button', { name: 'Export codes' }).waitFor({ timeout: 20000 });
+      await page.getByText(card.card_code).first().waitFor({ timeout: 20000 });  // the lists must have loaded before "Select all" means anything
       await page.getByRole('button', { name: 'Export codes' }).click();
       await page.getByText('Select at least one card or campaign.').waitFor();
       await page.getByRole('button', { name: 'Select all' }).first().click();
@@ -360,7 +364,7 @@ db.commit()
       const r = await ctx.request.delete(`/api/v1/locations/${locB.id}`, { headers: H() });
       expect(r.status() === 409 && (await r.json()).detail.code === 'codes_would_stop', 'API allowed it without confirmation: ' + r.status());
       await page.goto('/locations');
-      await page.getByText('E2E Branch').first().click({ timeout: 20000 });
+      await page.locator('text=E2E Branch >> visible=true').first().click({ timeout: 20000 });  // the location picker also lists it (hidden), so only a visible match counts
       const dlg = page.getByRole('dialog');
       if (await dlg.count() === 0) await page.getByRole('button', { name: /Edit/ }).last().click();
       await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click();

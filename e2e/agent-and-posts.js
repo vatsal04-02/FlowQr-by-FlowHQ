@@ -23,10 +23,12 @@ const TAG = Math.random().toString(36).slice(2, 8);
 const PW = 'Str0ngPassw0rd!' + TAG;
 const NAME = `ZZ-E2E-${TAG}`;
 const results = [];
+// Playwright rejects a pending navigation promise when the browser closes at the end of the run; that must not skip cleanup and the summary.
+process.on('unhandledRejection', (e) => { if (!/Target page, context or browser has been closed/.test(String(e && e.message))) { console.error(e); process.exitCode = 1; } });
 
 const docker = (args, input) => execFileSync('docker', ['compose', 'exec', '-T', ...args], { cwd: ROOT, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
 const seed = (code) => docker(['api', 'sh', '-c', 'cd /srv && PYTHONPATH=/srv python -'], code).trim();
-const sql = (q) => docker(['db', 'psql', '-U', 'flowqr', '-d', 'flowqr', '-At', '-v', 'ON_ERROR_STOP=1'], `BEGIN; SELECT set_config('app.bypass_rls','on',true); ${q} COMMIT;`).trim();
+const sql = (q) => docker(['db', 'psql', '-U', 'flowqr', '-d', 'flowqr', '-At', '-v', 'ON_ERROR_STOP=1'], `BEGIN; SELECT set_config('app.bypass_rls','on',true); SELECT set_config('app.history_purge','on',true); ${q} COMMIT;`).trim();
 function expect(cond, msg) { if (!cond) throw new Error(msg); }
 const stamp = (d) => { const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 
@@ -50,6 +52,10 @@ const stamp = (d) => { const p = (n) => String(n).padStart(2, '0'); return `${d.
   const toast = (text) => page.getByRole('status').filter({ hasText: text }).first().waitFor({ timeout: 20000 });
   const download = async (click) => { const [d] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), click()]); return { name: d.suggestedFilename(), bytes: fs.readFileSync(await d.path()) }; };
   const nav = () => page.getByRole('navigation', { name: 'Main' });
+  // the left rail: the current section's pages as icon links named by aria-label (desktop viewport)
+  const rail = (sec) => page.getByRole('navigation', { name: sec + ' pages', exact: true });
+  const railOf = async (sec) => { await rail(sec).waitFor({ timeout: 20000 }); return (await rail(sec).getByRole('link').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).join('|'); };
+  const railCurrent = async (sec, name) => { await rail(sec).waitFor({ timeout: 20000 }); return rail(sec).getByRole('link', { name, exact: true }).getAttribute('aria-current'); };
 
   // ------------------------------------------------------------------ setup (API + seeded rows)
   let csrf, tenant, locA, ready = false;
@@ -88,43 +94,68 @@ db.commit()
 
   if (ready) {
     // ------------------------------------------------------------------ 1. navigation
-    await step('nav: eight groups, the group you are in is open, no duplicate names, no inner scrolling', async () => {
+    await step('nav: four sections in one pill, the rail lists the section pages, old URLs redirect', async () => {
       await page.goto('/dashboard');
-      await nav().getByRole('link', { name: 'Business Overview' }).waitFor({ timeout: 30000 });
-      for (const g of ['Google Business', 'AI Growth Agent', 'Content Studio', 'Review Growth', 'Inbox & Leads', 'Settings']) await nav().getByRole('button', { name: g }).waitFor();
-      await nav().getByRole('link', { name: 'Reports' }).waitFor();
-      expect(await nav().getByRole('button', { name: 'Google Business' }).getAttribute('aria-expanded') === 'false', 'a group other than the current one is open at start');
-      const scrolls = await nav().evaluate((el) => el.scrollHeight - el.clientHeight);
-      expect(scrolls <= 1, `the sidebar scrolls by ${scrolls}px with one group open`);
-      for (const g of ['Google Business', 'AI Growth Agent', 'Content Studio', 'Review Growth', 'Inbox & Leads', 'Settings']) await nav().getByRole('button', { name: g }).click();
-      expect(await nav().getByRole('link', { name: 'Overview', exact: true }).count() === 1, 'more than one "Overview" link');
-      expect(await nav().getByRole('link', { name: 'Analytics', exact: true }).count() === 1, 'more than one "Analytics" link');
+      await page.waitForURL('**/overview');
+      await nav().getByRole('link', { name: 'Overview', exact: true }).waitFor({ timeout: 30000 });
+      const names = await nav().getByRole('link').allInnerTexts();
+      expect(JSON.stringify(names.map((n) => n.trim())) === JSON.stringify(['Overview', 'GBP Manager', 'AI', 'Settings']), 'section links: ' + names.join(' | '));
+      expect(await nav().getByRole('link', { name: 'Overview', exact: true }).getAttribute('aria-current') === 'page', 'Overview is not marked current on /overview');
+      expect(await railOf('Overview') === 'Summary|Reviews|Search & Maps|Customer funnel|Locations|Reports', 'overview pages: ' + await railOf('Overview'));
+      expect(await railCurrent('Overview', 'Summary') === 'page', 'Summary is not the current page on /overview');
+      // PRD §8: old URLs land on the new ones and keep their query string
+      await page.goto('/reviews?state=none');
+      await page.waitForURL('**/gbp/reviews?state=none');
     });
-    await step('nav: active item and breadcrumb follow the page; collapsed state is remembered', async () => {
-      await page.goto('/posts');
-      const posts = nav().getByRole('link', { name: 'Posts', exact: true });
-      await posts.waitFor({ timeout: 20000 });
-      expect(await posts.getAttribute('aria-current') === 'page', 'Posts is not marked current');
-      expect(await nav().getByRole('button', { name: 'Google Business' }).getAttribute('aria-expanded') === 'true', 'current group is not open');
-      const crumbs = await page.getByRole('navigation', { name: 'Breadcrumb' }).innerText();
-      expect(/Google Business/.test(crumbs) && /Posts/.test(crumbs), 'breadcrumb: ' + crumbs);
+    await step('nav: the rail and the sibling-page pills follow the page', async () => {
+      await page.goto('/gbp/posts');
+      expect(await railOf('GBP Manager') === 'Overview|Reviews & replies|Business info|Posts|Photos|Local ranking|Locations & Google|QR/NFC cards|Review campaigns|Inbox & leads', 'gbp pages: ' + await railOf('GBP Manager'));
+      expect(await nav().getByRole('link', { name: 'GBP Manager' }).getAttribute('aria-current') === 'page', 'GBP Manager is not marked current');
+      expect(await railCurrent('GBP Manager', 'Posts') === 'page', 'Posts is not current');
+      // Opening hours reads the live profile from Google; the seeded token would be refused and the connection marked revoked,
+      // which would change every later step. This step only checks navigation, so answer that one read locally.
+      await page.route('**/api/v1/gbp/*/info', (route) => route.fulfill({ json: { title: 'E2E Main', description: 'Old', phone: null, website: null, primary_category: null, additional_categories: [], hours: [] } }));
+      await page.goto('/gbp/hours');
+      expect(await railCurrent('GBP Manager', 'Business info') === 'page', 'opening hours are not under Business info');
+      await page.waitForLoadState('networkidle');  // the profile is fetched after the rail renders: keep the stub until that request is answered
+      await page.waitForTimeout(500);
+      await page.unroute('**/api/v1/gbp/*/info');
       await page.goto('/cards/analytics');
-      await page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Reports').waitFor({ timeout: 20000 });
-      expect(await nav().getByRole('link', { name: 'Reports' }).getAttribute('aria-current') === 'page', 'legacy analytics page does not belong to Reports');
-    });
-    await step('nav: every pre-existing URL still opens a real page', async () => {
-      const urls = ['/dashboard', '/reviews', '/analytics', '/cards', '/cards/analytics', '/qr', '/locations', '/review-growth', '/review-growth/campaigns', '/review-growth/generator', '/review-growth/customize', '/review-growth/analytics', '/review-growth/settings', '/google', '/profile', '/subscription', '/payments', '/staff', '/settings'];
-      for (const u of urls) {
-        const r = await page.goto(u);
-        expect(r && r.status() < 400, `${u} -> ${r && r.status()}`);
-        await page.locator('h1').first().waitFor({ timeout: 20000 });
-        expect(!(await page.getByText('This page could not be found').count()), `${u} is a 404`);
-      }
+      await page.waitForURL('**/overview/funnel');
+      expect(await railCurrent('Overview', 'Customer funnel') === 'page', 'card analytics are not under Customer funnel');
+      await page.goto('/ai/approvals');
+      expect(await railOf('AI') === 'Reply assistant|AI assistant|Autonomy|Brand voice|Review-writing assistant|Insights|Content studio|Business brain|Usage & limits', 'ai pages: ' + await railOf('AI'));
+      expect(await railCurrent('AI', 'AI assistant') === 'page', 'approvals do not sit under AI assistant');
+      expect(await page.getByRole('navigation', { name: 'AI assistant pages', exact: true }).getByRole('link', { name: 'Waiting for approval' }).getAttribute('aria-current') === 'page', 'sub page not marked');
+      // Local ranking lives under GBP Manager now (the old /overview/visibility URL redirects there).
+      await page.goto('/overview/visibility');
+      await page.waitForURL('**/gbp/rank');
+      expect(await railCurrent('GBP Manager', 'Local ranking') === 'page', 'local ranking is not under GBP Manager');
+      // The Performance page calls Google live. With Google configured, Google rejects this suite's SEEDED fake token and the backend rightly marks the
+      // connection revoked, which would change every later step. This step only checks navigation, so answer those calls locally (no real Google call).
+      await page.route('**/api/v1/gbp/*/performance**', (route) => route.fulfill({ json: { from: '', to: '', totals: {}, series: {}, note: 'stub' } }));
+      await page.route('**/api/v1/gbp/*/keywords**', (route) => route.fulfill({ json: { from_month: '', to_month: '', keywords: [], note: 'stub' } }));
+      await page.goto('/overview/performance');
+      expect(await railCurrent('Overview', 'Search & Maps') === 'page', 'performance is not under Search & Maps');
+      await page.waitForTimeout(1500);
+      await page.unroute('**/api/v1/gbp/*/performance**');
+      await page.unroute('**/api/v1/gbp/*/keywords**');
+      await page.goto('/ai/studio/calendar');
+      expect(await railCurrent('AI', 'Content studio') === 'page', 'studio is not under AI');
+      expect(await page.getByRole('navigation', { name: 'Content studio pages', exact: true }).getByRole('link', { name: 'Calendar' }).getAttribute('aria-current') === 'page', 'studio calendar is not a Content studio page');
+      await page.goto('/gbp/inbox/campaigns');
+      expect(await railCurrent('GBP Manager', 'Inbox & leads') === 'page', 'inbox campaigns are not under Inbox & leads');
+      await page.goto('/payments');
+      await page.waitForURL('**/settings/billing/payments');
+      expect(await nav().getByRole('link', { name: 'Settings' }).getAttribute('aria-current') === 'page', 'payments do not sit under Settings');
+      expect(await railOf('Settings') === 'Business|Team|Plan & billing|Account|Connections|Appearance|Notifications|Audit log', 'settings pages: ' + await railOf('Settings'));
+      expect(await railCurrent('Settings', 'Plan & billing') === 'page', 'payments are not under Plan & billing');
     });
     await step('nav: location picker appears once there is more than one location and filters by the choice', async () => {
+      sql(`UPDATE subscriptions SET max_locations = 10 WHERE tenant_id = '${tenant.id}';`);  // Growth includes ONE location (Phase 2); this step needs a second
       await ctx.request.post('/api/v1/locations', { data: { name: 'E2E Branch', city: 'Kanpur', review_url: 'https://g.page/r/XYZ/review' }, headers: H() });
       await page.goto('/reports');
-      const pick = page.getByLabel('Location', { exact: true });
+      const pick = page.getByLabel('Show data for location', { exact: true });
       await pick.waitFor({ timeout: 20000 });
       expect((await pick.locator('option').allInnerTexts()).join('|') === 'All locations|E2E Main|E2E Branch', 'unexpected options');
       await pick.selectOption({ label: 'E2E Branch' });
@@ -182,32 +213,41 @@ db.commit()
     });
 
     // ------------------------------------------------------------------ 3. knowledge base
-    await step('knowledge base: seeded health rules, saves, persists, and checks text against the rules', async () => {
+    const next = () => page.getByRole('button', { name: /^Next/ }).click();
+    await step('knowledge base: a guided wizard with the health rules pre-filled; it saves, persists and checks text', async () => {
       await page.goto('/agent/knowledge');
-      await page.getByText('Health business safety rules are on').waitFor({ timeout: 30000 });
-      expect((await page.getByLabel('One phrase per line').inputValue()).includes('guaranteed cure'), 'health defaults not pre-filled');
-      await page.getByLabel('Description', { exact: true }).fill('Physiotherapy for back and neck pain in Lucknow.');
+      await page.getByRole('heading', { name: 'About you' }).waitFor({ timeout: 30000 });
+      expect(await page.getByRole('navigation', { name: 'Setup steps' }).getByRole('listitem').count() === 5, 'five wizard steps');
+      await page.getByLabel('What do you do, and where?').fill('Physiotherapy for back and neck pain in Lucknow.');
       await page.getByLabel('Services (one per line)').fill('Back pain physiotherapy\nSports injury rehab');
-      await page.getByLabel('Brand voice').fill('warm and calm');
+      await page.getByLabel('How should replies sound?').fill('warm and calm');
+      await next();
       await page.getByRole('button', { name: 'Add a price or offer' }).click();
       await page.getByLabel('Name', { exact: true }).fill('First visit assessment');
       await page.getByLabel('Price (₹)').fill('500');
-      await page.getByRole('button', { name: 'Save knowledge base' }).click();
-      await toast('Knowledge base saved');
+      await next(); await next();
+      await page.getByText('Health business rules are on').waitFor();
+      expect((await page.getByLabel('Never say (one phrase per line)').inputValue()).includes('guaranteed cure'), 'health defaults not pre-filled');
+      await page.getByRole('button', { name: 'Save Business Brain' }).click();
+      await toast('Business Brain saved');
       await page.reload();
-      await page.getByLabel('Description', { exact: true }).waitFor({ timeout: 20000 });
-      expect((await page.getByLabel('Price (₹)').inputValue()) === '500' && (await page.getByLabel('Services (one per line)').inputValue()).includes('Sports injury rehab'), 'values did not persist');
-      await page.getByLabel('Paste any reply, post or description').fill('Painless treatment, 100% cure, only ₹999');
-      await page.getByRole('button', { name: 'Check', exact: true }).click();
+      await page.getByLabel('What do you do, and where?').waitFor({ timeout: 20000 });
+      expect((await page.getByLabel('Services (one per line)').inputValue()).includes('Sports injury rehab'), 'services did not persist');
+      await next();
+      expect((await page.getByLabel('Price (₹)').inputValue()) === '500', 'price did not persist');
+      await next(); await next(); await next();
+      await page.getByLabel('Try a reply, post or description').fill('Painless treatment, 100% cure, only ₹999');
+      await page.getByRole('button', { name: 'Check it against my rules' }).click();
       await page.getByText('This text breaks a rule from your knowledge base').waitFor();
       expect(await page.getByText(/Not allowed for a health business/).count() >= 1 && await page.getByText(/not in your verified prices/).count() >= 1, 'violations not explained');
-      await page.getByLabel('Paste any reply, post or description').fill('The first visit assessment is ₹500. We are open Monday to Saturday.');
-      await page.getByRole('button', { name: 'Check', exact: true }).click();
-      await page.getByText('No rule broken.').waitFor();
+      await page.getByLabel('Try a reply, post or description').fill('The first visit assessment is ₹500. We are open Monday to Saturday.');
+      await page.getByRole('button', { name: 'Check it against my rules' }).click();
+      await page.getByText('Passes your rules').waitFor();
     });
     await step('knowledge base: a claim in the description is refused with a reason', async () => {
-      await page.getByLabel('Description', { exact: true }).fill('We are the best and guaranteed cheapest clinic in town');
-      await page.getByRole('button', { name: 'Save knowledge base' }).click();
+      await page.goto('/agent/knowledge');
+      await page.getByLabel('What do you do, and where?').fill('We are the best and guaranteed cheapest clinic in town');
+      await page.getByRole('button', { name: 'Save Business Brain' }).click();
       await page.getByText('Not saved').waitFor({ timeout: 15000 });
       await page.reload();
     });
@@ -229,15 +269,23 @@ db.commit()
       expect(await page.getByRole('listitem').filter({ hasText: 'Complete your knowledge base' }).count() === 0, 'knowledge task should be resolved after the knowledge base was filled in');
     });
     await step('agent: the health score shows its formula, real measures, and leaves out what it cannot see', async () => {
-      await page.getByRole('heading', { name: 'Business health' }).waitFor();
-      const aria = await page.getByLabel(/Health score \d+ out of 100/).getAttribute('aria-label');
-      expect(!!aria, 'no numeric score');
+      await page.getByRole('heading', { name: 'How your business is doing' }).waitFor();
+      // The rule: a score only when at least 4 of the 6 measures have real data; otherwise the honest "Getting started" line.
+      const measures = page.getByRole('list', { name: 'Business measures' });
+      await measures.waitFor();
+      const available = await measures.getByText('(available)').count();
+      const score = await page.getByLabel(/Score \d+ out of 100/).count();
+      if (available >= 4) expect(score === 1, `${available} of 6 measures have data but no score is shown`);
+      else {
+        expect(score === 0, `a score is shown with only ${available} of 6 measures`);
+        await page.getByText(new RegExp(`Getting started\\s*·\\s*${available} of 6 business measures available`)).waitFor();
+      }
       const list = page.getByRole('list', { name: 'How the score is made' });
       await list.getByText('Review reply coverage').waitFor();
       await list.getByText('1 of 3 reviews from the last 90 days have a reply').waitFor();
       await list.getByText('Profile completeness').waitFor();
       await list.getByText(/Google has not told us about your photos|newest photo|no photos/).first().waitFor();
-      await page.getByText('How this is calculated').click();
+      await page.getByText('How this is worked out').click();
       await page.getByText(/Σ\(weight × value\)/).waitFor();
       await page.getByText(/not Google.s rules/).waitFor();
     });
@@ -275,17 +323,109 @@ db.commit()
       await draft.click();
       await toast('Saved');
     });
+    await step('agent: automations lay out the six jobs as one workflow with what needs approval', async () => {
+      await page.goto('/ai/automations');
+      await page.getByRole('list', { name: 'Agent workflow' }).waitFor({ timeout: 20000 });
+      for (const stage of ['Data collection', 'Analysis', 'Approval', 'Publishing', 'Verification', 'Activity report']) await page.getByRole('list', { name: 'Agent workflow' }).getByText(stage, { exact: true }).waitFor();
+      for (const name of ['SEO profile optimization', 'Review growth', 'AI review replies', 'Daily Google Posts', 'Photo management', 'Performance analytics']) await page.getByText(name, { exact: true }).first().waitFor();
+      await page.getByText('Review replies, Google Posts and photos always need a person').waitFor();
+      await page.getByText('AI review replies', { exact: true }).first().click();
+      await page.getByText('Publishing every reply, including 5-star ones').waitFor();
+    });
+    await step('ai quality: the acceptance table shows all four kinds and never a made-up rate', async () => {
+      await page.goto('/ai/usage');
+      await page.getByText('How much of what the AI writes you keep').waitFor({ timeout: 20000 });
+      for (const k of ['Review replies', 'Google Posts', 'Profile descriptions', 'Customer review drafts']) await page.getByRole('cell', { name: k, exact: true }).waitFor();
+      const rows = await page.getByRole('row').filter({ hasText: 'Google Posts' }).first().innerText();
+      expect(/–|%/.test(rows), 'no acceptance cell');
+      await page.getByText(/Kept as is = approved with at most 25% of the words changed/).waitFor();
+    });
+    await step('posts: "Suggest 3 ideas" shows different concepts with a real photo to take, and one can be used as the text', async () => {
+      await page.route('**/api/v1/posts/ideas', (route) => route.fulfill({ json: { ideas: [
+        { type: 'educational', title: 'Desk posture', text: 'Sitting at a desk all day? Check how your screen and chair line up before strain turns into pain. Call the clinic to book.', image: 'The reception desk', why: 'Reaches desk workers' },
+        { type: 'faq', title: 'Referral?', text: 'Do I need a doctor referral? No referral is needed for a first assessment, so you can simply call and book.', image: 'The front door with timings', why: 'Answers a real question' },
+        { type: 'service', title: 'First visit', text: 'A first visit lasts about 45 minutes: we listen, examine, explain and agree a plan with you.', image: 'A treatment room as it really looks', why: 'Shows what to expect' }], missing: [], note: 'x' } }));
+      await page.goto('/gbp/posts');
+      await page.getByRole('button', { name: 'Suggest 3 ideas' }).click();
+      await page.getByLabel('Post ideas').waitFor({ timeout: 20000 });
+      expect(await page.getByLabel('Post ideas').getByRole('listitem').count() === 3, 'not three ideas');
+      await page.getByLabel('Post ideas').getByText('Photo to take:').first().waitFor();
+      await page.getByLabel('Post ideas').getByRole('button', { name: 'Use this text' }).nth(1).click();
+      expect((await page.getByLabel(/What's new/).inputValue()).startsWith('Do I need a doctor referral'), 'idea text was not used');
+      await page.unroute('**/api/v1/posts/ideas');
+    });
     await step('agent: activity shows the plan run and what is queued', async () => {
       await page.goto('/agent/activity');
       await page.getByRole('heading', { name: 'Activity' }).waitFor({ timeout: 20000 });
       await page.getByRole('cell', { name: 'Daily plan' }).first().waitFor();
       await page.getByText('Task history').waitFor();
     });
-    await step('overview: shows the health score and today\'s plan', async () => {
+    await step('overview: the summary grid in plain language, a fair health check and what needs attention', async () => {
+      const googleCalls = [];
+      const spy = (req) => { if (/\/api\/v1\/gbp\//.test(req.url())) googleCalls.push(req.url()); };
+      page.on('request', spy);
       await page.goto('/dashboard');
-      await page.getByRole('heading', { name: 'Business health' }).waitFor({ timeout: 20000 });
-      await page.getByRole('heading', { name: "Today's plan" }).waitFor();
-      await page.getByText(/to do/).first().waitFor();
+      for (const h of ['Average Google rating', 'Review trend', 'Recent activity', 'Customer funnel', 'Your business growth', 'What customers mention', 'Needs your attention'])
+        await page.getByRole('heading', { name: h }).waitFor({ timeout: 20000 });
+      await page.getByText(/AI assistant has \d+ things? to help with today|all caught up|hasn't made today's plan/i).waitFor({ timeout: 20000 });
+      await page.getByRole('heading', { name: 'How your business is doing' }).waitFor();
+      // never a score without enough real data behind it: either the honest "getting started" line or a score from at least 4 measures
+      const txt = await page.locator('main').innerText();
+      const m = txt.match(/Getting started\s*·\s*(\d+) of (\d+) business measures available/);
+      expect(m || /\/100/.test(txt), 'neither a "Getting started" line nor a score is shown');
+      if (m) expect(!/\b100\s*\/\s*100\b/.test(txt), 'a perfect score is shown with too little data');
+      // the old jargon is gone from the main page
+      for (const bad of ['Reply coverage', 'Business health', 'AI Execution History', 'Pending Approvals']) expect(!txt.includes(bad), `jargon still on the dashboard: ${bad}`);
+      // scans and reviews are never combined: the funnel says so in words
+      await page.getByText(/Clicks are not reviews|No card on a counter yet/).first().waitFor({ timeout: 20000 });  // the heading shows before the funnel's data does
+      const txt2 = await page.locator('main').innerText();
+      // with cards, the funnel says clicks are not reviews; without any card it says so instead of drawing an empty funnel
+      expect(txt2.includes('Clicks are not reviews') || txt2.includes('No card on a counter yet'), 'the funnel no longer separates clicks from reviews');
+      await page.waitForTimeout(1500);
+      page.off('request', spy);
+      // loading the dashboard must never call Google (it would spend quota and can change the connection's state)
+      expect(googleCalls.length === 0, 'the dashboard called Google on load: ' + googleCalls.join(', '));
+    });
+    await step('overview: growth chart tabs and the 7/30/90-day filter work from keyboard and mouse', async () => {
+      // the two Google tabs fetch live from Google when opened; stub that one call so this suite stays free of real Google requests
+      await page.route('**/api/v1/gbp/*/performance**', (route) => route.fulfill({ json: { from: '', to: '', totals: {}, series: { CALL_CLICKS: [{ date: '2026-11-01', value: 2 }], BUSINESS_IMPRESSIONS_DESKTOP_MAPS: [{ date: '2026-11-01', value: 9 }] }, note: 'stub' } }));
+      await page.goto('/dashboard');
+      const tabs = page.getByRole('tab');
+      await tabs.first().waitFor({ timeout: 20000 });
+      expect(await tabs.count() === 4, 'four growth tabs');
+      expect(await page.getByRole('tab', { name: 'Reviews' }).getAttribute('aria-selected') === 'true', 'Reviews tab starts selected');
+      await page.getByRole('tab', { name: 'Reviews' }).focus();
+      await page.keyboard.press('ArrowRight');
+      expect(await page.getByRole('tab', { name: 'Google profile use' }).getAttribute('aria-selected') === 'true', 'ArrowRight moves to the next tab');
+      expect(await page.getByRole('radiogroup', { name: 'Show the last' }).count() === 1, 'one range control on the page');
+      await page.getByRole('radio', { name: '90 days' }).click();
+      await page.getByText('Last 90 days', { exact: true }).waitFor({ timeout: 20000 });
+      await page.getByRole('radio', { name: '7 days' }).click();
+      await page.getByText('Last 7 days', { exact: true }).waitFor({ timeout: 20000 });
+      await page.unroute('**/api/v1/gbp/*/performance**');
+    });
+    await step('overview: a tooltip opens on focus and closes on Escape', async () => {
+      await page.goto('/dashboard');
+      const hint = page.getByRole('button', { name: /What does .Your business growth. mean/ });
+      await hint.waitFor({ timeout: 20000 });
+      await hint.focus();
+      await page.getByRole('tooltip').waitFor();
+      await page.keyboard.press('Escape');
+      expect(await page.getByRole('tooltip').count() === 0, 'tooltip did not close on Escape');
+    });
+    await step('shell: Ctrl+K jumps to a page; the theme toggle switches to dark and back', async () => {
+      await page.goto('/dashboard');
+      await page.getByRole('heading', { name: 'Review trend' }).waitFor({ timeout: 20000 });
+      await page.keyboard.press('Control+k');
+      await page.getByRole('combobox', { name: 'Search pages and reviews' }).fill('posts');
+      await page.keyboard.press('Enter');
+      await page.waitForURL('**/posts');
+      await page.getByRole('button', { name: 'Dark mode' }).click();
+      await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', null, { timeout: 5000 }).catch(() => { throw new Error('dark mode did not apply'); });
+      await page.waitForTimeout(800);  // let the 600 ms circular reveal finish
+      await page.getByRole('button', { name: 'Light mode' }).click();
+      await page.waitForFunction(() => document.documentElement.dataset.theme === 'light', null, { timeout: 5000 }).catch(() => { throw new Error('light mode did not come back'); });
+      await page.waitForTimeout(800);
     });
 
     // ------------------------------------------------------------------ 5. posts
@@ -361,10 +501,10 @@ db.commit()
     await step('reports: real numbers, Google performance marked missing, and the downloads work', async () => {
       await page.goto('/reports');
       await page.getByRole('heading', { name: 'Reputation' }).waitFor({ timeout: 20000 });
-      await page.getByText('New reviews').waitFor();
+      await page.getByText('New reviews').first().waitFor();
       const dl = page.getByLabel('Downloads');
       const pdf = await download(() => dl.getByRole('button', { name: 'PDF report' }).click());
-      expect(pdf.bytes.subarray(0, 8).toString() === '%PDF-1.4' && pdf.name === 'flowqr-report.pdf', 'PDF is not a PDF');
+      expect(pdf.bytes.subarray(0, 8).toString() === '%PDF-1.4' && /^flowqr-report-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.pdf$/.test(pdf.name), 'PDF is not a PDF');
       const csv = await download(() => dl.getByRole('button', { name: 'Reviews (CSV)' }).click());
       expect(csv.bytes.toString().includes('review_date,location,reviewer,rating') && csv.bytes.toString().includes('Waited a long time'), 'CSV content wrong: ' + csv.name + ' ' + JSON.stringify(csv.bytes.toString().slice(0, 160)));
       for (const n of ['Posts (CSV)', 'Agent tasks (CSV)', 'AI activity (CSV)']) { const d = await download(() => dl.getByRole('button', { name: n }).click()); expect(d.bytes.length > 20, n + ' empty'); }
@@ -372,13 +512,14 @@ db.commit()
     await step('settings: connections never say "Connected" for what is not, AI usage and the audit log load', async () => {
       await page.goto('/settings/connections');
       await page.getByRole('heading', { name: 'Connections' }).waitFor({ timeout: 20000 });
-      for (const label of ['Facebook & Instagram (Meta)', 'WhatsApp Business Platform', 'Local rank provider']) {
+      for (const label of ['Facebook & Instagram (Meta)', 'WhatsApp Business Platform']) {
         const panel = page.locator('section, div').filter({ has: page.getByText(label, { exact: true }) }).filter({ hasText: /Setup required/ }).first();
         await panel.waitFor();
       }
       expect(await page.getByText('Connected', { exact: true }).count() === await (async () => { const j = await (await ctx.request.get('/api/v1/workspace/integrations')).json(); return j.integrations.filter((i) => i.status === 'connected').length; })(), 'the page shows "Connected" for something the server did not call connected');
-      await page.goto('/settings/ai');
-      await page.getByRole('heading', { name: 'AI usage & limits' }).waitFor({ timeout: 20000 });
+      await page.goto('/settings/ai');  // moved to AI › Usage & limits; the old URL redirects
+      await page.waitForURL('**/ai/usage');
+      await page.getByRole('heading', { name: 'Usage & limits' }).waitFor({ timeout: 20000 });
       await page.getByText('This month', { exact: true }).first().waitFor();
       await page.goto('/settings/audit');
       await page.getByRole('heading', { name: 'Audit log' }).waitFor({ timeout: 20000 });
@@ -400,7 +541,7 @@ db.commit()
     });
 
     await step('planned areas say "Setup required" and show no fake data', async () => {
-      for (const [u, h] of [['/inbox', 'WhatsApp inbox'], ['/inbox/leads', 'Leads'], ['/studio/social', 'Social publishing'], ['/local-visibility', 'Local visibility'], ['/studio', 'AI Creator']]) {
+      for (const [u, h] of [['/inbox', 'WhatsApp inbox'], ['/inbox/leads', 'Leads'], ['/studio/social', 'Social publishing'], ['/studio', 'AI Creator']]) {
         await page.goto(u);
         await page.getByRole('heading', { name: h, exact: true }).waitFor({ timeout: 20000 });
         await page.getByText('Setup required', { exact: true }).first().waitFor();
@@ -408,12 +549,39 @@ db.commit()
         expect(!(await page.getByText('Connected', { exact: true }).count()), `${u} claims Connected`);
       }
     });
+    // Last, on purpose: Media and Insights call Google with the seeded (fake) token, which marks the seeded connection as lost.
+    await step('nav: every existing URL still opens a real page and sits under exactly one workspace', async () => {
+      const urls = ['/dashboard', '/reports', '/analytics', '/cards/analytics', '/profile', '/reviews', '/posts', '/media', '/performance', '/local-visibility', '/google',
+        '/agent', '/agent/recommendations', '/agent/approvals', '/agent/activity', '/agent/knowledge', '/agent/automations',
+        '/studio', '/studio/calendar', '/studio/brand', '/studio/assets', '/studio/social',
+        '/review-growth', '/review-growth/campaigns', '/review-growth/customize', '/review-growth/generator', '/review-growth/settings', '/review-growth/analytics', '/cards', '/qr',
+        '/inbox', '/inbox/leads', '/inbox/appointments', '/inbox/followups', '/inbox/campaigns',
+        '/settings', '/settings/connections', '/settings/ai', '/settings/audit', '/locations', '/staff', '/subscription', '/payments'];
+      await page.route('**/api/v1/gbp/**', (route) => {
+        const u = new URL(route.request().url()).pathname;
+        if (u.includes('/library') && !u.endsWith('/coverage')) return route.continue();
+        if (u.endsWith('/performance')) return route.fulfill({ json: { from: '', to: '', totals: {}, series: {}, note: 'stub' } });
+        if (u.endsWith('/keywords')) return route.fulfill({ json: { from_month: '', to_month: '', keywords: [], note: 'stub' } });
+        if (u.endsWith('/coverage')) return route.fulfill({ json: { on_google: {}, total_on_google: 0, suggestions: [], note: 'stub' } });
+        if (u.endsWith('/info')) return route.fulfill({ json: { title: 'E2E Main', description: 'Old', phone: null, website: null, primary_category: null, additional_categories: [], hours: [] } });
+        return route.fulfill({ json: [] });
+      });
+      for (const u of urls) {
+        const r = await page.goto(u);
+        expect(r && r.status() < 400, `${u} -> ${r && r.status()}`);
+        await page.locator('h1').first().waitFor({ timeout: 20000 });
+        expect(!(await page.getByText('This page could not be found').count()), `${u} is a 404`);
+        expect(await nav().locator('a[aria-current="page"]').count() === 1, `${u} is not under exactly one workspace`);
+      }
+      await page.unroute('**/api/v1/gbp/**');
+    });
     await step('no page crashed and no request returned a server error', async () => {
       expect(pageErrors.length === 0, 'page errors: ' + pageErrors.slice(0, 3).join(' | '));
       expect(httpErrors.length === 0, 'HTTP 5xx: ' + httpErrors.slice(0, 3).join(' | '));
     });
   }
 
+  await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {});
   await browser.close();
   try {
     const left = sql(`

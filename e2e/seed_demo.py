@@ -62,7 +62,10 @@ tenant_id = owner.get("/auth/me").json()["memberships"][0]["tenant"]["id"]
 
 # ---- card batch + assignment (real admin API) ---------------------------------------------------------------
 if not admin.get("/admin/cards", params={"search": "FQR-"}).json()["items"]:
-    admin.post("/admin/batches", headers=ah, json={"name": "Demo batch", "quantity": 8}).raise_for_status()
+    batch = admin.post("/admin/batches", headers=ah, json={"name": "Demo batch", "quantity": 8})
+    batch.raise_for_status()
+    # New batches start as "generated" (not yet printed). Mark them printed so they are in stock and can be assigned.
+    admin.post(f"/admin/batches/{batch.json()['id']}/release", headers=ah).raise_for_status()
 cards = admin.get("/admin/cards", params={"limit": 50}).json()["items"]
 plan = [("Reception desk", 0), ("Waiting area", 0), ("Checkout counter", 1), ("Front desk", 1)]
 for card, (label, li) in zip(cards, plan):
@@ -154,6 +157,7 @@ if not db.scalar(select(ScanEvent).where(ScanEvent.tenant_id == tenant.id)):
             for _ in range(int(random.gauss(7, 3) * weight[ci]) if ci < 4 else 0):
                 t = now - timedelta(days=day, hours=random.randint(0, 11), minutes=random.randint(0, 59))
                 visitor = f"demo{random.getrandbits(40):x}"
+                channel = "nfc" if random.random() < 0.3 else "qr"  # how this visitor got in
                 steps = [ScanEventType.scan]
                 if random.random() < 0.86:
                     steps.append(ScanEventType.landing_view)
@@ -162,7 +166,7 @@ if not db.scalar(select(ScanEvent).where(ScanEvent.tenant_id == tenant.id)):
                     if random.random() < 0.64:
                         steps.append(ScanEventType.google_click)
                 for s in steps:
-                    db.add(ScanEvent(card_id=card.id, tenant_id=tenant.id, location_id=card.location_id, event_type=s, visitor_hash=visitor, is_bot=False, created_at=t))
+                    db.add(ScanEvent(card_id=card.id, tenant_id=tenant.id, location_id=card.location_id, event_type=s, visitor_hash=visitor, is_bot=False, channel=channel, created_at=t))
 db.commit()
 print("seeded:", {"tenant": tenant.name, "locations": len(locs), "cards": len(cards)})
 print("owner:", OWNER, " admin:", ADMIN, " password:", PASSWORD)
