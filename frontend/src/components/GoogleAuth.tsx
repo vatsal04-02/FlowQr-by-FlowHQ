@@ -16,6 +16,7 @@ const MESSAGES: Record<string, string> = {
   already_linked: "A different Google account is already connected to this FlowQR account.",
   account_disabled: "This account is disabled. Contact FlowQR support.",
   session_mismatch: "You were signed in as a different user. Please try connecting Google again.",
+  registration_restricted: "FlowQR is open to approved businesses only at the moment. If you expected access, contact FlowQR support. If you already have an account, log in with the email and password you registered with.",
 };
 
 /** Reads and clears ?google_error= once, returning a human message (or null). */

@@ -565,6 +565,10 @@ def add_commands(sub) -> None:
     p = sub.add_parser("preflight", help="check the real configuration before going live")
     p.add_argument("--smtp-test", metavar="EMAIL", help="send one real test email to this address")
     p.add_argument("--sentry-test", action="store_true", help="send one test event to Sentry")
+    g = sub.add_parser("registration", help="who may register: show the mode and the list, or add/remove an allowed email address")
+    g.add_argument("--add", metavar="EMAIL", help="allow this address to register")
+    g.add_argument("--remove", metavar="EMAIL", help="stop allowing this address (an account that already exists is not affected)")
+    g.add_argument("--note", default="", help="why (with --add)")
     a = sub.add_parser("set-admin-password", help="set a new platform-admin password and sign that account out")
     a.add_argument("--email", required=True)
     w = sub.add_parser("google-write-test", help="controlled LIVE write test on a test location (dry run unless --execute)")
@@ -591,5 +595,40 @@ def add_commands(sub) -> None:
     t.add_argument("--report", metavar="FILE.json", help="write the step-by-step result")
 
 
+def registration_cmd(args: argparse.Namespace) -> int:
+    """Show who may register, or change the administrator-managed list. Works on the real database; every change is audited like the Admin API's."""
+    from app.core.db import system_session
+    from app.services import registration as reg
+    from app.services.audit import audit
+
+    db = system_session()
+    try:
+        if args.add:
+            try:
+                row = reg.add(db, args.add, note=args.note or "added with the command line")
+            except ValueError as exc:
+                print(str(exc))
+                return 1
+            audit(db, action="admin.registration_allow", entity_type="registration", entity_id=row.id, meta={"email": row.email, "note": row.note, "via": "cli"})
+            db.commit()
+            print(f"allowed: {row.email}")
+        elif args.remove:
+            n = reg.normalize_email(args.remove)
+            if not reg.remove(db, args.remove):
+                print("that address is not on the administrator list (addresses from REGISTRATION_ALLOWLIST or PLATFORM_ADMIN_EMAILS are changed in the environment)")
+                return 1
+            audit(db, action="admin.registration_disallow", entity_type="registration", meta={"email": n, "via": "cli"})
+            db.commit()
+            print(f"removed: {n}")
+        s = reg.summary(db)
+        print(f"registration mode: {s['mode']} ({'set explicitly' if s['explicit'] else 'automatic for this APP_ENV'})")
+        print(f"addresses from REGISTRATION_ALLOWLIST: {s['env_allowlist_count']}; platform-admin addresses (always allowed): {s['admin_addresses_count']}; administrator list: {len(s['entries'])}")
+        for e in s["entries"]:
+            print(f"  {e['email']}  {'(registered)' if e['used_at'] else '(not used yet)'}  {e['note'] or ''}")
+        return 0
+    finally:
+        db.close()
+
+
 def run(args: argparse.Namespace) -> int:
-    return {"preflight": preflight, "set-admin-password": set_admin_password, "google-write-test": google_write_test, "autonomy-live-test": autonomy_live_test}[args.cmd](args)
+    return {"preflight": preflight, "set-admin-password": set_admin_password, "google-write-test": google_write_test, "autonomy-live-test": autonomy_live_test, "registration": registration_cmd}[args.cmd](args)

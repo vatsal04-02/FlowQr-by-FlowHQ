@@ -57,6 +57,15 @@ export default function Onboarding() {
 
 function BusinessStep({ onDone }: { onDone: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
+  const [needsVerify, setNeedsVerify] = useState(false);
+  const [resent, setResent] = useState<string | null>(null);
+  async function resend() {
+    setResent(null);
+    try {
+      const r = await api<{ email_sent: boolean; detail: string }>("/auth/resend-verification", { method: "POST" });
+      setResent(r.email_sent ? "Verification email sent. Check your inbox, open the link, then come back and press Continue." : r.detail);
+    } catch (e) { setResent(errorMessage(e)); }
+  }
   const f = useForm({ name: "", category: CATEGORIES[0], email: "", phone: "", address: "", website: "", language: "en", timezone: "Asia/Kolkata" }, {
     name: required("Business name"), category: required("Category"), email: (v) => (String(v).trim() ? emailRule(v) : undefined), phone: phoneRule,
   });
@@ -64,11 +73,16 @@ function BusinessStep({ onDone }: { onDone: () => Promise<void> }) {
     e.preventDefault(); f.setServerError(null);
     if (!f.validateAll()) return;
     setBusy(true);
+    setNeedsVerify(false);
     try {
       const v = f.values;
       await api("/tenants", { method: "POST", body: { ...v, name: v.name.trim(), email: v.email.trim() || null, phone: v.phone.trim() || null, address: v.address.trim() || null, website: v.website.trim() || null } });
       await onDone();
-    } catch (err) { f.fail(errorMessage(err)); } finally { setBusy(false); }
+    } catch (err) {
+      // While registration is restricted (REGISTRATION_MODE closed/allowlist) the backend needs a verified address before it creates a business.
+      if (err instanceof ApiError && err.code === "email_not_verified") setNeedsVerify(true);
+      f.fail(errorMessage(err));
+    } finally { setBusy(false); }
   }
   return (
     <Card>
@@ -76,6 +90,11 @@ function BusinessStep({ onDone }: { onDone: () => Promise<void> }) {
       <p className="mt-1 text-ink-500">This appears on your customers' review page.</p>
       <form onSubmit={submit} noValidate className="mt-6 space-y-4">
         <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
+        {needsVerify && (
+          <Alert tone="warning" title="Verify your email first" action={<Button type="button" variant="secondary" onClick={() => void resend()}>Send the link again</Button>}>
+            {resent ?? "We sent a verification link when you registered. Open it, then press Continue again."}
+          </Alert>
+        )}
         <Input label="Business name" required placeholder="e.g. Geeta Krishna Physiotherapy" {...f.bind("name")} />
         <Select label="Business category" required {...f.bind("category")}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</Select>
         <div className="grid gap-4 sm:grid-cols-2">

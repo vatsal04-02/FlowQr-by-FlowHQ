@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleButton, OrDivider, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Card";
 import { ErrorSummary, Input } from "@/components/ui/Form";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -17,6 +18,12 @@ export default function RegisterPage() {
   const f = useForm({ full_name: "", email: "", phone: "", password: "" }, {
     full_name: required("Your name"), email: emailRule, password: passwordRule, phone: phoneRule,
   });
+
+  // Who may register is decided by the backend (REGISTRATION_MODE); this only tells people before they type a password. The server refuses regardless of what this page shows.
+  const [mode, setMode] = useState<"open" | "allowlist" | "closed" | null>(null);
+  useEffect(() => {
+    api<{ mode: "open" | "allowlist" | "closed" }>("/auth/registration").then((r) => setMode(r.mode)).catch(() => setMode("open"));
+  }, []);
 
   const googleError = useGoogleError();
   useEffect(() => { if (googleError) f.fail(googleError); }, [googleError]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -34,9 +41,18 @@ export default function RegisterPage() {
     } catch (err) { f.fail(errorMessage(err)); } finally { setBusy(false); }
   }
 
+  const footer = <>Already have an account? <Link href="/login" className="font-semibold text-[#C94C00] underline">Log in</Link></>;
+  if (mode === "closed") {
+    return (
+      <AuthShell title="Registration is closed" subtitle="FlowQR is not taking new accounts right now." footer={footer}>
+        <Alert tone="info">FlowQR is open to approved businesses only at the moment. If you expected access, contact FlowQR support. If you already have an account, log in.</Alert>
+      </AuthShell>
+    );
+  }
+
   return (
-    <AuthShell title="Create your FlowQR account" subtitle="Takes about two minutes. No card needed."
-      footer={<>Already have an account? <Link href="/login" className="font-semibold text-[#C94C00] underline">Log in</Link></>}>
+    <AuthShell title="Create your FlowQR account" subtitle="Takes about two minutes. No card needed." footer={footer}>
+      {mode === "allowlist" && <div className="mb-4"><Alert tone="info">FlowQR is open to approved businesses only at the moment. Register with the email address you gave us. Other addresses are not accepted yet.</Alert></div>}
       <GoogleButton label="Sign up with Google" />
       <OrDivider>or sign up with email</OrDivider>
       <form onSubmit={submit} noValidate className="space-y-4">

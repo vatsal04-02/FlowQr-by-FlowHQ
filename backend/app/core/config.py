@@ -129,6 +129,12 @@ class Settings(BaseSettings):
     # Bootstrap: comma separated emails that become platform admins on registration.
     platform_admin_emails: str = ""
 
+    # Registration gate (services/registration.py). "" = automatic: `allowlist` when APP_ENV is staging or production, `open` otherwise (development and tests). An explicit value always wins;
+    # anything that is not closed|allowlist|open is treated as `closed` (fail closed) and refused by the production guard. REGISTRATION_ALLOWLIST: comma separated extra addresses
+    # (the platform-admin addresses and the database list managed by an administrator are always honoured too).
+    registration_mode: str = ""
+    registration_allowlist: str = ""
+
     # Billing (Razorpay). Test keys (rzp_test_...) => test mode. Empty => billing shows "configuration pending".
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
@@ -186,6 +192,19 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def effective_registration_mode(self) -> str:
+        m = (self.registration_mode or "").strip().lower()
+        if not m:
+            return "allowlist" if self.hardened else "open"
+        return m if m in ("closed", "allowlist", "open") else "closed"
+
+    @property
+    def registration_allowlist_set(self) -> set[str]:
+        from app.services.registration import normalize_email  # local import: the service imports settings
+
+        return {n for n in (normalize_email(e) for e in self.registration_allowlist.split(",")) if n}
 
     @property
     def platform_admin_email_set(self) -> set[str]:
@@ -273,6 +292,8 @@ def config_problems(s: Settings) -> list[str]:
         p.append("COOKIE_SECURE must be true")
     if not s.require_verified_email:
         p.append("REQUIRE_VERIFIED_EMAIL must be true")
+    if (s.registration_mode or "").strip().lower() not in ("", "closed", "allowlist", "open"):
+        p.append(f"REGISTRATION_MODE '{s.registration_mode}' is not one of closed, allowlist, open (it would be treated as closed)")
     for name, url in (("PUBLIC_CARD_BASE_URL (printed on physical cards)", s.public_card_base_url), ("FRONTEND_URL", s.frontend_url)):
         why = _bad_host(url)
         if why:

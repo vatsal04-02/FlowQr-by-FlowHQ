@@ -52,6 +52,8 @@ x-backend-env: &backend-env
   TRIAL_DAYS: ${TRIAL_DAYS:-14}
   CARD_PRICE_PAISE: ${CARD_PRICE_PAISE:-}  # no default: unset disables card ordering
   REQUIRE_VERIFIED_EMAIL: ${REQUIRE_VERIFIED_EMAIL:-true}
+  REGISTRATION_MODE: ${REGISTRATION_MODE:-}  # closed | allowlist | open. EMPTY = allowlist when APP_ENV is staging/production, open in development
+  REGISTRATION_ALLOWLIST: ${REGISTRATION_ALLOWLIST:-}  # comma separated addresses allowed to register in allowlist mode (administrators can also manage a database list)
   ADMIN_SESSION_TTL_HOURS: ${ADMIN_SESSION_TTL_HOURS:-12}  # platform administrators sign in again at least this often
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}

@@ -27,6 +27,9 @@ GOOGLE_REDIRECT_URI=https://app.$D/api/v1/google/callback
 COOKIE_SECURE=true
 ACME_EMAIL=ops@$D
 PLATFORM_ADMIN_EMAILS=admin@$D
+# The rehearsal stack is private and its smoke test registers fresh throwaway users, so it runs OPEN on purpose. A real staging or production host must NOT: leave this unset
+# (allowlist by default) and approve addresses with `python -m app.cli registration --add`. See docs/REGISTRATION_GATE.md.
+REGISTRATION_MODE=open
 # --- integrations: fill in REAL staging credentials here (leave empty to keep the feature in 'configuration pending') ---
 GEMINI_API_KEY=
 GOOGLE_CLIENT_ID=

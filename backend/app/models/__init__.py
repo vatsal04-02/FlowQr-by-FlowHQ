@@ -8,6 +8,7 @@ from app.models.review_growth import RetiredCampaignId, ReviewCampaign, ReviewDr
 from app.models.platform import ApiUsage  # noqa: F401,E402
 from app.models.billing import BillingPlan, CardOrder, Payment, PromotionalGrant, SubscriptionEvent, WebhookEvent  # noqa: F401
 from app.models.leads import Lead  # noqa: F401
+from app.models.registration import RegistrationAllowlist  # noqa: F401
 from app.models.platform import AICallLedger, AIGenerationLog, AuditLog, Subscription  # noqa: F401
 from app.models.tenancy import (  # noqa: F401
     AuthSession, EmailVerificationToken, Invitation, Membership, MembershipLocation, PasswordResetToken, Role, Tenant, User,

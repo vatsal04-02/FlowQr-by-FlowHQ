@@ -6,6 +6,7 @@ import uuid
 import zipfile
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import timedelta
 
 from sqlalchemy import func, or_, select, update
@@ -738,6 +739,46 @@ def costs(month: str | None = _MONTH, top: int = Query(20, ge=1, le=500), ctx: A
 def finance(month: str | None = _MONTH, ctx: AuthContext = Depends(require_platform_admin)):
     """MRR, one-time card revenue, costs and unit economics. Missing inputs are listed, never assumed to be zero."""
     return finance_svc.economics(ctx.db, month)
+
+
+class AllowlistIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=3, max_length=320)
+    note: str | None = Field(default=None, max_length=300)
+
+
+@router.get("/registration")
+def registration_status(ctx: AuthContext = Depends(require_platform_admin)):
+    """Who may register: the mode, how many addresses come from the environment and from the administrator list, and the administrator-managed list itself."""
+    from app.services import registration as reg
+
+    return reg.summary(ctx.db)
+
+
+@router.post("/registration/allowlist", status_code=201)
+def registration_allow(body: AllowlistIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    from app.services import registration as reg
+
+    try:
+        row = reg.add(ctx.db, body.email, note=body.note, user_id=ctx.user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    audit(ctx.db, action="admin.registration_allow", user_id=ctx.user.id, entity_type="registration", entity_id=row.id, meta={"email": row.email, "note": row.note}, ip=client_ip(request))
+    ctx.db.commit()
+    return {"id": str(row.id), "email": row.email, "note": row.note}
+
+
+@router.delete("/registration/allowlist/{entry_id}", status_code=204)
+def registration_disallow(entry_id: uuid.UUID, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    from app.models import RegistrationAllowlist
+
+    row = ctx.db.get(RegistrationAllowlist, entry_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    email = row.email
+    ctx.db.delete(row)
+    audit(ctx.db, action="admin.registration_disallow", user_id=ctx.user.id, entity_type="registration", entity_id=entry_id, meta={"email": email}, ip=client_ip(request))
+    ctx.db.commit()
 
 
 @router.get("/work-queue")

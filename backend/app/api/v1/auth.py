@@ -17,6 +17,7 @@ from app.schemas.auth import (
     ChangePasswordIn, LoginIn, MeOut, MembershipOut, PasswordResetConfirmIn, PasswordResetRequestIn,
     ProfileUpdateIn, RegisterIn, SetPasswordIn, TenantOut, UserOut, VerifyEmailIn,
 )
+from app.services import registration
 from app.services.audit import audit
 from app.services.mailer import send_email
 
@@ -82,6 +83,7 @@ def send_verification(db: Session, user: User) -> bool:
 @router.post("/register", response_model=MeOut, status_code=201, dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60))])
 def register(body: RegisterIn, request: Request, response: Response, db: Session = Depends(get_db)):
     email = body.email.lower()
+    registration.gate_new_account(db, request, email, "password")  # FIRST: a refused address never learns whether it is listed or already registered
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=409, detail="An account with this email already exists")
     user = User(
@@ -116,6 +118,13 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
     audit(db, action="auth.login", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request))
     db.commit()
     return build_me(db, user, sess)
+
+
+@router.get("/registration")
+def registration_mode():
+    """Public. Only the MODE (closed, allowlist or open), so the sign-up page can say so before someone types a password. Never the list, never anything about an address. The backend
+    enforces it regardless of what this page shows."""
+    return {"mode": registration.mode()}
 
 
 @router.post("/logout", status_code=204)

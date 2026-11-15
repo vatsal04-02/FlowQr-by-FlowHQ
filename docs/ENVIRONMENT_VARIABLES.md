@@ -17,6 +17,7 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 | `REDIS_URL` | local | Celery broker and rate limits. |
 | `COOKIE_SECURE`, `COOKIE_DOMAIN` | `false`, empty | `true` in production. |
 | `SESSION_TTL_HOURS` | 336 | Session lifetime (14 days). |
+| `REGISTRATION_MODE`, `REGISTRATION_ALLOWLIST` | empty (automatic), empty | Who may create an account or a business. `closed`, `allowlist` or `open`. **Empty means `allowlist` when `APP_ENV` is staging or production and `open` in development.** An unknown value is treated as `closed` and refused by the production guard. `REGISTRATION_ALLOWLIST` is a comma-separated list of addresses; platform-admin addresses are always allowed; an administrator also manages a database list (Admin API, `python -m app.cli registration`). Existing accounts always keep signing in. See `docs/REGISTRATION_GATE.md`. |
 | `ADMIN_SESSION_TTL_HOURS` | 12 | Platform administrators sign in again at least this often (the shorter of the two applies). Administrator rights also need a **verified** email address: a sign-up with an address on `PLATFORM_ADMIN_EMAILS` is an ordinary account until its mailbox is verified (or `set-admin-password` is run on the server). |
 | `CORS_ORIGINS`, `FRONTEND_URL`, `PUBLIC_CARD_BASE_URL` | localhost | **R.** `PUBLIC_CARD_BASE_URL` is printed into every QR/NFC card: set the final card domain **before** generating cards. |
 | `PLATFORM_ADMIN_EMAILS` | empty | Comma-separated; those accounts become platform admins when they register. |

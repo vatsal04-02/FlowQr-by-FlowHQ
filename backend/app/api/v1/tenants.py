@@ -18,6 +18,7 @@ from app.schemas.auth import (
     InvitationAcceptIn, InvitationOut, InviteIn, MemberOut, RoleUpdateIn, StaffLocationsIn, TenantCreateIn, TenantOut, TenantUpdateIn,
 )
 from app.services import billing as billing_svc
+from app.services import registration
 from app.services import entitlements as ent
 from app.services.audit import audit
 from app.services.mailer import send_email
@@ -35,6 +36,7 @@ def create_tenant(body: TenantCreateIn, request: Request, ctx: AuthContext = Dep
     """Onboarding step 2. The creating user becomes Owner. Everything happens in one transaction."""
     db = ctx.db
     set_rls_context(db, bypass=True)
+    registration.assert_can_create_business(db, request, ctx.user)  # outside `open` mode: a listed AND verified address (or a platform admin)
     owned = db.scalar(
         select(func.count()).select_from(Membership).where(Membership.user_id == ctx.user.id, Membership.role == Role.owner)
     )

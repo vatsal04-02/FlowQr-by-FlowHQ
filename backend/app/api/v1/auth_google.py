@@ -30,6 +30,7 @@ from app.core.rate_limit import client_ip, limit_by_ip
 from app.core.security import constant_time_equals, new_token, sign_state, verify_state
 from app.models import User
 from app.models.base import utcnow
+from app.services import registration
 from app.services.audit import audit
 from app.services.google.login import GoogleLoginError, get_google_login_provider, pkce_challenge
 
@@ -191,6 +192,10 @@ def _sign_in(db: Session, request: Request, identity, fail) -> RedirectResponse:
             audit(db, action="auth.google_linked", user_id=user.id, entity_type="user", entity_id=user.id,
                   ip=client_ip(request), meta={"via": "verified_email"})
         else:
+            try:
+                registration.gate_new_account(db, request, identity.email, "google")  # a NEW account: the same rule as password sign-up (existing accounts never reach this branch)
+            except HTTPException:
+                return fail("registration_restricted")
             user = User(
                 email=identity.email, password_hash=None, google_sub=identity.sub,
                 full_name=((identity.name or "").strip() or identity.email.split("@")[0])[:200],

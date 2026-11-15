@@ -115,7 +115,7 @@ def main() -> None:
     args = ap.parse_args()
     if args.cmd in ("ai-eval", "ai-eval-human", "ai-eval-rescore"):
         sys.exit(ai_eval_cli.run(args))
-    if args.cmd in ("preflight", "set-admin-password", "google-write-test", "autonomy-live-test"):
+    if args.cmd in ("preflight", "set-admin-password", "google-write-test", "autonomy-live-test", "registration"):
         sys.exit(ops_cli.run(args))
     sys.exit(smoke.run(args) if args.cmd == "google-smoke" else card_url_audit(args.live, args.expect_domain))
 
