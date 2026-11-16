@@ -106,6 +106,10 @@ class Settings(BaseSettings):
     rank_grid_max_spacing_m: int = 10000
     rank_grid_auto_days: int = 7  # an active grid is re-scanned automatically this often (only when the whole scan fits the monthly allowance)
     rank_platform_monthly_cap: int = 0  # Places searches the whole platform may spend per month across every business (0 = no platform cap)
+    # --- geo-grid (maps) master controls. Maps stay OFF until ALL of these are deliberately set, and any of them can switch maps off again (restart api and worker).
+    rank_grid_enabled: bool = False  # RANK_GRID_ENABLED: master switch and emergency stop. A plan alone can never turn maps on; false refuses every manual and automatic scan.
+    rank_platform_daily_cap: int = 0  # RANK_PLATFORM_DAILY_CAP: Places searches the whole platform may spend per UTC day (0 = unset). Maps refuse to run while BOTH platform caps are 0.
+    rank_alert_pct: int = 80  # Admin > Operations warns when platform Places use reaches this percentage of a cap
     rank_cost_per_call_usd: float = 0.0  # your Places price per search, to show estimated spend (0 = unpriced: only call counts are shown)
     places_suggest_enabled: bool = True  # PLACES_SUGGEST_ENABLED: business and address suggestions while setting up (uses the Places key above; no key = forms stay manual)
     places_suggest_user_daily_cap: int = 150  # Google calls (typing counts) one person may spend on suggestions per day

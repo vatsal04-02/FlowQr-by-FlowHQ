@@ -67,7 +67,10 @@ def env(connected, gid, places, monkeypatch):  # noqa: F811
     owner_exec("DELETE FROM rank_checks")
     monkeypatch.setattr(settings, "rank_platform_monthly_cap", 0)
     set_geo(connected.tenant_id, 2, 9, 150)  # the allowances a plan carries once the owner has approved them (the real plans ship with none: maps stay off)
-    monkeypatch.setattr(settings, "rank_cost_per_call_usd", 0.0)
+    # the owner's three platform decisions, as TEST values (not real prices or limits): the master switch, a platform cap, and a recorded price per search
+    monkeypatch.setattr(settings, "rank_grid_enabled", True)
+    monkeypatch.setattr(settings, "rank_platform_daily_cap", 100000)
+    monkeypatch.setattr(settings, "rank_cost_per_call_usd", 0.001)
     kw = connected.post(f"/gbp/{gid}/rank/keywords", json={"keyword": "physiotherapist near me"})
     assert kw.status_code in (201, 409)
     kid = connected.get(f"/gbp/{gid}/rank").json()["keywords"][0]["id"]

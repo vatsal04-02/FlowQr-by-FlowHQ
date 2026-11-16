@@ -97,11 +97,35 @@ def hash_points(points: list[dict]) -> str:
 # ---------------------------------------------------------------------------------------------------------------------------------------------
 # plan limits and cost
 # ---------------------------------------------------------------------------------------------------------------------------------------------
+GUARD_MESSAGES = {
+    "switched_off": "Geo-grid maps are switched off by FlowQR for now.",
+    "caps_missing": "Geo-grid maps are off until FlowQR sets a platform-wide spending limit for Google searches.",
+    "unpriced": "Geo-grid maps are off until FlowQR has recorded the price of one Google search.",
+    "not_in_plan": "Geo-grid ranking is not included in your current plan.",
+    "not_configured": "Maps are part of your plan, but their allowances have not been set yet, so they are switched off for now.",
+}
+
+
+def platform_guard() -> str | None:
+    """Why maps are off for EVERYONE, or None. All three must be true before any scan can spend money: the master switch is on, a platform spending cap exists (monthly or daily), and the
+    price of one search has been recorded (so spend is shown and never guessed). These are deliberate owner decisions; nothing here invents a number."""
+    if not settings.rank_grid_enabled:
+        return "switched_off"
+    if settings.rank_platform_monthly_cap <= 0 and settings.rank_platform_daily_cap <= 0:
+        return "caps_missing"
+    if settings.rank_cost_per_call_usd <= 0:
+        return "unpriced"
+    return None
+
+
 def availability(db: Session, tenant_id: uuid.UUID) -> tuple[dict | None, str | None]:
-    """(allowances, None) when maps can be used; (None, reason) otherwise. reason = "not_in_plan" (the plan does not include maps) or "not_configured" (it does, but the
-    owner has not approved the allowances yet: maps stay OFF rather than running on a guess)."""
+    """(allowances, None) when maps can be used; (None, reason) otherwise. reason = a platform guard (see platform_guard), "not_in_plan" (the plan does not include maps) or
+    "not_configured" (it does, but the owner has not approved the allowances yet: maps stay OFF rather than running on a guess)."""
     from app.services import entitlements as ent
     from app.services import plans
+
+    if (g := platform_guard()):
+        return None, g
 
     e = ent.for_tenant(db, tenant_id)
     if not (e.active and "geo_ranking" in e.features):
@@ -127,18 +151,29 @@ def platform_used_this_month(db: Session) -> int:
     return _points_since(db, None, since) + (db.scalar(select(func.count()).select_from(RankCheck).where(RankCheck.checked_at >= since)) or 0)
 
 
+def platform_used_today(db: Session) -> int:
+    """Every Places search since 00:00 UTC, grid or single-point, across all businesses (the daily cap's meter)."""
+    start = utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    return _points_since(db, None, start) + (db.scalar(select(func.count()).select_from(RankCheck).where(RankCheck.checked_at >= start)) or 0)
+
+
 def allowance(db: Session, tenant_id: uuid.UUID) -> dict:
     lim, why = availability(db, tenant_id)
     used = _points_since(db, tenant_id, rank_svc.month_start())
     cap = lim["monthly_points"] if lim else 0
     platform_cap = settings.rank_platform_monthly_cap
     platform_left = max(0, platform_cap - platform_used_this_month(db)) if platform_cap > 0 else None
+    daily_cap = settings.rank_platform_daily_cap
+    daily_left = max(0, daily_cap - platform_used_today(db)) if daily_cap > 0 else None
     remaining = max(0, cap - used)
     if platform_left is not None:
         remaining = min(remaining, platform_left)
+    if daily_left is not None:
+        remaining = min(remaining, daily_left)
     price = settings.rank_cost_per_call_usd
     return {"enabled": bool(lim), "reason": why, "limits": lim, "used": used, "cap": cap, "remaining": remaining, "resets_on": rank_svc.next_month_start().date().isoformat(),
-            "platform_capped": platform_left is not None and platform_left <= 0, "cost_per_call_usd": price or None,
+            "platform_capped": platform_left is not None and platform_left <= 0, "platform_daily_capped": daily_left is not None and daily_left <= 0,
+            "daily_remaining": daily_left, "cost_per_call_usd": price or None,
             "estimated_spend_usd": round(used * price, 2) if price > 0 else None}
 
 
@@ -158,7 +193,7 @@ def create_grid(db: Session, gl: GoogleLocation, *, name: str, mode: str = "squa
                 points: list[dict] | None = None, user_id: uuid.UUID | None = None, client=None) -> RankGrid:
     lim, why = availability(db, gl.tenant_id)
     if not lim:
-        raise RankError("Geo-grid ranking is not included in your current plan." if why == "not_in_plan" else "Maps are part of your plan, but their allowances have not been set yet, so they are switched off for now.", 402)
+        raise RankError(GUARD_MESSAGES.get(why or "", GUARD_MESSAGES["not_configured"]), 402)
     name = re.sub(r"\s+", " ", (name or "").strip())
     if not 2 <= len(name) <= 60:
         raise RankError("Give the grid a name of 2 to 60 characters, for example “Main map” or “North side”.", 422)
@@ -204,8 +239,11 @@ def preflight(db: Session, gl: GoogleLocation, grid: RankGrid) -> dict:
     """Can this scan run, and what will it cost? Raises RankError (no Places call has been made) if not."""
     a = allowance(db, gl.tenant_id)
     if not a["enabled"]:
-        raise RankError("Geo-grid ranking is not included in your current plan." if a["reason"] == "not_in_plan" else "Maps are part of your plan, but their allowances have not been set yet, so they are switched off for now.", 402)
+        raise RankError(GUARD_MESSAGES.get(a["reason"] or "", GUARD_MESSAGES["not_configured"]), 402)
     need = len(grid.points or [])
+    if a["platform_daily_capped"]:
+        usage.refused(gl.tenant_id, "rank_grid", "platform daily cap", units=need, location_id=gl.id)
+        raise RankError("FlowQR's Google Places allowance for today is used up, so no more scans can run until tomorrow (00:00 UTC).", 429)
     if a["platform_capped"]:
         usage.refused(gl.tenant_id, "rank_grid", "platform monthly cap", units=need, location_id=gl.id)
         raise RankError("FlowQR's Google Places allowance for this month is used up, so no more scans can run until it resets.", 429)

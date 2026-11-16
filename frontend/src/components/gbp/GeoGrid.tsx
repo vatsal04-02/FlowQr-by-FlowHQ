@@ -16,7 +16,7 @@ interface Pt { i: number; lat: number; lng: number; label?: string }
 interface Change { comparable: boolean; reason?: string; significant?: boolean; direction?: "improved" | "declined" | "mixed" | "unchanged"; summary?: string; delta_solv?: number | null; delta_arp?: number | null; delta_coverage?: number | null; points?: Record<string, number> }
 interface Scan { id: string; status: string; source: string; started_at: string; finished_at: string | null; points_total: number; points_ok: number; points_found: number; arp: number | null; atrp: number | null; solv: number | null; coverage: number | null; calls: number; change: Change | null; error: string | null }
 interface Grid { id: string; name: string; mode: "square" | "custom"; size: number | null; spacing_m: number | null; points: Pt[]; point_count: number; active: boolean; latest: { keyword_id: string; scan: Scan | null }[] }
-interface Allowance { enabled: boolean; reason?: "not_in_plan" | "not_configured" | null; limits: { max_grids: number; max_points: number; monthly_points: number } | null; used: number; cap: number; remaining: number; resets_on: string; platform_capped: boolean; cost_per_call_usd: number | null; estimated_spend_usd: number | null }
+interface Allowance { enabled: boolean; reason?: "not_in_plan" | "not_configured" | "switched_off" | "caps_missing" | "unpriced" | null; limits: { max_grids: number; max_points: number; monthly_points: number } | null; used: number; cap: number; remaining: number; resets_on: string; platform_capped: boolean; cost_per_call_usd: number | null; estimated_spend_usd: number | null }
 interface Overview { configured: boolean; allowance: Allowance; note: string; sizes: number[]; spacing: { min: number; max: number }; has_position: boolean; keywords: { id: string; keyword: string }[]; grids: Grid[] }
 interface Cell { i: number; lat: number; lng: number; label?: string; rank: number | null; status: string; bucket: string; error?: string | null }
 interface Heat { cells: Cell[]; scan: Scan | null; bounds: { south: number; north: number; west: number; east: number } | null; legend: { key: string; label: string }[]; note: string; stale_grid?: boolean }
@@ -150,7 +150,7 @@ export function GeoGrid({ gid }: { gid: string }) {
 
   if (ov.error) return <Alert tone="error" title="Couldn't load the map view">{ov.error}</Alert>;
   if (!d) return <Skeleton className="h-48" />;
-  if (!d.allowance.enabled) return <Panel title="Map view"><p className="text-sm text-muted">{d.allowance.reason === "not_configured" ? "Map ranking is part of your plan, but its search allowances have not been set yet, so it is switched off for now. FlowQR support is setting these up; the single-point ranking above still works." : "Measuring your ranking from several points around your business isn't included in your current plan. The single-point ranking above still works."}</p></Panel>;
+  if (!d.allowance.enabled) return <Panel title="Map view"><p className="text-sm text-muted">{d.allowance.reason === "not_in_plan" ? "Measuring your ranking from several points around your business isn't included in your current plan. The single-point ranking above still works." : "Map ranking is switched off for now while FlowQR finishes setting its Google search limits and allowances. The single-point ranking above still works."}</p></Panel>;
 
   const a = d.allowance;
   const need = grid?.point_count ?? 0;

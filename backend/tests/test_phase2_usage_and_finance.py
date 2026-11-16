@@ -32,7 +32,8 @@ def _prices(monkeypatch):
 
 # ============================================================================ Places usage is counted per real request
 
-def test_a_single_rank_check_is_one_ledger_row_and_unpriced_is_never_free(env):
+def test_a_single_rank_check_is_one_ledger_row_and_unpriced_is_never_free(env, monkeypatch):
+    monkeypatch.setattr(settings, "rank_cost_per_call_usd", 0.0)  # this test is about an UNPRICED search (the shared fixture records a test price so maps can run)
     env.places.script(4)
     r = env.biz.post(f"/gbp/{env.gid}/rank/check", json={})
     assert r.status_code == 200
@@ -147,6 +148,7 @@ def test_every_ai_call_row_has_a_request_id_and_a_retry_count_and_the_actor():
 # ============================================================================ the cost dashboard
 
 def test_the_cost_dashboard_counts_unpriced_calls_instead_of_pricing_them_at_zero(env, admin, monkeypatch):
+    monkeypatch.setattr(settings, "rank_cost_per_call_usd", 0.0)  # unpriced on purpose (the shared fixture records a test price so maps can run)
     env.places.script(2)
     env.biz.post(f"/gbp/{env.gid}/rank/check", json={})
     out = admin.get("/admin/costs", params={"top": 500}).json()
