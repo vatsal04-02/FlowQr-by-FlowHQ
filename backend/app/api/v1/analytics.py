@@ -236,3 +236,14 @@ def google_metrics(start: date | None = Query(None, alias="from"), end: date | N
         h = gm.history(ctx.db, ctx.tenant_id, [g], start, end)
         out["by_location"].append({"id": str(g.id), "title": g.title, "days_with_data": h["days_with_data"], "totals": gm.summary(h["totals"]) if h["days_with_data"] else None})
     return out
+
+
+@router.get("/growth-score")
+def growth_score(location_id: uuid.UUID | None = None, ctx: TenantContext = Depends(get_tenant_context)):
+    """FlowQR's Growth score (0-100) with its five parts (services/growth_score.py). Tenant- and location-scoped; parts without data are left out, never counted as zero."""
+    from app.services import growth_score as gs
+
+    if location_id and (not ctx.can_access_location(location_id) or not ctx.db.scalar(select(Location.id).where(Location.id == location_id, Location.tenant_id == ctx.tenant_id))):
+        raise HTTPException(status_code=404, detail="Location not found")
+    return gs.compute(ctx.db, tenant_id=ctx.tenant_id, tz_name=ctx.tenant.timezone, review_goal=ctx.tenant.review_goal, scope=ctx.scope, location_id=location_id,
+                      can_access=ctx.can_access_location)

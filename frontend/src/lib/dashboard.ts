@@ -84,16 +84,16 @@ export function buildTodos(a: {
 }): Todo[] {
   const out: Todo[] = [];
   const o = a.overview;
-  if (a.failedReplies > 0) out.push({ id: "failed-replies", tone: "bad", title: `${n(a.failedReplies, "reply", "replies")} didn't reach Google`, detail: "Google didn't accept them. Open each one to try again or change the wording.", href: "/gbp/reviews?state=failed", cta: "Fix and resend" });
-  if (a.sensitiveWaiting > 0) out.push({ id: "sensitive", tone: "bad", title: `${n(a.sensitiveWaiting, "review needs", "reviews need")} you personally`, detail: "They mention things like refunds or safety, so the AI won't answer without your okay.", href: "/gbp/reviews?state=none", cta: "Read them" });
+  if (a.failedReplies > 0) out.push({ id: "failed-replies", tone: "bad", title: `Resend ${n(a.failedReplies, "reply", "replies")}`, detail: "Google didn't accept them. Open each one to try again or change the wording.", href: "/gbp/reviews?state=failed", cta: "Fix and resend" });
+  if (a.sensitiveWaiting > 0) out.push({ id: "sensitive", tone: "bad", title: `${n(a.sensitiveWaiting, "review needs", "reviews need")} you`, detail: "They mention things like refunds or safety, so the AI won't answer without your okay.", href: "/gbp/reviews?state=none", cta: "Read them" });
   for (const s of o?.sync ?? []) {
-    if (s.status && s.status !== "ok" && s.status !== "running") out.push({ id: `sync-${s.location}`, tone: "bad", title: `Reviews from ${s.title ?? s.location} aren't updating`, detail: s.error ?? "Google didn't let FlowQR read this location.", href: "/gbp/locations", cta: "Check connection" });
+    if (s.status && s.status !== "ok" && s.status !== "running") out.push({ id: `sync-${s.location}`, tone: "bad", title: `Fix review sync`, detail: s.error ?? "Google didn't let FlowQR read this location.", href: "/gbp/locations", cta: "Check connection" });
   }
   const broken = a.connections.find((c) => c.status === "revoked" || c.status === "error");
-  if (broken) out.push({ id: "google-broken", tone: "bad", title: "FlowQR lost its link to your Google profile", detail: broken.last_error ?? "Access was removed or expired. Reconnect to keep reviews coming in.", href: "/gbp/locations", cta: "Reconnect" });
-  if (a.pendingApprovals > 0) out.push({ id: "approvals", tone: "warn", title: `${n(a.pendingApprovals, "thing is", "things are")} waiting for your approval`, detail: "Your AI assistant wrote them. Nothing goes live until you say yes.", href: "/ai/approvals", cta: "Review and approve" });
+  if (broken) out.push({ id: "google-broken", tone: "bad", title: "Reconnect Google", detail: broken.last_error ?? "Access was removed or expired. Reconnect to keep reviews coming in.", href: "/gbp/locations", cta: "Reconnect" });
+  if (a.pendingApprovals > 0) out.push({ id: "approvals", tone: "warn", title: `Approve ${n(a.pendingApprovals, "draft", "drafts")}`, detail: "Your AI assistant wrote them. Nothing goes live until you say yes.", href: "/ai/approvals", cta: "Review and approve" });
   const needReply = o?.reviews.awaiting_reply ?? 0;
-  if (needReply > 0) out.push({ id: "need-reply", tone: "warn", title: `${n(needReply, "customer review needs", "customer reviews need")} a reply`, detail: o && o.reviews.drafts_pending_approval ? `${o.reviews.drafts_pending_approval} already have a draft ready for you.` : "Let the AI write a reply, then you check it and send.", href: "/gbp/reviews?state=none", cta: "Reply to reviews" });
+  if (needReply > 0) out.push({ id: "need-reply", tone: "warn", title: `Reply to ${n(needReply, "review", "reviews")}`, detail: o && o.reviews.drafts_pending_approval ? `${o.reviews.drafts_pending_approval} already have a draft ready for you.` : "Let the AI write a reply, then you check it and send.", href: "/gbp/reviews?state=none", cta: "Reply to reviews" });
   for (const t of a.tasks) {
     const act = TASK_ACTION[t.kind];
     if (!act || ["published", "done", "dismissed", "snoozed", "awaiting_approval"].includes(t.status)) continue;
@@ -102,7 +102,7 @@ export function buildTodos(a: {
   const noLink = a.locations.filter((l) => l.is_active && !l.review_url);
   if (noLink.length) out.push({ id: "no-link", tone: "warn", title: `${noLink.map((l) => l.name).join(", ")} can't send customers to Google yet`, detail: "Add your Google review link so customers who scan a card can leave a review.", href: "/gbp/locations", cta: "Add the link" });
   if (!a.connections.some((c) => c.status === "active") && (o?.reviews.total_synced ?? 0) === 0 && !out.some((x) => x.id.startsWith("task-") && x.cta === "Connect Google")) {
-    out.push({ id: "connect", tone: "info", title: "Connect your Google profile", detail: a.googleConfigured === false ? "Google sign-in isn't switched on for this server yet. Cards and the review helper still work." : "Then your reviews appear here and the AI can help you reply.", href: "/gbp/locations", cta: "Connect Google" });
+    out.push({ id: "connect", tone: "info", title: "Connect Google", detail: a.googleConfigured === false ? "Google sign-in isn't switched on for this server yet. Cards and the review helper still work." : "Then your reviews appear here and the AI can help you reply.", href: "/gbp/locations", cta: "Connect Google" });
   }
   const rank = { bad: 0, warn: 1, info: 2 };
   return out.sort((x, y) => rank[x.tone] - rank[y.tone]);

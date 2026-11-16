@@ -17,22 +17,24 @@ export function GettingStarted() {
   const { data } = useFetch<Checklist>("/workspace/getting-started");
   const [all, setAll] = useState(false);
   if (!data || data.complete) return null;
+  // the plan is handled by the account strip: when choosing a plan is all that is left, this card adds nothing
+  if (data.steps.filter((x) => !x.done && !x.optional && !x.locked).every((x) => x.id === "plan")) return null;
   const next = data.steps.find((s) => s.id === data.next) ?? data.steps.find((s) => !s.done && !s.locked);
   return (
     <section aria-labelledby="gs-h" className="panel mb-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <h2 id="gs-h" className="text-[15px] font-semibold">Finish setting up</h2>
-        <p className="text-[13px] text-muted">{data.required_done} of {data.required_total} steps done</p>
+        <h2 id="gs-h" className="text-[15px] font-semibold">Setup</h2>
+        <p className="num text-[13px] text-muted">{data.required_done}/{data.required_total}</p>
       </div>
       <div className="mt-2"><Meter value={data.required_done} max={data.required_total} tone="ok" label="Setup progress" /></div>
       {next && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0 flex-1 basis-56"><p className="text-[14px] font-semibold">Next: {next.title}</p><p className="text-[13px] text-muted">{next.why}</p></div>
-          <LinkButton href={next.href} size="md" variant="brand">{next.cta}</LinkButton>
+          <p className="min-w-0 flex-1 basis-56 text-[14px] font-semibold">{next.title}</p>
+          <LinkButton href={next.href} size="md" variant="secondary">{next.cta}</LinkButton>
         </div>
       )}
       <button type="button" aria-expanded={all} onClick={() => setAll((v) => !v)} className="mt-2 inline-flex min-h-11 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline sm:min-h-9">
-        {all ? "Hide all steps" : "See all steps"}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${all ? "rotate-180" : ""}`} aria-hidden />
+        {all ? "Hide steps" : "All steps"}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${all ? "rotate-180" : ""}`} aria-hidden />
       </button>
       {all && (
         <ol className="mt-1 divide-y divide-line">
