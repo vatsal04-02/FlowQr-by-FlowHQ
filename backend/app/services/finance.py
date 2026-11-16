@@ -163,6 +163,7 @@ def revenue(db: Session, month: str | None = None) -> dict:
         "new_paid_subscribers": metric(new_paid, "actual", "Businesses whose subscription became active this month."),
         "upgrades": metric(up, "actual"), "downgrades": metric(down, "actual"),
         "mrr_lost_paise": metric(lost, "actual", "List price of subscriptions that were cancelled or lapsed this month."),
+        "awaiting_authorization": metric(sum(1 for s in subs if s.status == "incomplete"), "actual", "Signed up but have not yet authorised a payment method: no trial, no access. Not revenue."),
         "trials_in_progress": metric(sum(1 for s in subs if s.status == "trialing" and s.source == "trial" and (s.trial_ends_at or now) > now), "actual", "Not revenue."),
         "comped_subscriptions": metric(sum(1 for s in subs if s.source == "manual" and s.status in ("manual", "active")), "actual", "Given free by an admin. Not revenue."),
         "promotional_growth_activations": metric(promo_new, "actual", "Free Growth months started by a card purchase this month. Not MRR."),

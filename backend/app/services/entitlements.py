@@ -94,6 +94,8 @@ def _compute(sub: Subscription | None) -> Entitlements:
             reason = {"halted": "payment_failed", "expired": "trial_ended"}.get(status, "canceled")
     elif status == "pending":
         reason = "payment_pending"
+    elif status == "incomplete":
+        reason = "authorization_required"  # signed up, but no payment authorisation confirmed yet: no trial, no features
     return Entitlements(
         active=active, status=status, plan=sub.plan, max_locations=sub.max_locations,
         monthly_ai_generations=sub.monthly_ai_generations, max_staff=sub.max_staff, features=set(sub.features or []),
@@ -119,9 +121,24 @@ def require_active(db: Session, tenant_id: uuid.UUID) -> Entitlements:
     if not ent.active:
         raise HTTPException(status_code=402, detail={
             "code": "subscription_inactive", "reason": ent.reason,
-            "message": "Your FlowQR subscription isn't active. Choose a plan to continue.",
+            "message": ("Choose a plan and authorise your payment method to start your free trial." if ent.reason == "authorization_required"
+                        else "Your FlowQR subscription isn't active. Choose a plan to continue."),
         })
     return ent
+
+
+def require_active_for_setup(db: Session, tenant_id: uuid.UUID) -> Entitlements:
+    """Like `require_active`, but while a new business is still being set up and is waiting for its payment authorisation, the one setup action that has to come BEFORE the plan step (adding
+    the first location) is allowed, within the trial plan's limits. Everything that does work for the business, or costs money, keeps using `require_active` and stays locked."""
+    sub = db.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id))
+    e = for_tenant(db, tenant_id)
+    if not e.active and e.reason == "authorization_required" and sub is not None and sub.status == "incomplete":
+        from app.models import Tenant
+
+        t = db.get(Tenant, tenant_id)
+        if t is not None and not t.onboarding_completed:
+            return e
+    return require_active(db, tenant_id)
 
 
 def require_feature(db: Session, tenant_id: uuid.UUID, feature: str) -> Entitlements:

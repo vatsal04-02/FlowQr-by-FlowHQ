@@ -63,13 +63,14 @@ export interface Overview {
 
 export interface Plan { code: string; name: string; price_paise: number; currency: string; interval: string; max_locations: number; monthly_ai_generations: number; review_generations: number; review_replies: number; max_staff: number; features: string[] }
 export interface CardOffer { code: string; quantity: number; price_paise: number; includes: string }
-export interface PlansResponse { plans: Plan[]; trial_days: number; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null; provider?: "cashfree" | "razorpay" | null; authorization_paise?: number; methods?: string[] }; card_price_paise: number | null; card_ordering_enabled: boolean; card_offers: CardOffer[]; card_offer_note: string }
+export interface PlansResponse { plans: Plan[]; trial_days: number; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null; provider?: "cashfree" | "razorpay" | null; authorization_paise?: number; methods?: string[]; mandate_required?: boolean }; card_price_paise: number | null; card_ordering_enabled: boolean; card_offers: CardOffer[]; card_offer_note: string }
 export interface SubscriptionInfo {
   billing: PlansResponse["billing"]; status: string; active: boolean; inactive_reason: string | null; plan: string | null; plan_name: string | null; price_paise: number | null;
   trial_ends_at: string | null; trial_days_left: number | null; current_period_end: string | null; cancel_at_period_end: boolean; pending_plan: string | null;
   grace_until: string | null; source: string | null; has_razorpay_subscription: boolean;
   provider?: string | null; has_cashfree_subscription?: boolean; authorization_status?: string | null; billing_state?: string; first_charge_at?: string | null; next_charge_at?: string | null;
   pending_plan_name?: string | null; pending_plan_effective_at?: string | null;
+  mandate_required?: boolean; trial_started_at?: string | null; payment_method?: string | null; next_charge_amount_paise?: number | null;
   limits: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number; features: string[] };
   usage: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number };
   promo: { plan: string; plan_name: string; ends_at: string; kind: string; note: string } | null;

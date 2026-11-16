@@ -69,6 +69,10 @@ def first_charge_at_for(db: Session, sub: Subscription, now: datetime | None = N
     """(when the first monthly charge happens, whether a free period is being honoured). Raises 409 if the free period is too far away for Cashfree to schedule."""
     now = now or utcnow()
     free_until = None
+    if sub.status == "incomplete":
+        # No trial exists yet. The first payment is scheduled for day 8 from now (the trial is 7 days, then the first monthly payment). The trial itself starts only once Cashfree confirms the authorisation.
+        first = (now.astimezone(timezone(timedelta(hours=5, minutes=30))) + timedelta(days=settings.trial_days + 1)).replace(hour=10, minute=0, second=0, microsecond=0)
+        return first.astimezone(timezone.utc), True
     if sub.status == "trialing" and sub.trial_ends_at:
         free_until = _aware(sub.trial_ends_at)
     elif sub.status == "canceled" and sub.current_period_end and _aware(sub.current_period_end) > now:
@@ -104,6 +108,23 @@ def new_subscription_id() -> str:
     return "fqs_" + secrets.token_hex(10)  # our merchant id: random, so it can never be guessed or derived from a tenant
 
 
+TERMINAL = {"CANCELLED", "CUSTOMER_CANCELLED", "EXPIRED", "LINK_EXPIRED", "COMPLETED"}
+
+
+def _retire_old_mandate(db: Session, client: cf.CashfreeClient, sub: Subscription) -> None:
+    """A new authorisation replaces an old one that is NOT live from our side (paused, expired card...). The old one is cancelled at Cashfree first unless it is already finished there, so a
+    mandate the customer resumes later can never be charged alongside the new one. If it cannot be checked or cancelled, nothing is created."""
+    if not sub.cashfree_subscription_id or sub.authorization_status in ("initialized",):
+        return
+    try:
+        old = client.fetch_subscription(sub.cashfree_subscription_id)
+        if old.status not in TERMINAL:
+            client.cancel_subscription(sub.cashfree_subscription_id)
+    except cf.CashfreeError:
+        raise HTTPException(status_code=409, detail={"code": "mandate_change_failed", "message": "We couldn't close your earlier payment authorisation yet, so nothing new was set up. Please try again in a moment."})
+    svc.log_event(db, sub.tenant_id, "mandate_replaced", source="user", ref=sub.cashfree_subscription_id, meta={"was": sub.authorization_status})
+
+
 def start_checkout(db: Session, client: cf.CashfreeClient, *, sub: Subscription, plan: BillingPlan, user: User, tenant: Tenant, phone: str | None, now: datetime | None = None) -> dict:
     now = now or utcnow()
     if not settings.cashfree_configured:
@@ -124,11 +145,13 @@ def start_checkout(db: Session, client: cf.CashfreeClient, *, sub: Subscription,
             except cf.CashfreeError:
                 raise HTTPException(status_code=409, detail={"code": "checkout_in_progress", "message": "Finish or cancel the payment setup you already started, then try again."})
             svc.log_event(db, sub.tenant_id, "checkout_replaced", source="user", ref=sub.cashfree_subscription_id, meta={"from_plan": sub.pending_plan, "to_plan": plan.code})
+    _retire_old_mandate(db, client, sub)
     info = disclosure(db, sub, plan, now)
     customer = _owner_customer(user, tenant, phone)
     plan_id = ensure_plan(db, client, plan)
     sid = new_subscription_id()
-    return_url = f"{settings.frontend_url.rstrip('/')}/settings/billing/return?s={sid}"
+    # While the business is still being set up the customer returns INTO onboarding (the app shell would send them there anyway); afterwards to the billing return page
+    return_url = (f"{settings.frontend_url.rstrip('/')}/onboarding?checkout=return" if not tenant.onboarding_completed else f"{settings.frontend_url.rstrip('/')}/settings/billing/return?s={sid}")
     try:
         created = client.create_subscription(subscription_id=sid, plan_id=plan_id, customer=customer, first_charge_at=info["first_charge_at"], authorization_paise=settings.cashfree_authorization_paise,
                                              refund_authorization=True, methods=settings.cashfree_method_list, return_url=return_url, idempotency_key=str(uuid.uuid5(uuid.NAMESPACE_URL, f"flowqr-sub:{sid}")))
@@ -140,7 +163,7 @@ def start_checkout(db: Session, client: cf.CashfreeClient, *, sub: Subscription,
     sub.provider, sub.cashfree_subscription_id, sub.cashfree_cf_subscription_id = PROVIDER, sid, created.cf_id
     sub.authorization_status, sub.pending_plan = "initialized", plan.code
     sub.first_charge_at = sub.next_charge_at = info["first_charge_at"]
-    if sub.status not in ("trialing", "canceled"):
+    if sub.status in ("expired", "halted"):
         sub.status = "pending"
     svc.log_event(db, sub.tenant_id, "checkout_created", source="user", ref=sid, meta={"plan": plan.code, "first_charge_at": info["first_charge_at"].isoformat(), "free_period": info["free_period_honoured"]})
     return {**info, "subscription_session_id": created.session_id, "environment": settings.cashfree_env, "reused": False}
@@ -254,6 +277,10 @@ def _apply_status(sub: Subscription, remote: cf.SubscriptionResult, now: datetim
         log.warning("unknown Cashfree subscription status %r: state left unchanged", s[:30])
         return
     sub.authorization_status = auth
+    if sub.status == "incomplete":  # abandoned or failed authorisation: still incomplete, retry is allowed; nothing is unlocked and nothing was ever cancelled for the customer
+        if s in ("LINK_EXPIRED", "EXPIRED", "CANCELLED", "CUSTOMER_CANCELLED", "COMPLETED"):
+            sub.pending_plan = None
+        return
     if s == "ON_HOLD":
         _mark_past_due(sub, now)
     elif s in ("PAUSED", "CUSTOMER_PAUSED", "CARD_EXPIRED"):
@@ -271,7 +298,25 @@ def _apply_status(sub: Subscription, remote: cf.SubscriptionResult, now: datetim
             sub.status = "trialing" if (sub.trial_ends_at and _aware(sub.trial_ends_at) > now) else "expired"
 
 
-def apply_remote(db: Session, sub: Subscription, remote: cf.SubscriptionResult, payments: list[cf.PaymentResult], *, source: str, ref: str | None = None, now: datetime | None = None) -> dict:
+def _start_trial_if_authorized(db: Session, sub: Subscription, remote: cf.SubscriptionResult, now: datetime, *, source: str, ref: str | None) -> str | None:
+    """The ONLY place a mandate-gated trial begins, and only from the provider's own answer (never from a redirect or a query parameter). Cashfree's ACTIVE means the mandate is registered; that is
+    the authorisation. Returns 'started', 'stale' (authorised too late for the trial to be honoured: cancel it) or None."""
+    if sub.status != "incomplete" or remote.status != "ACTIVE" or sub.provider != PROVIDER:
+        return None
+    first = _aware(sub.first_charge_at)
+    if first is None or first <= now + timedelta(days=1):
+        return "stale"
+    before = svc.snapshot(sub)
+    sub.status, sub.source = "trialing", "trial"
+    sub.trial_started_at = now
+    sub.trial_ends_at = min(now + timedelta(days=settings.trial_days), first)
+    sub.current_period_start, sub.current_period_end = now, sub.trial_ends_at
+    svc.record_change(db, sub, before, source=source, ref=ref, kind="trial_started", meta={"days": settings.trial_days, "via": "cashfree_authorization", "first_charge_at": first.isoformat()})
+    return "started"
+
+
+def apply_remote(db: Session, sub: Subscription, remote: cf.SubscriptionResult, payments: list[cf.PaymentResult], *, source: str, ref: str | None = None, now: datetime | None = None,
+                 client: cf.CashfreeClient | None = None) -> dict:
     """Idempotent. Applying the same answer twice changes nothing the second time."""
     now = now or utcnow()
     before = svc.snapshot(sub)
@@ -296,7 +341,18 @@ def apply_remote(db: Session, sub: Subscription, remote: cf.SubscriptionResult, 
                 svc.log_event(db, sub.tenant_id, "payment_failed", source=source, ref=row.cashfree_payment_id, from_status=before[0], to_status=sub.status, meta={"payment": row.cashfree_payment_id})
                 notify_payment_failed(db, sub, row.failure_reason)
     _apply_status(sub, remote, now)  # always: a cancellation that arrives with a successful charge must still be applied (after the activation, so access runs to the period end)
-    if sub.status != before[0] and not (captured or failed):
+    started = _start_trial_if_authorized(db, sub, remote, now, source=source, ref=ref)
+    if started == "stale":
+        # authorised so long after the checkout began that the day-8 charge is imminent: honouring a 7-day trial is impossible, and leaving the mandate live would charge without the trial the
+        # customer was promised. Close it at Cashfree and let them start again.
+        if client is not None:
+            try:
+                client.cancel_subscription(sub.cashfree_subscription_id)
+                sub.authorization_status, sub.pending_plan = "cancelled", None
+                svc.log_event(db, sub.tenant_id, "authorization_stale", source=source, ref=sub.cashfree_subscription_id)
+            except cf.CashfreeError:
+                log.warning("could not cancel a stale authorisation: it will be retried by the next sync")
+    if sub.status != before[0] and not (captured or failed) and started is None:
         svc.record_change(db, sub, before, source=source, ref=ref, meta={"cashfree_status": remote.status})
     return {"captured": captured, "failed": failed, "status": sub.status}
 
@@ -305,7 +361,7 @@ def sync(db: Session, client: cf.CashfreeClient, sub: Subscription, *, source: s
     """Read the truth from Cashfree and apply it. The only way state changes from the provider's side."""
     remote = client.fetch_subscription(sub.cashfree_subscription_id)
     payments = client.list_payments(sub.cashfree_subscription_id)
-    return apply_remote(db, sub, remote, payments, source=source, ref=ref)
+    return apply_remote(db, sub, remote, payments, source=source, ref=ref, client=client)
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------- webhooks
@@ -355,6 +411,10 @@ def cancel(db: Session, client: cf.CashfreeClient, sub: Subscription, *, user_id
     except cf.CashfreeError:
         raise HTTPException(status_code=502, detail="Cashfree couldn't cancel the payment. Please try again.")
     before, now = svc.snapshot(sub), utcnow()
+    if sub.status == "incomplete":  # no trial was ever started: closing the authorisation just returns them to plan selection
+        sub.authorization_status, sub.pending_plan = "cancelled", None
+        svc.log_event(db, sub.tenant_id, "authorization_cancelled", source="user", ref=sub.cashfree_subscription_id)
+        return
     sub.status, sub.canceled_at, sub.cancel_at_period_end, sub.authorization_status, sub.pending_plan = "canceled", now, True, "cancelled", None
     if sub.current_period_end is None or _aware(sub.current_period_end) < now:
         sub.current_period_end = _aware(sub.trial_ends_at) if sub.trial_ends_at and _aware(sub.trial_ends_at) > now else now
@@ -418,6 +478,13 @@ def maybe_retry(db: Session, client: cf.CashfreeClient, sub: Subscription, payme
     return True
 
 
+def retry_now(db: Session, client: cf.CashfreeClient, sub: Subscription) -> bool:
+    """Owner pressed 'retry': ask Cashfree to retry the failed card charge. Same limits as the hourly job (card only, once a day, at most 3 a cycle, inside the grace period)."""
+    if not sub.cashfree_subscription_id:
+        return False
+    return maybe_retry(db, client, sub, client.list_payments(sub.cashfree_subscription_id), utcnow())
+
+
 def reconcile(db: Session, client: cf.CashfreeClient, *, now: datetime | None = None, limit: int = 200) -> dict:
     """Hourly safety net, because Cashfree does not replay missed webhooks. Reads and applies; the only write to Cashfree is `maybe_retry`."""
     now = now or utcnow()
@@ -426,7 +493,7 @@ def reconcile(db: Session, client: cf.CashfreeClient, *, now: datetime | None = 
         try:
             remote = client.fetch_subscription(sub.cashfree_subscription_id)
             payments = client.list_payments(sub.cashfree_subscription_id)
-            apply_remote(db, sub, remote, payments, source="system", ref="reconcile", now=now)
+            apply_remote(db, sub, remote, payments, source="system", ref="reconcile", now=now, client=client)
             retries += 1 if maybe_retry(db, client, sub, payments, now) else 0
             db.commit()
             done += 1
@@ -450,6 +517,8 @@ def billing_state(sub: Subscription | None, now: datetime | None = None) -> str:
         return "cancellation_pending" if sub.current_period_end and _aware(sub.current_period_end) > now else "cancelled"
     if sub.status == "past_due":
         return "past_due"
+    if sub.status == "incomplete":
+        return "authorization_pending" if sub.authorization_status in ("initialized", "bank_pending") else "authorization_required"
     if sub.provider == PROVIDER and sub.authorization_status in ("initialized", "bank_pending"):
         return "authorization_pending"
     return {"pending": "pending", "trialing": "trialing", "active": "active", "expired": "expired", "halted": "expired", "manual": "active"}.get(sub.status, sub.status)

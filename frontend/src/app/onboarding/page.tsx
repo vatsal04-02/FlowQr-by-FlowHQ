@@ -8,48 +8,60 @@ import { Button } from "@/components/ui/Button";
 import { Alert, Badge, Card, Spinner } from "@/components/ui/Card";
 import { ErrorSummary, Input, Select } from "@/components/ui/Form";
 import { api, ApiError, errorMessage } from "@/lib/api";
+import { PlanAuthorizationStep } from "@/components/billing/PlanAuthorizationStep";
 import { useAuth } from "@/lib/auth";
 import { CATEGORIES, LANGS, TIMEZONES } from "@/lib/format";
 import { emailRule, googleUrlRule, phoneRule, required, useForm } from "@/lib/form";
 import { useFetch } from "@/lib/use-api";
-import type { Location } from "@/lib/types";
+import type { Location, PlansResponse, SubscriptionInfo } from "@/lib/types";
 
-const STEPS = ["Your business", "First location", "Google reviews", "Plan and first page"];
+const ALL_STEPS = [["business", "Your business"], ["location", "First location"], ["plan", "Plan and payment"], ["google", "Google reviews"], ["ready", "First review page"]] as const;
+type StepId = (typeof ALL_STEPS)[number][0];
 
 export default function Onboarding() {
   const { me, tenant, loading, refresh, logout } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<number | null>(null);
+  const plans = useFetch<PlansResponse>("/billing/plans");
+  const [stepId, setStepId] = useState<StepId | null>(null);
+  // The payment step exists only when the server says a payment authorisation is required before the free trial. Where it is not, onboarding is exactly as it was.
+  const needsPlan = !!plans.data?.billing.mandate_required;
+  const steps = ALL_STEPS.filter(([id]) => id !== "plan" || needsPlan);
+  const after = (id: StepId): StepId => steps[Math.min(steps.findIndex(([i]) => i === id) + 1, steps.length - 1)][0];
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || (plans.loading && !plans.data)) return;
     if (!me) { router.replace("/login"); return; }
     if (tenant?.onboarding_completed) { router.replace("/overview"); return; }
-    if (step !== null) return;
-    if (!tenant) { setStep(0); return; }
-    api<Location[]>("/locations").then((l) => setStep(l.length ? 2 : 1)).catch(() => setStep(1));
-  }, [loading, me, tenant, router, step]);
+    if (stepId !== null) return;
+    if (!tenant) { setStepId("business"); return; }
+    // progress is derived from the server (a location exists, the subscription is still awaiting authorisation), so leaving and coming back resumes in the right place
+    Promise.all([api<Location[]>("/locations"), api<SubscriptionInfo>("/billing/subscription")])
+      .then(([l, s]) => setStepId(!l.length ? "location" : needsPlan && s.status === "incomplete" ? "plan" : "google"))
+      .catch(() => setStepId("location"));
+  }, [loading, me, tenant, router, stepId, plans.loading, plans.data, needsPlan]);
 
-  if (step === null) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
+  if (stepId === null) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
+  const step = steps.findIndex(([id]) => id === stepId);
   return (
     <div className="min-h-dvh bg-ink-50">
       <header className="border-b border-ink-100 bg-white"><div className="container-page flex items-center justify-between py-3"><Logo /><div className="flex items-center gap-3"><p className="hidden text-sm text-ink-500 sm:block">{me?.user.email}</p><button type="button" onClick={() => void logout()} className="tap inline-flex items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-ink-700 hover:bg-ink-100"><LogOut className="h-4 w-4" aria-hidden />Sign out</button></div></div></header>
       <main className="mx-auto max-w-xl px-4 py-8 sm:py-12">
         <ol className="mb-8 flex items-center gap-2" aria-label="Progress">
-          {STEPS.map((s, i) => (
-            <li key={s} className="flex flex-1 items-center gap-2" aria-current={i === step ? "step" : undefined}>
+          {steps.map(([id, label], i) => (
+            <li key={id} className="flex flex-1 items-center gap-2" aria-current={i === step ? "step" : undefined}>
               <span className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold", i < step ? "bg-ok text-white" : i === step ? "bg-brand-600 text-navy" : "bg-ink-100 text-ink-500")}>
                 {i < step ? <Check className="h-4 w-4" aria-label="done" /> : i + 1}
               </span>
-              <span className={clsx("hidden text-sm font-semibold sm:block", i === step ? "text-ink" : "text-ink-400")}>{s}</span>
-              {i < STEPS.length - 1 && <span className="h-px flex-1 bg-ink-200" aria-hidden />}
+              <span className={clsx("hidden text-sm font-semibold sm:block", i === step ? "text-ink" : "text-ink-400")}>{label}</span>
+              {i < steps.length - 1 && <span className="h-px flex-1 bg-ink-200" aria-hidden />}
             </li>
           ))}
         </ol>
-        {step === 0 && <BusinessStep onDone={async () => { await refresh(); setStep(1); }} />}
-        {step === 1 && <LocationStep onDone={() => setStep(2)} />}
-        {step === 2 && <GoogleStep onManual={() => setStep(3)} />}
-        {step === 3 && <ReadyStep />}
+        {stepId === "business" && <BusinessStep onDone={async () => { await refresh(); setStepId("location"); }} />}
+        {stepId === "location" && <LocationStep onDone={() => setStepId(after("location"))} />}
+        {stepId === "plan" && <PlanAuthorizationStep onDone={() => setStepId("google")} />}
+        {stepId === "google" && <GoogleStep onManual={() => setStepId("ready")} />}
+        {stepId === "ready" && <ReadyStep />}
       </main>
     </div>
   );

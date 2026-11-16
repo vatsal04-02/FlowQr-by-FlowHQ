@@ -46,7 +46,7 @@ def _cf_client():
 def _config() -> dict:
     if settings.cashfree_enabled:
         return {"configured": settings.cashfree_configured, "provider": "cashfree", "mode": "test" if (settings.cashfree_env or "").lower() == "sandbox" else "live", "key_id": None,
-                "authorization_paise": settings.cashfree_authorization_paise, "methods": settings.cashfree_method_list}
+                "authorization_paise": settings.cashfree_authorization_paise, "methods": settings.cashfree_method_list, "mandate_required": settings.mandate_required}
     return {"configured": settings.razorpay_configured, "mode": settings.razorpay_mode, "provider": "razorpay" if settings.razorpay_configured else None,
             "key_id": settings.razorpay_key_id if settings.razorpay_configured else None}
 
@@ -77,7 +77,9 @@ def subscription(ctx: TenantContext = Depends(get_tenant_context)):
         "current_period_end": sub.current_period_end if sub else None, "cancel_at_period_end": bool(sub and sub.cancel_at_period_end),
         "pending_plan": sub.pending_plan if sub else None, "grace_until": e.grace_until, "source": sub.source if sub else None,
         "has_razorpay_subscription": bool(sub and sub.razorpay_subscription_id),
-        "provider": sub.provider if sub else None, "has_cashfree_subscription": bool(sub and sub.cashfree_subscription_id),
+        "provider": sub.provider if sub else None, "has_cashfree_subscription": bool(sub and sub.cashfree_subscription_id), "mandate_required": settings.mandate_required,
+        "trial_started_at": sub.trial_started_at if sub else None, "payment_method": _payment_method(ctx.db, ctx.tenant_id),
+        "next_charge_amount_paise": _next_amount(ctx.db, sub),
         "authorization_status": sub.authorization_status if sub else None, "billing_state": cfb.billing_state(sub),
         "first_charge_at": sub.first_charge_at if sub else None, "next_charge_at": sub.next_charge_at if sub else None,
         "pending_plan_name": (ctx.db.get(BillingPlan, sub.pending_plan).name if sub and sub.pending_plan and ctx.db.get(BillingPlan, sub.pending_plan) else None),
@@ -89,6 +91,19 @@ def subscription(ctx: TenantContext = Depends(get_tenant_context)):
                   "review_generations": usage_this_month(ctx.db, ctx.tenant_id, field="review_generations"), "review_replies": usage_this_month(ctx.db, ctx.tenant_id, field="review_replies"),
                   "staff": ent.seats_used(ctx.db, ctx.tenant_id)},
     }
+
+
+def _payment_method(db: Session, tenant_id) -> str | None:
+    """The kind of method Cashfree reported for the authorisation or the latest payment ("upi", "card"). Only the kind: no card number, no UPI id is stored or shown."""
+    row = db.scalar(select(Payment).where(Payment.tenant_id == tenant_id, Payment.provider == "cashfree", Payment.method.is_not(None)).order_by(Payment.created_at.desc()).limit(1))
+    return row.method if row else None
+
+
+def _next_amount(db: Session, sub) -> int | None:
+    if sub is None or sub.provider != "cashfree" or sub.authorization_status not in ("authorized", "bank_pending"):
+        return None
+    plan = db.get(BillingPlan, sub.pending_plan or sub.plan)
+    return plan.price_paise if plan else None
 
 
 @router.get("/subscription/history")
@@ -260,6 +275,35 @@ def change_plan(body: ChangePlanIn, request: Request, ctx: TenantContext = Depen
           entity_id=sub.id, meta={"to": target.code, "immediate": upgrade}, ip=client_ip(request))
     ctx.db.commit()
     return {"plan": sub.plan, "pending_plan": sub.pending_plan}
+
+
+@router.get("/subscription/preview")
+def checkout_preview(plan: str = Query(pattern="^[a-z_]{3,32}$"), ctx: TenantContext = Depends(require_role(Role.owner))):
+    """What the customer is told BEFORE Cashfree opens: the plan, the monthly amount, the refundable authorisation, the first payment date. Creates nothing and calls nobody."""
+    if not settings.cashfree_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+    sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
+    p = ctx.db.get(BillingPlan, plan)
+    if sub is None or not p or not p.is_active:
+        raise HTTPException(status_code=404, detail="Unknown plan")
+    return {**cfb.disclosure(ctx.db, sub, p), "trial_days": settings.trial_days, "trial_starts_on_authorization": bool(sub.status == "incomplete")}
+
+
+@router.post("/subscription/retry-payment", dependencies=[Depends(limit_by_ip("cf-retry", 10, 300))])
+def retry_payment(ctx: TenantContext = Depends(require_role(Role.owner))):
+    """Ask Cashfree to retry a failed CARD payment. UPI AutoPay retries by itself. Cashfree's own call, at most 3 a cycle: FlowQR never creates a charge."""
+    if not settings.cashfree_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+    sub = _locked_sub(ctx)
+    if sub.status != "past_due":
+        raise HTTPException(status_code=409, detail="There is no failed payment to retry")
+    try:
+        asked = cfb.retry_now(ctx.db, _cf_client(), sub)
+    except cashfree_svc.CashfreeError:
+        ctx.db.rollback()
+        raise HTTPException(status_code=502, detail="We couldn't reach the payment provider. Please try again.")
+    ctx.db.commit()
+    return {"requested": asked, "message": "We asked your bank to try the payment again." if asked else "A retry isn't possible right now (UPI payments retry automatically, a card can be retried once a day, up to 3 times)."}
 
 
 @router.post("/subscription/sync", dependencies=[Depends(limit_by_ip("cf-sync", 30, 60))])

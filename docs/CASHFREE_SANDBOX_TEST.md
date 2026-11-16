@@ -53,3 +53,18 @@ A PERIODIC plan's charge date is the first-charge time, and later dates follow t
 ## Cleaning up
 
 `bash deploy/sandbox/run.sh down -v` removes the sandbox stack and its database. In the Cashfree dashboard remove the webhook URL, and revoke or rotate the sandbox secret if it was ever shown on a screen that was shared.
+
+## Additions for the mandatory-authorisation journey
+
+The trial now depends on Cashfree reporting the subscription `ACTIVE` after the customer authorises. These are the extra facts the sandbox must settle, and the journey to record.
+
+| Unverified fact | If different |
+|---|---|
+| UPI AutoPay and card authorisations reach `ACTIVE` promptly (minutes), not `BANK_APPROVAL_PENDING` for a day | the trial would start late; the 1-day margin before the scheduled first charge (`authorization_stale`) could trigger often |
+| The refundable ₹1 appears as an `AUTH` payment with `SUCCESS` and is returned | the disclosure wording and the `sub_auth` handling must change |
+| `authorization_details.payment_method` exposes the method kind and any masked detail | show only what Cashfree really returns |
+| `GET /subscriptions/{id}` right after the redirect already says `ACTIVE` (no extra delay) | the return page and onboarding poll longer |
+| A second mandate while the first is paused: whether the old one must be cancelled first | `_retire_old_mandate` order |
+
+Journey to record (a NEW registration on the local sandbox stack, plan Launch, then Growth and Scale):
+J1 register; J2 business; J3 first location; J4 choose plan: read the disclosure; J5 authorise with a sandbox UPI AutoPay VPA, then with a test card; J6 the app returns to onboarding and shows the trial started **only after** the server read `ACTIVE`; J7 abandon a checkout halfway and confirm no trial and a clean retry; J8 fail an authorisation; J9 cancel before the trial; J10 `complete-onboarding` called directly while still `incomplete` returns 402. Evidence per step: screenshot, the `subscriptions` row, `subscription_events`, `webhook_events`, Cashfree's subscription JSON (secrets redacted).

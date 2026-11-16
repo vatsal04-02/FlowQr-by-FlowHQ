@@ -66,6 +66,15 @@ def apply_plan(sub: Subscription, plan: BillingPlan) -> None:
 def start_trial(db: Session, tenant_id: uuid.UUID) -> Subscription:
     plan = db.get(BillingPlan, settings.trial_plan)
     now = utcnow()
+    if settings.mandate_required:
+        # No trial yet, and no trial dates: the 7 days start only when Cashfree has confirmed a payment authorisation (services/billing_cashfree.py). Until then nothing is unlocked.
+        sub = Subscription(tenant_id=tenant_id, plan="trial", status="incomplete", currency="INR", source="trial")
+        if plan:
+            apply_plan(sub, plan)
+            sub.plan = "trial"
+        db.add(sub)
+        log_event(db, tenant_id, "signup_awaiting_authorization", source="system", to_status="incomplete", to_plan="trial", meta={"days": settings.trial_days, "features_of": settings.trial_plan})
+        return sub
     sub = Subscription(tenant_id=tenant_id, plan="trial", status="trialing", currency="INR", source="trial", trial_started_at=now,
                        trial_ends_at=now + timedelta(days=settings.trial_days),
                        current_period_end=now + timedelta(days=settings.trial_days))

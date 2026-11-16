@@ -157,6 +157,7 @@ class Settings(BaseSettings):
     cashfree_charge_settlement_hours: int = 48  # access continues this long after a first charge is due while the payment settles
     cashfree_retry_max: int = 3  # Cashfree allows at most 3 retries of a failed charge per cycle
     cashfree_webhook_tolerance_seconds: int = 300
+    trial_requires_mandate: bool = True  # TRIAL_REQUIRES_MANDATE: with Cashfree configured, a NEW business gets its free trial only after Cashfree confirms a payment authorisation
 
     past_due_grace_days: int = 7
     # Per physical card, INR paise. Deliberately NO default: unset => card ordering is disabled (never a silent placeholder price).
@@ -242,6 +243,11 @@ class Settings(BaseSettings):
     @property
     def cashfree_configured(self) -> bool:
         return bool(self.cashfree_enabled and self.cashfree_client_id and self.cashfree_client_secret)
+
+    @property
+    def mandate_required(self) -> bool:
+        """True only when a payment authorisation can really be taken (Cashfree switched on AND credentials present): otherwise nobody would ever be able to start a trial."""
+        return bool(self.trial_requires_mandate and self.cashfree_configured)
 
     @property
     def cashfree_base_url(self) -> str:

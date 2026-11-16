@@ -38,6 +38,49 @@ function CashfreeNotices({ s, isOwner, onSetup }: { s: SubscriptionInfo; isOwner
   );
 }
 
+function CashfreeOverview({ s, isOwner, onSetup, onRetry, retrying }: { s: SubscriptionInfo; isOwner: boolean; onSetup: () => void; onRetry: () => void; retrying: boolean }) {
+  if (s.provider !== "cashfree") return null;
+  const method = s.payment_method === "upi" ? "UPI AutoPay" : s.payment_method === "card" ? "Card" : s.has_cashfree_subscription ? "Authorised with Cashfree" : "None yet";
+  const mandate: Record<string, string> = { initialized: "Waiting for your authorisation", bank_pending: "Your bank is approving it", authorized: "Active", paused: "Paused in your UPI app", card_expired: "Card expired", expired: "Not completed", cancelled: "Cancelled", failed: "Failed" };
+  const broken = isOwner && ["paused", "card_expired", "cancelled", "expired"].includes(s.authorization_status ?? "") && s.billing_state !== "cancellation_pending";
+  const rows: [string, React.ReactNode][] = [
+    ["Plan", `${s.plan_name ?? "None"}${s.price_paise ? ` · ${rupees(s.price_paise)} a month` : ""}`],
+    ["Status", s.billing_state === "cancellation_pending" ? "Cancelled: access continues until the end date" : (s.billing_state ?? s.status).replace(/_/g, " ")],
+    ["Free trial", s.trial_started_at ? `${fmtDate(s.trial_started_at)} to ${s.trial_ends_at ? fmtDate(s.trial_ends_at) : "-"}` : "Starts when your payment authorisation is confirmed"],
+    ["Next payment", s.next_charge_amount_paise && (s.next_charge_at ?? s.first_charge_at) ? `${rupees(s.next_charge_amount_paise)} on ${fmtDate((s.next_charge_at ?? s.first_charge_at) as string)}` : "Nothing scheduled"],
+    ["Payment method", method],
+    ["Authorisation", mandate[s.authorization_status ?? ""] ?? "Not set up"],
+  ];
+  return (
+    <Card className="mb-6">
+      <CardHeader title="Subscription and payment" subtitle="What you pay, when, and how." />
+      <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">{rows.map(([k, v]) => <div key={k} className="contents"><dt className="text-ink-500">{k}</dt><dd className="font-medium text-ink">{v}</dd></div>)}</dl>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {isOwner && s.status === "past_due" && <Button size="sm" loading={retrying} onClick={onRetry}>Retry failed payment</Button>}
+        {broken && <Button size="sm" variant="secondary" onClick={onSetup}>Update payment method</Button>}
+        {isOwner && s.billing_state === "cancellation_pending" && <Button size="sm" variant="secondary" onClick={onSetup}>Resume subscription</Button>}
+      </div>
+      <p className="mt-3 text-xs text-ink-500">We never see or store your card number, CVV or UPI ID: Cashfree handles them. To change the payment method, authorise a new one here; the old authorisation is closed first, so you are never charged twice.</p>
+    </Card>
+  );
+}
+
+function BillingTerms() {
+  return (
+    <details className="mt-6 rounded-lg border border-ink-200 bg-white p-4 text-sm text-ink-700">
+      <summary className="cursor-pointer font-semibold text-ink">Billing terms</summary>
+      <ul className="mt-2 list-disc space-y-1.5 pl-5">
+        <li>Plans renew monthly by an authorised recurring payment (UPI AutoPay or card) through Cashfree. We take a refundable ₹1 when you authorise, and return it automatically.</li>
+        <li>Your free trial starts when Cashfree confirms the authorisation. The first payment is after the trial, on the date shown above. Nothing is charged before that.</li>
+        <li>You are only charged your plan&rsquo;s monthly price. A plan change, up or down, takes effect at your next successful payment, with no proration and nothing extra charged.</li>
+        <li>If a payment fails we tell you, your bank tries again, and your access continues for 7 days. If it still has not been paid by then, access pauses; your data is kept.</li>
+        <li>Cancelling closes your authorisation with Cashfree, so no further payment can be taken. You keep access until the end of the period you have already paid for (or your trial).</li>
+        <li>Receipts: your bank or UPI app lists each debit, and Payment history shows Cashfree&rsquo;s reference for it. FlowQR does not issue tax invoices from this screen.</li>
+      </ul>
+    </details>
+  );
+}
+
 export default function SubscriptionPage() {
   const { me, role } = useAuth();
   const toast = useToast();
@@ -86,6 +129,13 @@ export default function SubscriptionPage() {
     setBusy(null);
   }
 
+  const [retrying, setRetrying] = useState(false);
+  async function retry() {
+    setRetrying(true);
+    try { const r = await api<{ message: string }>("/billing/subscription/retry-payment", { method: "POST" }); toast(r.message); await sub.reload(); }
+    catch (e) { toast(errorMessage(e), "error"); } finally { setRetrying(false); }
+  }
+
   async function cancel() {
     setBusy("cancel");
     try { await api("/billing/subscription/cancel", { method: "POST", body: { at_cycle_end: true } }); toast("Cancellation scheduled for the end of your billing period."); setCancelOpen(false); await sub.reload(); }
@@ -100,6 +150,7 @@ export default function SubscriptionPage() {
       {plans.data?.billing.mode === "test" && <div className="mb-5"><Alert tone="info" title="Payment test mode">Payments are simulated by the payment provider&rsquo;s test environment. No real money moves.</Alert></div>}
       {err && <div className="mb-5"><Alert tone="error" title="Couldn't complete that">{err.message}</Alert></div>}
       {s && <CashfreeNotices s={s} isOwner={isOwner} onSetup={() => setCfPlan(plans.data?.plans.find((x) => x.code === (s.pending_plan ?? s.plan)) ?? plans.data?.plans[1] ?? null)} />}
+      {s && <CashfreeOverview s={s} isOwner={isOwner} retrying={retrying} onRetry={() => void retry()} onSetup={() => setCfPlan(plans.data?.plans.find((x) => x.code === (s.pending_plan ?? s.plan)) ?? plans.data?.plans[1] ?? null)} />}
       {s && !s.active && <div className="mb-5"><Alert tone="error" title="Your subscription is not active" action={undefined}>{s.inactive_reason === "payment_failed" ? "Your last payment failed. Update your payment method or choose a plan to restore access." : s.inactive_reason === "trial_ended" ? "Your free trial has ended. Choose a plan to keep using reviews, replies and AI." : "Choose a plan to continue."} Your QR/NFC cards keep working for customers.</Alert></div>}
       {s?.status === "past_due" && s.grace_until && <div className="mb-5"><Alert tone="warning" title="Payment failed">We couldn&rsquo;t charge your payment method. Access continues until {fmtDate(s.grace_until)} while the payment provider retries.</Alert></div>}
 
@@ -135,6 +186,7 @@ export default function SubscriptionPage() {
         )} />
       ) : <Skeleton className="h-64" />}
       <p className="mt-4 text-xs text-ink-500">Subscriptions renew monthly through our payment provider. A plan becomes active only after the provider confirms your payment. Physical cards are billed separately under Payments.</p>
+      {isCf && <BillingTerms />}
 
       {history.data && history.data.events.length > 0 && (
         <section className="mt-8" aria-labelledby="sub-hist"><h2 id="sub-hist" className="mb-3 text-[15px] font-semibold">Subscription history</h2>
@@ -142,9 +194,9 @@ export default function SubscriptionPage() {
         </section>
       )}
 
-      {cfPlan && plans.data && s && <CashfreeCheckoutDialog plan={cfPlan} plans={plans.data} sub={s} onClose={() => setCfPlan(null)} />}
+      {cfPlan && plans.data && <CashfreeCheckoutDialog plan={cfPlan} plans={plans.data} onClose={() => setCfPlan(null)} />}
       <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel subscription?" footer={<><Button variant="secondary" onClick={() => setCancelOpen(false)}>Keep plan</Button><Button variant="danger" loading={busy === "cancel"} onClick={() => void cancel()}>Cancel at period end</Button></>}>
-        <p className="text-ink-700">{s?.status === "trialing" ? "No payment will be taken. " : ""}You keep full access until {fmtDate(s?.status === "trialing" ? s?.trial_ends_at : s?.current_period_end)}. After that, dashboards become read-only and AI features stop. Your cards and data are kept.</p>
+        <p className="text-ink-700">{s?.status === "trialing" ? "No payment will be taken. " : ""}You keep full access until {fmtDate(s?.status === "trialing" ? s?.trial_ends_at : s?.current_period_end)}. After that, dashboards become read-only and AI features stop. Your cards and data are kept.{isCf ? " Cancelling also closes your payment authorisation with Cashfree, so no further payment can be taken." : ""}</p>
       </Modal>
     </>
   );

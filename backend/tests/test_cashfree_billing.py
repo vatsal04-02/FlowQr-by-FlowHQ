@@ -86,7 +86,8 @@ class FakeCashfree:
 def cfree(monkeypatch):
     f = FakeCashfree()
     for k, v in {"billing_provider": "cashfree", "cashfree_env": "sandbox", "cashfree_client_id": "test_client_id", "cashfree_client_secret": "test_client_secret", "cashfree_webhook_secret": WH,
-                 "razorpay_key_id": "", "razorpay_key_secret": "", "razorpay_webhook_secret": ""}.items():
+                 "razorpay_key_id": "", "razorpay_key_secret": "", "razorpay_webhook_secret": "",
+                 "trial_requires_mandate": False}.items():  # these tests start from a running trial; the mandatory-authorisation gate has its own file (test_cashfree_mandate_gate.py)
         monkeypatch.setattr(settings, k, v)
     monkeypatch.setattr(cf, "get_cashfree", lambda: f)
     owner_exec("DELETE FROM payments WHERE cashfree_payment_id IS NOT NULL")  # provider payment ids are globally unique; tests reuse readable ones
@@ -180,7 +181,7 @@ def test_checkout_prices_the_plan_on_the_server_and_asks_cashfree_for_a_refundab
     assert ensure[2] == 79900 and ensure[3] == 149900  # the mandate ceiling is the highest plan price, so plan changes never need a new authorisation
     created = [c for c in cfree.calls if c[0] == "create"][0][1]
     assert created["authorization_paise"] == 100 and created["refund_authorization"] is True and created["methods"] == ["upi", "card"]
-    assert created["customer"].phone == "9876543210" and created["return_url"].startswith(settings.frontend_url.rstrip("/") + "/settings/billing/return?s=fqs_")
+    assert created["customer"].phone == "9876543210" and created["return_url"] == settings.frontend_url.rstrip("/") + "/onboarding?checkout=return"  # the business is still being set up: the customer comes back into onboarding
     s = sub_of(biz)
     assert s["status"] == "trialing" and s["provider"] == "cashfree" and s["authorization_status"] == "initialized" and s["pending_plan"] == "growth"
     assert s["cashfree_subscription_id"].startswith("fqs_") and s["plan"] == "trial"  # nothing is granted by starting a checkout
