@@ -80,7 +80,7 @@ If `migrate` exits non-zero: **stop**, read `docker compose logs migrate`, and u
 1. `curl -fsS https://api.<domain>/api/health`, `curl -fsS https://api.<domain>/api/ready` (must say `"ready":true`) and `https://app.<domain>`. Then `deploy/staging/check_routes.sh` with `STAGING_DOMAIN=<domain> RESOLVE_IP=none CADDY_ROOT_CA=` (empty: trust the system certificates) from a machine that resolves the real hostnames: marketing pages stay on the marketing host, the pricing page can load the plans, the card host serves only card routes.
 2. Admin > Operations: database, Redis, migrations match code, **worker and scheduler heartbeat fresh**, backup fresh, no failing jobs.
 3. `deploy/staging/snapshot.sh > snapshot-after.txt; diff snapshot-before.txt snapshot-after.txt`: row counts only grow; tables a migration did not touch have identical checksums.
-4. Admin > Plans and limits: Starter, Growth and Pro at ₹499 / ₹799 / ₹1,499; pending items listed (maps stay off until approved).
+4. Admin > Plans and limits: Launch, Growth and Scale at ₹499 / ₹799 / ₹1,499; pending items listed (maps stay off until approved).
 5. As a test business: onboard, create a QR campaign, choose a plan through Razorpay in the mode you are in, confirm it shows only after the webhook.
 6. Admin > Finance and usage loads, and every missing input is shown as missing.
 

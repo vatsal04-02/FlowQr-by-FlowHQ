@@ -83,16 +83,16 @@ const call = (pg, method, url, body, headers) => pg.evaluate(async ([m, u, b, h]
     const plans = (await call(page, 'GET', '/api/v1/billing/plans')).json;
     const text = await page.locator('main').innerText();
     expect(new RegExp(`${plans.trial_days} days`).test(text), `trial length (${plans.trial_days} days) missing: ${text}`);
-    expect(/Due today/.test(text) && /\u20B90/.test(text), 'the "due today" line is missing');
-    expect(plans.plans.every((p) => text.includes(p.name)), 'a plan is missing');
+    const mandate = !!plans.billing.mandate_required;
     await page.screenshot({ path: path.join(OUT, 'ob-plan.png'), fullPage: true });
-    if (plans.trial_requires_card) {
-      // A card is required on this server: the only way forward is the card button, and the server refuses to finish without it.
-      expect(await page.getByRole('button', { name: 'Add card and start free trial' }).count() === 1, 'the card button is missing');
-      expect(await page.getByRole('button', { name: 'Start my free trial' }).count() === 0, 'a way around the card exists');
+    if (mandate) {
+      // Cashfree payment authorisation is required on this server: every plan is shown, the only way forward is the authorisation button, and the server refuses to finish without a confirmed one.
+      expect(plans.plans.every((p) => text.includes(p.name)), 'a plan is missing');
+      expect(await page.getByRole('button', { name: 'Authorise payment and start free trial' }).count() === 1, 'the authorisation button is missing');
+      expect(await page.getByRole('button', { name: 'Start my free trial' }).count() === 0, 'a way around the authorisation exists');
       const done = await call(page, 'POST', '/api/v1/tenant/complete-onboarding', null, { 'X-CSRF-Token': csrf });
-      expect(done.status === 402, `complete-onboarding without a card answered ${done.status}`);
-      throw new Error('TRIAL_REQUIRES_CARD is on for this server, so this script cannot go on: it cannot type a card. The card gate itself was verified above.');
+      expect(done.status === 402, `complete-onboarding without an authorisation answered ${done.status}`);
+      throw new Error('Cashfree payment authorisation is required on this server, so this script cannot go on: it cannot complete a bank or UPI authorisation. The gate itself was verified above.');
     }
     await page.getByRole('button', { name: 'Start my free trial' }).click();
     await page.getByRole('heading', { name: 'You are all set' }).waitFor({ timeout: 20000 });

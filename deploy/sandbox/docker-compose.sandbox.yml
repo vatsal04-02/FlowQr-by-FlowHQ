@@ -1,0 +1,90 @@
+# LOCAL Cashfree SANDBOX stack. Nothing here is for the VPS and nothing here is production.
+#   * its own Compose project (flowqr-cashfree), its own database and volumes: it never touches the normal local stack or any real data
+#   * APP_ENV=development, registration open, the autonomy emergency stop ON, no Google, no AI, no SMTP (mail goes to the container log)
+#   * Cashfree SANDBOX credentials only, read from deploy/sandbox/.env.sandbox (created by set-credentials.sh with hidden prompts; git ignores it)
+#   * the only thing reachable from the internet is ONE path: POST /api/v1/webhooks/cashfree, through `webhook-gate`, through a temporary tunnel
+# Start / stop / look:  deploy/sandbox/run.sh up | url | status | down
+name: flowqr-cashfree
+
+x-sandbox-env: &sandbox-env
+  APP_ENV: development
+  BILLING_PROVIDER: cashfree
+  CASHFREE_ENV: sandbox
+  AUTONOMY_EMERGENCY_STOP: "true"
+  REGISTRATION_MODE: open
+  REQUIRE_VERIFIED_EMAIL: "true"
+  RAZORPAY_KEY_ID: ""
+  RAZORPAY_KEY_SECRET: ""
+  RAZORPAY_WEBHOOK_SECRET: ""
+  FRONTEND_URL: http://localhost:3300
+  CORS_ORIGINS: http://localhost:3300
+  COOKIE_SECURE: "false"
+  SUPPORT_EMAIL: sandbox@example.com
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: flowqr, POSTGRES_PASSWORD: sandbox-db-password, POSTGRES_DB: flowqr, APP_DB_PASSWORD: sandbox-app-password }
+    volumes: ["../../db/init:/docker-entrypoint-initdb.d:ro", "sbxdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U flowqr -d flowqr"], interval: 5s, timeout: 5s, retries: 20 }
+  redis:
+    image: redis:7-alpine
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20 }
+  migrate:
+    build: ../../backend
+    image: flowqr-backend:sandbox
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *sandbox-env
+      DATABASE_URL: postgresql+psycopg://flowqr_app:sandbox-app-password@db:5432/flowqr
+      MIGRATION_DATABASE_URL: postgresql+psycopg://flowqr:sandbox-db-password@db:5432/flowqr
+      SECRET_KEY: sandbox-secret-key-not-for-anything-real-0000000000
+      TOKEN_ENCRYPTION_KEY: ${SANDBOX_TOKEN_KEY}
+    depends_on: { db: { condition: service_healthy } }
+    restart: "no"
+  api:
+    image: flowqr-backend:sandbox
+    env_file: [.env.sandbox]
+    environment:
+      <<: *sandbox-env
+      DATABASE_URL: postgresql+psycopg://flowqr_app:sandbox-app-password@db:5432/flowqr
+      MIGRATION_DATABASE_URL: postgresql+psycopg://flowqr:sandbox-db-password@db:5432/flowqr
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: sandbox-secret-key-not-for-anything-real-0000000000
+      TOKEN_ENCRYPTION_KEY: ${SANDBOX_TOKEN_KEY}
+    depends_on: { migrate: { condition: service_completed_successfully }, redis: { condition: service_healthy } }
+    ports: ["127.0.0.1:8300:8000"]
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)"], interval: 10s, timeout: 5s, retries: 10 }
+  worker:
+    image: flowqr-backend:sandbox
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=INFO"]
+    env_file: [.env.sandbox]
+    environment:
+      <<: *sandbox-env
+      DATABASE_URL: postgresql+psycopg://flowqr_app:sandbox-app-password@db:5432/flowqr
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: sandbox-secret-key-not-for-anything-real-0000000000
+      TOKEN_ENCRYPTION_KEY: ${SANDBOX_TOKEN_KEY}
+    depends_on: { api: { condition: service_healthy } }
+  frontend:
+    image: flowqr-frontend:sandbox
+    build:
+      context: ../../frontend
+      args: { BACKEND_URL: "http://api:8000", NEXT_PUBLIC_SITE_URL: "http://localhost:3300" }
+    depends_on: { api: { condition: service_healthy } }
+    ports: ["127.0.0.1:3300:3000"]
+
+  # The ONLY door to the internet. Everything except POST /api/v1/webhooks/cashfree answers 404 here, so the tunnel can never expose the app, the admin area or the API docs.
+  webhook-gate:
+    image: nginx:1.27-alpine
+    volumes: ["./webhook-gate.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on: { api: { condition: service_healthy } }
+  # A temporary Cloudflare "quick tunnel" (no account, a random https://*.trycloudflare.com address, gone when this container stops). Started only by `run.sh tunnel`.
+  tunnel:
+    image: cloudflare/cloudflared:2025.11.1
+    command: ["tunnel", "--no-autoupdate", "--url", "http://webhook-gate:8080"]
+    profiles: ["tunnel"]
+    depends_on: [webhook-gate]
+
+volumes:
+  sbxdata:

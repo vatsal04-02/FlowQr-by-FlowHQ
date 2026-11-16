@@ -63,17 +63,20 @@ export interface Overview {
 
 export interface Plan { code: string; name: string; price_paise: number; currency: string; interval: string; max_locations: number; monthly_ai_generations: number; review_generations: number; review_replies: number; max_staff: number; features: string[] }
 export interface CardOffer { code: string; quantity: number; price_paise: number; includes: string }
-export interface PlansResponse { plans: Plan[]; trial_days: number; trial_requires_card?: boolean; trial_plan?: string; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null }; card_price_paise: number | null; card_ordering_enabled: boolean; card_offers: CardOffer[]; card_offer_note: string }
+export interface PlansResponse { plans: Plan[]; trial_days: number; billing: { configured: boolean; mode: "test" | "live" | null; key_id: string | null; provider?: "cashfree" | "razorpay" | null; authorization_paise?: number; methods?: string[]; mandate_required?: boolean }; card_price_paise: number | null; card_ordering_enabled: boolean; card_offers: CardOffer[]; card_offer_note: string }
 export interface SubscriptionInfo {
   billing: PlansResponse["billing"]; status: string; active: boolean; inactive_reason: string | null; plan: string | null; plan_name: string | null; price_paise: number | null;
   trial_ends_at: string | null; trial_days_left: number | null; current_period_end: string | null; cancel_at_period_end: boolean; pending_plan: string | null;
-  grace_until: string | null; source: string | null; has_razorpay_subscription: boolean; card_required?: boolean; card_on_file?: boolean;
+  grace_until: string | null; source: string | null; has_razorpay_subscription: boolean;
+  provider?: string | null; has_cashfree_subscription?: boolean; authorization_status?: string | null; billing_state?: string; first_charge_at?: string | null; next_charge_at?: string | null;
+  trial_entitlement?: string | null; trial_entitlement_name?: string | null; selected_plan?: string | null; selected_plan_name?: string | null; pending_plan_name?: string | null; pending_plan_effective_at?: string | null;
+  mandate_required?: boolean; trial_started_at?: string | null; payment_method?: string | null; next_charge_amount_paise?: number | null;
   limits: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number; features: string[] };
   usage: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number };
   promo: { plan: string; plan_name: string; ends_at: string; kind: string; note: string } | null;
 }
 export interface SubscriptionEvent { at: string; kind: string; from_status: string | null; to_status: string | null; from_plan: string | null; to_plan: string | null; source: string; meta: Record<string, unknown> }
-export interface Payment { id: string; kind: "subscription" | "card_order"; status: string; amount_paise: number; currency: string; razorpay_payment_id: string | null; razorpay_order_id: string | null; razorpay_subscription_id: string | null; razorpay_invoice_id: string | null; method: string | null; error_description: string | null; paid_at: string | null; created_at: string }
+export interface Payment { id: string; provider?: string | null; payment_type?: string | null; failure_reason?: string | null; kind: "subscription" | "sub_auth" | "card_order"; status: string; amount_paise: number; currency: string; razorpay_payment_id: string | null; razorpay_order_id: string | null; razorpay_subscription_id: string | null; razorpay_invoice_id: string | null; method: string | null; error_description: string | null; paid_at: string | null; created_at: string }
 export interface CardOrder { id: string; quantity: number; unit_price_paise: number; amount_paise: number; status: string; razorpay_order_id: string | null; tracking_note: string | null; created_at: string }
 export interface Insights {
   total_reviews: number; reviews_with_text: number; sentiment: { positive: number; neutral: number; negative: number };

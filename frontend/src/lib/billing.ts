@@ -1,3 +1,4 @@
+import { load } from "@cashfreepayments/cashfree-js";
 import { api } from "./api";
 
 export const rupees = (paise: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(paise / 100);
@@ -15,6 +16,8 @@ export const EVENT_LABELS: Record<string, string> = {
   cancel_requested: "Cancellation scheduled", canceled: "Cancelled", expired: "Expired", past_due: "A payment failed", payment_failed: "A payment failed", refunded: "A payment was refunded",
   promo_granted: "Free Growth month started (card purchase)", promo_ended: "Free Growth month ended", promo_revoked: "Free Growth month ended early (card refunded)", promo_denied: "No second free month",
   admin_override: "Changed by FlowQR support", status_changed: "Status changed",
+  checkout_created: "Payment setup started", checkout_replaced: "An earlier payment setup was replaced", retry_requested: "We asked your bank to try the payment again",
+  charge_after_cancel: "A payment arrived after you cancelled (support will refund it)", amount_mismatch: "A payment did not match your plan (support is checking)",
 };
 
 interface RazorpayOptions { key: string; name: string; description?: string; subscription_id?: string; order_id?: string; prefill?: { name?: string; email?: string }; theme?: { color: string }; handler: (r: Record<string, string>) => void; modal?: { ondismiss?: () => void } }
@@ -37,6 +40,15 @@ export async function openCheckout(opts: Omit<RazorpayOptions, "handler" | "them
   const Razorpay = await loadRazorpay();
   const { onSuccess, onDismiss, ...rest } = opts;
   new Razorpay({ ...rest, name: "FlowQR by FlowHQ", theme: { color: "#BD3E1B" }, handler: onSuccess, modal: { ondismiss: onDismiss } }).open();
+}
+
+/** Opens Cashfree's hosted subscription checkout for a session the SERVER created. Whatever happens there, the app believes only what the server reads back from Cashfree (see the
+ *  return page). The SDK is Cashfree's own package, pinned to an exact version; it loads https://sdk.cashfree.com/js/v3/cashfree.js and nothing else. */
+export async function openCashfreeCheckout(sessionId: string, environment: string): Promise<void> {
+  const cashfree = await load({ mode: environment === "production" ? "production" : "sandbox" });
+  if (!cashfree) throw new Error("The payment window could not be loaded. Check your connection and try again.");
+  const result = await cashfree.subscriptionsCheckout({ subsSessionId: sessionId, redirectTarget: "_self" });
+  if (result?.error) throw new Error(result.error.message || "The payment window reported a problem. Nothing was charged.");
 }
 
 export { api };

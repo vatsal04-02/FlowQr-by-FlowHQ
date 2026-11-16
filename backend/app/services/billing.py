@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models import BillingPlan, CardOrder, Payment, PromotionalGrant, Subscription, SubscriptionEvent, WebhookEvent
 from app.models.base import utcnow
+from app.services import entitlements as ent
 from app.services.audit import audit
 
 log = logging.getLogger("flowqr.billing")
@@ -65,15 +66,23 @@ def apply_plan(sub: Subscription, plan: BillingPlan) -> None:
 def start_trial(db: Session, tenant_id: uuid.UUID) -> Subscription:
     plan = db.get(BillingPlan, settings.trial_plan)
     now = utcnow()
-    sub = Subscription(tenant_id=tenant_id, plan="trial", status="trialing", currency="INR", source="trial",
+    if settings.mandate_required:
+        # No trial yet, and no trial dates: the 7 days start only when Cashfree has confirmed a payment authorisation (services/billing_cashfree.py). Until then nothing is unlocked.
+        sub = Subscription(tenant_id=tenant_id, plan="trial", status="incomplete", currency="INR", source="trial")
+        if plan:
+            apply_plan(sub, plan)
+            sub.plan = "trial"
+        db.add(sub)
+        log_event(db, tenant_id, "signup_awaiting_authorization", source="system", to_status="incomplete", to_plan="trial", meta={"days": settings.trial_days, "features_of": settings.trial_plan})
+        return sub
+    sub = Subscription(tenant_id=tenant_id, plan="trial", status="trialing", currency="INR", source="trial", trial_started_at=now,
                        trial_ends_at=now + timedelta(days=settings.trial_days),
-                       current_period_end=now + timedelta(days=settings.trial_days),
-                       card_status="required" if (settings.trial_requires_card and settings.razorpay_configured) else None)
+                       current_period_end=now + timedelta(days=settings.trial_days))
     if plan:
         apply_plan(sub, plan)
         sub.plan = "trial"
     db.add(sub)
-    log_event(db, tenant_id, "trial_started", source="system", to_status="trialing", to_plan="trial", meta={"days": settings.trial_days, "features_of": settings.trial_plan, "card_required": settings.trial_requires_card})
+    log_event(db, tenant_id, "trial_started", source="system", to_status="trialing", to_plan="trial", meta={"days": settings.trial_days, "features_of": settings.trial_plan})
     return sub
 
 
@@ -104,8 +113,6 @@ def sync_from_razorpay(db: Session, sub: Subscription, rz: dict, *, event_at: da
     """Apply a Razorpay subscription entity (from webhook payload or API fetch) to our row."""
     if event_at and sub.last_event_at and event_at < sub.last_event_at:
         return  # stale/out-of-order event
-    if sub.card_status == "required" and rz.get("status") in ("authenticated", "active"):
-        sub.card_status = "on_file"  # the mandate is authorised: the trial unlocks, and Razorpay's first charge is scheduled for the day it ends
     new_status = STATUS_MAP.get(rz.get("status"))
     plan = plan_by_razorpay_id(db, rz.get("plan_id"))
     if new_status == "active":
@@ -316,7 +323,7 @@ def refresh_statuses(db: Session) -> dict:
     now = utcnow()
     expired = lapsed = 0
     for sub in db.scalars(select(Subscription).where(Subscription.status == "trialing", Subscription.trial_ends_at < now)):
-        if not sub.razorpay_subscription_id:
+        if not sub.razorpay_subscription_id and not ent.awaiting_first_charge(sub, now):  # a Cashfree mandate whose first charge is settling is not an expired trial
             before = snapshot(sub)
             sub.status = "expired"
             record_change(db, sub, before, source="system", meta={"reason": "trial ended"})

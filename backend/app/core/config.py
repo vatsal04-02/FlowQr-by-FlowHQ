@@ -148,7 +148,23 @@ class Settings(BaseSettings):
     razorpay_webhook_secret: str = ""
     trial_days: int = 7
     trial_plan: str = "growth"  # trial grants this plan's limits/features
-    trial_requires_card: bool = False  # TRIAL_REQUIRES_CARD: NEW trials unlock only after a card is authorised (Razorpay mandate); the first charge is after the trial
+
+    # Billing provider. EMPTY (the default) = unchanged behaviour: nothing new is switched on. "cashfree" = Cashfree Subscriptions (recurring UPI AutoPay / card mandates).
+    # Razorpay stays in the code for historical records but is never used when this is set. Secrets live in the backend environment only.
+    billing_provider: str = ""  # BILLING_PROVIDER: "" | "cashfree"
+    cashfree_env: str = "sandbox"  # CASHFREE_ENV: sandbox | production (separate credentials for each; never mixed)
+    cashfree_client_id: str = ""
+    cashfree_client_secret: str = ""
+    cashfree_webhook_secret: str = ""  # CASHFREE_WEBHOOK_SECRET: if empty the client secret is used (Cashfree documents "your secret key"; confirm in the sandbox)
+    cashfree_api_version: str = "2026-01-01"
+    cashfree_sandbox_ack: bool = False  # CASHFREE_SANDBOX_ACK: required to run sandbox credentials with APP_ENV=production (a deliberate, visible choice)
+    cashfree_authorization_paise: int = 100  # the refundable authorisation the customer is shown before checkout (Cashfree's minimum for UPI and cards is Rs 1)
+    cashfree_methods: str = "upi,card"  # CASHFREE_METHODS: eNACH is deferred and refused by the guard
+    cashfree_plan_max_amount_paise: int = 0  # 0 = the highest active plan price, so a plan change never needs a new mandate
+    cashfree_charge_settlement_hours: int = 48  # access continues this long after a first charge is due while the payment settles
+    cashfree_retry_max: int = 3  # Cashfree allows at most 3 retries of a failed charge per cycle
+    cashfree_webhook_tolerance_seconds: int = 300
+    trial_requires_mandate: bool = True  # TRIAL_REQUIRES_MANDATE: with Cashfree configured, a NEW business gets its free trial only after Cashfree confirms a payment authorisation
 
     past_due_grace_days: int = 7
     # Per physical card, INR paise. Deliberately NO default: unset => card ordering is disabled (never a silent placeholder price).
@@ -226,6 +242,31 @@ class Settings(BaseSettings):
     @property
     def google_login_configured(self) -> bool:
         return bool(self.google_login_client_id and self.google_login_client_secret)
+
+    @property
+    def cashfree_enabled(self) -> bool:
+        return (self.billing_provider or "").strip().lower() == "cashfree"
+
+    @property
+    def cashfree_configured(self) -> bool:
+        return bool(self.cashfree_enabled and self.cashfree_client_id and self.cashfree_client_secret)
+
+    @property
+    def mandate_required(self) -> bool:
+        """True only when a payment authorisation can really be taken (Cashfree switched on AND credentials present): otherwise nobody would ever be able to start a trial."""
+        return bool(self.trial_requires_mandate and self.cashfree_configured)
+
+    @property
+    def cashfree_base_url(self) -> str:
+        return "https://api.cashfree.com/pg" if (self.cashfree_env or "").strip().lower() == "production" else "https://sandbox.cashfree.com/pg"
+
+    @property
+    def cashfree_webhook_key(self) -> str:
+        return self.cashfree_webhook_secret or self.cashfree_client_secret
+
+    @property
+    def cashfree_method_list(self) -> list[str]:
+        return [m.strip().lower() for m in (self.cashfree_methods or "").split(",") if m.strip()]
 
     @property
     def razorpay_configured(self) -> bool:
@@ -362,6 +403,24 @@ def config_problems(s: Settings) -> list[str]:
         p.append("RAZORPAY_WEBHOOK_SECRET is set without Razorpay keys")
     if s.card_price_paise is not None and s.card_price_paise <= 0:
         p.append("CARD_PRICE_PAISE must be a positive number of paise (or unset to disable card ordering)")
+    # Cashfree: both credentials together; sandbox and production never mixed; eNACH deferred; Razorpay is never the provider while this is set
+    if (s.billing_provider or "").strip().lower() not in ("", "cashfree"):
+        p.append(f"BILLING_PROVIDER '{s.billing_provider}' is not one of: (empty), cashfree")
+    if s.cashfree_enabled or s.cashfree_client_id or s.cashfree_client_secret:
+        if not (s.cashfree_client_id and s.cashfree_client_secret):
+            p.append("CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET must both be set")
+        if (s.cashfree_env or "").strip().lower() not in ("sandbox", "production"):
+            p.append(f"CASHFREE_ENV '{s.cashfree_env}' is not one of sandbox, production")
+        if (s.cashfree_env or "").strip().lower() == "sandbox" and s.is_production and not s.cashfree_sandbox_ack:
+            p.append("CASHFREE_ENV=sandbox with APP_ENV=production needs CASHFREE_SANDBOX_ACK=true (sandbox credentials must never be live by accident)")
+        if (s.cashfree_env or "").strip().lower() == "production" and not s.is_production:
+            p.append("CASHFREE_ENV=production is only allowed with APP_ENV=production")
+        if set(s.cashfree_method_list) - {"upi", "card"}:
+            p.append("CASHFREE_METHODS may only contain upi and card (eNACH is not enabled yet)")
+        if s.cashfree_enabled and s.razorpay_configured:
+            p.append("Razorpay keys must be removed while BILLING_PROVIDER=cashfree (one payment provider only)")
+        if s.cashfree_authorization_paise < 100:
+            p.append("CASHFREE_AUTHORIZATION_PAISE cannot be below 100 (Cashfree's minimum authorisation for UPI and cards is Rs 1)")
     return p
 
 

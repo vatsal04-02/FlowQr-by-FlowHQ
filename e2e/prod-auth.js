@@ -155,7 +155,7 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
       await page.getByText(/use my google review link/i).first().click({ timeout: 20000 }); await page.getByRole('button', { name: /^continue$/i }).click();
       await page.getByRole('heading', { name: /choose your plan|free trial/i }).waitFor({ timeout: 20000 });
       // A card-required server cannot be passed by a script (it cannot type a card): say so plainly instead of timing out.
-      expect(await page.getByRole('button', { name: /add card and start free trial/i }).count() === 0, 'TRIAL_REQUIRES_CARD is on: this script cannot enter a card. Use an account that already finished onboarding.');
+      expect(await page.getByRole('button', { name: /authorise payment and start free trial/i }).count() === 0, 'Payment authorisation is required: this script cannot complete one. Use an account that already finished onboarding.');
       await page.getByRole('button', { name: /start my free trial/i }).click();
       await page.getByText(/you are all set/i).waitFor({ timeout: 20000 });
       await page.getByText(/first review page/i).first().waitFor({ timeout: 20000 });

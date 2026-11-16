@@ -133,8 +133,8 @@ def complete_onboarding(ctx: TenantContext = Depends(require_role(Role.admin))):
     if not count:
         raise HTTPException(status_code=400, detail="Add at least one location first")
     sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
-    if ent.card_blocks(sub):
-        raise HTTPException(status_code=402, detail={"code": "card_required", "message": "Add a card to start your free trial. You won't be charged until the trial ends."})
+    if sub is not None and sub.status == "incomplete":  # a direct API call cannot skip the payment step
+        raise HTTPException(status_code=402, detail={"code": "authorization_required", "message": "Choose a plan and authorise your payment method to start your free trial."})
     ctx.tenant.onboarding_completed = True
     ctx.db.commit()
     return ctx.tenant

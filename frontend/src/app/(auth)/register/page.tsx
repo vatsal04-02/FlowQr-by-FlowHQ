@@ -30,7 +30,7 @@ function PasswordRules({ value }: { value: string }) {
 export default function RegisterPage() {
   const { refresh } = useAuth();
   const router = useRouter();
-  const { cardRequired, trialDays } = usePlans();
+  const { mandateRequired, trialDays } = usePlans();
   const [busy, setBusy] = useState(false);
   const f = useForm({ full_name: "", email: "", phone: "", password: "" }, {
     full_name: required("Your name"), email: emailRule, password: passwordRule, phone: phoneRule,
@@ -68,9 +68,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthShell title="Create your FlowQR account" subtitle={`Takes about two minutes. ${trialTerms(cardRequired)}`} footer={footer}
-      mobileNote={<>{trialDays}-day free trial · {trialTerms(cardRequired).replace(/\.$/, "")}</>}
-      points={["Create your account.", "Add your business. If you are on Google, we will find it for you.", cardRequired ? "Pick a plan and add a card. Nothing is charged until the trial ends." : "Pick a plan and start your free trial."]}>
+    <AuthShell title="Create your FlowQR account" subtitle={`Takes about two minutes. ${trialTerms(mandateRequired)}`} footer={footer}
+      mobileNote={<>{trialDays}-day free trial{trialTerms(mandateRequired) ? <> · {trialTerms(mandateRequired).replace(/\.$/, "")}</> : null}</>}
+      points={["Create your account.", "Add your business. If you are on Google, we will find it for you.", mandateRequired ? "Pick a plan and authorise UPI AutoPay or a card. Your first payment is after the free trial." : "Pick a plan and start your free trial."]}>
       {mode === "allowlist" && <div className="mb-4"><Alert tone="info">FlowQR is open to approved businesses only at the moment. Register with the email address you gave us. Other addresses are not accepted yet.</Alert></div>}
       <GoogleSignIn label="Sign up with Google" divider="or sign up with email" />
       <form onSubmit={submit} noValidate className="space-y-4">

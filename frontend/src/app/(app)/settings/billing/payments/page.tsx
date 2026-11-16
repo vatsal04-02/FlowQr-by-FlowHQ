@@ -45,15 +45,15 @@ export default function PaymentsPage() {
 
         <Panel title="Payment history" action={<Segmented label="Payment type" value={tab} onChange={setTab} options={[["", "All"], ["subscription", "Subscription"], ["card_order", "Cards"]] as const} />} flush>
           {pays.loading && !pays.data ? <Skeleton className="m-4 h-32" /> : pays.data && pays.data.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">No payments yet. They appear here once Razorpay confirms them.</p>
+            <p className="p-4 text-sm text-ink-500">No payments yet. They appear here once your payment provider confirms them.</p>
           ) : (
             <div className="overflow-x-auto"><table className="dt min-w-[560px]">
               <thead><tr><th>Date</th><th>Type</th><th className="!text-right">Amount</th><th>Status</th><th>Reference</th></tr></thead>
               <tbody>{pays.data?.map((p) => (
                 <tr key={p.id}>
-                  <td className="whitespace-nowrap">{fmtDate(p.paid_at ?? p.created_at)}</td><td>{p.kind === "subscription" ? "Subscription" : "Card order"}</td>
+                  <td className="whitespace-nowrap">{fmtDate(p.paid_at ?? p.created_at)}</td><td>{p.kind === "sub_auth" ? "Authorisation (returned to you)" : p.kind === "subscription" ? "Subscription" : "Card order"}</td>
                   <td className="n font-semibold">{rupees(p.amount_paise)}</td>
-                  <td><Status tone={TONE[p.status] ?? "idle"}>{p.status}</Status>{p.error_description && <p className="text-xs text-red-700">{p.error_description}</p>}</td>
+                  <td><Status tone={TONE[p.status] ?? "idle"}>{p.status}</Status>{(p.error_description ?? p.failure_reason) && <p className="text-xs text-red-700">{p.error_description ?? p.failure_reason}</p>}</td>
                   <td className="font-mono text-xs text-ink-500">{p.razorpay_payment_id ?? "–"}{p.razorpay_invoice_id && <span className="block">inv {p.razorpay_invoice_id}</span>}</td>
                 </tr>))}</tbody>
             </table></div>

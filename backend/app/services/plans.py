@@ -36,9 +36,9 @@ UNAPPROVED_LIMITS = {
 }
 
 PLANS: dict[str, dict] = {
-    "starter": {"name": "Starter", "price_paise": 49900, "max_locations": 1, "max_staff": 3, "review_generations": 200, "review_replies": 200, "features": list(CORE), "sort_order": 1},
+    "starter": {"name": "Launch", "price_paise": 49900, "max_locations": 1, "max_staff": 3, "review_generations": 200, "review_replies": 200, "features": list(CORE), "sort_order": 1},
     "growth": {"name": "Growth", "price_paise": 79900, "max_locations": 1, "max_staff": 10, "review_generations": 400, "review_replies": 400, "features": list(CORE + GROWTH_ADD), "sort_order": 2},
-    "pro": {"name": "Pro", "price_paise": 149900, "max_locations": 10, "max_staff": 50, "review_generations": 800, "review_replies": 800, "features": list(ALL_FEATURES), "sort_order": 3},
+    "pro": {"name": "Scale", "price_paise": 149900, "max_locations": 10, "max_staff": 50, "review_generations": 800, "review_replies": 800, "features": list(ALL_FEATURES), "sort_order": 3},
 }
 # Retired codes: kept so existing subscribers and Razorpay plan ids keep resolving, never offered to anyone new.
 LEGACY = {"essential": "starter", "multi": "pro"}
@@ -47,13 +47,13 @@ for _p in PLANS.values():
     _p["limits"] = {"geo": {k: None for k in GEO_KEYS}}
 
 # Assumptions the owner has not confirmed (surfaced in /admin/plans and the completion report):
-#   * Growth includes ONE location ("No by default"); Pro's cap of 10 is carried over from the retired Multi plan.
-#   * Starter keeps manual profile editing; Posts and Photos start at Growth.
+#   * Growth includes ONE location ("No by default"); Scale's cap of 10 is carried over from the retired Multi plan.
+#   * Launch keeps manual profile editing; Posts and Photos start at Growth.
 #   * Staff seats are carried over from the retired plans (3 / 10 / 50).
 ASSUMPTIONS = (
     "Growth includes one location (multi-location is 'No by default' in the commercial table).",
-    "Pro allows 10 locations: carried over from the retired Multi plan, not stated in the commercial table.",
-    "Starter keeps manual profile editing; Google Posts and Photos start at Growth.",
+    "Scale allows 10 locations: carried over from the retired Multi plan, not stated in the commercial table.",
+    "Launch keeps manual profile editing; Google Posts and Photos start at Growth.",
     "Staff seats (3 / 10 / 50) are carried over from the retired plans.",
 )
 

@@ -231,14 +231,22 @@ def test_the_pin_route_answers_404_for_unknown_and_422_for_malformed(monkeypatch
     assert u.get("/places/pincode/12ab").status_code == 422
 
 
-# ---------------------------------------------------------------- the card gate
+# ---------------------------------------------------------------- the payment-authorisation gate (Cashfree)
+# These tests were written for the withdrawn Razorpay card-on-file gate. They keep their intent and now describe the Cashfree rule: a new trial exists only after Cashfree confirms a payment
+# authorisation. The rule's full behaviour (success, failure, abandonment, delay, bypass attempts, every plan) is in tests/test_cashfree_mandate_gate.py and test_cashfree_trial_entitlements.py.
 @pytest.fixture()
 def payments_on(monkeypatch):
-    """Razorpay is configured and new trials need a card."""
-    monkeypatch.setattr(settings, "razorpay_key_id", "rzp_test_abc123")
-    monkeypatch.setattr(settings, "razorpay_key_secret", "secret-for-tests")
-    monkeypatch.setattr(settings, "razorpay_webhook_secret", "whsec-for-tests")
-    monkeypatch.setattr(settings, "trial_requires_card", True)
+    """Cashfree is configured and a new trial needs a payment authorisation; the provider is the same TEST DOUBLE used by the Cashfree tests."""
+    from app.services import cashfree as cf
+    from tests.test_cashfree_billing import FakeCashfree
+
+    fake = FakeCashfree()
+    for k, v in {"billing_provider": "cashfree", "cashfree_env": "sandbox", "cashfree_client_id": "test_client_id", "cashfree_client_secret": "test_client_secret",
+                 "razorpay_key_id": "", "razorpay_key_secret": "", "razorpay_webhook_secret": "", "trial_requires_mandate": True}.items():
+        monkeypatch.setattr(settings, k, v)
+    monkeypatch.setattr(cf, "get_cashfree", lambda: fake)
+    owner_exec("UPDATE subscriptions SET last_provider_sync_at = now() WHERE cashfree_subscription_id IS NOT NULL")
+    return fake
 
 
 def new_business(name="Gate Cafe"):
@@ -249,52 +257,58 @@ def new_business(name="Gate Cafe"):
     return u
 
 
-def test_a_trial_waiting_for_its_card_can_be_set_up_but_not_used_or_finished(payments_on):
+def test_a_trial_waiting_for_its_authorisation_can_be_set_up_but_not_used_or_finished(payments_on):
     u = new_business()
     sub = u.get("/billing/subscription").json()
-    assert sub["card_required"] is True and sub["active"] is False and sub["inactive_reason"] == "card_required"
+    assert sub["mandate_required"] is True and sub["active"] is False and sub["inactive_reason"] == "authorization_required"
     # setting up works: the first location can be added while the plan step is still ahead
     r = u.post("/locations", json={"name": "Main", "city": "Lucknow", "review_url": "https://search.google.com/local/writereview?placeid=ChIJEfzCO7r9mzkRHBWpJxgYZmE"})
     assert r.status_code == 201, r.text
     # but nothing that does work for the business does
     blocked = u.post("/google/connect")
-    assert blocked.status_code == 402 and blocked.json()["detail"]["reason"] == "card_required"
+    assert blocked.status_code == 402 and blocked.json()["detail"]["reason"] == "authorization_required"
     # and onboarding cannot be completed, so the app stays closed
     done = u.post("/tenant/complete-onboarding")
-    assert done.status_code == 402 and done.json()["detail"]["code"] == "card_required"
+    assert done.status_code == 402 and done.json()["detail"]["code"] == "authorization_required"
     assert owner_query("SELECT onboarding_completed FROM tenants WHERE id = :t", t=u.tenant_id)[0][0] is False
 
 
-def test_with_the_card_on_file_onboarding_finishes_and_the_trial_is_active(payments_on):
+def test_with_a_verified_authorisation_onboarding_finishes_and_the_trial_is_active(payments_on):
     u = new_business()
     assert u.post("/locations", json={"name": "Main"}).status_code == 201
-    owner_exec("UPDATE subscriptions SET card_status = 'on_file' WHERE tenant_id = :t", t=u.tenant_id)
+    assert u.post("/billing/subscription/checkout", json={"plan": "growth", "phone": "9876543210"}).status_code == 200
+    sid = owner_query("SELECT cashfree_subscription_id FROM subscriptions WHERE tenant_id = :t", t=u.tenant_id)[0][0]
+    payments_on.set_status(sid, "ACTIVE")  # Cashfree's own answer, not the browser's
+    assert u.post("/billing/subscription/sync").status_code == 200
     assert u.post("/tenant/complete-onboarding").status_code == 200
     sub = u.get("/billing/subscription").json()
-    assert sub["card_on_file"] is True and sub["active"] is True and sub["status"] == "trialing"
+    assert sub["authorization_status"] == "authorized" and sub["active"] is True and sub["status"] == "trialing" and sub["trial_entitlement"] == "growth"
 
 
 def test_the_set_up_exception_ends_when_onboarding_is_finished(payments_on):
-    """A business that somehow finished onboarding while still waiting for a card gets no more free set-up calls."""
+    """A business that somehow finished onboarding while still waiting for its authorisation gets no more free set-up calls."""
     u = new_business()
     assert u.post("/locations", json={"name": "Main"}).status_code == 201
     owner_exec("UPDATE tenants SET onboarding_completed = true WHERE id = :t", t=u.tenant_id)
     owner_exec("UPDATE subscriptions SET max_locations = 5 WHERE tenant_id = :t", t=u.tenant_id)
     r = u.post("/locations", json={"name": "Second"})
-    assert r.status_code == 402 and r.json()["detail"]["reason"] == "card_required"
+    assert r.status_code == 402 and r.json()["detail"]["reason"] == "authorization_required"
 
 
 def test_without_payments_nobody_is_ever_locked_out(monkeypatch):
-    """The card rule is on, but no Razorpay keys exist: a card cannot be taken, so the trial opens normally (the site says 'no card needed' in this state too)."""
-    monkeypatch.setattr(settings, "trial_requires_card", True)
-    assert settings.razorpay_configured is False
+    """The rule is on, but Cashfree has no credentials: an authorisation cannot be taken, so the trial opens normally (the site says 'no card needed' in this state too)."""
+    monkeypatch.setattr(settings, "billing_provider", "cashfree")
+    monkeypatch.setattr(settings, "cashfree_client_id", "")
+    monkeypatch.setattr(settings, "cashfree_client_secret", "")
+    monkeypatch.setattr(settings, "trial_requires_mandate", True)
+    assert settings.mandate_required is False
     u = new_business("Open Cafe")
     sub = u.get("/billing/subscription").json()
-    assert sub["card_required"] is False and sub["active"] is True
+    assert sub["mandate_required"] is False and sub["active"] is True
     assert u.post("/locations", json={"name": "Main"}).status_code == 201
     assert u.post("/tenant/complete-onboarding").status_code == 200
-    assert u.get("/billing/plans").json()["trial_requires_card"] is False
+    assert u.get("/billing/plans").json()["billing"]["mandate_required"] is False
 
 
 def test_the_plans_endpoint_reports_the_rule_only_when_it_is_enforced(payments_on):
-    assert make_user().http.get("/api/v1/billing/plans").json()["trial_requires_card"] is True
+    assert make_user().http.get("/api/v1/billing/plans").json()["billing"]["mandate_required"] is True

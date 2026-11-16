@@ -8,7 +8,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Frame-Options", value: "DENY" },
   // Safe subset of a CSP (no script-src yet: Next.js inline scripts would need nonces). Blocks plugins, base-tag hijack, framing and off-site form posts.
-  { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'" },
+  { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://*.cashfree.com" },  // Cashfree's hosted subscription checkout posts a form to <sandbox|api>.cashfree.com (and may redirect within it); found in the Cashfree Sandbox, where 'self' alone blocked it
   { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
 ];
 

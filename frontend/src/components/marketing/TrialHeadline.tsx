@@ -7,8 +7,8 @@ export function TrialHeadline() {
   return <>Start your {trialDays}&#8209;day free trial</>;
 }
 
-/** The default sign-in pitch: the card rule, then what FlowQR does. */
+/** The default sign-in pitch: what the trial needs (read from the server), then what FlowQR does. */
 export function TrialPitch() {
-  const { cardRequired } = usePlans();
-  return <>{trialTerms(cardRequired)} Connect your Google profile, put a FlowQR card on your counter, and approve everything before it goes live.</>;
+  const { mandateRequired } = usePlans();
+  return <>{trialTerms(mandateRequired)} Connect your Google profile, put a FlowQR card on your counter, and approve everything before it goes live.</>;
 }

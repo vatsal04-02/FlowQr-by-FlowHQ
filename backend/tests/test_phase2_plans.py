@@ -74,7 +74,7 @@ def kinds(tenant_id):
 
 def test_the_seeded_plans_are_exactly_the_confirmed_commercial_plans(client):
     r = client.get("/api/v1/billing/plans").json()
-    assert [(p["code"], p["name"], p["price_paise"]) for p in r["plans"]] == [("starter", "Starter", 49900), ("growth", "Growth", 79900), ("pro", "Pro", 149900)]
+    assert [(p["code"], p["name"], p["price_paise"]) for p in r["plans"]] == [("starter", "Launch", 49900), ("growth", "Growth", 79900), ("pro", "Scale", 149900)]
     for p in r["plans"]:
         spec = plans.PLANS[p["code"]]
         assert (p["review_generations"], p["review_replies"]) == (spec["review_generations"], spec["review_replies"]) and set(p["features"]) == set(spec["features"])
@@ -209,7 +209,7 @@ def test_a_starter_business_cannot_reach_any_growth_feature_through_the_api(conn
     assert connected.put("/agent/autonomy-settings", json={"enabled": True}).status_code == 402  # cannot be switched on
     assert connected.put("/agent/autonomy-settings", json={"enabled": False}).status_code == 200  # switching off always works
     assert connected.post("/agent/autonomy-settings/stop").status_code == 200  # the owner's emergency stop never needs a feature
-    assert connected.get("/reviews").status_code == 200 and connected.get(f"/gbp/{gid}/info").status_code == 200  # what Starter includes still works
+    assert connected.get("/reviews").status_code == 200 and connected.get(f"/gbp/{gid}/info").status_code == 200  # what Launch includes still works
 
 
 def test_a_growth_business_reaches_them_and_pro_adds_only_multi_location(connected, fake, gid):  # noqa: F811
@@ -233,7 +233,7 @@ def test_the_background_jobs_honour_the_plan_features(connected, fake, gid, monk
     seen = []
     monkeypatch.setattr("app.services.agent.seo_engine.scan_tenant", lambda db, t, **k: seen.append(t.id) or {"locations": 0, "proposed": 0, "skipped": []})
     tasks.autonomy_scan.run()
-    assert connected.tenant_id not in {str(x) for x in seen}  # Starter is never scanned for autonomous maintenance
+    assert connected.tenant_id not in {str(x) for x in seen}  # Launch is never scanned for autonomous maintenance
     set_plan(connected.tenant_id, "growth")
     tasks.autonomy_scan.run()
     assert connected.tenant_id in {str(x) for x in seen}

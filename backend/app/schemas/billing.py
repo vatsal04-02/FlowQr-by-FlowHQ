@@ -21,7 +21,8 @@ class PlanOut(ORM):
 
 
 class CheckoutIn(BaseModel):
-    plan: str = Field(pattern="^[a-z_]{3,32}$")  # must name an ACTIVE plan; checked against the database
+    plan: str = Field(pattern="^[a-z_]{3,32}$")  # must name an ACTIVE plan; checked against the database. The PRICE is never accepted from the browser.
+    phone: str | None = Field(default=None, max_length=20)  # Cashfree needs the payer's mobile number; used only if the account has none
 
 
 class VerifySubscriptionIn(BaseModel):
@@ -75,6 +76,11 @@ class PaymentOut(ORM):
     error_description: str | None
     paid_at: datetime | None
     created_at: datetime
+    provider: str | None = None
+    payment_type: str | None = None
+    failure_reason: str | None = None
+    period_start: datetime | None = None
+    period_end: datetime | None = None
 
 
 class CardOrderOut(ORM):

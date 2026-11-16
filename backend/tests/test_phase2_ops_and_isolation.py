@@ -59,11 +59,11 @@ def test_a_card_purchase_is_shown_as_a_free_period_that_ends_without_a_charge(rz
 
 
 def test_a_step_the_plan_does_not_include_is_shown_locked_with_the_plan_that_adds_it():
-    biz = make_business("Starter Co")
+    biz = make_business("Launch Co")
     from tests.test_phase2_plans import set_plan
     set_plan(biz.tenant_id, "starter")
     s = checklist(biz)[1]["autonomy"]
-    assert s["locked"] == "Included in Growth and Pro" and s["optional"] is True
+    assert s["locked"] == "Included in Growth and Scale" and s["optional"] is True
     set_plan(biz.tenant_id, "growth")
     assert checklist(biz)[1]["autonomy"]["locked"] is None
 
@@ -188,7 +188,7 @@ def test_one_business_cannot_use_anothers_free_month(rzp):
     from tests.test_phase2_plans import set_plan
     set_plan(b.tenant_id, "starter")
     assert "geo_ranking" not in set(b.get("/billing/subscription").json()["limits"]["features"])
-    assert b.get("/agent/control-centre").status_code == 402  # B is on Starter: A's promotional Growth month does not apply to B
+    assert b.get("/agent/control-centre").status_code == 402  # B is on Launch: A's promotional Growth month does not apply to B
 
 
 def test_a_card_order_of_another_business_cannot_be_verified_by_me(rzp):

@@ -197,7 +197,7 @@ def test_webhook_charge_records_payment_and_is_idempotent(rzp, client, biz_a):
 
 
 def test_failed_payment_grace_then_lapse_blocks_writes(rzp, client, biz_a):
-    sid, _ = activate(biz_a, rzp, "pro")  # Pro: Growth includes one location and this test adds a second
+    sid, _ = activate(biz_a, rzp, "pro")  # Scale: Growth includes one location and this test adds a second
     webhook(client, sub_event("subscription.pending", {"id": sid, "status": "pending"}, created_at=int(time.time()) + 5))
     s = biz_a.get("/billing/subscription").json()
     assert s["status"] == "past_due" and s["active"] is True and s["grace_until"]  # still within grace
@@ -388,42 +388,3 @@ def test_payment_id_never_crosses_tenants(rzp, client, biz_a, biz_b):
     a = biz_a.get("/billing/payments").json()
     assert [(p["razorpay_payment_id"], p["amount_paise"]) for p in a] == [("pay_shared_id_1", 79900)]
     assert biz_b.get("/billing/payments").json() == []
-
-
-def test_card_required_trial_is_locked_until_a_card_is_authorised(rzp, biz_a):
-    db, sub = db_sub(biz_a.tenant_id)
-    sub.card_status = "required"; db.commit(); db.close()
-    s = biz_a.get("/billing/subscription").json()
-    assert s["card_required"] is True and s["active"] is False and s["inactive_reason"] == "card_required" and s["status"] == "trialing"
-    # checkout still works while locked, and defers the first charge until the trial ends
-    sid = start_checkout(biz_a, "growth")["subscription_id"]
-    start_at = [c for c in rzp.calls if c[0] == "create_subscription"][0][2]
-    assert start_at and start_at > time.time() + (settings.trial_days - 1) * 86400
-    rzp.subs[sid]["status"] = "authenticated"  # mandate authorised, nothing charged yet
-    pay = "pay_card1"
-    r = biz_a.post("/billing/subscription/verify", json={"razorpay_payment_id": pay, "razorpay_subscription_id": sid, "razorpay_signature": sig(KEY_SECRET, f"{pay}|{sid}")})
-    assert r.status_code == 200 and r.json()["status"] == "trialing"
-    s = biz_a.get("/billing/subscription").json()
-    assert s["card_required"] is False and s["card_on_file"] is True and s["active"] is True and s["inactive_reason"] is None
-
-
-def test_card_not_required_by_default_for_new_trials(biz_a):
-    s = biz_a.get("/billing/subscription").json()
-    assert s["card_required"] is False and s["active"] is True
-
-
-def test_only_the_trial_plan_is_free_during_the_trial(rzp, biz_a, biz_b):
-    """Growth carries the free trial: its first charge is scheduled for the end of the trial. Any other plan is charged from today (no start_at)."""
-    assert settings.trial_plan == "growth"
-    start_checkout(biz_a, "growth")
-    start_checkout(biz_b, "starter")
-    starts = {c[1]: c[2] for c in rzp.calls if c[0] == "create_subscription"}
-    assert len(starts) == 2
-    deferred = [v for v in starts.values() if v]
-    immediate = [v for v in starts.values() if not v]
-    assert len(deferred) == 1 and deferred[0] > time.time() + (settings.trial_days - 1) * 86400
-    assert len(immediate) == 1
-
-
-def test_the_plans_endpoint_names_the_trial_plan(client):
-    assert client.get("/api/v1/billing/plans").json()["trial_plan"] == "growth"

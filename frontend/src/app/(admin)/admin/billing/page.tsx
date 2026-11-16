@@ -13,6 +13,7 @@ import { SUB_TONE } from "@/lib/admin-ui";
 
 interface Sub { tenant_id: string; tenant: string; plan: string; status: string; source: string; trial_ends_at: string | null; current_period_end: string | null; cancel_at_period_end: boolean }
 interface Pay { id: string; tenant: string; kind: string; status: string; amount_paise: number; razorpay_payment_id: string | null; error_description: string | null; created_at: string }
+interface Hook { id: string; type: string; status: string; attempts: number; subscription_ref: string | null; received_at: string; last_error: string | null }
 interface Order { id: string; tenant: string; quantity: number; amount_paise: number; status: string; shipping: Record<string, string>; tracking_note: string | null; created_at: string }
 
 export default function AdminBilling() {
@@ -21,6 +22,10 @@ export default function AdminBilling() {
   const subs = useFetch<Sub[]>("/admin/subscriptions", { status: subStatus });
   const pays = useFetch<Pay[]>("/admin/payments", { kind, status: payStatus });
   const orders = useFetch<Order[]>("/admin/card-orders");
+  const hooks = useFetch<Hook[]>("/admin/webhooks");
+  async function reprocess(id: string) {
+    try { await api(`/admin/webhooks/${id}/reprocess`, { method: "POST" }); toast("Re-read from Cashfree."); await hooks.reload(); } catch (e) { toast(errorMessage(e), "error"); }
+  }
   const [ship, setShip] = useState<Order | null>(null); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false);
 
   async function update(status: string) {
@@ -50,6 +55,17 @@ export default function AdminBilling() {
           {!pays.data ? <Skeleton className="m-5 h-32" /> : <div className="max-h-[480px] overflow-auto"><table className="dt"><thead className="sticky top-0 bg-ink-50"><tr>{["Date", "Business", "Type", "Amount", "Status"].map((h) => <th key={h} className="px-4 py-2.5">{h}</th>)}</tr></thead>
             <tbody>{pays.data.map((p) => <tr key={p.id} className="border-b border-ink-100"><td className="px-4 py-2.5">{fmtDate(p.created_at)}</td><td className="px-4 font-semibold">{p.tenant}</td><td className="px-4">{p.kind === "card_order" ? "Cards" : "Subscription"}</td><td className="px-4 tabular-nums">{rupees(p.amount_paise)}</td><td className="px-4"><Badge tone={p.status === "captured" ? "green" : p.status === "failed" ? "red" : "gray"}>{p.status}</Badge>{p.error_description && <span className="block text-xs text-red-700">{p.error_description}</span>}</td></tr>)}{pays.data.length === 0 && <tr><td colSpan={5} className="px-4 py-6 text-center text-ink-500">No payments.</td></tr>}</tbody></table></div>}</Card>
       </div>
+
+      <Card className="mt-5" pad={false}>
+        <div className="p-5"><CardHeader title="Cashfree events" subtitle="Each event is only a hint: reprocessing re-reads the subscription from Cashfree and cannot mark anything paid." /></div>
+        {!hooks.data ? <Skeleton className="m-5 h-24" /> : hooks.data.length === 0 ? <p className="px-6 pb-6 text-sm text-ink-500">No events yet.</p> : (
+          <div className="max-h-[360px] overflow-auto"><table className="dt min-w-[640px]"><thead className="sticky top-0 bg-ink-50"><tr>{["Received", "Event", "Subscription", "Status", "Tries", ""].map((h) => <th key={h} className="px-4 py-2.5">{h}</th>)}</tr></thead>
+            <tbody>{hooks.data.map((h) => (
+              <tr key={h.id} className="border-b border-ink-100"><td className="px-4 py-2.5">{fmtDate(h.received_at)}</td><td className="px-4 font-mono text-xs">{h.type}</td><td className="px-4 font-mono text-xs">{h.subscription_ref ?? "-"}</td>
+                <td className="px-4"><Badge tone={h.status === "processed" ? "green" : h.status === "failed" ? "red" : "gray"}>{h.status}</Badge>{h.last_error && <p className="text-xs text-red-700">{h.last_error}</p>}</td><td className="px-4 tabular-nums">{h.attempts}</td>
+                <td className="px-4 text-right">{h.status !== "processed" && h.subscription_ref && <Button size="sm" variant="secondary" onClick={() => void reprocess(h.id)}>Reprocess</Button>}</td></tr>))}</tbody></table></div>
+        )}
+      </Card>
 
       <Modal open={!!ship} onClose={() => setShip(null)} title="Fulfil card order" footer={<><Button variant="secondary" onClick={() => setShip(null)}>Close</Button><Button variant="secondary" loading={busy} onClick={() => void update("processing")}>Mark processing</Button><Button loading={busy} onClick={() => void update("shipped")}>Mark shipped</Button></>}>
         {ship && <><p className="mb-3 text-sm">{ship.quantity} cards for <b>{ship.tenant}</b> → {ship.shipping.name}, {ship.shipping.address_line}, {ship.shipping.city}, {ship.shipping.state} {ship.shipping.postal_code} · {ship.shipping.phone}</p><Input label="Tracking / note" value={note} onChange={(e) => setNote(e.target.value)} /></>}

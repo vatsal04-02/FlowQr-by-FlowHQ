@@ -23,8 +23,8 @@ function Row({ icon, label, children }: { icon: ReactNode; label: string; childr
   );
 }
 
-/** The last step: a summary of what was set up, the first review page, and the one button that opens the app. The server refuses to finish while a card is still due. */
-export function LaunchStep({ method, businessName, onBack, onNeedCard }: { method: WizardMemory["method"]; businessName: string; onBack: () => void; onNeedCard: () => void }) {
+/** The last step: a summary of what was set up, the first review page, and the one button that opens the app. The server refuses to finish until the payment authorisation is confirmed. */
+export function LaunchStep({ method, businessName, onBack, onNeedAuthorization }: { method: WizardMemory["method"]; businessName: string; onBack: () => void; onNeedAuthorization: (reason: string) => void }) {
   const { refresh } = useAuth();
   const router = useRouter();
   const sub = useFetch<SubscriptionInfo>("/billing/subscription");
@@ -69,7 +69,7 @@ export function LaunchStep({ method, businessName, onBack, onNeedCard }: { metho
       }
       router.replace("/overview");
     } catch (e) {
-      if (e instanceof ApiError && e.code === "card_required") { setNotice(e.message); onNeedCard(); }
+      if (e instanceof ApiError && e.code === "authorization_required") { onNeedAuthorization(e.message); }  // the plan step shows why
       else setNotice(errorMessage(e));
       setBusy(null);
     }
@@ -87,7 +87,7 @@ export function LaunchStep({ method, businessName, onBack, onNeedCard }: { metho
             <Row icon={<CalendarClock className="h-[18px] w-[18px]" strokeWidth={1.75} />} label="Free trial">
               <span className="font-medium">{plans.data ? `${plans.data.trial_days} days` : "Active"}</span>{ends && <span className="text-m-muted">, until {ends}</span>}
               <span className="mt-0.5 block text-[13.5px] text-m-muted">
-                {s?.card_on_file && planName ? `Card on file. ${planName.name} (${rupees(planName.price_paise)} + GST a month) starts when the trial ends. Cancel any time from Billing.` : "Nothing is charged automatically."}
+                {s?.authorization_status === "authorized" && planName ? `Payment method authorised. ${planName.name} (${rupees(planName.price_paise)} + GST a month) is charged when the trial ends. Cancel any time from Billing.` : "Nothing is charged automatically."}
               </span>
             </Row>
             <Row icon={<QrCode className="h-[18px] w-[18px]" strokeWidth={1.75} />} label="First review page">

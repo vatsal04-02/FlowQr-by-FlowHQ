@@ -47,7 +47,11 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 | Variable | Default | Notes |
 |---|---|---|
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (**S**), `RAZORPAY_WEBHOOK_SECRET` (**S**) | empty | Empty = checkout shows "configuration pending". `rzp_test_` keys = test mode. Production refuses test keys. |
-| `TRIAL_REQUIRES_CARD` | false (docker-compose: true) | New trials stay locked until the owner authorises a card in Razorpay checkout; the first charge is scheduled for the day the trial ends. Existing businesses are not affected. |
+| `BILLING_PROVIDER` | empty | Empty switches nothing on. `cashfree` enables Cashfree Subscriptions (needs the next four rows). Razorpay keys must then be unset. |
+| `CASHFREE_ENV`, `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_WEBHOOK_SECRET` | sandbox, empty, empty, empty | Separate sandbox and production credentials, never mixed. Backend only: never in the frontend, Git or logs. The webhook secret defaults to the client secret until the sandbox confirms which key Cashfree signs with. |
+| `CASHFREE_SANDBOX_ACK` | false | Must be `true` to run sandbox credentials with `APP_ENV=production`: a deliberate, visible choice. |
+| `CASHFREE_METHODS`, `CASHFREE_AUTHORIZATION_PAISE` | upi,card, 100 | Payment methods offered (eNACH is refused) and the refundable authorisation shown before checkout (Cashfree's minimum is 100 = Rs 1). |
+| `CASHFREE_PLAN_MAX_AMOUNT_PAISE`, `CASHFREE_CHARGE_SETTLEMENT_HOURS` | 0, 48 | Mandate ceiling (0 = the highest plan price, so a plan change never needs a new authorisation) and how long access continues while a first charge settles. |
 | `TRIAL_DAYS`, `TRIAL_PLAN` | 7, `growth` | The trial grants the trial plan's features and allowances. |
 | `PAST_DUE_GRACE_DAYS` | 7 | Access continues this long after a failed payment; data is never removed. |
 | `CARD_OFFERS` | JSON, 1 card ₹800, 2 cards ₹1,000 | One-time purchases. `[]` turns the bundles off. |

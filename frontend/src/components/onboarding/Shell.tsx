@@ -10,7 +10,7 @@ import { Logo } from "@/components/ui/Brand";
 export const STEPS: { title: string; hint: string; lead: string; icon: LucideIcon }[] = [
   { title: "Your business", hint: "Name, address and contact", lead: "Let's put your business on the map.", icon: MapPin },
   { title: "Collecting reviews", hint: "Your review link or Google", lead: "How should reviews reach you?", icon: Star },
-  { title: "Plan and card", hint: "Start your free trial", lead: "Pick a plan and start your free trial.", icon: CreditCard },
+  { title: "Plan and payment", hint: "Start your free trial", lead: "Pick a plan and start your free trial.", icon: CreditCard },
   { title: "Launch", hint: "Your first review page", lead: "Nearly there. One last look.", icon: PartyPopper },
 ];
 

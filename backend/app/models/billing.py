@@ -26,6 +26,7 @@ class BillingPlan(Base):
     max_staff: Mapped[int] = mapped_column(Integer)
     features: Mapped[list] = mapped_column(JSONB, default=list)
     razorpay_plan_id: Mapped[str | None] = mapped_column(String(64))
+    cashfree_plan_id: Mapped[str | None] = mapped_column(String(40), unique=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -66,6 +67,13 @@ class Payment(IdMixin, Base):
     razorpay_order_id: Mapped[str | None] = mapped_column(String(64))
     razorpay_subscription_id: Mapped[str | None] = mapped_column(String(64))
     razorpay_invoice_id: Mapped[str | None] = mapped_column(String(64))
+    provider: Mapped[str | None] = mapped_column(String(12))  # cashfree | razorpay (NULL on old rows)
+    cashfree_payment_id: Mapped[str | None] = mapped_column(String(64), unique=True)  # our merchant payment id, echoed by Cashfree
+    cashfree_cf_payment_id: Mapped[str | None] = mapped_column(String(32))
+    payment_type: Mapped[str | None] = mapped_column(String(8))  # AUTH (the refundable authorisation) | CHARGE (a monthly charge)
+    period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_reason: Mapped[str | None] = mapped_column(Text)
     card_order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("card_orders.id", ondelete="SET NULL"))
     method: Mapped[str | None] = mapped_column(String(24))
     error_code: Mapped[str | None] = mapped_column(String(80))
@@ -87,6 +95,12 @@ class WebhookEvent(IdMixin, Base):
     error: Mapped[str | None] = mapped_column(Text)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    subscription_ref: Mapped[str | None] = mapped_column(String(250))  # our subscription id from the payload (a hint only; the row is looked up by it, nothing else is trusted)
+    payment_ref: Mapped[str | None] = mapped_column(String(64))
+    payload_hash: Mapped[str | None] = mapped_column(String(64))  # sha256 of the raw body: proves what arrived without storing customer details
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(300))  # a safe, short reason: never a payload, a secret or a customer detail
+    provider_event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SubscriptionEvent(IdMixin, Base):

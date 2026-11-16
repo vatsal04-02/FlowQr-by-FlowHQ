@@ -86,7 +86,7 @@ db.commit()
       const table = page.locator('table').first();
       await table.waitFor({ timeout: 20000 });
       const head = await table.locator('thead').innerText();
-      for (const t of ['Starter', 'Growth', 'Pro', '₹499', '₹799', '₹1,499']) expect(head.includes(t), `plan table is missing ${t}: ${head.slice(0, 200)}`);
+      for (const t of ['Launch', 'Growth', 'Scale', '₹499', '₹799', '₹1,499']) expect(head.includes(t), `plan table is missing ${t}: ${head.slice(0, 200)}`);
       expect(!/Essential|Multi-location\s*₹/.test(head), 'a retired plan is still offered');
       const body = await table.locator('tbody').innerText();
       expect(/AI review generations \/ month\s*200\s*400\s*800/.test(body.replace(/\n/g, ' ').replace(/\t/g, ' ')) || (body.includes('AI review generations / month') && body.includes('AI review replies / month')), 'the two separate allowance rows are missing');
@@ -110,7 +110,7 @@ db.commit()
       expect(t.includes('Free trial started'), 'trial start is not in the history');
     });
 
-    await step('Starter: the autonomy area is closed with a message that names what to upgrade for', async () => {
+    await step('Launch: the autonomy area is closed with a message that names what to upgrade for', async () => {
       sql(`UPDATE subscriptions SET plan = 'starter', status = 'active', source = 'manual', features = (SELECT features FROM billing_plans WHERE code = 'starter') WHERE tenant_id = '${tenant.id}'; UPDATE promotional_grants SET status = 'ended' WHERE tenant_id = '${tenant.id}';`);
       await page.goto('/settings/ai/autonomy');
       await page.getByText(/Autonomous SEO maintenance isn't included in your current plan/).waitFor({ timeout: 30000 });
@@ -179,7 +179,7 @@ db.commit()
         await ap.getByRole('heading', { level: 1, name: 'Plans and limits' }).waitFor({ timeout: 30000 });
         await ap.getByText(/Waiting for an owner decision/).waitFor();
         const t = (await ap.locator('main').innerText()).replace(/\n/g, ' ');
-        for (const s of ['Starter', 'Growth', 'Pro', '₹499', '₹799', '₹1,499', 'Growth includes one location']) expect(t.includes(s), `missing ${s}`);
+        for (const s of ['Launch', 'Growth', 'Scale', '₹499', '₹799', '₹1,499', 'Growth includes one location']) expect(t.includes(s), `missing ${s}`);
         const gates = await ap.getByText('Release status').locator('xpath=ancestor::*[contains(@class,"panel") or contains(@class,"card")][1]').innerText().catch(() => t);
         expect(/Development Complete - External Validation Pending/.test(t), 'overall status is not the honest one');
         expect((t.match(/not done/g) || []).length >= 4, 'the live rungs are not all shown as not done');

@@ -111,11 +111,21 @@ class Subscription(IdMixin, TimestampMixin, Base):
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
     canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     past_due_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    card_status: Mapped[str | None] = mapped_column(String(12))  # None = no card needed | "required" = trial locked until a card is authorised | "on_file"
     pending_plan: Mapped[str | None] = mapped_column(String(32))  # scheduled downgrade/upgrade at cycle end
     source: Mapped[str] = mapped_column(String(16), default="trial")  # trial | razorpay | manual
     razorpay_subscription_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     last_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Cashfree (0037). `provider` is NULL for trials and for historical Razorpay rows. Our own merchant id is what Cashfree echoes back in every event; the tenant is ALWAYS found from it,
+    # never from anything else in a payload.
+    provider: Mapped[str | None] = mapped_column(String(12))
+    cashfree_subscription_id: Mapped[str | None] = mapped_column(String(250), unique=True)
+    cashfree_cf_subscription_id: Mapped[str | None] = mapped_column(String(32))
+    authorization_status: Mapped[str | None] = mapped_column(String(24))  # initialized | bank_pending | authorized | expired | failed | cancelled
+    trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_charge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_charge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_provider_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trial_entitlement: Mapped[str | None] = mapped_column(String(32))  # the plan whose features and limits this (mandate-gated) trial grants: always settings.trial_plan (Growth), whatever plan was selected. NULL for a trial that predates the gate.
 
 
 class AuditLog(IdMixin, Base):

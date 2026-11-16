@@ -37,6 +37,23 @@ def sync_due_locations():
     return {"queued": len(ids)}
 
 
+@celery_app.task(name="flowqr.billing_reconcile")
+def billing_reconcile():
+    """Hourly: Cashfree does not replay missed webhooks, so read and apply the truth for every subscription that is in motion."""
+    from app.core.config import settings
+
+    if not settings.cashfree_configured:
+        return {"skipped": "cashfree is not configured"}
+    from app.services import billing_cashfree as cfb
+    from app.services import cashfree
+
+    db = system_session()
+    try:
+        return cfb.reconcile(db, cashfree.get_cashfree())
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.billing_refresh")
 def billing_refresh():
     from app.services.billing import refresh_statuses
