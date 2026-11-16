@@ -63,7 +63,7 @@ def steps(db: Session, tenant_id: uuid.UUID, user: User) -> dict:
     ]
     out.append(step("autonomy", "Decide what FlowQR may do on its own", "Everything starts switched off. You choose, per kind of change; posts, photos and replies always need you.",
                     bool(settings_row and (settings_row.autonomy_enabled or settings_row.autonomy_permissions_at)), "/ai/autonomy", "Review autonomy settings", optional=True,
-                    locked=None if "autonomy" in e.features else "Included in Growth and Pro"))
+                    locked=None if "autonomy" in e.features else "Included in Growth and Scale"))
     required = [s for s in out if not s["optional"] and not s["locked"]]
     done_required = [s for s in required if s["done"]]
     nxt = next((s for s in out if not s["done"] and not s["locked"] and not s["optional"]), None) or next((s for s in out if not s["done"] and not s["locked"]), None)

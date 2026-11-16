@@ -71,7 +71,7 @@ Roles: S = any member of the business, A = owner or admin, O = owner, PA = platf
 | Method & path | Who | Purpose |
 |---|---|---|
 | `GET /api/ready` | public | readiness: database, Redis and migration revision. `200` or `503`; statuses only, no detail. The worker heartbeat is deliberately excluded. |
-| `GET /billing/plans` | public | the confirmed plans (Starter, Growth, Pro) with `review_generations` and `review_replies` allowances, the card bundles (`card_offers`) and the one-time-purchase note |
+| `GET /billing/plans` | public | the confirmed plans (Launch, Growth, Scale) with `review_generations` and `review_replies` allowances, the card bundles (`card_offers`) and the one-time-purchase note |
 | `GET /billing/subscription` | S | plan, status, limits (`review_generations`, `review_replies`, locations, staff, features) and usage for both allowances; `promo` is the active free card month, if any |
 | `GET /billing/subscription/history` | A | everything that happened to the subscription: trial, activation, plan changes, failed payments, cancellation, refunds, free months |
 | `POST /billing/card-orders` | O | `quantity` 1 or 2 are the ₹800 / ₹1,000 bundles; 10 to 1000 is a bulk order at `CARD_PRICE_PAISE` (if set). A paid order grants one free Growth month (see settings) |

@@ -197,7 +197,7 @@ def test_webhook_charge_records_payment_and_is_idempotent(rzp, client, biz_a):
 
 
 def test_failed_payment_grace_then_lapse_blocks_writes(rzp, client, biz_a):
-    sid, _ = activate(biz_a, rzp, "pro")  # Pro: Growth includes one location and this test adds a second
+    sid, _ = activate(biz_a, rzp, "pro")  # Scale: Growth includes one location and this test adds a second
     webhook(client, sub_event("subscription.pending", {"id": sid, "status": "pending"}, created_at=int(time.time()) + 5))
     s = biz_a.get("/billing/subscription").json()
     assert s["status"] == "past_due" and s["active"] is True and s["grace_until"]  # still within grace
