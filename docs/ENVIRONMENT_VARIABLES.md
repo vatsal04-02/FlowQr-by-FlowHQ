@@ -35,7 +35,8 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (**S**), `GOOGLE_REDIRECT_URI`, `GOOGLE_SCOPES` | The Business Profile OAuth client customers connect through. Redirect URI must match the Google Cloud console exactly. |
 | `GOOGLE_LOGIN_CLIENT_ID`, `GOOGLE_LOGIN_CLIENT_SECRET` (**S**), `GOOGLE_LOGIN_REDIRECT_URI` | A **separate** client for "Continue with Google" (identity only). Signing in with Google is never treated as a Business Profile grant. |
 | `REVIEW_SYNC_INTERVAL_MINUTES` | 30 |
-| `RANK_PROVIDER`, `RANK_PROVIDER_KEY` (**S**) | `google_places` and a Places API (New) key. Without them ranking and maps stay off. |
+| `RANK_PROVIDER`, `RANK_PROVIDER_KEY` (**S**) | `google_places` and a Places API (New) key. Without them ranking and maps stay off, and so do the business and address suggestions in onboarding (the forms stay manual; the PIN-code lookup still works). |
+| `PLACES_SUGGEST_ENABLED`, `PLACES_SUGGEST_USER_DAILY_CAP`, `PLACES_SUGGEST_MONTHLY_CAP` | true, 150, 3000. Onboarding suggestions use the Places key above (Autocomplete + Place Details, billed per session by Google). One person may spend 150 Google calls a day and the whole platform 3000 a month (0 = no platform cap); every call and refusal is a row in the usage ledger under feature `onboarding_suggest`. Set `PLACES_SUGGEST_ENABLED=false` to turn them off without touching ranking. |
 
 ## AI
 

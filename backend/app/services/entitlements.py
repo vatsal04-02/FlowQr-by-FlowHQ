@@ -16,6 +16,11 @@ from app.services.plans import FEATURE_LABELS  # noqa: E402
 ACTIVE_STATUSES = {"trialing", "active", "manual"}
 
 
+def card_blocks(sub: Subscription | None) -> bool:
+    """True while a new trial is waiting for its card. Only ever true when payments are switched on: with no Razorpay keys a card cannot be taken, so nobody is locked out."""
+    return bool(sub and sub.card_status == "required" and settings.razorpay_configured)
+
+
 @dataclass
 class Entitlements:
     active: bool
@@ -70,7 +75,7 @@ def _compute(sub: Subscription | None) -> Entitlements:
         else:
             if sub.trial_ends_at:
                 trial_days_left = max(0, (sub.trial_ends_at - now).days)
-            if sub.card_status == "required":
+            if card_blocks(sub):
                 active, reason = False, "card_required"  # a new trial stays locked until a card is authorised
     elif status == "past_due":
         since = sub.past_due_since or now
@@ -103,6 +108,20 @@ def active_promo(db: Session, tenant_id: uuid.UUID) -> tuple[PromotionalGrant, B
 
 def for_tenant(db: Session, tenant_id: uuid.UUID) -> Entitlements:
     return compute(db.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id)), active_promo(db, tenant_id))
+
+
+def require_active_for_setup(db: Session, tenant_id: uuid.UUID) -> Entitlements:
+    """Like `require_active`, but a trial that is only waiting for its card may still be SET UP (add the first location) until onboarding is finished. Everything that
+    does work for the business, or costs money, keeps using `require_active` and stays locked."""
+    sub = db.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id))
+    e = for_tenant(db, tenant_id)
+    if not e.active and e.reason == "card_required" and card_blocks(sub):
+        from app.models import Tenant
+
+        t = db.get(Tenant, tenant_id)
+        if t is not None and not t.onboarding_completed:
+            return e  # limits are still those of the trial plan
+    return require_active(db, tenant_id)
 
 
 def require_active(db: Session, tenant_id: uuid.UUID) -> Entitlements:

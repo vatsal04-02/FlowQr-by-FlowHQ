@@ -132,6 +132,9 @@ def complete_onboarding(ctx: TenantContext = Depends(require_role(Role.admin))):
     count = ctx.db.scalar(select(func.count()).select_from(Location).where(Location.tenant_id == ctx.tenant_id))
     if not count:
         raise HTTPException(status_code=400, detail="Add at least one location first")
+    sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
+    if ent.card_blocks(sub):
+        raise HTTPException(status_code=402, detail={"code": "card_required", "message": "Add a card to start your free trial. You won't be charged until the trial ends."})
     ctx.tenant.onboarding_completed = True
     ctx.db.commit()
     return ctx.tenant

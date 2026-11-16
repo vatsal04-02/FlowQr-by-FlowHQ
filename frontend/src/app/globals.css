@@ -86,6 +86,11 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 242 239 245; --c-i
   .mkt-marquee:hover { animation-play-state: paused; }
   @keyframes mkt-marquee { to { transform: translateX(-50%); } }
   @media (prefers-reduced-motion: reduce) { .mkt-marquee { animation: none; } }
+  /* Set-up wizard (components/onboarding): white fields with a hairline border and an orange focus ring instead of grey wells. Lives under .mkt for the colour tokens. */
+  .wiz input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), .wiz select { background-color: #fff; border: 1px solid rgb(var(--m-line)); box-shadow: 0 1px 0 rgba(11,15,46,.03); }
+  .wiz input:not([type="radio"]):not([type="checkbox"]):hover, .wiz select:hover { border-color: rgb(var(--m-muted2)); }
+  .wiz input:not([type="radio"]):not([type="checkbox"]):focus-visible, .wiz select:focus-visible { border-color: rgb(var(--m-accentStrong)); box-shadow: 0 0 0 4px rgb(254 106 5 / .16); outline: none; }
+  .wiz-card { background: #fff; border-radius: 28px; box-shadow: 0 0 0 1px rgba(11,15,46,.05), 0 1px 2px rgba(11,15,46,.04), 0 28px 64px -28px rgba(11,15,46,.22); }
   .container-page { @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6; }
   .tap { min-height: 44px; min-width: 44px; }
 

@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     rank_grid_auto_days: int = 7  # an active grid is re-scanned automatically this often (only when the whole scan fits the monthly allowance)
     rank_platform_monthly_cap: int = 0  # Places searches the whole platform may spend per month across every business (0 = no platform cap)
     rank_cost_per_call_usd: float = 0.0  # your Places price per search, to show estimated spend (0 = unpriced: only call counts are shown)
+    places_suggest_enabled: bool = True  # PLACES_SUGGEST_ENABLED: business and address suggestions while setting up (uses the Places key above; no key = forms stay manual)
+    places_suggest_user_daily_cap: int = 150  # Google calls (typing counts) one person may spend on suggestions per day
+    places_suggest_monthly_cap: int = 3000  # the whole platform's Google calls for suggestions per month (0 = no cap)
     account_deletion_grace_days: int = 14  # how long an owner can cancel a deletion request
     support_email: str = ""  # shown on the legal pages; empty = pages say it is not configured
     legal_company_name: str = "FlowHQ"

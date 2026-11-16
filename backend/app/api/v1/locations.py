@@ -48,7 +48,7 @@ def list_locations(ctx: TenantContext = Depends(get_tenant_context)):
 
 @router.post("", response_model=LocationOut, status_code=201)
 def create_location(body: LocationIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
-    e = ent.require_active(ctx.db, ctx.tenant_id)
+    e = ent.require_active_for_setup(ctx.db, ctx.tenant_id)
     if ent.locations_used(ctx.db, ctx.tenant_id) >= e.max_locations:
         raise HTTPException(status_code=402, detail={"code": "plan_limit", "message": f"Your plan allows up to {e.max_locations} locations. Upgrade to add more."})
     loc = Location(tenant_id=ctx.tenant_id, **body.model_dump())
