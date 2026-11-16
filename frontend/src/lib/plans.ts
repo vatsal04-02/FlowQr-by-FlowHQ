@@ -11,8 +11,8 @@ export const FALLBACK_PLANS: Plan[] = [
 
 export function usePlans() {
   const { data } = useFetch<PlansResponse>("/billing/plans");
-  return { plans: data?.plans ?? FALLBACK_PLANS, trialDays: data?.trial_days ?? 7, cardRequired: data?.trial_requires_card ?? true };
+  return { plans: data?.plans ?? FALLBACK_PLANS, trialDays: data?.trial_days ?? 7 };
 }
 
-/** The card rule next to "N-day free trial", read from the server like the length, so the site never contradicts what the app does. */
-export const trialTerms = (cardRequired: boolean) => (cardRequired ? "Card required, no charge until the trial ends." : "No card needed.");
+/** What the site says about a card next to "N-day free trial". The trial itself needs no card: a recurring payment is authorised only when a plan is chosen. */
+export const TRIAL_TERMS = "No card needed.";

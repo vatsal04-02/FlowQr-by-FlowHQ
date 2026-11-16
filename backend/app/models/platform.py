@@ -111,7 +111,6 @@ class Subscription(IdMixin, TimestampMixin, Base):
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
     canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     past_due_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    card_status: Mapped[str | None] = mapped_column(String(12))  # None = no card needed | "required" = trial locked until a card is authorised | "on_file"
     pending_plan: Mapped[str | None] = mapped_column(String(32))  # scheduled downgrade/upgrade at cycle end
     source: Mapped[str] = mapped_column(String(16), default="trial")  # trial | razorpay | manual
     razorpay_subscription_id: Mapped[str | None] = mapped_column(String(64), unique=True)

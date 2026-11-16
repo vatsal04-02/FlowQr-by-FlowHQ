@@ -141,7 +141,6 @@ class Settings(BaseSettings):
     razorpay_webhook_secret: str = ""
     trial_days: int = 7
     trial_plan: str = "growth"  # trial grants this plan's limits/features
-    trial_requires_card: bool = False  # TRIAL_REQUIRES_CARD: NEW trials unlock only after a card is authorised (Razorpay mandate); the first charge is after the trial
 
     past_due_grace_days: int = 7
     # Per physical card, INR paise. Deliberately NO default: unset => card ordering is disabled (never a silent placeholder price).

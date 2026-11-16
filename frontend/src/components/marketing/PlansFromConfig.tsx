@@ -4,7 +4,7 @@ import { Check, Minus } from "lucide-react";
 import { FEATURE_LABELS, rupees } from "@/lib/billing";
 import type { PlansResponse } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
-import { trialTerms } from "@/lib/plans";
+import { TRIAL_TERMS } from "@/lib/plans";
 import { MButton } from "./kit";
 import { EASE, Rise } from "./motion";
 import { motion } from "motion/react";
@@ -36,7 +36,7 @@ export function PlanCards() {
   const rec = plans.find((p) => p.code === "growth")?.code ?? plans[Math.floor(plans.length / 2)]?.code;
   return (
     <>
-      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial. {trialTerms(data.trial_requires_card ?? true)}</p>
+      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial. {TRIAL_TERMS}</p>
       <div className="grid gap-3 md:grid-cols-3">
         {plans.map((p, i) => {
           const hot = p.code === rec;

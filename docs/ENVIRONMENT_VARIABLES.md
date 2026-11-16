@@ -46,7 +46,6 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 | Variable | Default | Notes |
 |---|---|---|
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (**S**), `RAZORPAY_WEBHOOK_SECRET` (**S**) | empty | Empty = checkout shows "configuration pending". `rzp_test_` keys = test mode. Production refuses test keys. |
-| `TRIAL_REQUIRES_CARD` | false (docker-compose: true) | New trials stay locked until the owner authorises a card in Razorpay checkout; the first charge is scheduled for the day the trial ends. Existing businesses are not affected. |
 | `TRIAL_DAYS`, `TRIAL_PLAN` | 7, `growth` | The trial grants the trial plan's features and allowances. |
 | `PAST_DUE_GRACE_DAYS` | 7 | Access continues this long after a failed payment; data is never removed. |
 | `CARD_OFFERS` | JSON, 1 card ₹800, 2 cards ₹1,000 | One-time purchases. `[]` turns the bundles off. |

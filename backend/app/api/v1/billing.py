@@ -45,7 +45,7 @@ def plans(db: Session = Depends(get_db)):
     set_rls_context(db, bypass=True)
     rows = db.scalars(select(BillingPlan).where(BillingPlan.is_active.is_(True)).order_by(BillingPlan.sort_order)).all()
     offers = [{"code": o["code"], "quantity": o["quantity"], "price_paise": o["price_paise"], "includes": f"{settings.promo_card_days} days of {settings.promo_card_plan.title()}"} for o in (settings.card_offers or [])]
-    return {"plans": [PlanOut.model_validate(p) for p in rows], "trial_days": settings.trial_days, "trial_requires_card": bool(settings.trial_requires_card and settings.razorpay_configured),
+    return {"plans": [PlanOut.model_validate(p) for p in rows], "trial_days": settings.trial_days,
             "billing": _config(), "card_price_paise": settings.card_price_paise,
             "card_ordering_enabled": (bool(settings.card_price_paise) or bool(offers)) and settings.razorpay_configured, "card_offers": offers,
             "card_offer_note": "Card prices are one-time purchases, separate from any subscription. The included month is free access, not a subscription: nothing is charged when it ends."}
@@ -65,7 +65,6 @@ def subscription(ctx: TenantContext = Depends(get_tenant_context)):
         "current_period_end": sub.current_period_end if sub else None, "cancel_at_period_end": bool(sub and sub.cancel_at_period_end),
         "pending_plan": sub.pending_plan if sub else None, "grace_until": e.grace_until, "source": sub.source if sub else None,
         "has_razorpay_subscription": bool(sub and sub.razorpay_subscription_id),
-        "card_required": bool(sub and sub.card_status == "required"), "card_on_file": bool(sub and sub.card_status == "on_file"),
         "promo": None if not e.promo else {**e.promo, "note": "Included free with your card purchase. It ends on its own and nothing is charged."},
         "limits": {"locations": e.max_locations, "ai_generations": e.monthly_ai_generations, "review_generations": e.review_generations, "review_replies": e.review_replies,
                    "staff": e.max_staff, "features": sorted(e.features)},
