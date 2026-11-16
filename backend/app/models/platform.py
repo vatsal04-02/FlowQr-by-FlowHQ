@@ -125,7 +125,7 @@ class Subscription(IdMixin, TimestampMixin, Base):
     first_charge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     next_charge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_provider_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    trial_plan: Mapped[str | None] = mapped_column(String(32))  # the plan whose features and limits this (mandate-gated) trial grants: the plan the customer SELECTED. NULL for a trial with no selection.
+    trial_entitlement: Mapped[str | None] = mapped_column(String(32))  # the plan whose features and limits this (mandate-gated) trial grants: always settings.trial_plan (Growth), whatever plan was selected. NULL for a trial that predates the gate.
 
 
 class AuditLog(IdMixin, Base):

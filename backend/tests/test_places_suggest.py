@@ -282,7 +282,7 @@ def test_with_a_verified_authorisation_onboarding_finishes_and_the_trial_is_acti
     assert u.post("/billing/subscription/sync").status_code == 200
     assert u.post("/tenant/complete-onboarding").status_code == 200
     sub = u.get("/billing/subscription").json()
-    assert sub["authorization_status"] == "authorized" and sub["active"] is True and sub["status"] == "trialing" and sub["trial_plan"] == "growth"
+    assert sub["authorization_status"] == "authorized" and sub["active"] is True and sub["status"] == "trialing" and sub["trial_entitlement"] == "growth"
 
 
 def test_the_set_up_exception_ends_when_onboarding_is_finished(payments_on):

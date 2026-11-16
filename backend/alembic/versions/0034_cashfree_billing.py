@@ -31,7 +31,7 @@ def upgrade() -> None:
 
     for name, col in (
         ("provider", sa.String(12)), ("cashfree_subscription_id", sa.String(250)), ("cashfree_cf_subscription_id", sa.String(32)),
-        ("authorization_status", sa.String(24)), ("trial_plan", sa.String(32)), ("trial_started_at", sa.DateTime(timezone=True)), ("first_charge_at", sa.DateTime(timezone=True)), ("next_charge_at", sa.DateTime(timezone=True)),
+        ("authorization_status", sa.String(24)), ("trial_entitlement", sa.String(32)), ("trial_started_at", sa.DateTime(timezone=True)), ("first_charge_at", sa.DateTime(timezone=True)), ("next_charge_at", sa.DateTime(timezone=True)),
         ("last_provider_sync_at", sa.DateTime(timezone=True)),
     ):
         op.add_column("subscriptions", sa.Column(name, col))
@@ -62,7 +62,7 @@ def downgrade() -> None:
     for name in ("failure_reason", "period_end", "period_start", "payment_type", "cashfree_cf_payment_id", "cashfree_payment_id", "provider"):
         op.drop_column("payments", name)
     op.drop_constraint("uq_subscriptions_cashfree_subscription_id", "subscriptions", type_="unique")
-    for name in ("last_provider_sync_at", "next_charge_at", "first_charge_at", "trial_started_at", "trial_plan", "authorization_status", "cashfree_cf_subscription_id", "cashfree_subscription_id", "provider"):
+    for name in ("last_provider_sync_at", "next_charge_at", "first_charge_at", "trial_started_at", "trial_entitlement", "authorization_status", "cashfree_cf_subscription_id", "cashfree_subscription_id", "provider"):
         op.drop_column("subscriptions", name)
     op.drop_constraint("uq_billing_plans_cashfree_plan_id", "billing_plans", type_="unique")
     op.drop_column("billing_plans", "cashfree_plan_id")

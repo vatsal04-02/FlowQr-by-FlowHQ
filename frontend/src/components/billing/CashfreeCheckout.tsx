@@ -46,7 +46,7 @@ export function CashfreeCheckoutDialog({ plan, plans, onClose }: { plan: Plan; p
         {p && <>
           <p><b>{plan.name}</b> is <b>{rupees(p.amount_paise)}</b> a month.</p>
           {p.trial_starts_on_authorization
-            ? <p>Your <b>{p.trial_days}-day free trial starts as soon as Cashfree confirms your authorisation</b>, and not before. Your <b>first payment of {rupees(p.amount_paise)} is on {fmtDate(p.first_charge_at)}</b>, then every month. Cancel before then and you will not be charged.</p>
+            ? <p>Your <b>{p.trial_days}-day free trial starts as soon as Cashfree confirms your authorisation</b>, and not before. Your <b>first payment of {rupees(p.amount_paise)} is on {fmtDate(p.first_charge_at)}</b>, then every month. Cancel before then and you will not be charged. During the trial you have <b>every Growth feature</b>, whichever plan you choose; after it, you are on <b>{plan.name}</b>.</p>
             : p.free_period_honoured
               ? <p>You are on your free trial. Your <b>first payment of {rupees(p.amount_paise)} is on {fmtDate(p.first_charge_at)}</b>, then every month. Cancel before then and you will not be charged.</p>
               : <p>Your free trial is over, so your <b>first payment of {rupees(p.amount_paise)} is on {fmtDate(p.first_charge_at)}</b> (about two days after you authorise), then every month.</p>}

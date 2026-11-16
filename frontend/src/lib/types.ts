@@ -69,7 +69,7 @@ export interface SubscriptionInfo {
   trial_ends_at: string | null; trial_days_left: number | null; current_period_end: string | null; cancel_at_period_end: boolean; pending_plan: string | null;
   grace_until: string | null; source: string | null; has_razorpay_subscription: boolean;
   provider?: string | null; has_cashfree_subscription?: boolean; authorization_status?: string | null; billing_state?: string; first_charge_at?: string | null; next_charge_at?: string | null;
-  trial_plan?: string | null; trial_plan_name?: string | null; pending_plan_name?: string | null; pending_plan_effective_at?: string | null;
+  trial_entitlement?: string | null; trial_entitlement_name?: string | null; selected_plan?: string | null; selected_plan_name?: string | null; pending_plan_name?: string | null; pending_plan_effective_at?: string | null;
   mandate_required?: boolean; trial_started_at?: string | null; payment_method?: string | null; next_charge_amount_paise?: number | null;
   limits: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number; features: string[] };
   usage: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number };

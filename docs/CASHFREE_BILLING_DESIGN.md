@@ -195,13 +195,21 @@ This reverses the earlier "the trial needs no card" decision, for Cashfree only,
 * **Swapping the payment method while the current mandate is healthy:** not implemented. Cashfree documents no in-place update, only a new mandate; replacing a healthy one while keeping continuity of the next charge date needs sandbox behaviour to be settled first. Today the customer can re-authorise when the mandate is paused, expired, cancelled or its card has expired.
 * **Payment methods:** UPI AutoPay and card are requested; which of them Cashfree actually enables for this merchant account is unverified until the sandbox run. eNACH stays refused.
 
-## 14. Trial entitlements follow the selected plan (owner decision, 2026-11-16)
+## 14. Every trial is the complete Growth plan; the selected plan is kept apart (owner decision, final, 2026-11-16)
 
-During the 7-day trial a customer has the features and limits of the plan they selected: Launch → Launch, Growth → Growth, Scale → Scale. Growth's features are never granted to every trial customer, and the duration is 7 days for all three.
+This replaces an earlier, withdrawn reading ("the trial grants the selected plan's entitlements"). Final rule: **every customer receives the complete Growth feature set for the entire seven-day trial, whichever paid plan they selected.** Launch, Growth and Scale all trial as Growth. Scale's own capabilities (more than one location, up to 50 team members, multi-location management, Scale's higher usage limits) are not available during the trial. The trial is 7 days for every plan.
 
-* The selection is the plan chosen at checkout (`subscriptions.pending_plan`). When the server has read the Cashfree mandate as `ACTIVE`, `_start_trial_if_authorized` applies that plan's entitlements to the subscription row (`max_locations`, `max_staff`, `review_generations`, `review_replies`, `features`) and records `subscriptions.trial_plan`. `plan` stays `trial` until the first successful charge makes the selected plan the paid plan, with identical entitlements, so nothing changes for the customer at the first payment.
-* Enforcement is server-side because every route and worker reads those columns through `entitlements.py`; the screen only reflects them. The browser cannot name the plan at sync or return time.
-* An account still `incomplete` (selected, not yet authorised) gets nothing, not even the features of the plan it is choosing.
-* A plan change during the trial is pending and takes effect when the new amount is charged; the trial keeps the original plan's entitlements until then.
-* A business with no selection (a trial that predates the gate, or Cashfree not configured) keeps the original trial entitlements; `trial_plan` is NULL.
-* Proved by `backend/tests/test_cashfree_trial_entitlements.py` (limits, features, a second location, Insights, per plan).
+Two things are stored separately and never overwrite each other:
+
+| What | Where | Value during the trial |
+|---|---|---|
+| Trial entitlement | `subscriptions.trial_entitlement` (and the entitlement columns every route reads) | always `settings.trial_plan` = `growth` |
+| Selected paid plan | `subscriptions.pending_plan` (API: `selected_plan`, `selected_plan_name`) | `starter` (Launch), `growth` or `pro` (Scale), as chosen at checkout or changed in Billing |
+
+* When the server has read the Cashfree mandate as `ACTIVE`, `_start_trial_if_authorized` copies Growth's features and limits onto the subscription row and sets `plan = 'trial'`. `apply_plan` never writes `pending_plan`, so the selection survives.
+* The transition happens only on a verified successful charge: `_on_charge_success` applies the plan whose price equals the amount actually charged, if that plan is the selected one (or the current paid plan). A charge of any other amount is recorded as `amount_mismatch` and changes nothing. After the first payment the customer has exactly the selected plan's features and limits (Launch loses Growth-only features such as Insights at that point; Scale gains its higher limits).
+* Enforcement is server-side because every route and worker reads the entitlement columns through `entitlements.py`; the screen only reflects them. The browser cannot set either field at sync or return time.
+* An account still `incomplete` (selected, not authorised) gets nothing, not even Growth.
+* Changing the selected plan during the trial changes only what is billed afterwards (it takes effect at the next charge, no proration); the trial keeps Growth access.
+* A business whose trial predates the gate, or that signed up without the gate, has `trial_entitlement` NULL and no selection, and keeps its original Growth trial unchanged.
+* Proved by `backend/tests/test_cashfree_trial_entitlements.py` (all three selections: identical Growth access, second location refused, Scale-only features absent, selection preserved, transition only after a successful charge of the selected plan's amount, wrong amount changes nothing).

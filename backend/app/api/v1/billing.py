@@ -79,7 +79,8 @@ def subscription(ctx: TenantContext = Depends(get_tenant_context)):
         "has_razorpay_subscription": bool(sub and sub.razorpay_subscription_id),
         "provider": sub.provider if sub else None, "has_cashfree_subscription": bool(sub and sub.cashfree_subscription_id), "mandate_required": settings.mandate_required,
         "trial_started_at": sub.trial_started_at if sub else None, "payment_method": _payment_method(ctx.db, ctx.tenant_id),
-        "trial_plan": sub.trial_plan if sub else None, "trial_plan_name": (ctx.db.get(BillingPlan, sub.trial_plan).name if sub and sub.trial_plan and ctx.db.get(BillingPlan, sub.trial_plan) else None),
+        "trial_entitlement": sub.trial_entitlement if sub else None, "trial_entitlement_name": (ctx.db.get(BillingPlan, sub.trial_entitlement).name if sub and sub.trial_entitlement and ctx.db.get(BillingPlan, sub.trial_entitlement) else None),
+        "selected_plan": _selected_plan(sub), "selected_plan_name": (ctx.db.get(BillingPlan, _selected_plan(sub)).name if _selected_plan(sub) and ctx.db.get(BillingPlan, _selected_plan(sub)) else None),
         "next_charge_amount_paise": _next_amount(ctx.db, sub),
         "authorization_status": sub.authorization_status if sub else None, "billing_state": cfb.billing_state(sub),
         "first_charge_at": sub.first_charge_at if sub else None, "next_charge_at": sub.next_charge_at if sub else None,
@@ -98,6 +99,16 @@ def _payment_method(db: Session, tenant_id) -> str | None:
     """The kind of method Cashfree reported for the authorisation or the latest payment ("upi", "card"). Only the kind: no card number, no UPI id is stored or shown."""
     row = db.scalar(select(Payment).where(Payment.tenant_id == tenant_id, Payment.provider == "cashfree", Payment.method.is_not(None)).order_by(Payment.created_at.desc()).limit(1))
     return row.method if row else None
+
+
+def _selected_plan(sub) -> str | None:
+    """The paid plan this customer chose and will be billed on after the trial. During checkout and the trial it is `pending_plan` (the trial itself carries Growth's entitlements whatever was chosen);
+    once a payment has gone through it is the current plan, or the scheduled change."""
+    if sub is None:
+        return None
+    if sub.status in ("incomplete", "trialing") or sub.plan == "trial":
+        return sub.pending_plan
+    return sub.pending_plan or sub.plan
 
 
 def _next_amount(db: Session, sub) -> int | None:

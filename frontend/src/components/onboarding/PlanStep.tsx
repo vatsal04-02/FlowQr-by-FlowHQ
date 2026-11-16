@@ -27,7 +27,7 @@ function highlights(plans: Plan[], i: number): string[] {
  * Progress lives on the server, so leaving checkout, closing the tab or failing the authorisation loses nothing: this step shows the right state again, and trying again never creates a second mandate.
  * Where authorisation is not required (Cashfree not configured) it is the original step: the trial simply starts.
  */
-export function PlanStep({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+export function PlanStep({ onBack, onDone, reason }: { onBack: () => void; onDone: () => void; reason?: string | null }) {
   const plansQ = useFetch<PlansResponse>("/billing/plans");
   const subQ = useFetch<SubscriptionInfo>("/billing/subscription");
   const [sel, setSel] = useState<string | null>(null);
@@ -83,13 +83,15 @@ export function PlanStep({ onBack, onDone }: { onBack: () => void; onDone: () =>
 
   if (authorised) {
     const first = s?.first_charge_at ?? s?.next_charge_at;
-    const trialPlan = plans.find((p) => p.code === (s?.trial_plan ?? s?.pending_plan));
+    const selected = plans.find((p) => p.code === s?.selected_plan);
     return (
       <StepCard wide>
-        <StepHeading step={2} title="Your free trial has started">Your payment method is confirmed, so your {trialDays}-day free trial is running{s?.trial_ends_at ? <> until <b>{date(s.trial_ends_at)}</b></> : null}{trialPlan ? <>, with everything in <b>{trialPlan.name}</b></> : null}.</StepHeading>
+        <StepHeading step={2} title="Your free trial has started">Your payment method is confirmed, so your {trialDays}-day free trial is running{s?.trial_ends_at ? <> until <b>{date(s.trial_ends_at)}</b></> : null}, with every Growth feature.</StepHeading>
+        {reason && <div className="mt-5"><Alert tone="warning" title="One more step before your dashboard opens">{reason}</Alert></div>}
         <div className="mt-6 rounded-[20px] bg-m-bg p-5">
           <dl className="divide-y divide-m-line text-[14px]">
             <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-m-ink2">Due today</dt><dd className="font-semibold text-m-ink">{rupees(0)}</dd></div>
+            {selected && <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-m-ink2">Your plan after the trial</dt><dd className="text-right font-medium text-m-ink">{selected.name}, {rupees(selected.price_paise)} + GST / month</dd></div>}
             {first && <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-m-ink2">First payment</dt><dd className="text-right font-medium text-m-ink">{s?.next_charge_amount_paise ? `${rupees(s.next_charge_amount_paise)} + GST` : "Your plan amount"} on {date(first)}</dd></div>}
             <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-m-ink2">Payment method</dt><dd className="text-right font-medium text-m-ink">{s?.payment_method === "upi" ? "UPI AutoPay" : s?.payment_method === "card" ? "Card" : "Authorised with Cashfree"}</dd></div>
           </dl>
@@ -104,9 +106,10 @@ export function PlanStep({ onBack, onDone }: { onBack: () => void; onDone: () =>
   return (
     <StepCard wide>
       <StepHeading step={2} title={`Start your ${trialDays}-day free trial`}>
-        Pick your plan, then authorise UPI AutoPay or a card with Cashfree. Your trial starts as soon as Cashfree confirms it, with the full features of the plan you pick, and you pay for the plan only when the trial ends.
+        Pick the plan you want after the trial, then authorise UPI AutoPay or a card with Cashfree. Your trial starts as soon as Cashfree confirms it, with every Growth feature whichever plan you pick, and you pay for your plan only when the trial ends.
       </StepHeading>
 
+      {reason && <div className="mt-5"><Alert tone="warning" title="One more step before your dashboard opens">{reason}</Alert></div>}
       {note && <div className="mt-5"><Alert tone="warning">{note}</Alert></div>}
       {pending && <div className="mt-5"><Alert tone="info" title="Your bank is approving the authorisation">This can take a day or two. Your trial starts as soon as it is approved and this page updates by itself. Nothing was charged.
         <div className="mt-2"><Button size="sm" variant="secondary" loading={checking} onClick={() => void check()}>Check now</Button></div></Alert></div>}
@@ -153,8 +156,8 @@ export function PlanStep({ onBack, onDone }: { onBack: () => void; onDone: () =>
         <h2 className="text-[15px] font-semibold text-m-ink">What happens next</h2>
         <ol className="mt-3 space-y-2.5 text-[14px] text-m-ink2">
           <li className="flex gap-2.5"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-m-accentStrong" aria-hidden />You authorise UPI AutoPay or a card with Cashfree. Your bank or UPI app takes <b>{rupees(authPaise)}</b> to set it up and returns it automatically.</li>
-          <li className="flex gap-2.5"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-m-accentStrong" aria-hidden />Your {trialDays}-day trial starts once the authorisation is confirmed, with {chosen.name}&rsquo;s features and limits. Nothing else is charged today.</li>
-          <li className="flex gap-2.5"><Check className="mt-0.5 h-4 w-4 shrink-0 text-m-accentStrong" aria-hidden />The first payment of {rupees(chosen.price_paise)} + GST is taken when the trial ends, then every month. Cancel before then from Billing and you pay nothing.</li>
+          <li className="flex gap-2.5"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-m-accentStrong" aria-hidden />Your {trialDays}-day trial starts once the authorisation is confirmed, with <b>every Growth feature</b>{chosen.code === "growth" ? "" : <>, even though you picked {chosen.name}</>}. Nothing else is charged today.</li>
+          <li className="flex gap-2.5"><Check className="mt-0.5 h-4 w-4 shrink-0 text-m-accentStrong" aria-hidden />When the trial ends you move to <b>{chosen.name}</b>: the first payment of {rupees(chosen.price_paise)} + GST is taken then, and every month after. Cancel before then from Billing and you pay nothing.</li>
         </ol>
       </div>
 

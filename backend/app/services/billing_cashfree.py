@@ -307,17 +307,18 @@ def _start_trial_if_authorized(db: Session, sub: Subscription, remote: cf.Subscr
     if first is None or first <= now + timedelta(days=1):
         return "stale"
     before = svc.snapshot(sub)
-    chosen = db.get(BillingPlan, sub.pending_plan) if sub.pending_plan else None
-    if chosen is not None and chosen.is_active:
-        # The trial grants the features and limits of the plan the customer SELECTED (owner decision), copied onto the subscription row that every route and worker reads: so it is
-        # enforced server-side everywhere, and persisted (`trial_plan`). `sub.plan` stays 'trial' until the first successful charge makes it the paid plan.
-        svc.apply_plan(sub, chosen)
-        sub.plan, sub.trial_plan = "trial", chosen.code
+    # Every trial customer gets the complete GROWTH feature set for the whole trial, whichever plan they selected (owner decision). The two are kept apart: the entitlements below are copied onto the
+    # subscription row every route and worker reads (so Growth access is enforced server-side), while the SELECTED plan stays in `pending_plan`, untouched, until the first successful charge of its
+    # amount makes it the paid plan. `sub.plan` stays 'trial' until then. apply_plan() never writes pending_plan.
+    entitlement = db.get(BillingPlan, settings.trial_plan)
+    if entitlement is not None:
+        svc.apply_plan(sub, entitlement)
+        sub.plan, sub.trial_entitlement = "trial", entitlement.code
     sub.status, sub.source = "trialing", "trial"
     sub.trial_started_at = now
     sub.trial_ends_at = min(now + timedelta(days=settings.trial_days), first)
     sub.current_period_start, sub.current_period_end = now, sub.trial_ends_at
-    svc.record_change(db, sub, before, source=source, ref=ref, kind="trial_started", meta={"days": settings.trial_days, "via": "cashfree_authorization", "first_charge_at": first.isoformat(), "entitlements_of": sub.trial_plan})
+    svc.record_change(db, sub, before, source=source, ref=ref, kind="trial_started", meta={"days": settings.trial_days, "via": "cashfree_authorization", "first_charge_at": first.isoformat(), "entitlements_of": sub.trial_entitlement, "selected_plan": sub.pending_plan})
     return "started"
 
 

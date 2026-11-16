@@ -31,7 +31,7 @@ function CashfreeNotices({ s, isOwner, onSetup }: { s: SubscriptionInfo; isOwner
   return (
     <div className="mb-5 space-y-3">
       {s.billing_state === "authorization_pending" && <Alert tone="info" title="Payment setup in progress">Your bank is approving the payment setup. Your plan stays as it is and nothing is charged until it is approved.</Alert>}
-      {s.billing_state === "trialing" && s.authorization_status === "authorized" && s.first_charge_at && <Alert tone="success" title="Payment set up">Your first payment{s.pending_plan_name ? ` for ${s.pending_plan_name}` : ""} is on {fmtDate(s.first_charge_at)}. Nothing is charged before then. You can cancel any time.</Alert>}
+      {s.billing_state === "trialing" && s.authorization_status === "authorized" && s.first_charge_at && <Alert tone="success" title="Payment set up">You have every Growth feature during your free trial. Your first payment{s.selected_plan_name ? ` for ${s.selected_plan_name}` : ""} is on {fmtDate(s.first_charge_at)}, when you move to that plan. Nothing is charged before then. You can cancel any time.</Alert>}
       {s.billing_state === "past_due" && <Alert tone="warning" title="Your last payment didn't go through" action={redo ? <Button size="sm" onClick={onSetup}>Set up payment again</Button> : undefined}>We ask your bank to try again{s.grace_until ? `, and your access continues until ${fmtDate(s.grace_until)}` : ""}. Make sure the account has the balance and the payment is allowed in your UPI app or card.</Alert>}
       {s.billing_state === "cancellation_pending" && <Alert tone="info" title="Cancelled">You won&rsquo;t be charged again. You keep access until {fmtDate(s.current_period_end)}.</Alert>}
     </div>
@@ -46,6 +46,7 @@ function CashfreeOverview({ s, isOwner, onSetup, onRetry, retrying }: { s: Subsc
   const rows: [string, React.ReactNode][] = [
     ["Plan", `${s.plan_name ?? "None"}${s.price_paise ? ` · ${rupees(s.price_paise)} a month` : ""}`],
     ["Status", s.billing_state === "cancellation_pending" ? "Cancelled: access continues until the end date" : (s.billing_state ?? s.status).replace(/_/g, " ")],
+    ...(s.status === "trialing" && s.selected_plan_name ? [["Your plan after the trial", `${s.selected_plan_name} (you have every Growth feature until then)`] as [string, React.ReactNode]] : []),
     ["Free trial", s.trial_started_at ? `${fmtDate(s.trial_started_at)} to ${s.trial_ends_at ? fmtDate(s.trial_ends_at) : "-"}` : "Starts when your payment authorisation is confirmed"],
     ["Next payment", s.next_charge_amount_paise && (s.next_charge_at ?? s.first_charge_at) ? `${rupees(s.next_charge_amount_paise)} on ${fmtDate((s.next_charge_at ?? s.first_charge_at) as string)}` : "Nothing scheduled"],
     ["Payment method", method],
@@ -161,7 +162,7 @@ export default function SubscriptionPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">{s.plan_name ?? "No plan"}</h2><Badge tone={statusTone}>{s.status.replace("_", " ")}</Badge>{s.billing.mode === "test" && <Badge tone="amber">test mode</Badge>}</div>
               {s.price_paise && <p className="mt-1 text-ink-500">{rupees(s.price_paise)} / month</p>}
-              {s.status === "trialing" && s.trial_ends_at && <p className="mt-3 flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />Free trial ends {fmtDate(s.trial_ends_at)} ({s.trial_days_left} days left)</p>}
+              {s.status === "trialing" && s.trial_ends_at && <p className="mt-3 flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />Free trial ends {fmtDate(s.trial_ends_at)} ({s.trial_days_left} days left){s.selected_plan_name ? `, then ${s.selected_plan_name}` : ""}</p>}
               {s.current_period_end && s.status !== "trialing" && <p className="mt-3 flex items-center gap-2 text-sm"><CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />{s.cancel_at_period_end ? "Access until" : "Renews on"} {fmtDate(s.current_period_end)}</p>}
               {s.cancel_at_period_end && <p className="mt-2 flex items-center gap-2 text-sm text-amber-800"><AlertTriangle className="h-4 w-4" aria-hidden />Cancellation scheduled. You won&rsquo;t be charged again.</p>}
               {s.pending_plan && s.status !== "trialing" && <p className="mt-2 text-sm text-ink-500">Switching to <b>{s.pending_plan_name ?? s.pending_plan}</b> {s.pending_plan_effective_at ? <>on <b>{fmtDate(s.pending_plan_effective_at)}</b></> : "at the next renewal"}. Nothing extra is charged.</p>}

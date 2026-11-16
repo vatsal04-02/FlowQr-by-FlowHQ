@@ -24,6 +24,7 @@ export default function Onboarding() {
   const [step, setStep] = useState<number | null>(null);
   const [mem, setMem] = useState<WizardMemory>({ place: null, method: "link" });
   const [ready, setReady] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);  // why the server sent the customer back to the payment step
 
   useEffect(() => { setMem(loadMemory()); setReady(true); }, []);
   const update = (patch: Partial<WizardMemory>) => setMem((m) => { const n = { ...m, ...patch }; saveMemory(n); return n; });
@@ -52,8 +53,8 @@ export default function Onboarding() {
     <WizardShell step={step} email={me?.user.email} onSignOut={() => void signOut()} onGo={(i) => i < step && setStep(i)}>
       {step === 0 && <BusinessStep tenant={tenant} place={place} onPlace={(p) => update({ place: p })} onDone={async () => { await refresh(); setStep(1); }} />}
       {step === 1 && <ReviewsStep method={mem.method} onMethod={(m) => update({ method: m })} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
-      {step === 2 && <PlanStep onBack={() => setStep(1)} onDone={() => setStep(3)} />}
-      {step === 3 && <LaunchStep method={mem.method} businessName={tenant?.name ?? place?.name ?? ""} onBack={() => setStep(2)} onNeedAuthorization={() => setStep(2)} />}
+      {step === 2 && <PlanStep onBack={() => setStep(1)} onDone={() => { setReason(null); setStep(3); }} reason={reason} />}
+      {step === 3 && <LaunchStep method={mem.method} businessName={tenant?.name ?? place?.name ?? ""} onBack={() => setStep(2)} onNeedAuthorization={(why) => { setReason(why); setStep(2); }} />}
     </WizardShell>
   );
 }
