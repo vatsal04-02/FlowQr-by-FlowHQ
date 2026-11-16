@@ -45,8 +45,8 @@ export default function CompetitorsPage() {
       {q.error && <Alert tone="error" title="We couldn't load competitor observations">{q.error}</Alert>}
       {q.loading && !d && <Skeleton className="h-64" />}
       {d?.state === "no_location" && <EmptyState icon={<Crosshair className="h-5 w-5" />} title="Connect a Google location first" action={<Link href="/gbp/locations" className="font-semibold text-accent-ink hover:underline">Connect Google</Link>}>Competitors are found through the searches you track for a location.</EmptyState>}
-      {d?.state === "no_keywords" && <EmptyState icon={<Crosshair className="h-5 w-5" />} title="Track a search term first" action={<Link href="/seo/rank" className="font-semibold text-accent-ink hover:underline">Add a search term</Link>}>Competitors are the businesses that appear for the terms you track.</EmptyState>}
-      {d?.state === "no_observations" && <EmptyState icon={<Crosshair className="h-5 w-5" />} title="No checks have run yet" action={<Link href="/seo/rank" className="font-semibold text-accent-ink hover:underline">Run a check</Link>}>After a check, the businesses Google shows next to you appear here with the date they were seen.</EmptyState>}
+      {d?.state === "no_keywords" && <EmptyState icon={<Crosshair className="h-5 w-5" />} title="Track a search term first" action={<Link href="/seo/rankings" className="font-semibold text-accent-ink hover:underline">Add a search term</Link>}>Competitors are the businesses that appear for the terms you track.</EmptyState>}
+      {d?.state === "no_observations" && <EmptyState icon={<Crosshair className="h-5 w-5" />} title="No checks have run yet" action={<Link href="/seo/rankings" className="font-semibold text-accent-ink hover:underline">Run a check</Link>}>After a check, the businesses Google shows next to you appear here with the date they were seen.</EmptyState>}
       {d?.state === "ok" && (
         <div className="space-y-4">
           <Alert tone="info" title="What this is">{d.note}</Alert>

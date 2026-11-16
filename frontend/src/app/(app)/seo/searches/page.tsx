@@ -37,7 +37,7 @@ export default function SearchesPage() {
                       <span className="num shrink-0 text-[14px] font-semibold">{x.value === null ? "A few people" : fmtNum(x.value)}</span>
                     </div>
                     <span aria-hidden className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-surface-3"><span className="block h-full rounded-full bg-accent" style={{ width: `${x.value === null ? 3 : Math.max(3, (x.value / top) * 100)}%` }} /></span>
-                    <p className="mt-1 text-xs text-muted">{x.tracked ? "You also track this on Google Maps." : <><Link href="/seo/rank" className="font-semibold text-accent-ink hover:underline">Track this word</Link> to see where you appear for it.</>}</p>
+                    <p className="mt-1 text-xs text-muted">{x.tracked ? "You also track this on Google Maps." : <><Link href="/seo/rankings" className="font-semibold text-accent-ink hover:underline">Track this word</Link> to see where you appear for it.</>}</p>
                   </li>
                 ))}
               </ul>

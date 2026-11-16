@@ -1,107 +1,87 @@
 "use client";
-import { Download } from "lucide-react";
-import { useMemo } from "react";
-import { LineChart, type Series } from "@/components/charts/LineChart";
+import clsx from "clsx";
+import { ArrowDownRight, ArrowUpRight, Download, Minus } from "lucide-react";
+import type { ReactNode } from "react";
+import { Bars } from "@/components/charts/Bars";
 import type { Range } from "@/components/DateRange";
-import { SourceTag, Unavailable, when } from "@/components/seo/parts";
-import { Button } from "@/components/ui/Button";
+import { SourceTag } from "@/components/seo/parts";
+import { Card, Dashes, Title } from "@/components/seo/visuals";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
-import { Panel } from "@/components/ui/kit";
 import { fmtNum } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
 import type { GoogleMetrics, GoogleMetricSummary } from "@/lib/seo";
 import { useFetch } from "@/lib/use-api";
 
-const ROWS: [keyof GoogleMetricSummary, string][] = [
-  ["search_views", "Seen in Search"], ["maps_views", "Seen in Maps"], ["website", "Website clicks"], ["calls", "Calls"], ["directions", "Direction requests"], ["bookings", "Bookings"], ["messages", "Messages"],
+const CARDS: [keyof GoogleMetricSummary, string, string[]][] = [
+  ["calls", "Calls", ["CALL_CLICKS"]], ["directions", "Directions", ["BUSINESS_DIRECTION_REQUESTS"]], ["website", "Website clicks", ["WEBSITE_CLICKS"]],
+  ["search_views", "Profile views", ["BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS"]],
 ];
-const SEARCH = ["BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH"], MAPS = ["BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS"];
-const ORANGE = "rgb(var(--c-accent))", INK = "rgb(var(--c-ink-solid))";
 
-function sumDaily(series: GoogleMetrics["series"], metrics: string[]) {
-  const by = new Map<string, number>(), seen = new Set<string>();
-  for (const m of metrics) for (const p of series[m] ?? []) { by.set(p.date, (by.get(p.date) ?? 0) + p.value); seen.add(p.date); }
-  return by;
+function Change({ cur, prev }: { cur: number | null; prev: number | null }) {
+  if (cur === null || prev === null || prev === 0) return null;
+  const p = Math.round(((cur - prev) / prev) * 100);
+  const Icon = p > 0 ? ArrowUpRight : p < 0 ? ArrowDownRight : Minus;
+  return <span className={clsx("inline-flex items-center gap-0.5 text-[13px] font-medium", p > 0 ? "text-pos" : p < 0 ? "text-neg" : "text-muted")}><Icon className="h-3.5 w-3.5" aria-hidden />{Math.abs(p)}%</span>;
 }
 
-const pct = (cur: number | null, prev: number | null) => (cur === null || prev === null ? null : prev === 0 ? (cur > 0 ? null : 0) : Math.round(((cur - prev) / prev) * 100));
-
 /**
- * Analytics › Performance › Search & Maps, from the daily history FlowQR stored (gbp_metric_daily). A comparison appears only when the earlier period has stored days; a metric Google
- * did not return is "Not shared", never 0. Until Google has actually shared data the whole block is one explicit unavailable state.
+ * SEO & Google › Performance, from the daily figures FlowQR stored from Google (gbp_metric_daily): four cards, each its number, the change against the period before and a bar per
+ * day (counts are bars). Until Google has shared anything, the page is one card of dashes with one button. `extra` (the live detail) only appears once data exists.
  */
-export function GoogleHistory({ range, extra }: { range: Range; extra?: React.ReactNode }) {
+export function GoogleHistory({ range, extra }: { range: Range; extra?: ReactNode }) {
   const { locationId } = useLocationScope();
   const q = useFetch<GoogleMetrics>("/analytics/google-metrics", { from: range.from, to: range.to, location_id: locationId ?? "" });
   const d = q.data;
   const ok = !!d && d.availability.state === "ok" && !!d.current;
-
-  const views = useMemo(() => {
-    if (!d || !ok) return [];
-    const s = sumDaily(d.series, SEARCH), m = sumDaily(d.series, MAPS);
-    return [...new Set([...s.keys(), ...m.keys()])].sort().map((date) => ({ date, search: s.get(date) ?? 0, maps: m.get(date) ?? 0 }));
-  }, [d, ok]);
-  const actions = useMemo(() => {
-    if (!d || !ok) return [];
-    const c = sumDaily(d.series, ["CALL_CLICKS"]), w = sumDaily(d.series, ["WEBSITE_CLICKS"]), r = sumDaily(d.series, ["BUSINESS_DIRECTION_REQUESTS"]);
-    return [...new Set([...c.keys(), ...w.keys(), ...r.keys()])].sort().map((date) => ({ date, calls: c.get(date) ?? 0, website: w.get(date) ?? 0, directions: r.get(date) ?? 0 }));
-  }, [d, ok]);
-  const viewSeries: Series[] = [{ key: "search", label: "In Google Search", color: ORANGE }, { key: "maps", label: "In Google Maps", color: INK, dash: "5 4" }];
-  const actionSeries: Series[] = [{ key: "website", label: "Website clicks", color: ORANGE }, { key: "calls", label: "Calls", color: INK, dash: "5 4" }, { key: "directions", label: "Directions", color: "rgb(var(--c-ink-300))", dash: "2 4" }];
+  if (q.loading && !d) return <Skeleton className="h-64" />;
+  if (!ok) return (
+    <Card label="Google performance">
+      <Title right={<SourceTag source="google" />}>From Google</Title>
+      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">{CARDS.map(([k, l]) => <div key={k}><p className="text-[13px] text-muted">{l}</p><p className="text-[20px] font-semibold">–</p><Dashes className="mt-1" /></div>)}</div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-[14px] text-muted">{q.error ? "Couldn't load." : "Waiting for Google. History starts the first day Google shares."}</p><LinkButton href="/gbp/locations" variant="secondary" size="sm">Check connection</LinkButton></div>
+    </Card>
+  );
+  const sum = (metrics: string[]) => {
+    const m = new Map<string, number>();
+    for (const k of metrics) for (const p of d!.series[k] ?? []) m.set(p.date, (m.get(p.date) ?? 0) + p.value);
+    return [...m.entries()].sort().map(([date, v]) => ({ key: date, cur: v, label: new Date(date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" }) }));
+  };
+  const views = (s: GoogleMetricSummary | null) => (s && (s.search_views !== null || s.maps_views !== null) ? (s.search_views ?? 0) + (s.maps_views ?? 0) : null);
+  const val = (s: GoogleMetricSummary | null, k: keyof GoogleMetricSummary) => (k === "search_views" ? views(s) : s ? s[k] : null);
 
   function exportCsv() {
-    if (!d) return;
-    const head = ["location", ...ROWS.map(([, l]) => l.toLowerCase().replace(/ /g, "_"))];
-    const lines = [["all locations", ...ROWS.map(([k]) => d.current?.[k] ?? "")], ...d.by_location.map((l) => [l.title ?? "Location", ...ROWS.map(([k]) => l.totals?.[k] ?? "")])];
+    const head = ["location", ...CARDS.map(([, l]) => l.toLowerCase().replace(/ /g, "_"))];
+    const lines = [["all locations", ...CARDS.map(([k]) => val(d!.current, k) ?? "")], ...d!.by_location.map((l) => [l.title ?? "Location", ...CARDS.map(([k]) => val(l.totals, k) ?? "")])];
     const csv = [head, ...lines].map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" })); a.download = `flowqr-google-activity-${d.range.from}-${d.range.to}.csv`; a.click();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" })); a.download = `flowqr-google-${d!.range.from}-${d!.range.to}.csv`; a.click();
   }
-
   return (
-    <section aria-labelledby="gh-h" className="space-y-4">
-      <Panel dense title={<span id="gh-h">Google activity</span>} meta={ok ? `${when(d!.range.from)} to ${when(d!.range.to)}` : undefined}
-        action={<span className="flex items-center gap-2"><SourceTag source="google" />{ok && <Button size="sm" variant="secondary" icon={<Download className="h-4 w-4" />} onClick={exportCsv}>CSV</Button>}</span>}>
-        {q.loading && !d ? <Skeleton className="h-40" /> : q.error ? <Unavailable title="We couldn't load Google's numbers just now">{q.error}</Unavailable>
-          : !ok ? <Unavailable title="Google hasn't shared these numbers with FlowQR yet" href="/gbp/locations" cta="Check the Google connection">{d?.availability.reason} FlowQR keeps Google&rsquo;s figures once a day, so your history starts from the first day Google shares them.</Unavailable>
-          : (
-            <>
-              <DataTable label="Google activity, this period and the one before" rows={ROWS.filter(([k]) => d!.current![k] !== null || d!.previous?.[k] != null)} rowKey={([k]) => k} cols={[
-                { key: "m", header: "What people did", cell: ([, label]) => <span className="font-medium">{label}</span> },
-                { key: "c", header: "This period", align: "right", cell: ([k]) => <span className="num">{d!.current![k] === null ? "Not shared" : fmtNum(d!.current![k] as number)}</span> },
-                { key: "p", header: "Before", align: "right", cell: ([k]) => <span className="num text-muted">{d!.previous && d!.previous[k] !== null ? fmtNum(d!.previous[k] as number) : "–"}</span> },
-                { key: "x", header: "Change", align: "right", cell: ([k]) => { const ch = pct(d!.current![k], d!.previous ? d!.previous[k] : null); return <span className={`num ${ch === null ? "text-muted" : ch > 0 ? "text-pos" : ch < 0 ? "text-neg" : "text-muted"}`}>{ch === null ? "–" : `${ch > 0 ? "+" : ""}${ch}%`}</span>; } },
-              ]} />
-              <p className="mt-3 text-xs text-muted">
-                {d!.note} {d!.days_with_data} of {d!.range_days} days in this range have stored data
-                {d!.previous_range ? `; the previous period (${when(d!.previous_range.from)} to ${when(d!.previous_range.to)}) has ${d!.previous_range.days_with_data}.` : "; no earlier days are stored yet, so no comparison is shown."}
-                {d!.availability.last_fetched_at ? ` Last collected ${when(d!.availability.last_fetched_at)}.` : ""}
-              </p>
-            </>
-          )}
-      </Panel>
-
-      {ok && (
-        <div className="grid gap-4 xl:grid-cols-2">
-          <Panel dense title="Times people saw your profile" meta="per day" action={<SourceTag source="google" />}>
-            {views.length >= 2 ? <LineChart ariaLabel="Profile views in Google Search and Maps per day" data={views} series={viewSeries} height={220} /> : <Unavailable title="Not enough days stored to draw a line">A line needs at least two days of Google data in this range.</Unavailable>}
-          </Panel>
-          <Panel dense title="What people did next" meta="per day" action={<SourceTag source="google" />}>
-            {actions.length >= 2 ? <LineChart ariaLabel="Website clicks, calls and direction requests per day" data={actions} series={actionSeries} height={220} /> : <Unavailable title="Not enough days stored to draw a line">A line needs at least two days of Google data in this range.</Unavailable>}
-          </Panel>
-        </div>
-      )}
-
-      {ok && d!.by_location.length > 1 && (
-        <Panel dense title="By location" meta="same period">
-          <DataTable label="Google activity by location" rows={d!.by_location} rowKey={(l) => l.id} cols={[
+    <div className="space-y-3 lg:space-y-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:gap-4">
+        {CARDS.map(([k, label, metrics]) => {
+          const cur = val(d!.current, k), prev = d!.previous ? val(d!.previous, k) : null;
+          return (
+            <Card key={k} label={label}>
+              <Title>{label}</Title>
+              <p className="mt-1 flex items-baseline gap-2"><span className="num text-[28px] font-semibold leading-9 tracking-[-.02em]">{cur === null ? "–" : fmtNum(cur)}</span><Change cur={cur} prev={prev} /></p>
+              <div className="mt-3"><Bars data={sum(metrics)} height={110} label={`${label} per day`} unit={label.toLowerCase()} /></div>
+            </Card>
+          );
+        })}
+      </div>
+      {d!.by_location.length > 1 && (
+        <Card label="By location">
+          <Title right={<Button size="sm" variant="secondary" icon={<Download className="h-4 w-4" />} onClick={exportCsv}>CSV</Button>}>By location</Title>
+          <div className="mt-3"><DataTable label="Google activity by location" rows={d!.by_location} rowKey={(l) => l.id} cols={[
             { key: "n", header: "Location", cell: (l) => <span className="font-medium">{l.title ?? "Location"}</span> },
-            ...(["search_views", "maps_views", "website", "calls", "directions"] as const).map((k) => ({ key: k, header: ROWS.find((r) => r[0] === k)![1], align: "right" as const, cell: (l: GoogleMetrics["by_location"][number]) => <span className="num">{l.totals ? (l.totals[k] === null ? "–" : fmtNum(l.totals[k] as number)) : "–"}</span> })),
-            { key: "d", header: "Days with data", align: "right", tableOnly: true, cell: (l) => <span className="num text-muted">{l.days_with_data}</span> },
-          ]} />
-        </Panel>
+            ...CARDS.map(([k, label]) => ({ key: k, header: label, align: "right" as const, cell: (l: GoogleMetrics["by_location"][number]) => <span className="num">{val(l.totals, k) === null ? "–" : fmtNum(val(l.totals, k) as number)}</span> })),
+          ]} /></div>
+        </Card>
       )}
-      {ok && extra}
-    </section>
+      {d!.by_location.length <= 1 && <div className="flex justify-end"><Button size="sm" variant="secondary" icon={<Download className="h-4 w-4" />} onClick={exportCsv}>Download CSV</Button></div>}
+      {extra}
+    </div>
   );
 }

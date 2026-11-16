@@ -1,118 +1,91 @@
 "use client";
-import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
-import { LineChart } from "@/components/charts/LineChart";
-import { Move, Position, SourceTag, Unavailable, when } from "@/components/seo/parts";
-import { DataTable } from "@/components/ui/DataTable";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
-import { Panel } from "@/components/ui/kit";
+import { Ring } from "@/components/charts/Bars";
+import { Card, Dashes, RankLadder, SeeAll, Title, WhoIsAhead } from "@/components/seo/visuals";
+import { SourceTag } from "@/components/seo/parts";
+import { Alert, Skeleton } from "@/components/ui/Card";
+import { LinkButton } from "@/components/ui/Button";
 import { fmtNum } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
-import type { SeoOverview } from "@/lib/seo";
+import type { Competitors, GoogleMetrics, ProfileHealth, SeoOverview } from "@/lib/seo";
 import { useFetch } from "@/lib/use-api";
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: "pos" | "warn" }) {
-  return (
-    <div className="min-w-0 rounded-[14px] bg-surface-2 p-3.5">
-      <p className="text-[13px] font-medium text-muted">{label}</p>
-      <p className={`num mt-1 text-[28px] font-semibold leading-8 tracking-[-.02em] ${tone === "pos" ? "text-pos" : ""}`}>{value}</p>
-      <p className="mt-0.5 text-xs text-muted">{sub}</p>
-    </div>
-  );
-}
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const SLOTS: [string, string, string[]][] = [["calls", "Calls", ["CALL_CLICKS"]], ["directions", "Directions", ["BUSINESS_DIRECTION_REQUESTS"]], ["website", "Website", ["WEBSITE_CLICKS"]],
+  ["views", "Views", ["BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS"]]];
 
-/** Local SEO › Overview: how visible the business is in Google local search. Positions are Places measurements, search terms are Google's, and the two are never mixed. */
+/** SEO & Google › Overview: the rank ladder first, then what Google reports (or one honest empty card), who is ahead, and what to fix on the profile. */
 export default function SeoOverviewPage() {
   const { locationId } = useLocationScope();
-  const q = useFetch<SeoOverview>("/seo/overview", { location_id: locationId ?? "" });
-  const d = q.data;
-  const s = d?.summary;
-  const trend = useMemo(() => (d?.trend ?? []).map((t) => ({ date: t.date, top10: Math.round((100 * t.top10) / Math.max(1, t.measured)), top3: Math.round((100 * t.top3) / Math.max(1, t.measured)) })), [d]);
-  const moved = (d?.keywords ?? []).filter((k) => k.change !== null && k.change !== 0);
-  const up = moved.filter((k) => (k.change ?? 0) > 0).length, down = moved.length - up;
-  const best = [...(d?.keywords ?? [])].filter((k) => k.rank !== null).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99)).slice(0, 5);
-  const weak = (d?.keywords ?? []).filter((k) => k.status === "ok" && (k.rank === null || k.rank > 10)).slice(0, 5);
+  const loc = locationId ?? "";
+  const to = new Date(), from = new Date(); from.setDate(to.getDate() - 29);
+  const ov = useFetch<SeoOverview>("/seo/overview", { location_id: loc });
+  const gm = useFetch<GoogleMetrics>("/analytics/google-metrics", { from: isoDay(from), to: isoDay(to), location_id: loc });
+  const comp = useFetch<Competitors>("/seo/competitors", { location_id: loc });
+  const prof = useFetch<ProfileHealth>("/seo/profile-health", { location_id: loc });
+  const d = ov.data, g = gm.data;
+  const gOk = g?.availability.state === "ok" && !!g.current;
+  const pl = prof.data?.locations.find((l) => l.state === "ok");
+  const missing = (pl?.checks ?? []).filter((c) => c.status !== "ok").slice(0, 3);
 
   return (
     <>
-      <PageHeader title="Where you appear on Google Maps" subtitle="When customers nearby search for the words you track, here is where your business shows up. Tap a number's tag to see where it comes from." />
-      {q.error && <Alert tone="error" title="We couldn't load your local SEO numbers">{q.error}</Alert>}
-      {q.loading && !d && <Skeleton className="h-64" />}
-      {d && d.state === "no_location" && (
-        <EmptyState icon={<Search className="h-5 w-5" />} title="Connect a Google location first" action={<Link href="/gbp/locations" className="font-semibold text-accent-ink hover:underline">Connect Google</Link>}>
-          Local SEO follows a specific Google Business Profile. Once a location is connected you can track the searches your customers use.
-        </EmptyState>
-      )}
-      {d && d.state !== "no_location" && (
-        <div className="space-y-4">
-          {!d.tracking_allowed && <Alert tone="info" title="Keyword tracking isn't part of your plan">Your plan doesn&rsquo;t include local ranking. Google&rsquo;s own search terms below are still shown when Google shares them.</Alert>}
-          {d.tracking_allowed && !d.provider_configured && <Alert tone="info" title="Local ranking isn't set up on this server yet">Positions are measured with Google&rsquo;s Places API, which needs a key configured by FlowHQ. Nothing is estimated in the meantime.</Alert>}
+      <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">How you show up on Google</h1>
+      {ov.error && <Alert tone="error">{ov.error}</Alert>}
+      <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+        <Card label="Your words on Google Maps" className="lg:col-span-7">
+          <Title right={<SourceTag source="places" />}>Your words on Maps</Title>
+          <div className="mt-4">
+            {ov.loading && !d ? <Skeleton className="h-40" /> : !d || d.state === "no_location" ? <Empty text="Connect a Google location to track words." href="/gbp/locations" cta="Connect Google" />
+              : d.keywords.length === 0 ? <Empty text="Add the words customers search for." href="/seo/rankings" cta="Add a word" />
+              : <><RankLadder words={d.keywords} limit={4} />{d.keywords.length > 4 && <div className="mt-2"><SeeAll href="/seo/rankings" /></div>}</>}
+          </div>
+        </Card>
 
-          {d.state === "no_keywords" ? (
-            d.tracking_allowed && (
-              <EmptyState icon={<Search className="h-5 w-5" />} title="No search words tracked yet" action={<Link href="/seo/rank" className="font-semibold text-accent-ink hover:underline">Add your first search words</Link>}>
-                Add the words customers type, for example &ldquo;dentist near me&rdquo;. FlowQR checks where you appear and keeps the history.
-              </EmptyState>
-            )
-          ) : s && (
-            <>
-              <section aria-label="Local visibility summary" className="panel !rounded-[16px] p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-[15px] font-semibold">Your position for the words you track</h2><span className="flex items-center gap-2 text-[13px] text-muted"><SourceTag source="places" />last checked {when(s.last_checked_at)}</span></div>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <Kpi label="In the top 3" value={s.measured ? `${s.top3} of ${s.measured}` : "–"} sub="tracked search terms" tone={s.top3 ? "pos" : undefined} />
-                  <Kpi label="In the top 10" value={s.measured ? `${s.top10} of ${s.measured}` : "–"} sub="tracked search terms" />
-                  <Kpi label="Not on the first page" value={s.measured ? String(s.not_found) : "–"} sub={s.failed ? `${s.failed} could not be checked` : "outside the first 20 results"} />
-                  <Kpi label="Changed since last check" value={moved.length ? `${up} up · ${down} down` : "–"} sub={moved.length ? "words that changed place" : "needs two checks to compare"} />
+        <Card label="From Google" className="lg:col-span-5">
+          <Title right={<SourceTag source="google" />}>From Google</Title>
+          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
+            {SLOTS.map(([k, label, metrics]) => {
+              const series = metrics.flatMap((m) => g?.series[m] ?? []);
+              const byDay = new Map<string, number>(); series.forEach((p) => byDay.set(p.date, (byDay.get(p.date) ?? 0) + p.value));
+              const vals = [...byDay.entries()].sort().map(([, v]) => v);
+              const total = vals.reduce((a, b) => a + b, 0), top = Math.max(1, ...vals);
+              return (
+                <div key={k} className="min-w-0">
+                  <dt className="text-[13px] text-muted">{label}</dt>
+                  <dd className="num text-[20px] font-semibold leading-7">{gOk && vals.length ? fmtNum(total) : "–"}</dd>
+                  {gOk && vals.length ? <span aria-hidden className="mt-1 flex h-10 items-end gap-[2px]">{vals.map((v, i) => <span key={i} className="flex-1 rounded-t-[1px] bg-ink-solid" style={{ height: `${Math.max(3, (v / top) * 100)}%` }} />)}</span> : <Dashes className="mt-1" />}
                 </div>
-                <p className="mt-3 text-xs text-muted">{s.note}</p>
-              </section>
+              );
+            })}
+          </dl>
+          {!gOk && !gm.loading && <div className="mt-4 flex flex-wrap items-center justify-between gap-2"><p className="text-[13px] text-muted">Waiting for Google.</p><LinkButton href="/gbp/locations" variant="secondary" size="sm">Check connection</LinkButton></div>}
+          {gOk && <div className="mt-3"><SeeAll href="/seo/performance">Last 30 days</SeeAll></div>}
+        </Card>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-                <Panel dense title="Is it getting better?" meta="share of your words where you show up" action={<SourceTag source="places" />}>
-                  {trend.length >= 2
-                    ? <LineChart ariaLabel="Share of tracked search terms where you appear in the top 3 and top 10, by day measured" data={trend} yMax={100} height={210}
-                        series={[{ key: "top10", label: "In top 10 (%)", color: "rgb(var(--c-accent))" }, { key: "top3", label: "In top 3 (%)", color: "rgb(var(--c-ink-solid))", dash: "5 4" }]} />
-                    : <Unavailable title="The trend needs checks on at least two different days">Each point is a day FlowQR measured your positions. {trend.length === 1 ? "There is one so far." : "There are none yet."} Nothing is drawn in between.</Unavailable>}
-                </Panel>
-                <Panel dense title="Needs attention">
-                  {d.attention.length === 0 ? <p className="text-sm text-muted">Nothing to flag right now.</p> : (
-                    <ul className="divide-y divide-ink-100">
-                      {d.attention.map((a, i) => (
-                        <li key={i} className="py-2 first:pt-0 last:pb-0"><p className="flex items-center gap-2 text-sm font-medium">{a.keyword}<SourceTag source={a.source} /></p><p className="text-[13px] text-muted">{a.detail}</p></li>
-                      ))}
-                    </ul>
-                  )}
-                </Panel>
-              </div>
+        <Card label="Who is ahead of you" className="lg:col-span-7">
+          <Title right={<SourceTag source="places" />}>Who is ahead</Title>
+          <div className="mt-3">{comp.loading && !comp.data ? <Skeleton className="h-32" /> : comp.data?.state === "ok" ? <><WhoIsAhead d={comp.data} limit={3} /><div className="mt-1"><SeeAll href="/seo/competitors" /></div></> : <Empty text="Run a word check to see who is next to you." href="/seo/rankings" cta="Check words" />}</div>
+        </Card>
 
-              <Panel dense title="Words you track" meta={`${s.tracked} tracked`} action={<Link href="/seo/rank" className="inline-flex min-h-11 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline sm:min-h-9">Add or check<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>}>
-                <DataTable label="Words you track" rows={d.keywords} rowKey={(k) => k.id} cols={[
-                  { key: "k", header: "Search words", cell: (k) => <span className="font-medium">{k.keyword}</span> },
-                  { key: "l", header: "Location", cell: (k) => <span className="text-muted">{k.location ?? "–"}</span> },
-                  { key: "p", header: "Position", cell: (k) => <Position rank={k.rank} status={k.status} /> },
-                  { key: "c", header: "Change", cell: (k) => <Move change={k.change} /> },
-                  { key: "t", header: "Last checked", align: "right", cell: (k) => <span className="text-muted">{when(k.checked_at)}</span> },
-                ]} />
-              </Panel>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <Panel dense title="Where you do best" action={<SourceTag source="places" />}>
-                  {best.length === 0 ? <p className="text-sm text-muted">No position has been checked yet.</p> : <ul className="space-y-2">{best.map((k) => <li key={k.id} className="flex items-center justify-between gap-3 text-sm"><span className="truncate font-medium">{k.keyword}</span><Position rank={k.rank} status={k.status} /></li>)}</ul>}
-                </Panel>
-                <Panel dense title="Words to work on" meta="outside the top 10" action={<SourceTag source="places" />}>
-                  {weak.length === 0 ? <p className="text-sm text-muted">All the words you track show you in the top 10.</p> : <ul className="space-y-2">{weak.map((k) => <li key={k.id} className="flex items-center justify-between gap-3 text-sm"><span className="truncate font-medium">{k.keyword}</span><Position rank={k.rank} status={k.status} /></li>)}</ul>}
-                </Panel>
-              </div>
-            </>
+        <Card label="Profile strength" className="lg:col-span-5">
+          <Title>Profile strength</Title>
+          {prof.loading && !prof.data ? <Skeleton className="mt-3 h-32" /> : !pl ? <div className="mt-3 flex items-center gap-4"><Ring value={null} size={72} stroke={8} label="Profile not shared yet"><span className="text-[13px] text-muted">–</span></Ring><p className="text-[13px] text-muted">Waiting for Google.</p></div> : (
+            <div className="mt-3 flex items-start gap-4">
+              <Ring value={pl.completeness} size={72} stroke={8} label={`Profile ${pl.completeness}% complete`}><b className="num text-[17px] font-semibold">{pl.completeness}%</b></Ring>
+              <ul className="min-w-0 flex-1 divide-y divide-line">
+                {missing.length === 0 ? <li className="py-2 text-[14px]">Complete</li> : missing.map((c) => (
+                  <li key={c.key} className="flex items-center justify-between gap-2 py-1.5 text-[14px]"><span className="min-w-0 truncate">{c.label}</span>{c.link && <Link href={c.link} className="inline-flex min-h-11 shrink-0 items-center text-[13px] font-semibold underline underline-offset-2 md:min-h-8">Fix</Link>}</li>
+                ))}
+              </ul>
+            </div>
           )}
-
-          <Link href="/seo/searches" className="panel flex min-h-14 items-center justify-between gap-3 p-4 transition-colors hover:bg-surface-2/60">
-            <span><span className="block text-[15px] font-semibold">Searches people use</span><span className="block text-[13px] text-muted">The words customers typed on Google before they saw your business</span></span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-ink-400" aria-hidden />
-          </Link>
-        </div>
-      )}
+        </Card>
+      </div>
     </>
   );
+}
+
+function Empty({ text, href, cta }: { text: string; href: string; cta: string }) {
+  return <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-[14px] text-muted">{text}</p><LinkButton href={href} variant="secondary" size="sm">{cta}</LinkButton></div>;
 }
