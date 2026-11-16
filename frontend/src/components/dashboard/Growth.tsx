@@ -19,16 +19,16 @@ const TABS: [TabKey, string, string][] = [
   ["cards", "Card scans and taps", "Customers who scanned your QR code or tapped your NFC card each day."],
 ];
 const ORANGE = "rgb(var(--c-accent))", NAVY = "rgb(var(--c-ink-solid))", GREY = "rgb(var(--c-ink-300))";
-// DESIGN.md §6: this period = ink line over a light orange area; the period before = dashed grey.
-const PAIR: Series[] = [{ key: "cur", label: "This period", color: NAVY, area: ORANGE }, { key: "prev", label: "Previous period", color: GREY, dash: "4 4" }];
+// This period = a solid orange line over a soft orange glow; the period before = a thin dashed grey line (so the two differ by style, not only colour).
+const PAIR: Series[] = [{ key: "cur", label: "This period", color: ORANGE }, { key: "prev", label: "Previous period", color: GREY, dash: "4 4" }];
 
 function Headline({ total, d, days, unit, sub }: { total: number; d: ReturnType<typeof delta>; days: number; unit: [string, string]; sub?: ReactNode }) {
   const t = deltaText(d, days, unit);
   const Icon = t.dir === "up" ? ArrowUpRight : t.dir === "down" ? ArrowDownRight : Minus;
   return (
     <div className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-1">
-      <p className="num text-[34px] font-semibold leading-none tracking-[-.02em] text-ink">{fmtNum(total)}</p>
-      <p className={clsx("flex items-center gap-1 pb-0.5 text-sm", t.dir === "up" ? "font-medium text-pos" : "text-muted")}><Icon className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />{t.text}</p>
+      <p className="num text-[38px] font-semibold leading-none tracking-[-.03em] text-ink">{fmtNum(total)}</p>
+      <p className={clsx("flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px]", t.dir === "up" ? "bg-pos-tint font-medium text-pos" : "bg-surface-2 text-muted")}><Icon className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />{t.text}</p>
       {sub && <p className="w-full text-[13px] text-ink-500">{sub}</p>}
     </div>
   );
@@ -107,7 +107,7 @@ export function Growth({ o, prev, range, loc, days, loading, error, googleConnec
         <Headline total={google.current.calls + google.current.website} d={delta(google.current.calls + google.current.website, google.previous.calls + google.previous.website)} days={google.reportedDays || days} unit={["visit or call", "calls and website visits"]}
           sub={`${fmtNum(google.current.calls)} calls · ${fmtNum(google.current.website)} website clicks · ${fmtNum(google.current.directions)} direction requests`} />
         <LineChart ariaLabel={`Calls and website clicks from your Google profile per day for the last ${days} days`} data={aSeries}
-          series={[{ key: "calls", label: "Calls", color: NAVY, area: ORANGE }, { key: "website", label: "Website clicks", color: ORANGE, dash: "6 4" }]} height={240} />
+          series={[{ key: "calls", label: "Calls", color: ORANGE }, { key: "website", label: "Website clicks", color: NAVY, dash: "6 4" }]} height={240} />
         <p className="mt-2 text-[13px] text-ink-500">Reported by Google, a few days late. Days it hasn&rsquo;t reported yet are left out.</p>
       </>
     );
