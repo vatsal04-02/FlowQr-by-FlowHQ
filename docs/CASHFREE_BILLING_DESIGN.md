@@ -213,3 +213,11 @@ Two things are stored separately and never overwrite each other:
 * Changing the selected plan during the trial changes only what is billed afterwards (it takes effect at the next charge, no proration); the trial keeps Growth access.
 * A business whose trial predates the gate, or that signed up without the gate, has `trial_entitlement` NULL and no selection, and keeps its original Growth trial unchanged.
 * Proved by `backend/tests/test_cashfree_trial_entitlements.py` (all three selections: identical Growth access, second location refused, Scale-only features absent, selection preserved, transition only after a successful charge of the selected plan's amount, wrong amount changes nothing).
+
+## 15. Migration chain correction: production is at 0033 (2026-11-16)
+
+Sections 5 and 12 were written when production was at `0032` and `0033` existed only on a branch. Production has since been deployed from `phase-2/commercial-readiness` (release `prod-0138e15`) and is stamped **0033** (`trial_card_required`: nullable `subscriptions.card_status`). Alembic cannot run against a database stamped with a revision it does not have, so:
+
+* `0033_trial_card_required.py` is restored byte-for-byte from `phase-2/commercial-readiness` (a real revision, not a placeholder).
+* `0034_cashfree_billing` now has `down_revision = "0033"`. It still drops the unused `card_status` column (production: 4 trialing subscriptions, all NULL, checked read-only before this change); its downgrade puts the empty column back, so `downgrade 0033` yields exactly 0033's schema.
+* The production path is `0033 → 0034`. `phase-2/commercial-readiness` has since added `0035` and `0036` (both descend from 0033): when that branch and this one are merged, `0035` must be re-pointed to `down_revision = "0034"` so there is a single head.

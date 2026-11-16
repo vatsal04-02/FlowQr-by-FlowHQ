@@ -6,7 +6,7 @@ Prerequisite: the sandbox runbook (`CASHFREE_SANDBOX_TEST.md`) has passed, inclu
 
 * Backend image built from the reviewed branch commit (adds `services/cashfree.py`, `services/billing_cashfree.py`, `api/v1/webhooks.py`, migration **0034**, the Compose passthrough). `BILLING_PROVIDER` is empty by default, so the image does nothing new until the setting is changed.
 * Frontend build (adds the disclosure dialog, return page, billing and admin screens, the pinned `@cashfreepayments/cashfree-js` 1.0.7 dependency).
-* Migration `0034`: additive columns, plan display names Launch / Growth / Scale (only rows still carrying the names 0029 gave them), defensive `card_status` drop. Production goes `0032 -> 0034`.
+* Migration `0034`: additive columns, plan display names Launch / Growth / Scale (only rows still carrying the names 0029 gave them), defensive `card_status` drop. Production goes `0033 -> 0034` (production is stamped 0033; see design doc section 15).
 
 ## Order of work
 

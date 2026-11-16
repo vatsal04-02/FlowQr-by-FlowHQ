@@ -1,12 +1,11 @@
 """Cashfree recurring billing, plan display names Launch / Growth / Scale.
 
 Revision ID: 0034
-Revises: 0032
+Revises: 0033
 
-There is deliberately NO revision 0033. A "card on file for the trial" migration with that number was written but was never applied to production (production went 0032 to this
-revision), and the feature was withdrawn. The number is skipped on purpose so that a development database stamped with the withdrawn 0033 cannot silently treat this migration as
-already applied: it fails loudly ("Can't locate revision 0033") and is repaired by hand. For the same reason this migration also drops `subscriptions.card_status` if it exists, so a
-database that did run the withdrawn migration ends in the same shape as one that did not.
+Production is at revision 0033 (`trial_card_required`: the nullable `subscriptions.card_status` column of the Razorpay card-on-file trial), which is therefore a real, kept revision. That
+feature is withdrawn in favour of Cashfree payment authorisation, so this migration drops the column (every row in production holds NULL there; the downgrade puts the empty column back so
+the schema is exactly 0033's again).
 
 Plan display names: the internal codes (starter, growth, pro) and the prices do not change. `billing_plans.name` becomes Launch / Growth / Scale. A row is renamed only if it
 still carries the name migration 0029 gave it, so a name an administrator has edited is never overwritten.
@@ -15,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0034"
-down_revision = "0032"
+down_revision = "0033"
 branch_labels = None
 depends_on = None
 
@@ -66,5 +65,6 @@ def downgrade() -> None:
         op.drop_column("subscriptions", name)
     op.drop_constraint("uq_billing_plans_cashfree_plan_id", "billing_plans", type_="unique")
     op.drop_column("billing_plans", "cashfree_plan_id")
+    op.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_status varchar(12)")  # the shape revision 0033 left
     op.execute("UPDATE billing_plans SET name = 'Starter' WHERE code = 'starter' AND name = 'Launch'")
     op.execute("UPDATE billing_plans SET name = 'Pro' WHERE code = 'pro' AND name = 'Scale'")
