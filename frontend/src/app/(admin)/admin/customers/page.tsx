@@ -17,15 +17,15 @@ export default function Customers() {
   const { data, error, loading } = useFetch<{ total: number; items: TenantRow[] }>("/admin/tenants", { search, status, limit: PAGE, offset: page * PAGE });
   return (
     <>
-      <PageHeader title="Customers" subtitle="Businesses on FlowQR. Open one to manage its account, subscription and support status." />
+      <PageHeader eyebrow="Platform" title="Customers" subtitle="Businesses on FlowQR. Open one to manage its account, subscription and support status." />
       <Card pad={false} className="mb-4 p-3 sm:p-4"><div className="flex flex-wrap gap-2">
         <div className="relative min-w-[200px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden /><input aria-label="Search customers" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search business name" className="min-h-11 w-full rounded-xl border border-ink-200 pl-9 pr-3 text-sm sm:min-h-10" /></div>
         <FilterSelect label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">All statuses</option>{["trialing", "active", "past_due", "halted", "expired", "canceled", "suspended"].map((s) => <option key={s}>{s}</option>)}</FilterSelect>
       </div></Card>
       {error && <Alert tone="error">{error}</Alert>}
       {loading && !data ? <Skeleton className="h-64" /> : data && data.items.length === 0 ? <EmptyState title="No customers match">Try a different search or filter.</EmptyState> : (
-        <Card pad={false}><div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="border-b border-ink-100 bg-ink-50 text-xs uppercase tracking-wide text-ink-500"><tr>{["Business", "Owner", "Plan", "Locations", "Cards", "Support", "Joined"].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
+        <Card pad={false}><div className="overflow-x-auto"><table className="dt min-w-[820px]">
+          <thead><tr>{["Business", "Owner", "Plan", "Locations", "Cards", "Support", "Joined"].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
           <tbody>{data?.items.map((t) => (
             <tr key={t.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-50/60">
               <td className="px-4 py-3"><Link href={`/admin/customers/${t.id}`} className="font-semibold text-brand-700 hover:underline">{t.name}</Link>{!t.is_active && <Badge tone="red">suspended</Badge>}<span className="block text-xs text-ink-500">{t.category}</span></td>

@@ -18,6 +18,9 @@ os.environ["GOOGLE_CLIENT_ID"] = "test-client-id"
 os.environ["GOOGLE_CLIENT_SECRET"] = "test-client-secret"
 os.environ["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/v1/google/callback"
 os.environ["GEMINI_API_KEY"] = ""
+os.environ["REVIEW_MAX_ATTEMPTS"] = "2"  # suite default (call counts in many tests assume write + one retry); production default is 3
+os.environ["AI_REVIEW_RISK_CHECK"] = "false"  # tests use scripted stub models whose call order the risk check would disturb; it has its own dedicated tests
+os.environ["REVIEW_VERIFY_WITH_AI"] = "false"  # tests use scripted stub models; the fact-check pass has its own dedicated tests
 os.environ["CARD_PRICE_PAISE"] = "24900"  # TEST ONLY price
 os.environ["PLATFORM_ADMIN_EMAILS"] = "root@flowhq-admin.example.com"
 
@@ -43,7 +46,10 @@ def _migrate():
 
 @pytest.fixture(autouse=True)
 def _reset_limits():
+    from app.services.ai import health
+
     rate_limit.reset_memory_limits()
+    health.reset()
     yield
 
 
@@ -79,6 +85,7 @@ class Session:
     def get(self, url, **kw): return self.request("GET", url, **kw)
     def post(self, url, **kw): return self.request("POST", url, **kw)
     def patch(self, url, **kw): return self.request("PATCH", url, **kw)
+    def put(self, url, **kw): return self.request("PUT", url, **kw)
     def delete(self, url, **kw): return self.request("DELETE", url, **kw)
 
 
@@ -105,11 +112,16 @@ def make_user(email=None, name="Test User", register=True, verify=True) -> Sessi
     return s
 
 
-def make_business(name="Acme Physio", email=None, with_location=True) -> Session:
+def make_business(name="Acme Physio", email=None, with_location=True, location_cap: int | None = 10) -> Session:
+    """A registered business on the default trial. Growth (the trial plan) includes ONE location, which many older tests (staff scoping, cross-location isolation, cards)
+    outgrow, so by default this raises ONLY the location cap of the test business to 10. Features, allowances and everything else stay as the plan defines them.
+    Pass location_cap=None to get the plan's real cap (tests/test_phase2_plans.py does)."""
     s = make_user(email)
     r = s.post("/tenants", json={"name": name, "category": "Physiotherapy clinic", "language": "en"})
     assert r.status_code == 201, r.text
     s.tenant_id = r.json()["id"]
+    if location_cap is not None:
+        owner_exec("UPDATE subscriptions SET max_locations = :n WHERE tenant_id = :t", n=location_cap, t=s.tenant_id)
     if with_location:
         r = s.post("/locations", json={"name": f"{name} - Main", "city": "Lucknow",
                                        "review_url": "https://g.page/r/ABC123/review"})
@@ -139,6 +151,10 @@ def admin():
         assert r.status_code == 200, r.text
     else:
         assert r.status_code == 201, r.text
+        # Administrator rights are granted only once the address is verified (a stranger must not become admin by typing the address into sign-up).
+        assert s.http.post("/api/v1/auth/verify-email", json={"token": latest_token(email, "verify-email")}).status_code == 204
+        r = s.http.post("/api/v1/auth/login", json={"email": email, "password": s.password})
+        assert r.status_code == 200, r.text
     s.csrf = r.json()["csrf_token"]
     return s
 

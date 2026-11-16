@@ -14,12 +14,14 @@ class PlanOut(ORM):
     interval: str
     max_locations: int
     monthly_ai_generations: int
+    review_generations: int = 0
+    review_replies: int = 0
     max_staff: int
     features: list[str]
 
 
 class CheckoutIn(BaseModel):
-    plan: str = Field(pattern="^(essential|growth|multi)$")
+    plan: str = Field(pattern="^[a-z_]{3,32}$")  # must name an ACTIVE plan; checked against the database
 
 
 class VerifySubscriptionIn(BaseModel):
@@ -33,7 +35,7 @@ class CancelIn(BaseModel):
 
 
 class ChangePlanIn(BaseModel):
-    plan: str = Field(pattern="^(essential|growth|multi)$")
+    plan: str = Field(pattern="^[a-z_]{3,32}$")
 
 
 class Shipping(BaseModel):

@@ -1,6 +1,9 @@
 """Operator CLI.   python -m app.cli card-url-audit [--live]
+                   python -m app.cli google-smoke [--connection ID] [--location locations/N] [--validate-patch]
 
+Going live: `preflight`, `set-admin-password`, `google-write-test` (see app/ops_cli.py).
 `card-url-audit` MUST pass before generating physical cards: the URL is printed/encoded permanently.
+`google-smoke` is a READ-ONLY live check of the Google Business Profile integration (services/google/smoke.py).
 """
 import argparse
 import secrets
@@ -12,7 +15,7 @@ from sqlalchemy import func, select
 from app.core.config import _bad_host, settings
 from app.core.db import system_session
 from app.models import CardBatch, QRCard
-from app.services.qr import card_url, qr_png
+from app.services.qr import card_nfc_url, card_url, qr_png
 
 OK, FAIL, WARN = "PASS", "FAIL", "WARN"
 
@@ -36,6 +39,8 @@ def card_url_audit(live: bool, expect_domain: str | None) -> int:
     u = urlparse(base)
     check(OK if u.path in ("", "/") and not u.query and not u.fragment else FAIL, "base URL has no path/query", base)
     check(OK if sample == f"{base}/c/SAMPLE_TOKEN_0123456789ab" else FAIL, "card URL shape is {base}/c/{token}", sample)
+    check(OK if card_url("SAMPLE_TOKEN_0123456789ab", "q") == f"{base}/q/SAMPLE_TOKEN_0123456789ab" else FAIL, "printed QR address shape is {base}/q/{token}", card_url("SAMPLE_TOKEN_0123456789ab", "q"))
+    check(OK if card_nfc_url("SAMPLE_TOKEN_0123456789ab") == f"{base}/n/SAMPLE_TOKEN_0123456789ab" else FAIL, "NFC address shape is {base}/n/{token}", card_nfc_url("SAMPLE_TOKEN_0123456789ab"))
 
     # QR encodes exactly the URL (decode if OpenCV is available)
     try:
@@ -68,6 +73,9 @@ def card_url_audit(live: bool, expect_domain: str | None) -> int:
             with httpx.Client(timeout=10, follow_redirects=False) as c:  # default TLS verification: a bad certificate FAILS the audit
                 page = c.get(f"{base}/c/{probe}")
                 check(OK if page.status_code == 200 and "text/html" in page.headers.get("content-type", "") else FAIL, "GET /c/{token} serves the landing page over valid TLS", f"HTTP {page.status_code}")
+                for door in ("q", "n"):
+                    page_q = c.get(f"{base}/{door}/{probe}")
+                    check(OK if page_q.status_code == 200 and "text/html" in page_q.headers.get("content-type", "") else FAIL, f"GET /{door}/{{token}} serves the landing page over valid TLS", f"HTTP {page_q.status_code}")
                 api = c.get(f"{base}/api/v1/public/c/{probe}")
                 check(OK if api.status_code == 404 and api.json().get("detail", {}).get("state") == "not_found" else FAIL, "card API reachable on the card domain (unknown token -> not_found)", f"HTTP {api.status_code}")
                 other = c.get(f"{base}/dashboard")
@@ -94,8 +102,22 @@ def main() -> None:
     a = sub.add_parser("card-url-audit", help="verify the permanent card URL configuration before printing cards")
     a.add_argument("--live", action="store_true", help="probe the real domain over HTTPS")
     a.add_argument("--expect-domain", help="e.g. go.flowqr.co.in")
+    from app.services.google import smoke
+
+    g = sub.add_parser("google-smoke", help="read-only live check of the Google Business Profile integration")
+    smoke.add_arguments(g)
+    from app import ops_cli
+
+    ops_cli.add_commands(sub)
+    from app.ai_eval import cli as ai_eval_cli
+
+    ai_eval_cli.add_commands(sub)
     args = ap.parse_args()
-    sys.exit(card_url_audit(args.live, args.expect_domain))
+    if args.cmd in ("ai-eval", "ai-eval-human", "ai-eval-rescore"):
+        sys.exit(ai_eval_cli.run(args))
+    if args.cmd in ("preflight", "set-admin-password", "google-write-test", "autonomy-live-test", "registration"):
+        sys.exit(ops_cli.run(args))
+    sys.exit(smoke.run(args) if args.cmd == "google-smoke" else card_url_audit(args.live, args.expect_domain))
 
 
 if __name__ == "__main__":

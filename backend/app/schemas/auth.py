@@ -53,6 +53,11 @@ class ChangePasswordIn(BaseModel):
     _pw = field_validator("new_password")(_strong)
 
 
+class SetPasswordIn(BaseModel):
+    new_password: str
+    _pw = field_validator("new_password")(_strong)
+
+
 class ProfileUpdateIn(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=200)
     phone: str | None = None
@@ -66,6 +71,8 @@ class UserOut(ORM):
     phone: str | None
     is_platform_admin: bool
     email_verified_at: datetime | None = None
+    has_local_login: bool = True  # False for Google-only accounts
+    google_linked: bool = False
 
 
 class TenantOut(ORM):
@@ -86,6 +93,7 @@ class TenantOut(ORM):
     suspended_at: datetime | None = None
     suspension_reason: str | None = None
     support_status: str = "none"
+    review_goal: int | None = None
 
 
 class MembershipOut(BaseModel):
@@ -135,6 +143,7 @@ class TenantUpdateIn(BaseModel):
     logo_url: str | None = Field(default=None, max_length=500)
     brand_tone: str | None = Field(default=None, max_length=300)
     ai_instructions: str | None = Field(default=None, max_length=2000)
+    review_goal: int | None = Field(default=None, ge=1, le=100000)
 
     _phone = field_validator("phone")(lambda v: normalize_phone(v))
     _lang = field_validator("language")(lambda v: v if v is None else validate_language(v))
@@ -151,6 +160,12 @@ class TenantUpdateIn(BaseModel):
 class InviteIn(BaseModel):
     email: EmailStr
     role: Role = Role.staff
+    location_ids: list[uuid.UUID] | None = Field(default=None, max_length=200)  # staff only: limit them to these locations (None = all)
+
+
+class StaffLocationsIn(BaseModel):
+    all_locations: bool
+    location_ids: list[uuid.UUID] = Field(default_factory=list, max_length=200)
 
 
 class InvitationAcceptIn(BaseModel):
@@ -166,6 +181,8 @@ class MemberOut(BaseModel):
     email: str
     full_name: str
     role: Role
+    all_locations: bool = True  # False => limited to location_ids (staff only; owners and admins always have every location)
+    location_ids: list[uuid.UUID] = []
 
 
 class InvitationOut(ORM):
@@ -174,4 +191,5 @@ class InvitationOut(ORM):
     role: Role
     expires_at: datetime
     accepted_at: datetime | None
+    location_ids: list[uuid.UUID] | None = None
     email_sent: bool | None = None  # False => invitation exists but the email could not be delivered

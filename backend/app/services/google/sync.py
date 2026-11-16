@@ -1,6 +1,7 @@
 """Review synchronisation. Idempotent upsert keyed on (google_location_id, Google review id)."""
 import logging
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -12,7 +13,7 @@ from app.models import (
 )
 from app.models.base import utcnow
 from app.services import google as g
-from app.services.google.tokens import get_access_token
+from app.services.google.tokens import get_access_token, note_api_access
 
 log = logging.getLogger("flowqr.sync")
 MAX_PAGES = 40
@@ -46,33 +47,53 @@ def upsert_review(db: Session, gloc: GoogleLocation, gr: g.provider.GReview) -> 
     existing = db.scalar(select(Review).where(Review.google_location_id == gloc.id, Review.external_id == gr.external_id))
     created, updated = _parse(gr.created_at), _parse(gr.updated_at)
     reply_at = _parse(gr.reply_updated_at)
+    reply_state, violation = getattr(gr, "reply_state", None), getattr(gr, "reply_policy_violation", None)
+    rejected_text = gr.reply_text if reply_state == "REJECTED" else None
+    if reply_state == "REJECTED":  # Google refused the owner reply: it is not public, so it must not be shown as one
+        gr = replace(gr, reply_text=None)
+        reply_at = None
     if existing is None:
         rv = Review(
             tenant_id=gloc.tenant_id, location_id=gloc.location_id, google_location_id=gloc.id, external_id=gr.external_id,
             rating=gr.rating, text=gr.text, reviewer_name=gr.reviewer_name, review_created_at=created,
             review_updated_at=updated, first_seen_at=utcnow(), google_reply_text=gr.reply_text, google_reply_at=reply_at,
+            google_reply_state=reply_state, google_reply_policy_violation=violation,
         )
         db.add(rv)
         db.flush()
-        _reconcile_drafts(db, rv)
+        _reconcile_drafts(db, rv, rejected_text)
         return "new"
     changed = (existing.rating != gr.rating or existing.text != gr.text or existing.reviewer_name != gr.reviewer_name
-               or existing.google_reply_text != gr.reply_text or existing.location_id != gloc.location_id)
+               or existing.google_reply_text != gr.reply_text or existing.location_id != gloc.location_id
+               or existing.google_reply_state != reply_state or existing.google_reply_policy_violation != violation)
     if not changed:
         return "unchanged"
     content_changed = existing.rating != gr.rating or existing.text != gr.text
     existing.rating, existing.text, existing.reviewer_name = gr.rating, gr.text, gr.reviewer_name
     existing.review_updated_at = updated
     existing.google_reply_text, existing.google_reply_at = gr.reply_text, reply_at
+    existing.google_reply_state, existing.google_reply_policy_violation = reply_state, violation
     existing.location_id = gloc.location_id
     if content_changed:
         existing.update_count += 1
-    _reconcile_drafts(db, existing)
+    _reconcile_drafts(db, existing, rejected_text)
     return "updated"
 
 
-def _reconcile_drafts(db: Session, rv: Review) -> None:
-    """If Google now shows our approved reply, mark the draft published - confirmed by Google, not by us."""
+def rejection_message(violation: str | None) -> str:
+    detail = " (" + violation.replace("_", " ").lower() + ")" if violation else ""
+    return "Google rejected this reply" + detail + ". It is not visible to customers. Edit it and publish again."
+
+
+def _reconcile_drafts(db: Session, rv: Review, rejected_text: str | None = None) -> None:
+    """If Google now shows our approved reply, mark the draft published - confirmed by Google, not by us.
+    If Google moderated our reply away (REJECTED), the draft that claimed 'published' is corrected to failed."""
+    if rejected_text is not None:
+        for d in db.scalars(select(ReplyDraft).where(ReplyDraft.review_id == rv.id, ReplyDraft.status.in_([ReplyStatus.published, ReplyStatus.approved]))):
+            if d.body.strip() == rejected_text.strip():
+                d.status, d.published_at = ReplyStatus.failed, None
+                d.failure_reason = rejection_message(rv.google_reply_policy_violation)
+        return
     if rv.google_reply_text is None:
         return
     for d in db.scalars(select(ReplyDraft).where(ReplyDraft.review_id == rv.id, ReplyDraft.status.in_([ReplyStatus.approved, ReplyStatus.failed]))):
@@ -116,6 +137,13 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
         gloc.last_synced_at = utcnow()
         gloc.last_sync_status, gloc.last_sync_error = "ok", None
         gloc.consecutive_failures, gloc.next_sync_after = 0, None
+        note_api_access(conn, "approved")
+    except g.GoogleApiNotApproved:
+        db.rollback()
+        gloc = db.get(GoogleLocation, gloc.id)
+        note_api_access(db.get(GoogleConnection, gloc.connection_id), "awaiting_approval")
+        _fail(gloc, "awaiting_approval", "Awaiting Google Business Profile API approval; will re-check automatically.", 6 * 3600)
+        result["status"] = "awaiting_approval"
     except g.GoogleAuthRevoked:
         db.rollback()
         gloc = db.get(GoogleLocation, gloc.id)

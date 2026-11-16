@@ -25,7 +25,7 @@ export default function ForgotPassword() {
         <form onSubmit={submit} noValidate className="space-y-4">
           <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
           <Input label="Email" type="email" autoComplete="email" required {...f.bind("email")} />
-          <Button type="submit" size="lg" className="w-full" loading={busy}>Send reset link</Button>
+          <Button type="submit" size="lg" variant="brand" className="w-full" loading={busy}>Send reset link</Button>
         </form>
       )}
     </AuthShell>

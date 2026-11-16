@@ -15,8 +15,9 @@ from app.models import AuthSession, EmailVerificationToken, Membership, Password
 from app.models.base import utcnow
 from app.schemas.auth import (
     ChangePasswordIn, LoginIn, MeOut, MembershipOut, PasswordResetConfirmIn, PasswordResetRequestIn,
-    ProfileUpdateIn, RegisterIn, TenantOut, UserOut, VerifyEmailIn,
+    ProfileUpdateIn, RegisterIn, SetPasswordIn, TenantOut, UserOut, VerifyEmailIn,
 )
+from app.services import registration
 from app.services.audit import audit
 from app.services.mailer import send_email
 
@@ -28,6 +29,8 @@ def _start_session(db: Session, user: User, request: Request, response: Response
     now = utcnow()
     set_rls_context(db, bypass=True)
     memberships = list(db.scalars(select(Membership).where(Membership.user_id == user.id)))
+    # A platform admin can see every business, so their sign-in is short-lived (they sign in again each working day).
+    ttl_hours = min(settings.session_ttl_hours, settings.admin_session_ttl_hours) if user.is_platform_admin else settings.session_ttl_hours
     sess = AuthSession(
         user_id=user.id,
         token_hash=hash_token(token),
@@ -36,11 +39,11 @@ def _start_session(db: Session, user: User, request: Request, response: Response
         ip=client_ip(request),
         user_agent=(request.headers.get("user-agent") or "")[:300],
         created_at=now,
-        expires_at=now + timedelta(hours=settings.session_ttl_hours),
+        expires_at=now + timedelta(hours=ttl_hours),
     )
     db.add(sess)
     db.flush()
-    max_age = settings.session_ttl_hours * 3600
+    max_age = ttl_hours * 3600
     common = dict(max_age=max_age, secure=settings.cookie_secure, samesite="lax", path="/",
                   domain=settings.cookie_domain or None)
     response.set_cookie(SESSION_COOKIE, token, httponly=True, **common)
@@ -80,11 +83,12 @@ def send_verification(db: Session, user: User) -> bool:
 @router.post("/register", response_model=MeOut, status_code=201, dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60))])
 def register(body: RegisterIn, request: Request, response: Response, db: Session = Depends(get_db)):
     email = body.email.lower()
+    registration.gate_new_account(db, request, email, "password")  # FIRST: a refused address never learns whether it is listed or already registered
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=409, detail="An account with this email already exists")
     user = User(
         email=email, password_hash=hash_password(body.password), full_name=body.full_name.strip(),
-        phone=body.phone, is_platform_admin=email in settings.platform_admin_email_set,
+        phone=body.phone,  # NOT a platform admin yet: that is granted only once the address is proven (see verify_email)
     )
     db.add(user)
     db.flush()
@@ -102,8 +106,9 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
     if not hit(f"login-email:{email}", 10, 900):
         raise HTTPException(status_code=429, detail="Too many attempts. Try again in a few minutes.")
     user = db.scalar(select(User).where(User.email == email))
-    ok = verify_password(body.password, user.password_hash if user else DUMMY_HASH)
-    if not user or not ok or not user.is_active:
+    # Google-only accounts have no hash: verify against the dummy so timing and the 401 are identical to a wrong password.
+    ok = verify_password(body.password, user.password_hash if user and user.password_hash else DUMMY_HASH)
+    if not user or not user.password_hash or not ok or not user.is_active:
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
@@ -113,6 +118,20 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
     audit(db, action="auth.login", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request))
     db.commit()
     return build_me(db, user, sess)
+
+
+@router.get("/registration")
+def registration_mode():
+    """Public. Only the MODE (closed, allowlist or open), so the sign-up page can say so before someone types a password. Never the list, never anything about an address. The backend
+    enforces it regardless of what this page shows."""
+    return {"mode": registration.mode()}
+
+
+@router.get("/providers")
+def sign_in_providers():
+    """Public. Which optional ways to sign in this server really offers, so the login and sign-up pages show "Continue with Google" only when it can work. A boolean and nothing else:
+    never a client id, a secret or an address. Email and password is always on and does not depend on any of this."""
+    return {"google": settings.google_login_configured}
 
 
 @router.post("/logout", status_code=204)
@@ -157,17 +176,34 @@ def select_tenant(tenant_id: str, ctx: AuthContext = Depends(get_auth_context)):
 
 @router.post("/change-password", status_code=204)
 def change_password(body: ChangePasswordIn, request: Request, ctx: AuthContext = Depends(get_auth_context)):
+    if not ctx.user.password_hash:
+        raise HTTPException(status_code=409, detail={"code": "no_password_set", "message": "This account signs in with Google and has no password yet. Use 'Set a password' instead."})
     if not verify_password(body.current_password, ctx.user.password_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     ctx.user.password_hash = hash_password(body.new_password)
-    # revoke every other session
+    _revoke_other_sessions(ctx)
+    set_rls_context(ctx.db, bypass=True)
+    audit(ctx.db, action="auth.password_changed", user_id=ctx.user.id, ip=client_ip(request))
+    ctx.db.commit()
+
+
+def _revoke_other_sessions(ctx: AuthContext) -> None:
     ctx.db.execute(
         update(AuthSession)
         .where(AuthSession.user_id == ctx.user.id, AuthSession.id != ctx.session.id, AuthSession.revoked_at.is_(None))
         .values(revoked_at=utcnow())
     )
+
+
+@router.post("/set-password", status_code=204, dependencies=[Depends(limit_by_ip("setpw", 5, 300))])
+def set_password(body: SetPasswordIn, request: Request, ctx: AuthContext = Depends(get_auth_context)):
+    """First password for an account created through Google. Accounts that already have one must use change-password."""
+    if ctx.user.password_hash:
+        raise HTTPException(status_code=409, detail={"code": "password_already_set", "message": "This account already has a password. Use 'Change password'."})
+    ctx.user.password_hash = hash_password(body.new_password)
+    _revoke_other_sessions(ctx)
     set_rls_context(ctx.db, bypass=True)
-    audit(ctx.db, action="auth.password_changed", user_id=ctx.user.id, ip=client_ip(request))
+    audit(ctx.db, action="auth.password_set", user_id=ctx.user.id, ip=client_ip(request))
     ctx.db.commit()
 
 
@@ -210,6 +246,14 @@ def verify_email(body: VerifyEmailIn, db: Session = Depends(get_db)):
     user = db.get(User, row.user_id)
     row.used_at = utcnow()
     user.email_verified_at = user.email_verified_at or utcnow()
+    # Whoever types an admin address into the sign-up form must not become an administrator: only the person who can read that mailbox does.
+    if user.email in settings.platform_admin_email_set and not user.is_platform_admin:
+        user.is_platform_admin = True
+        # sessions opened before the grant were issued with an ordinary lifetime: bring them in line with an administrator's
+        db.execute(update(AuthSession).where(AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None),
+                                             AuthSession.expires_at > utcnow() + timedelta(hours=settings.admin_session_ttl_hours))
+                   .values(expires_at=utcnow() + timedelta(hours=settings.admin_session_ttl_hours)))
+        audit(db, action="auth.platform_admin_granted", user_id=user.id, entity_type="user", entity_id=user.id)
     set_rls_context(db, bypass=True)
     audit(db, action="auth.email_verified", user_id=user.id, entity_type="user", entity_id=user.id)
     db.commit()

@@ -13,7 +13,7 @@ def test_admin_endpoints_closed_to_business_users(biz_a):
     for path in ADMIN_GETS:
         assert biz_a.get(path).status_code == 403, path
     tid = biz_a.tenant_id
-    for path, body in [(f"/admin/tenants/{tid}/suspend", {"reason": "abc"}), (f"/admin/tenants/{tid}/subscription", {"plan": "multi", "note": "free"}),
+    for path, body in [(f"/admin/tenants/{tid}/suspend", {"reason": "abc"}), (f"/admin/tenants/{tid}/subscription", {"plan": "pro", "note": "free"}),
                        (f"/admin/tenants/{tid}/unsuspend", None)]:
         assert biz_a.post(path, json=body).status_code == 403
     assert biz_a.patch(f"/admin/tenants/{tid}/support", json={"status": "open"}).status_code == 403
@@ -49,15 +49,15 @@ def test_support_status_and_tenant_detail(admin, biz_a):
 
 
 def test_subscription_override_and_audit_trail(admin, biz_a):
-    r = admin.post(f"/admin/tenants/{biz_a.tenant_id}/subscription", json={"plan": "multi", "status": "manual", "note": "Pilot customer, 3 months free"})
+    r = admin.post(f"/admin/tenants/{biz_a.tenant_id}/subscription", json={"plan": "pro", "status": "manual", "note": "Pilot customer, 3 months free"})
     assert r.status_code == 200 and r.json()["source"] == "manual"
     s = biz_a.get("/billing/subscription").json()
-    assert s["plan"] == "multi" and s["limits"]["locations"] == 10 and s["active"]
+    assert s["plan"] == "pro" and s["limits"]["locations"] == 10 and s["active"]
     r = admin.post(f"/admin/tenants/{biz_a.tenant_id}/subscription", json={"extend_trial_days": 30, "status": "trialing", "note": "Extension"})
     assert r.status_code == 200 and r.json()["status"] == "trialing"
     log = admin.get("/admin/audit", params={"tenant_id": biz_a.tenant_id, "action": "admin.subscription"}).json()
     assert len(log) == 2 and log[0]["meta"]["note"] and log[0]["user"] == "root@flowhq-admin.example.com"
-    assert admin.post(f"/admin/tenants/{biz_a.tenant_id}/subscription", json={"plan": "essential"}).status_code == 422  # note required
+    assert admin.post(f"/admin/tenants/{biz_a.tenant_id}/subscription", json={"plan": "starter"}).status_code == 422  # note required
 
 
 def test_admin_sees_payments_separately_and_card_orders_need_payment(admin, rzp, client, biz_a):

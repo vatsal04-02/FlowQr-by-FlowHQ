@@ -1,0 +1,168 @@
+/**
+ * All marketing-site copy (English). A Hindi file with the same shape can be added later as hi.ts.
+ * Rules (docs/marketing-site/PRD.md §6): no guaranteed rankings or reviews, no "5-star reviews", no Google partner claims, no rating filters
+ * or incentives, no invented numbers. Unbuilt features are marked "Coming soon" (docs/marketing-site/FEATURE_STATUS.md).
+ */
+export const en = {
+  home: {
+    meta: { title: "FlowQR: Google reviews and QR/NFC review cards for local businesses", description: "FlowQR by FlowHQ helps local businesses manage their Google reviews and keep their Google Business Profile active. A QR/NFC card makes it easy for every genuine customer to share honest feedback, and AI drafts replies for you to approve." },
+    hero: { line1: "AI marketing team for local businesses", line2: "that generates real revenue", sub: "FlowQR helps you build a stronger Google presence. See every review in one place, reply faster, and make it easy for genuine customers to share honest feedback.", forLabel: "Built for local businesses —", forAccent: "any kind.", primary: "Book a demo", secondary: "Free profile check", left: "Your Google profile, reviews and marketing, managed from one app.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
+    team: { title: "GBP AI Agent", sub: "Track your local SEO, fix gaps in your profile and reply to every review. AI handles the daily routine, so you can focus on your customers." },
+    intro: { line1: "Your Google profile,", line2Pre: "looked after", accent: "every day.", sub: "Reviews to reply to, updates to post, details to complete. FlowQR keeps track and drafts the routine work for you to approve." },
+    story: {
+      title: "People check Google before they choose your business.",
+      lead: "What they see online can influence whether they walk through your door.",
+      body: "FlowQR helps you manage reviews and keep your profile active.",
+    },
+    how: {
+      title: "Get started in 3 simple steps", sub: "No technical knowledge needed. Start managing your Google reviews in three easy steps.",
+      steps: [["Connect Google", "Link your Google Business Profile to FlowQR."], ["Place your QR card", "Keep your FlowQR card at your counter. Customers scan it with their phone."], ["Collect honest reviews", "Customers reach your Google review page. Manage reviews and replies from one place."]] as [string, string][],
+    },
+    compare: {
+      title: "Reviews shouldn't be a full-time job.", sub: "FlowQR vs doing it by hand, or a basic QR code.",
+      columns: ["FlowQR", "By hand", "Basic QR"],
+      rows: [
+        ["One place for reviews", true, "Check Google", false],
+        ["AI-assisted replies", true, "You write", false],
+        ["Reply approval", true, "You post", false],
+        ["QR review link", true, false, true],
+        ["Editable links", true, false, "Fixed"],
+        ["Scan analytics", true, false, false],
+      ] as [string, ...(string | boolean)[]][],
+      note: "Basic QR = a free, static code with one fixed link. \u2014 means not included.",
+    },
+    strip: {
+      cards: [["Easier customer reviews", "A card and a link that make it simple for genuine customers to share feedback."], ["AI-powered replies", "Suggested replies for the reviews you receive. You review and approve them."], ["QR + NFC cards", "One permanent link. Tap or scan, and change where it points without reprinting."], ["Google Business updates", "Draft posts and manage photos for your profile, then approve before they go live."], ["Business insights", "See how your Google profile is performing, and how many scans and taps your card gets."]] as [string, string][],
+      pause: "Pause scrolling", play: "Play scrolling",
+    },
+    faq: [
+      ["What is FlowQR and how does it work?", "FlowQR helps local businesses manage their Google reviews and keep their Google Business Profile active. A QR/NFC card makes it easy for customers to leave a review, and AI drafts replies and posts for you to approve."],
+      ["Is this allowed by Google's review policies?", "Yes. We never filter by star rating or offer rewards. Every customer writes and posts their own review."],
+      ["Does FlowQR write reviews for my customers?", "No. AI only helps customers say what they already think. They edit it and post it themselves."],
+      ["Will AI post replies without my permission?", "AI-written replies and posts wait for your approval. Short template thank-you replies to new 4 and 5 star reviews can go out automatically, and you can turn that off at any time in settings."],
+      ["Is FlowQR an official Google partner?", "No. FlowQR is independent, made by FlowHQ. It connects through Google's official APIs, with your permission."],
+      ["What if I already have printed QR codes, or want to move a card to another location?", "A card's link never changes. Point it at another location from the app and its scan history stays."],
+      ["How much does it cost?", "PRICING_LINK"],
+    ] as [string, string][],
+    cta: { line1: "Build a stronger", line2: "Google presence." },
+  },
+  google: {
+    meta: { title: "Google Business Profile management for local businesses", description: "All your Google reviews in one inbox, AI reply drafts you approve, Google Posts, photos and insights, through Google's official Business Profile APIs with your permission." },
+    hero: { line1: "Your Google profile,", line2: "finally managed", left: "Reviews, replies, posts, photos and insights for every location.", chips: ["Official APIs", "You approve", "Multi-location"] },
+    bento: [
+      ["Reviews inbox", "Every review in one place", "Reviews from every connected location, filtered by rating, location and reply status. Reviews that mention medical details, threats or legal action are flagged for you."],
+      ["AI replies", "Replies drafted, you approve", "AI drafts a reply in your brand voice from what you've told it. Nothing is published until you approve it, and it's marked replied only after Google confirms."],
+      ["Google Posts", "Posts on schedule", "Draft an update or offer with AI, approve it, and schedule it. It shows as published only after Google confirms."],
+      ["Photos", "Photos per location", "Upload and manage photos for each location from the same app."],
+    ] as [string, string, string][],
+    statement: { text: "Your profile is often the first thing a customer sees {chip} so keep it complete, current and answered.", strong: "FlowQR shows you what needs doing." },
+    steps: [["Sign in with Google", "Use the Google account that manages your Business Profile."], ["Pick your business location", "Choose which locations FlowQR should look after."], ["Sync reviews", "Your existing reviews arrive in the inbox."], ["Approve your first reply", "Edit the AI draft and publish it to Google."]] as [string, string][],
+    stepsNote: "If your Google account has no Business Profile, we'll show you how to get access.",
+    faq: [
+      ["How does connecting to Google work?", "You sign in with Google and give FlowQR permission to manage your Business Profile through Google's official APIs. You can see exactly what is requested on Google's consent screen."],
+      ["What data does FlowQR access?", "Your locations, reviews, replies, posts, photos and performance figures, for the locations you choose. Google tokens are encrypted and never sent to your browser."],
+      ["Can I disconnect?", "Yes, at any time from Settings, or from your Google account's security page. Disconnecting stops syncing straight away."],
+      ["Does it work for more than one location?", "Yes. Each location has its own reviews, cards and team access, and you see them side by side."],
+      ["What if I'm not ready to connect Google yet?", "Review cards and the customer review page work with just your Google review link. Syncing reviews and publishing replies needs the connection."],
+    ] as [string, string][],
+    cta: { line1: "Put your Google profile", line2: "on autopilot, with you in charge" },
+  },
+  cards: {
+    meta: { title: "QR and NFC review cards", description: "Pre-printed FlowQR QR and NFC cards for your counter. One permanent link per card, a review page your customers write on themselves, and QR versus NFC analytics." },
+    hero: { line1: "One tap.", line2: "Real reviews.", left: "Customers tap the card or scan the QR. Both open your review page.", chips: ["QR + NFC", "Permanent link", "No app needed"] },
+    intro: { line1: "Write it in", line2Pre: "their own", accent: "words", sub: "The review page your customers see" },
+    statement: { text: "Your customer writes it. {chip} AI only helps them say it clearly.", strong: "They post it on Google themselves." },
+    bento: [
+      ["Pre-printed cards", "Scan to activate", "FlowHQ prints cards in batches. Scan one in the app to link it to your shop; it goes live straight away."],
+      ["Change anytime", "Change where it points", "Move a card to another location or review page from the app. The printed code never changes."],
+      ["Analytics", "QR and NFC, counted apart", "See scans and taps separately, how many reached your review page, and how many continued to Google."],
+      ["Print", "Posters and table tents", "Download your branded poster as PNG, SVG or print-ready PDF for counters, tables and walls."],
+    ] as [string, string, string][],
+    steps: [["Order cards", "FlowHQ prints posters and NFC cards, each with its own link."], ["Scan to activate", "Scan the card in the app and pick the location."], ["Place it", "Put it where people pay or wait."], ["Watch it work", "See scans, taps and visits for each card."]] as [string, string][],
+    compare: {
+      title: "Better than a plain QR sticker", sub: "What a FlowQR card does that a printed link can't.",
+      columns: ["FlowQR card", "Plain QR sticker"],
+      rows: [
+        ["Tap with NFC as well as scan", true, false],
+        ["Change destination without reprinting", true, false],
+        ["Review page with an AI writing assistant", true, false],
+        ["English and Hindi", true, false],
+        ["Separate QR and NFC analytics", true, false],
+        ["Pause or retire a lost card", true, false],
+      ] as [string, ...(string | boolean)[]][],
+    },
+    faq: [
+      ["Is this allowed by Google's policies?", "Yes. Every customer gets the same page whatever their rating, nobody is offered anything for a review, and customers post their own review on Google."],
+      ["How long does a card last?", "The link inside it is permanent. The printed card lasts as long as the material does; you can replace a worn card and keep its history."],
+      ["What if a card is lost?", "Pause or retire it in the app. A retired card stops opening your review page."],
+      ["Can I move a card to another branch?", "Yes. Reassign it in the app; the printed code stays the same and history is kept."],
+      ["Do customers need an app?", "No. Tapping or scanning opens a web page in their phone's browser."],
+    ] as [string, string][],
+    cta: { line1: "Put a card on your counter", line2: "and start asking every customer" },
+  },
+  agent: {
+    meta: { title: "AI Growth Agent: a daily plan you approve", description: "FlowQR's AI Growth Agent turns your reviews, Google profile and business knowledge into a daily plan. It drafts the work; you approve anything that goes public." },
+    hero: { line1: "An assistant that", line2: "does the work", left: "A daily plan built from your reviews and Google profile.", chips: ["Daily plan", "You approve", "Activity log"] },
+    workflow: [["Signal", "A new review, a stale profile, a quiet week"], ["Analysis", "What it means for your business"], ["Recommendation", "One clear task"], ["Draft", "A reply or post, written for you"], ["Approval", "You edit and approve"], ["Execution", "Sent to Google"], ["Verification", "Marked done only when Google confirms"], ["Activity log", "Every step on record"]] as [string, string][],
+    bento: [
+      ["Daily plan", "Today, in one list", "Reply to a review, finish your profile, post an update: the plan is built from your real data."],
+      ["Approvals", "Nothing public without you", "Drafts wait in an approval queue. You edit, approve or dismiss."],
+      ["Activity log", "Honest about every step", "See what was completed and what failed, with the reason, so nothing is silently skipped."],
+      ["Business knowledge", "It knows your business", "Your services, timings and brand voice. The AI only says what you've told it."],
+    ] as [string, string, string][],
+    statement: { text: "It never makes up services, prices or results. {chip}", strong: "It only uses what you've told it." },
+    faq: [
+      ["Does the agent act on its own?", "No. It drafts and recommends. Anything public waits for your approval unless you set up an automation yourself."],
+      ["What does it base its plan on?", "Your synced Google reviews and profile, your card activity, and the business knowledge you give it."],
+      ["Is it safe for clinics?", "Replies and posts never confirm someone is a patient, mention treatment or promise outcomes."],
+      ["Can it reply on WhatsApp?", "Not yet. WhatsApp conversations and campaigns are coming soon."],
+    ] as [string, string][],
+    cta: { line1: "Let the routine work", line2: "take care of itself" },
+  },
+  industries: {
+    meta: { title: "FlowQR for clinics, salons, cafés, gyms and more", description: "How local businesses use FlowQR: where to place review cards, and the topics customers pick on the review page." },
+    hero: { line1: "Made for", line2: "your kind of business" },
+    list: [
+      ["clinics", "Clinics", "Card at reception, QR on the appointment slip.", ["Explained clearly", "Punctual", "Friendly staff"]],
+      ["dental", "Dental", "Card at the front desk, QR on the bill.", ["Gentle", "Clean clinic", "On time"]],
+      ["salons", "Salons", "Card at the mirror station and the counter.", ["Friendly staff", "Great service", "Clean"]],
+      ["restaurants", "Restaurants & cafés", "Table tents on every table, QR on the bill.", ["Tasty food", "Quick service", "Good ambience"]],
+      ["gyms", "Gyms", "Card at the front desk and the locker area.", ["Helpful trainers", "Clean equipment", "Good timings"]],
+      ["coaching", "Coaching", "Poster at reception, QR on fee receipts.", ["Clear teaching", "Helpful staff", "Good material"]],
+      ["retail", "Retail", "Card at the billing counter.", ["Good range", "Helpful staff", "Fair prices"]],
+      ["hotels", "Hotels", "Card at reception and in rooms.", ["Clean rooms", "Friendly staff", "Good location"]],
+    ] as [string, string, string, string[]][],
+    note: "For healthcare businesses, replies and posts never confirm someone is a patient, mention treatment or promise outcomes.",
+    cta: { line1: "See FlowQR in", line2: "your own business" },
+  },
+  pricing: {
+    meta: { title: "Pricing in rupees", description: "FlowQR plans in rupees, plus GST, read live from the app. Physical QR and NFC cards are sold separately." },
+    hero: { line1: "Simple plans,", line2: "in rupees" },
+    faq: [
+      ["Do I get a GST invoice?", "Prices are shown before GST, and GST is added as applicable."],
+      ["How do I pay?", "Payments are processed by Razorpay: UPI, cards and net banking."],
+      ["Can I cancel?", "Yes, from Billing in the app. Your plan stays active until the end of the period you've paid for."],
+      ["Can I change plans?", "Yes, you can upgrade or change your plan from Billing at any time."],
+      ["Are cards included?", "No. Printed QR and NFC cards are sold separately from the subscription."],
+    ] as [string, string][],
+    cta: { line1: "Not sure which plan?", line2: "We'll help you choose" },
+  },
+  about: {
+    meta: { title: "About FlowHQ", description: "FlowQR is built by FlowHQ for local businesses: real reviews only, you stay in control, your data stays yours." },
+    hero: { line1: "Built by FlowHQ,", line2: "for local businesses" },
+    statement: { text: "Local businesses run on reputation, {chip} but nobody has time to manage it.", strong: "We build the system that does the routine work, honestly." },
+    promises: [
+      ["Real reviews only", "Every customer writes and posts their own review. We never filter by rating and never offer incentives."],
+      ["You stay in control", "Nothing goes public without your approval unless you set up an automation yourself."],
+      ["Your data, your accounts", "Your Google account stays yours. Each business's data is kept separate, and you can export or delete it."],
+      ["Never a fake number", "We don't publish ratings, customer counts or results we can't back up."],
+    ] as [string, string][],
+    services: { title: "FlowHQ services", body: "Beyond FlowQR, FlowHQ builds custom systems and AI automation for teams. Tell us what you need.", cta: "Talk to FlowHQ" },
+  },
+  demo: {
+    meta: { title: "Book a demo", description: "Book a FlowQR demo. Tell us about your business and we'll show you how it works for you." },
+    title: "Book a demo", sub: "Tell us about your business. We'll call you back at a time that suits you.",
+    next: [["We call you", "Usually within one working day, at your preferred time."], ["We set up a walkthrough", "Using your own Google profile, if you like."], ["You decide", "Start a free trial, or don't. No pressure."]] as [string, string][],
+    success: ["Thanks, we've got it.", "We'll call you at your preferred time. Keep an eye on WhatsApp too if you ticked the box."],
+  },
+};

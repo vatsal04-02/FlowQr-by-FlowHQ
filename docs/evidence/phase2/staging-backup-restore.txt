@@ -1,0 +1,36 @@
+== 1. checksums of the LIVE staging database
+users 7 4b476ab9b74eac48cec69c8b5b551663
+tenants 2 c9eb29b53d2e7a14e3f4f01bce5bc7d5
+memberships 4 433127fdc4ba689908356b991f5fe453
+locations 2 85df81736194b8af91cb55938293e2ff
+qr_cards 6 826620c818a470281445e942917d4806
+card_batches 2 c7e299135d91a0dbc8c072af7c412531
+scan_events 2 91237666c95881032ad96cdedb6b303e
+audit_logs 34 70882b026440620db4284c238aaa7abd
+subscriptions 2 463f77f5180355a3ae64a177d126134e
+payments 0 
+card_orders 0 
+webhook_events 0 
+invitations 2 b0001699fae0aff9e72c8f1ddff0b26d
+card_code_seq 6 true
+== 2. take a fresh encrypted backup of staging (after the snapshot, nothing wrote in between)
+wrote <scratch>/stg_backups/flowqr-20261115T125609Z.sql.gz.enc (0.02 MB) encrypted=true offsite=true
+decrypted ok: flowqr-20261115T125609Z.sql.gz.enc
+== 3. restore into an ISOLATED PostgreSQL (separate network, nothing shared with staging or the dev stack)
+restore ok (single transaction)
+== 4. checksums of the RESTORED database must equal staging's
+IDENTICAL: row counts and content checksums match for every key table
+== 5. migrations on the restored copy (no-op expected) and application compatibility
+0030 (head)
+health: {'status': 'ok'} | ready: {'ready': True, 'checks': {'database': 'ok', 'redis': 'ok', 'migrations': 'ok'}}
+restored owner signs in: 200
+restored business: 200 Staging Clinic 336cff
+restored locations: 200 ['Gomti Nagar']
+subscription: 200 trialing Free trial
+checklist: 200 4 of 5
+write after restore (PATCH /tenant): 200 | read back: 7
+plan limit still enforced after restore (a 2nd location on a 1-location plan): 402
+worker: [2026-11-15 12:56:26,207: INFO/MainProcess] Connected to redis://:**@rr-redis:6379/1|[2026-11-15 12:56:27,241: INFO/MainProcess] celery@003de01c8088 ready.|
+beat: [2026-11-15 12:56:26,507: INFO/MainProcess] beat: Starting...
+errors in api/worker/beat logs: 0, 0, 0
+(isolated restore environment removed)

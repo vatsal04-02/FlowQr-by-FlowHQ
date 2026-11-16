@@ -1,0 +1,15 @@
+== A. downgrade 0030 -> 0029 -> 0028 on the migrated copy
+0028
+tables after downgrade: 56  (ledger/promo tables should be gone)
+== B. upgrade back to head
+0030 (head)
+all customer tables identical after downgrade + re-upgrade
+starter rg=200 growth rg=400 pro rg=800 essential rg=150 multi rg=2500 
+== C. boot API, worker and beat (Phase 2 code) as the non-superuser app role against the migrated copy
+health:   {"status":"ok"} [http 200]
+ready:    {"ready":true,"checks":{"database":"ok","redis":"ok","migrations":"ok"}} [http 200]
+plans:    {"detail":"Not Found"} [http 404]
+worker:   [2026-11-15 12:36:19,040: INFO/MainProcess] Connected to redis://:**@rh-redis:6379/1|[2026-11-15 12:36:20,075: INFO/MainProcess] celery@9cbd10fdfb38 ready.|
+worker tasks registered: 0
+beat:     [2026-11-15 12:36:19,188: INFO/MainProcess] beat: Starting...|
+api log errors: 0

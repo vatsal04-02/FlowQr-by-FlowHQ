@@ -5,7 +5,7 @@ import { Suspense, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Card";
-import { ErrorSummary, Input } from "@/components/ui/Form";
+import { ErrorSummary, PasswordInput } from "@/components/ui/Form";
 import { api, errorMessage } from "@/lib/api";
 import { passwordRule, useForm } from "@/lib/form";
 
@@ -27,8 +27,8 @@ function Inner() {
   ) : (
     <form onSubmit={submit} noValidate className="space-y-4">
       <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
-      <Input label="New password" type="password" autoComplete="new-password" required hint="At least 10 characters, upper and lower case." {...f.bind("password")} />
-      <Button type="submit" size="lg" className="w-full" loading={busy}>Set new password</Button>
+      <PasswordInput label="New password" autoComplete="new-password" required hint="At least 10 characters, upper and lower case." {...f.bind("password")} />
+      <Button type="submit" size="lg" variant="brand" className="w-full" loading={busy}>Set new password</Button>
     </form>
   );
 }

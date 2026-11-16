@@ -1,140 +1,194 @@
 "use client";
 import clsx from "clsx";
-import {
-  BarChart3, Building2, CreditCard, LayoutDashboard, Link2, LogOut, MapPin, Menu, QrCode, ScanLine, Settings, ShieldCheck, Star, Store, Users,
-} from "lucide-react";
+import { Check, ChevronDown, LogOut, Search, ShieldCheck } from "lucide-react";
+import { MotionConfig } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
-import { api, errorMessage } from "@/lib/api";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { LocationScopeProvider, useLocationScope } from "@/lib/location-scope";
+import { navFor } from "@/lib/nav";
+import { useAppChrome } from "@/lib/theme";
 import type { SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
-import { Logo } from "./ui/Brand";
-import { LinkButton } from "./ui/Button";
-import { Alert, Spinner } from "./ui/Card";
-import { Modal } from "./ui/Modal";
+import { CommandPalette } from "./shell/CommandPalette";
+import { BellMenu } from "./shell/Bell";
+import { BottomNav, MoreSheet } from "./shell/BottomNav";
+import { HelpMenu, iconBtn, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
+import { Sidebar, SIDEBAR_W } from "./shell/Sidebar";
+import { StatusStrip } from "./shell/StatusStrip";
+import { LogoMark } from "./ui/Brand";
+import { Spinner } from "./ui/Card";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/reviews", label: "Reviews", icon: Star },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/cards", label: "QR/NFC cards", icon: QrCode },
-  { href: "/cards/analytics", label: "Card analytics", icon: ScanLine },
-  { href: "/locations", label: "Locations", icon: MapPin },
-  { href: "/google", label: "Google connection", icon: Link2 },
-  { href: "/profile", label: "Google profile", icon: Store },
-  { href: "/subscription", label: "Subscription", icon: CreditCard },
-  { href: "/staff", label: "Staff", icon: Users },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-const BOTTOM = ["/dashboard", "/reviews", "/analytics", "/cards"];
-
-function isActive(path: string, href: string) {
-  if (href === "/cards") return path === "/cards";
-  return path === href || path.startsWith(href + "/");
-}
-
-function Banners() {
-  const { me, refresh } = useAuth();
+/** The free trial, once and small: days left plus the one action. Only shown when the trial is nearly over. */
+function TrialChip({ s }: { s: SubscriptionInfo | null }) {
   const path = usePathname();
-  const sub = useFetch<SubscriptionInfo>("/billing/subscription");
-  const [sent, setSent] = useState<string | null>(null);
-  const s = sub.data;
+  if (!s || s.status !== "trialing" || (s.trial_days_left ?? 99) > 5 || path.startsWith("/settings/billing") || path.startsWith("/settings/billing/payments")) return null;
+  const d = s.trial_days_left ?? 0;
   return (
-    <div className="mb-5 space-y-3 empty:hidden">
-      {me && !me.user.email_verified_at && (
-        <Alert tone="warning" title="Verify your email" action={
-          <button className="tap rounded-xl border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-900 hover:bg-amber-100" onClick={async () => {
-            try { const r = await api<{ email_sent: boolean; detail: string }>("/auth/resend-verification", { method: "POST" }); setSent(r.email_sent ? "Verification email sent. Check your inbox." : r.detail); void refresh(); } catch (e) { setSent(errorMessage(e)); }
-          }}>Resend email</button>}>
-          {sent ?? "Confirm your email to invite staff, connect Google and manage billing."}
-        </Alert>
-      )}
-      {s && !path.startsWith("/subscription") && !path.startsWith("/payments") && (
-        !s.active ? <Alert tone="error" title="Subscription inactive" action={<LinkButton href="/subscription" size="sm">Choose a plan</LinkButton>}>Your data is safe and your cards keep working, but editing, AI and sync are paused.</Alert>
-        : s.status === "past_due" ? <Alert tone="warning" title="Payment failed" action={<LinkButton href="/subscription" size="sm" variant="secondary">Review billing</LinkButton>}>We couldn&rsquo;t charge your payment method. Access continues for now.</Alert>
-        : s.status === "trialing" && (s.trial_days_left ?? 99) <= 5 ? <Alert tone="info" title={`${s.trial_days_left} days left in your free trial`} action={<LinkButton href="/subscription" size="sm">Choose a plan</LinkButton>}>Pick a plan to keep reviews, replies and AI running.</Alert>
-        : null
-      )}
-    </div>
+    <Link href="/settings/billing" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-accent-tint px-4 text-[13px] font-semibold text-accent-ink transition-colors hover:bg-brand-100">
+      <span aria-hidden className="h-2 w-2 rounded-full bg-accent" />{d === 0 ? "Trial ends today" : `${d} ${d === 1 ? "day" : "days"} left in trial`}<span className="underline underline-offset-2">Choose a plan</span>
+    </Link>
   );
 }
 
+/** Which location the page shows. Hidden with one location (nothing to choose). It is a convenience filter: the API enforces access. */
+function LocationPicker({ className }: { className?: string }) {
+  const { locations, locationId, setLocationId } = useLocationScope();
+  if (locations.length < 2) return null;
+  return (
+    <label className={clsx("flex items-center gap-2 text-[13px] text-muted", className)}>
+      <span className="sr-only">Location</span>
+      <select aria-label="Show data for location" value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)}
+        className="min-h-11 max-w-[200px] rounded-xl bg-surface px-3 text-sm font-medium text-ink ring-1 ring-ink-100 sm:min-h-10">
+        <option value="">All locations</option>
+        {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+      </select>
+    </label>
+  );
+}
+
+const initials = (name: string | undefined, email: string) => {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  return (parts.length ? parts.slice(0, 2).map((p) => p[0]) : [email[0]]).join("").toUpperCase();
+};
+
+/**
+ * The logged-in app frame (docs/DESIGN.md, "Shell"). One navigation system: a bottom bar on phones, one left sidebar on tablet and desktop. The top bar holds only the
+ * business, the location filter, search, notifications and the account. Every page keeps its own URL; this only decides how it is reached.
+ */
 export function AppShell({ children }: { children: ReactNode }) {
-  const { me, tenant, loading, logout, refresh } = useAuth();
+  const { me, tenant, role, loading, logout, refresh } = useAuth();
   const path = usePathname();
   const router = useRouter();
+  const [palette, setPalette] = useState(false);
   const [more, setMore] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  useAppChrome();
+  const sub = useFetch<SubscriptionInfo>(tenant ? "/billing/subscription" : null);
+  const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
+  const legal = useFetch<{ support_email: string | null }>("/legal/info").data;
+  const dests = useMemo(() => navFor(role), [role]);
+
+  // The sidebar remembers how the person left it; with no saved choice it starts open on a desktop and as an icon rail on a tablet.
+  useEffect(() => {
+    try { const v = localStorage.getItem("flowqr:sidebar"); setCollapsed(v ? v === "collapsed" : window.innerWidth < 1100); } catch { setCollapsed(window.innerWidth < 1100); }
+  }, []);
+  const toggleSidebar = () => setCollapsed((c) => { try { localStorage.setItem("flowqr:sidebar", c ? "expanded" : "collapsed"); } catch { /* private mode */ } return !c; });
 
   useEffect(() => {
     if (loading) return;
     if (!me) router.replace("/login");
     else if (!tenant || !tenant.onboarding_completed) router.replace(me.user.is_platform_admin && !tenant ? "/admin" : "/onboarding");
   }, [loading, me, tenant, router]);
-  useEffect(() => setMore(false), [path]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((o) => !o); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => { setPalette(false); setMore(false); }, [path]);
+
+  const s = sub.data;
+  const notices = useMemo<Notice[]>(() => {
+    const out: Notice[] = [];
+    if (s && !s.active) out.push({ id: "inactive", tone: "bad", title: "Plan inactive", body: "Your data is safe and your cards keep working. Editing, AI and sync are paused until you choose a plan.", href: "/settings/billing", cta: "Choose a plan" });
+    else if (s?.status === "past_due") out.push({ id: "past-due", tone: "bad", title: "Payment failed", body: "We couldn't charge your payment method.", href: "/settings/billing", cta: "Review billing" });
+    // trial ending comes from GET /notifications (the bell), so it is not repeated here
+    if (me && !me.user.email_verified_at) out.push({ id: "verify", tone: "warn", title: "Verify your email", body: "Needed to invite staff, connect Google and manage billing.", href: "/settings/account", cta: "Open your account" });
+    if (deletion?.requested) out.push({ id: "deletion", tone: "warn", title: "This business is scheduled for deletion", body: "You can cancel it in Settings until the date.", href: "/settings#data", cta: "Review" });
+    return out;
+  }, [s, me, deletion]);
 
   if (loading || !me || !tenant || !tenant.onboarding_completed) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
 
   if (tenant.suspended_at) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-ink-50 px-5"><div className="max-w-md text-center">
-        <Logo className="mb-6" /><h1 className="text-2xl font-semibold">This account is suspended</h1>
-        <p className="mt-2 text-ink-500">{tenant.suspension_reason ?? "Please contact FlowQR support."} Your QR/NFC cards are paused. Your data is retained.</p>
-        <button onClick={() => void logout()} className="tap mt-6 rounded-xl border border-ink-200 bg-white px-5 font-semibold">Log out</button>
+      <div className="grid min-h-dvh place-items-center bg-canvas px-5"><div className="max-w-md text-center">
+        <span className="hero-grad mx-auto mb-6 grid h-14 w-14 place-items-center rounded-full"><LogoMark size={26} variant="onAccent" /></span>
+        <h1 className="text-2xl font-semibold">This account is suspended</h1>
+        <p className="mt-2 text-muted">{tenant.suspension_reason ?? "Please contact FlowQR support."} Your QR/NFC cards are paused. Your data is retained.</p>
+        <button onClick={() => void logout()} className="tap mt-6 rounded-full bg-ink-solid px-6 font-semibold text-ink-on">Log out</button>
       </div></div>
     );
   }
 
-  const items = me.user.is_platform_admin ? [...NAV, { href: "/admin", label: "Platform admin", icon: ShieldCheck }] : NAV;
-  const nav = (cls: string) => items.map((n) => (
-    <Link key={n.href} href={n.href} aria-current={isActive(path, n.href) ? "page" : undefined}
-      className={clsx("tap flex items-center gap-3 rounded-xl px-3 text-[15px] font-semibold transition-colors", cls,
-        isActive(path, n.href) ? "bg-brand-50 text-brand-700" : "text-ink-700 hover:bg-ink-50")}>
-      <n.icon className="h-5 w-5 shrink-0" aria-hidden />{n.label}
-    </Link>
-  ));
   const switchTenant = async (id: string) => { await api("/auth/select-tenant", { method: "POST", params: { tenant_id: id } }); await refresh(); router.refresh(); };
+  const name = me.user.full_name?.trim() || me.user.email;
+  const avatar = <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-solid text-[13px] font-semibold text-ink-on">{initials(me.user.full_name, me.user.email)}</span>;
+  const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
+
+  const business = (
+    <PopoverButton label="Business menu" align="left" buttonClass="flex min-h-11 max-w-[calc(100vw-206px)] items-center gap-2 rounded-xl px-2 text-left hover:bg-surface-2 sm:max-w-[320px]"
+      icon={<><span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-accent-tint text-[13px] font-semibold text-accent-ink">{tenant.name.slice(0, 1).toUpperCase()}</span>
+        <span className="min-w-0"><span className="block truncate text-[15px] font-semibold leading-5">{tenant.name}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden /></>}>
+      {(close) => (
+        <div className="p-1">
+          <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted">{me.memberships.length > 1 ? "Your businesses" : "Your business"}</p>
+          {me.memberships.map((m) => (
+            <button key={m.tenant.id} type="button" onClick={() => { close(); if (m.tenant.id !== tenant.id) void switchTenant(m.tenant.id); }}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 text-left font-medium hover:bg-surface-2">
+              <span className="truncate">{m.tenant.name}</span>{m.tenant.id === tenant.id && <Check className="h-4 w-4 shrink-0 text-accent-ink" aria-label="Current" />}
+            </button>
+          ))}
+          <div className="mt-1 border-t border-ink-100 pt-1"><Link href="/settings" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Business settings</Link></div>
+        </div>
+      )}
+    </PopoverButton>
+  );
+
+  const account = (
+    <PopoverButton label="Account menu" buttonClass="grid h-11 w-11 place-items-center rounded-full hover:bg-surface-2" icon={avatar}>
+      {(close) => (
+        <div className="p-1">
+          <div className="px-3 pb-2 pt-2"><p className="truncate font-semibold">{name}</p><p className="truncate text-[13px] text-muted">{me.user.email}</p></div>
+          <div className="border-t border-ink-100 py-1">
+            <Link href="/settings/account" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Your account</Link>
+            <Link href="/settings/appearance" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Appearance</Link>
+            {me.user.is_platform_admin && <Link href="/admin" onClick={close} className="flex min-h-11 items-center gap-2 rounded-xl px-3 font-medium hover:bg-surface-2"><ShieldCheck className="h-4 w-4" aria-hidden />Platform admin</Link>}
+            <div className="flex min-h-11 items-center justify-between gap-2 px-3"><span className="font-medium">Theme</span><ThemeToggle small /></div>
+            <button type="button" onClick={() => { close(); void logout(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left font-medium text-neg hover:bg-neg-tint"><LogOut className="h-4 w-4" aria-hidden />Log out</button>
+          </div>
+        </div>
+      )}
+    </PopoverButton>
+  );
 
   return (
-    <div className="min-h-dvh bg-ink-50/60">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-ink-100 bg-white px-3 py-5 lg:flex">
-        <div className="px-2 pb-5"><Logo href="/dashboard" /></div>
-        {me.memberships.length > 1 ? (
-          <select aria-label="Switch business" value={tenant.id} onChange={(e) => void switchTenant(e.target.value)} className="mx-1 mb-4 min-h-11 rounded-xl border border-ink-200 bg-white px-3 text-sm font-semibold">
-            {me.memberships.map((m) => <option key={m.tenant.id} value={m.tenant.id}>{m.tenant.name}</option>)}
-          </select>
-        ) : (
-          <div className="mx-1 mb-4 flex items-center gap-2 rounded-xl bg-ink-50 px-3 py-2.5 text-sm font-semibold"><Building2 className="h-4 w-4 text-ink-500" aria-hidden /><span className="truncate">{tenant.name}</span></div>
-        )}
-        <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto">{nav("")}</nav>
-        <div className="mt-3 border-t border-ink-100 pt-3">
-          <p className="truncate px-3 text-xs text-ink-500">{me.user.email}</p>
-          <button onClick={() => void logout()} className="tap mt-1 flex w-full items-center gap-3 rounded-xl px-3 text-[15px] font-semibold text-ink-700 hover:bg-ink-50"><LogOut className="h-5 w-5" aria-hidden />Log out</button>
-        </div>
-      </aside>
+    <MotionConfig reducedMotion="user">
+    <LocationScopeProvider>
+    <div className="min-h-dvh bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
+      <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
+      <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} />
+      <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
+        <header className="sticky top-0 z-30 border-b border-ink-100 bg-canvas">
+          <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Link href="/overview" aria-label="FlowQR home" className="hero-grad grid h-9 w-9 shrink-0 place-items-center rounded-[10px] !shadow-none md:hidden"><LogoMark size={19} variant="onAccent" /></Link>
+              {business}
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+              <LocationPicker className="hidden md:flex" />
+              <button type="button" aria-label="Search (Ctrl K)" onClick={() => setPalette(true)} className={iconBtn}><Search className="h-[19px] w-[19px]" strokeWidth={1.75} aria-hidden /></button>
+              <BellMenu notices={notices} />
+              {account}
+            </div>
+          </div>
+        </header>
 
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-ink-100 bg-white/90 px-4 py-2.5 backdrop-blur lg:hidden">
-        <Logo href="/dashboard" tagline={false} />
-        <span className="max-w-[45%] truncate text-sm font-semibold text-ink-700">{tenant.name}</span>
-      </header>
-
-      <main className="lg:pl-64"><div className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:pb-12 lg:pt-8"><Banners />{children}</div></main>
-
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-ink-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
-        {NAV.filter((n) => BOTTOM.includes(n.href)).map((n) => (
-          <Link key={n.href} href={n.href} aria-current={isActive(path, n.href) ? "page" : undefined}
-            className={clsx("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold", isActive(path, n.href) ? "text-brand-700" : "text-ink-500")}>
-            <n.icon className="h-5 w-5" aria-hidden />{n.label.replace("QR/NFC cards", "Cards")}
-          </Link>
-        ))}
-        <button onClick={() => setMore(true)} className="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-ink-500"><Menu className="h-5 w-5" aria-hidden />More</button>
-      </nav>
-
-      <Modal open={more} onClose={() => setMore(false)} title="Menu">
-        <nav aria-label="All pages" className="space-y-1">{nav("")}</nav>
-        <button onClick={() => void logout()} className="tap mt-3 flex w-full items-center gap-3 rounded-xl px-3 text-[15px] font-semibold text-red-700 hover:bg-red-50"><LogOut className="h-5 w-5" aria-hidden />Log out</button>
-      </Modal>
+        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1240px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
+          <StatusStrip notices={path.startsWith("/settings/billing") ? notices.filter((n) => !n.href.startsWith("/settings/billing")) : notices} />
+          <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialChip s={s ?? null} />}<LocationPicker className="md:hidden" /></div>
+          {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}
+          <SubNav path={path} dests={dests} hidePrimaryOnWide={!collapsed} />
+          {children}
+        </main>
+      </div>
+      <BottomNav path={path} dests={dests} moreOpen={more} onMore={setMore} />
+      <MoreSheet open={more} onClose={() => setMore(false)} role={role} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
+      <CommandPalette open={palette} onClose={() => setPalette(false)} dests={dests} />
     </div>
+    </LocationScopeProvider>
+    </MotionConfig>
   );
 }

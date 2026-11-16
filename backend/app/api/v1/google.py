@@ -23,7 +23,8 @@ from app.services import google as g
 from app.services import entitlements as ent
 from app.services.audit import audit
 from app.services.google.queue import enqueue_sync
-from app.services.google.tokens import get_access_token, store_tokens
+from app.services.google.provider import has_business_scope
+from app.services.google.tokens import get_access_token, note_api_access, note_not_approved, store_tokens
 
 log = logging.getLogger("flowqr.google")
 router = APIRouter(prefix="/google", tags=["google"])
@@ -33,6 +34,13 @@ STATE_COOKIE = "flowqr_oauth_state"
 def _frontend(path: str, **params) -> RedirectResponse:
     q = f"?{urlencode(params)}" if params else ""
     return RedirectResponse(f"{settings.frontend_url.rstrip('/')}{path}{q}", status_code=303)
+
+
+def _conn_out(ctx: TenantContext, c: GoogleConnection) -> ConnectionOut:
+    o = ConnectionOut.model_validate(c)
+    o.locations_found = ctx.db.scalar(select(func.count()).select_from(GoogleLocation).where(GoogleLocation.connection_id == c.id)) or 0
+    o.no_locations = o.locations_found == 0 and c.api_access == "approved" and c.status in (GoogleConnectionStatus.pending_selection, GoogleConnectionStatus.active)
+    return o
 
 
 @router.get("/status")
@@ -46,7 +54,7 @@ def status(ctx: TenantContext = Depends(get_tenant_context)):
         "configuration_note": None if settings.google_configured else
         "Google sign-in is not configured on this FlowQR server yet (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET). "
         "You can keep using manual review links in the meantime.",
-        "connections": [ConnectionOut.model_validate(c) for c in conns],
+        "connections": [_conn_out(ctx, c) for c in conns],
     }
 
 
@@ -70,7 +78,7 @@ def callback(request: Request, code: str | None = None, state: str | None = None
              session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
              db: Session = Depends(get_db)):
     def fail(reason: str):
-        r = _frontend("/google", error=reason)
+        r = _frontend("/gbp/locations", error=reason)
         r.delete_cookie(STATE_COOKIE, path="/")
         return r
 
@@ -103,6 +111,12 @@ def callback(request: Request, code: str | None = None, state: str | None = None
         log.warning("Google code exchange failed: %s", type(exc).__name__)
         return fail("exchange_failed")
 
+    if not has_business_scope(ts.scope):
+        # Google's consent screen lets people untick individual permissions. Without business.manage nothing here can work,
+        # so refuse the connection rather than store a token that only looks connected.
+        log.warning("Google connect without the business.manage scope")
+        provider.revoke(ts.refresh_token or ts.access_token)
+        return fail("scope_missing")
     sub = info.get("sub")
     conn = db.scalar(select(GoogleConnection).where(
         GoogleConnection.tenant_id == tenant_id, GoogleConnection.google_sub == sub,
@@ -120,6 +134,14 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     db.flush()
     try:
         discover_locations(db, conn, provider, ts.access_token)
+    except g.GoogleApiNotApproved as exc:
+        conn.last_error = note_not_approved(conn, exc)
+        conn.status = GoogleConnectionStatus.error
+    except g.GoogleRateLimited as exc:
+        # No Business Profile call has ever succeeded for this connection and the first one hit a quota error:
+        # that is how a project with quota 0 (not approved) behaves. Say so instead of a generic failure.
+        conn.last_error = note_not_approved(conn, exc)
+        conn.status = GoogleConnectionStatus.error
     except g.GoogleError as exc:
         conn.last_error = f"Connected, but couldn't list Business Profile locations: {exc}"[:500]
         conn.status = GoogleConnectionStatus.error
@@ -127,7 +149,7 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     audit(db, action="google.connect", tenant_id=tenant_id, user_id=user_id, entity_type="google_connection",
           entity_id=conn.id, ip=client_ip(request))
     db.commit()
-    r = _frontend("/google", connected="1", connection=str(conn.id))
+    r = _frontend("/gbp/locations", connected="1", connection=str(conn.id))
     r.delete_cookie(STATE_COOKIE, path="/")
     return r
 
@@ -145,6 +167,7 @@ def discover_locations(db: Session, conn: GoogleConnection, provider, access_tok
             row.connection_id, row.google_account_name = conn.id, acct.name
             row.title, row.address, row.place_id, row.review_url = gl.title, gl.address, gl.place_id, gl.review_url
             count += 1
+    note_api_access(conn, "approved")  # real accounts/locations calls succeeded: Google has granted API access
     return count
 
 
@@ -158,7 +181,8 @@ def _conn_or_404(ctx: TenantContext, connection_id: uuid.UUID) -> GoogleConnecti
 @router.get("/connections/{connection_id}/locations", response_model=list[GoogleLocationOut])
 def list_google_locations(connection_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
     conn = _conn_or_404(ctx, connection_id)
-    return ctx.db.scalars(select(GoogleLocation).where(GoogleLocation.connection_id == conn.id).order_by(GoogleLocation.title)).all()
+    return ctx.db.scalars(select(GoogleLocation).where(GoogleLocation.connection_id == conn.id, ctx.scope(GoogleLocation.location_id))
+                          .order_by(GoogleLocation.title)).all()
 
 
 @router.post("/connections/{connection_id}/refresh-locations", response_model=list[GoogleLocationOut])
@@ -170,6 +194,14 @@ def refresh_locations(connection_id: uuid.UUID, ctx: TenantContext = Depends(req
     try:
         token = get_access_token(ctx.db, conn, provider)
         discover_locations(ctx.db, conn, provider, token)
+        if conn.status == GoogleConnectionStatus.error:  # recovered (e.g. Google approved the project since)
+            conn.status, conn.last_error = GoogleConnectionStatus.pending_selection, None
+    except (g.GoogleApiNotApproved, g.GoogleRateLimited) as exc:
+        if isinstance(exc, g.GoogleRateLimited) and conn.api_access == "approved":
+            raise HTTPException(status_code=429, detail="Google rate limit reached. Try again in a few minutes.")
+        conn.last_error = note_not_approved(conn, exc)
+        ctx.db.commit()
+        raise HTTPException(status_code=409, detail={"code": "google_api_" + conn.api_access, "message": conn.last_error})
     except g.GoogleAuthRevoked:
         raise HTTPException(status_code=409, detail="Google access was revoked. Please reconnect.")
     except g.GoogleError as exc:

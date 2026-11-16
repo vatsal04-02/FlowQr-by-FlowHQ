@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
 CTA = {"LEARN_MORE", "BOOK", "ORDER", "SHOP", "SIGN_UP", "CALL"}
-MEDIA_CATEGORIES = {"COVER", "PROFILE", "LOGO", "EXTERIOR", "INTERIOR", "PRODUCT", "AT_WORK", "FOOD_AND_DRINK", "TEAMS", "ADDITIONAL"}
+MEDIA_CATEGORIES = {"COVER", "PROFILE", "LOGO", "EXTERIOR", "INTERIOR", "PRODUCT", "AT_WORK", "FOOD_AND_DRINK", "MENU", "COMMON_AREA", "ROOMS", "TEAMS", "ADDITIONAL"}
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 

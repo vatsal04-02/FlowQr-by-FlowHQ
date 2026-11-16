@@ -13,13 +13,16 @@ from app.models.base import IdMixin, TimestampMixin
 class BillingPlan(Base):
     __tablename__ = "billing_plans"
 
-    code: Mapped[str] = mapped_column(String(32), primary_key=True)  # essential | growth | multi
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)  # starter | growth | pro (essential and multi are retired, kept only for existing subscribers)
     name: Mapped[str] = mapped_column(String(80))
     price_paise: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     interval: Mapped[str] = mapped_column(String(16), default="monthly")
     max_locations: Mapped[int] = mapped_column(Integer)
-    monthly_ai_generations: Mapped[int] = mapped_column(Integer)
+    monthly_ai_generations: Mapped[int] = mapped_column(Integer)  # legacy display total (review generations + replies); quotas below are what is enforced
+    review_generations: Mapped[int] = mapped_column(Integer, default=0)  # customer review-writing assistant: its own monthly allowance
+    review_replies: Mapped[int] = mapped_column(Integer, default=0)  # AI review replies: a separate allowance, never pooled with the one above
+    limits: Mapped[dict] = mapped_column(JSONB, default=dict)  # other plan limits, e.g. {"geo": {...}}; a missing value means NOT CONFIGURED (feature stays off)
     max_staff: Mapped[int] = mapped_column(Integer)
     features: Mapped[list] = mapped_column(JSONB, default=list)
     razorpay_plan_id: Mapped[str | None] = mapped_column(String(64))
@@ -43,6 +46,7 @@ class CardOrder(IdMixin, TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     status: Mapped[str] = mapped_column(String(16), default="created")  # created|paid|processing|shipped|cancelled|failed
     razorpay_order_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    offer_code: Mapped[str | None] = mapped_column(String(16))  # which bundle was bought (one | two), when it was a bundle
     shipping: Mapped[dict] = mapped_column(JSONB, default=dict)
     idempotency_key: Mapped[str | None] = mapped_column(String(80))
     tracking_note: Mapped[str | None] = mapped_column(Text)
@@ -83,3 +87,39 @@ class WebhookEvent(IdMixin, Base):
     error: Mapped[str | None] = mapped_column(Text)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SubscriptionEvent(IdMixin, Base):
+    """Append-only history of what happened to a business's subscription: who or what changed it, from what, to what. Never edited; read by support and finance."""
+
+    __tablename__ = "subscription_events"
+    __table_args__ = (Index("ix_subscription_events_tenant", "tenant_id", "created_at"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    kind: Mapped[str] = mapped_column(String(32))  # trial_started | activated | plan_changed | status_changed | cancel_requested | canceled | expired | past_due | payment_failed | renewed | refunded | promo_granted | promo_ended | promo_revoked | admin_override
+    from_status: Mapped[str | None] = mapped_column(String(24))
+    to_status: Mapped[str | None] = mapped_column(String(24))
+    from_plan: Mapped[str | None] = mapped_column(String(32))
+    to_plan: Mapped[str | None] = mapped_column(String(32))
+    source: Mapped[str] = mapped_column(String(16))  # webhook | user | admin | system | promo
+    ref: Mapped[str | None] = mapped_column(String(120))  # provider event id, payment id, card order id...
+    meta: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+
+
+class PromotionalGrant(IdMixin, Base):
+    """Free access that was not paid for as a subscription (today: the Growth month that comes with a physical-card purchase). Recorded separately so it is never
+    counted as MRR, and so a refund of the card can end it."""
+
+    __tablename__ = "promotional_grants"
+    __table_args__ = (UniqueConstraint("card_order_id", name="uq_promo_grant_card_order"), Index("ix_promo_grants_tenant", "tenant_id", "status"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(24), default="card_purchase")
+    plan: Mapped[str] = mapped_column(String(32), default="growth")
+    status: Mapped[str] = mapped_column(String(12), default="active")  # active | ended | revoked
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    card_order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("card_orders.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)

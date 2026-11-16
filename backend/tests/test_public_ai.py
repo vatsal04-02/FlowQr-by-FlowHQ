@@ -97,7 +97,7 @@ def test_ai_quota_enforced_per_tenant(client, live_card, biz_a, monkeypatch):
     from sqlalchemy import select
     db = SessionLocal(); set_rls_context(db, bypass=True)
     sub = db.scalar(select(Subscription).where(Subscription.tenant_id == biz_a.tenant_id))
-    sub.monthly_ai_generations = 0
+    sub.review_generations = 0  # the allowance the public review assistant draws on
     db.commit(); db.close()
     r = client.post(f"/api/v1/public/c/{live_card['public_token']}/assist", json={"text": "good service really"}, headers=UA)
     assert r.status_code == 503

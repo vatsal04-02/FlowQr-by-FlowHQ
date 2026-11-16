@@ -1,5 +1,5 @@
 from app.services.google.errors import (  # noqa: F401
-    GoogleAPIError, GoogleAuthRevoked, GoogleError, GoogleNotConfigured, GoogleRateLimited,
+    GoogleAPIError, GoogleApiNotApproved, GoogleAuthRevoked, GoogleError, GoogleNotConfigured, GoogleRateLimited, GoogleScopeMissing,
 )
 from app.services.google.provider import GoogleBusinessProvider, HttpGoogleProvider
 

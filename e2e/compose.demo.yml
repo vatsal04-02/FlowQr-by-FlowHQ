@@ -1,0 +1,6 @@
+# Override for an ISOLATED demo stack used to seed data and capture screenshots (docs/ART_DIRECTION_AND_UI_AUDIT.md).
+# Run it under its own project name so volumes and containers never mix with the real stack, and on different host ports:
+#   docker compose -p flowqr-demo -f docker-compose.yml -f e2e/compose.demo.yml --project-directory . up -d --build
+services:
+  api:      { ports: !override ["127.0.0.1:8100:8000"] }
+  frontend: { ports: !override ["127.0.0.1:3100:3000"] }

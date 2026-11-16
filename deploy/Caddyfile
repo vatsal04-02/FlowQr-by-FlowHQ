@@ -18,9 +18,19 @@
 {$MARKETING_DOMAIN} {
 	import security_headers
 	encode zstd gzip
-	@marketing path / /pricing /_next/* /favicon.ico
+	# every public marketing page and its assets (see MARKETING_ROUTES in frontend/src/lib/site.ts; keep the two lists in step)
+	@marketing path / /pricing /about /demo /google-business /review-cards /ai-growth-agent /industries /privacy /terms /refund-policy /data-deletion /robots.txt /sitemap.xml /opengraph-image* /icon.svg /favicon.ico /_next/* /marketing/* /brand/* /product/*
 	handle @marketing {
 		reverse_proxy frontend:3000
+	}
+	# The marketing pages call exactly three public API endpoints from the browser (live plan prices, support address, demo-request form), same-origin.
+	# Without this they would be redirected to the app domain and fail, and the pricing page would show "Talk to us for pricing" instead of the plans. Nothing else of the API is exposed here.
+	@marketing_api path /api/v1/billing/plans /api/v1/legal/info /api/v1/public/leads
+	handle @marketing_api {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy api:8000
 	}
 	handle {
 		redir https://{$APP_DOMAIN}{uri} 302
@@ -68,7 +78,7 @@ www.{$MARKETING_DOMAIN} {
 	request_body {
 		max_size 64KB
 	}
-	@card path /c/* /_next/* /favicon.ico
+	@card path /c/* /q/* /n/* /r/* /_next/* /favicon.ico
 	handle @card {
 		reverse_proxy frontend:3000
 	}

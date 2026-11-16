@@ -115,7 +115,7 @@ def activate(biz, rzp, plan="growth", client=None):
 
 def test_public_plans_in_inr(client):
     r = client.get("/api/v1/billing/plans").json()
-    assert [(p["code"], p["price_paise"]) for p in r["plans"]] == [("essential", 39900), ("growth", 79900), ("multi", 149900)]
+    assert [(p["code"], p["price_paise"]) for p in r["plans"]] == [("starter", 49900), ("growth", 79900), ("pro", 149900)]
     assert r["trial_days"] == settings.trial_days
 
 
@@ -123,7 +123,7 @@ def test_new_tenant_starts_in_configurable_trial(biz_a):
     s = biz_a.get("/billing/subscription").json()
     assert s["status"] == "trialing" and s["active"] and s["plan"] == "trial"
     assert s["trial_days_left"] in (settings.trial_days, settings.trial_days - 1)
-    assert s["limits"]["locations"] == 3 and "gbp_posts" in s["limits"]["features"]
+    assert "gbp_posts" in s["limits"]["features"]  # the exact Growth limits are asserted in test_phase2_plans.py
     assert s["usage"]["locations"] == 1
 
 
@@ -147,7 +147,7 @@ def test_checkout_idempotent_and_trial_defers_first_charge(rzp, biz_a):
     assert a["subscription_id"] == b["subscription_id"] and b["reused"] is True
     assert sum(1 for c in rzp.calls if c[0] == "create_subscription") == 1
     start_at = [c for c in rzp.calls if c[0] == "create_subscription"][0][2]
-    assert start_at and start_at > time.time() + 10 * 86400  # first charge only after the trial
+    assert start_at and start_at > time.time() + (settings.trial_days - 1) * 86400  # first charge only after the trial
     assert a["key_id"] == "rzp_test_abc123"
 
 
@@ -163,7 +163,7 @@ def test_verify_rejects_bad_signature_and_foreign_tenant(rzp, biz_a, biz_b):
 
 
 def test_verify_activates_only_when_razorpay_confirms(rzp, biz_a):
-    sid = start_checkout(biz_a, "essential")["subscription_id"]
+    sid = start_checkout(biz_a, "starter")["subscription_id"]
     rzp.subs[sid]["status"] = "authenticated"  # mandate authorised, nothing charged yet
     pay = "pay_abcde"
     r = biz_a.post("/billing/subscription/verify", json={"razorpay_payment_id": pay, "razorpay_subscription_id": sid, "razorpay_signature": sig(KEY_SECRET, f"{pay}|{sid}")})
@@ -172,7 +172,7 @@ def test_verify_activates_only_when_razorpay_confirms(rzp, biz_a):
     r = biz_a.post("/billing/subscription/verify", json={"razorpay_payment_id": pay, "razorpay_subscription_id": sid, "razorpay_signature": sig(KEY_SECRET, f"{pay}|{sid}")})
     assert r.json()["status"] == "active"
     s = biz_a.get("/billing/subscription").json()
-    assert s["plan"] == "essential" and s["limits"]["locations"] == 1 and s["source"] == "razorpay"
+    assert s["plan"] == "starter" and s["limits"]["locations"] == 1 and s["source"] == "razorpay"
 
 
 def test_webhook_signature_required(rzp, client, biz_a):
@@ -197,7 +197,7 @@ def test_webhook_charge_records_payment_and_is_idempotent(rzp, client, biz_a):
 
 
 def test_failed_payment_grace_then_lapse_blocks_writes(rzp, client, biz_a):
-    sid, _ = activate(biz_a, rzp)
+    sid, _ = activate(biz_a, rzp, "pro")  # Pro: Growth includes one location and this test adds a second
     webhook(client, sub_event("subscription.pending", {"id": sid, "status": "pending"}, created_at=int(time.time()) + 5))
     s = biz_a.get("/billing/subscription").json()
     assert s["status"] == "past_due" and s["active"] is True and s["grace_until"]  # still within grace
@@ -254,15 +254,15 @@ def test_cancel_failure_does_not_change_state(rzp, biz_a):
 
 
 def test_upgrade_immediate_downgrade_scheduled_and_guarded(rzp, biz_a):
-    sid, _ = activate(biz_a, rzp, "essential")
-    assert biz_a.post("/billing/subscription/change-plan", json={"plan": "essential"}).status_code == 409
-    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "multi"})
-    assert r.status_code == 200 and r.json()["plan"] == "multi"
+    sid, _ = activate(biz_a, rzp, "starter")
+    assert biz_a.post("/billing/subscription/change-plan", json={"plan": "starter"}).status_code == 409
+    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "pro"})
+    assert r.status_code == 200 and r.json()["plan"] == "pro"
     assert rzp.calls[-1][0] == "update" and rzp.calls[-1][3] is False  # applied now
     assert biz_a.get("/billing/subscription").json()["limits"]["locations"] == 10
     for i in range(2):
         assert biz_a.post("/locations", json={"name": f"Extra {i}"}).status_code == 201
-    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "essential"})  # 3 locations > 1
+    r = biz_a.post("/billing/subscription/change-plan", json={"plan": "starter"})  # 3 locations > 1
     assert r.status_code == 409 and r.json()["detail"]["code"] == "downgrade_blocked"
     for loc in biz_a.get("/locations").json()[1:]:
         biz_a.delete(f"/locations/{loc['id']}")
@@ -271,7 +271,7 @@ def test_upgrade_immediate_downgrade_scheduled_and_guarded(rzp, biz_a):
 
 
 def test_plan_limits_enforced(rzp, biz_a):
-    activate(biz_a, rzp, "essential")  # 1 location, 3 team members
+    activate(biz_a, rzp, "starter")  # 1 location, 3 team members
     r = biz_a.post("/locations", json={"name": "Over the limit"})
     assert r.status_code == 402 and r.json()["detail"]["code"] == "plan_limit"
     assert biz_a.post("/staff/invitations", json={"email": "a1@example.com"}).status_code == 201
@@ -285,7 +285,7 @@ def test_feature_gating_by_plan(biz_a):
     from app.services import entitlements as ent
     db, sub = db_sub(biz_a.tenant_id)
     assert ent.compute(sub).has("gbp_posts")
-    sub.features = ["review_sync", "ai_replies", "gbp_info"]; sub.plan = "essential"; db.commit()
+    sub.features = ["review_sync", "ai_replies", "gbp_info"]; sub.plan = "starter"; db.commit()
     with pytest.raises(Exception) as e:
         ent.require_feature(db, sub.tenant_id, "gbp_posts")
     assert e.value.status_code == 402 and e.value.detail["code"] == "plan_upgrade_required"
@@ -310,7 +310,7 @@ def test_trial_expiry_blocks_writes_and_ai_but_not_card_scans(admin, biz_a, clie
 
 def test_card_order_flow_separate_from_subscription_payments(rzp, client, biz_a):
     shipping = {"name": "Dr Geeta", "phone": "9876543210", "address_line": "12 Hazratganj", "city": "Lucknow", "state": "Uttar Pradesh", "postal_code": "226001"}
-    assert biz_a.post("/billing/card-orders", json={"quantity": 2, "shipping": shipping}).status_code == 422  # below minimum
+    assert biz_a.post("/billing/card-orders", json={"quantity": 3, "shipping": shipping}).status_code == 422  # neither a bundle (1 or 2) nor a bulk order
     h = {"Idempotency-Key": "order-key-1"}
     a = biz_a.post("/billing/card-orders", json={"quantity": 20, "shipping": shipping}, headers=h)
     b = biz_a.post("/billing/card-orders", json={"quantity": 20, "shipping": shipping}, headers=h)
@@ -370,6 +370,8 @@ def test_auto_retry_only_transient_approved_failures(monkeypatch, rzp):
     from tests.conftest import owner_exec
     owner_exec("UPDATE reply_logs SET http_status = 400 WHERE draft_id = :d", d=drafts[1])
     fake.reply_error = None
+    # the job is global (every tenant): park failed drafts that other tests left behind so this test counts only its own
+    owner_exec("UPDATE reply_drafts SET attempts = 99 WHERE status = 'failed' AND id <> ALL(CAST(:ids AS uuid[]))", ids=drafts)
     assert retry_failed_replies() == {"retried": 1}
     states = {d["id"]: d["status"] for r in ids for d in [biz.get(f"/reviews/{r}").json()["drafts"][0]]}
     assert states[drafts[0]] == "published" and states[drafts[1]] == "failed"
@@ -386,3 +388,42 @@ def test_payment_id_never_crosses_tenants(rzp, client, biz_a, biz_b):
     a = biz_a.get("/billing/payments").json()
     assert [(p["razorpay_payment_id"], p["amount_paise"]) for p in a] == [("pay_shared_id_1", 79900)]
     assert biz_b.get("/billing/payments").json() == []
+
+
+def test_card_required_trial_is_locked_until_a_card_is_authorised(rzp, biz_a):
+    db, sub = db_sub(biz_a.tenant_id)
+    sub.card_status = "required"; db.commit(); db.close()
+    s = biz_a.get("/billing/subscription").json()
+    assert s["card_required"] is True and s["active"] is False and s["inactive_reason"] == "card_required" and s["status"] == "trialing"
+    # checkout still works while locked, and defers the first charge until the trial ends
+    sid = start_checkout(biz_a, "growth")["subscription_id"]
+    start_at = [c for c in rzp.calls if c[0] == "create_subscription"][0][2]
+    assert start_at and start_at > time.time() + (settings.trial_days - 1) * 86400
+    rzp.subs[sid]["status"] = "authenticated"  # mandate authorised, nothing charged yet
+    pay = "pay_card1"
+    r = biz_a.post("/billing/subscription/verify", json={"razorpay_payment_id": pay, "razorpay_subscription_id": sid, "razorpay_signature": sig(KEY_SECRET, f"{pay}|{sid}")})
+    assert r.status_code == 200 and r.json()["status"] == "trialing"
+    s = biz_a.get("/billing/subscription").json()
+    assert s["card_required"] is False and s["card_on_file"] is True and s["active"] is True and s["inactive_reason"] is None
+
+
+def test_card_not_required_by_default_for_new_trials(biz_a):
+    s = biz_a.get("/billing/subscription").json()
+    assert s["card_required"] is False and s["active"] is True
+
+
+def test_only_the_trial_plan_is_free_during_the_trial(rzp, biz_a, biz_b):
+    """Growth carries the free trial: its first charge is scheduled for the end of the trial. Any other plan is charged from today (no start_at)."""
+    assert settings.trial_plan == "growth"
+    start_checkout(biz_a, "growth")
+    start_checkout(biz_b, "starter")
+    starts = {c[1]: c[2] for c in rzp.calls if c[0] == "create_subscription"}
+    assert len(starts) == 2
+    deferred = [v for v in starts.values() if v]
+    immediate = [v for v in starts.values() if not v]
+    assert len(deferred) == 1 and deferred[0] > time.time() + (settings.trial_days - 1) * 86400
+    assert len(immediate) == 1
+
+
+def test_the_plans_endpoint_names_the_trial_plan(client):
+    assert client.get("/api/v1/billing/plans").json()["trial_plan"] == "growth"

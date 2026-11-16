@@ -48,8 +48,8 @@ frontend/           Next.js 15 (App Router), TypeScript, Tailwind
   src/components/   ui kit, charts (accessible SVG), AppShell
 db/init/            creates the non-superuser runtime role (so RLS is enforced)
 deploy/             Caddyfile, backup.sh, restore.sh
-docs/               ARCHITECTURE, DATABASE, API, DEPLOYMENT, SECURITY, CHECKLIST
-e2e/                Playwright smoke test
+docs/               ARCHITECTURE, DATABASE, API, DEPLOYMENT, SECURITY, CHECKLIST, ART_DIRECTION_AND_UI_AUDIT (design system + route-by-route screenshots)
+e2e/                Playwright smoke test; demo-data seed, product-screenshot capture and UI sweep (see the audit doc)
 ```
 
 ## Quick start with Docker (recommended)
@@ -117,6 +117,7 @@ With API and frontend running and `PLATFORM_ADMIN_EMAILS=admin@flowhq-dev.exampl
 ```bash
 npm i --no-save playwright && npx playwright install chromium   # one-time
 node e2e/smoke.js     # registers a business, onboards, assigns a card, opens the public mobile page, screenshots to e2e/shots/
+node e2e/qr-and-access.js   # QR design/export, pause/resume, destination edits, old codes staying alive, staff location access, Google states (needs the running docker stack; creates and removes a ZZ-E2E business)
 ```
 
 ## Key product rules (enforced in code)

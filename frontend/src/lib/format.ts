@@ -12,9 +12,11 @@ export function timeAgo(iso: string | null | undefined) {
   for (const [sec, label] of units) if (s >= sec) return `${Math.floor(s / sec)}${label} ago`;
   return "just now";
 }
+/** One decimal, as ratings are read (4.3, not 4.33). */
+export const fmtRating = (n: number | null | undefined) => (n === null || n === undefined ? "–" : (Math.round(n * 10) / 10).toFixed(1));
 export const fmtHours = (h: number | null | undefined) => (h === null || h === undefined ? "–" : h < 48 ? `${h}h` : `${Math.round(h / 24)}d`);
 export const inr = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 export const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 export const LANGS = [{ v: "en", l: "English" }, { v: "hi", l: "हिन्दी (Hindi)" }, { v: "hinglish", l: "Hinglish" }];
 export const TIMEZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "America/New_York", "Australia/Sydney"];
-export const CATEGORIES = ["Physiotherapy clinic", "Dental clinic", "Healthcare practice", "Restaurant", "Salon / Spa", "Other local business"];
+export const CATEGORIES = ["Physiotherapy clinic", "Dental clinic", "Healthcare practice", "Restaurant", "Hotel", "Salon / Spa", "Automobile service centre", "Retail store", "Gym / Fitness", "Coaching institute", "Other local business"];

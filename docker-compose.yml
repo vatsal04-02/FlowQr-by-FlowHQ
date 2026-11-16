@@ -13,26 +13,104 @@ x-backend-env: &backend-env
   PUBLIC_CARD_BASE_URL: ${PUBLIC_CARD_BASE_URL:-http://localhost:3000}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}  # REQUIRED when the site and the API are different hosts (flowqr.site + api.flowqr.site): .flowqr.site; empty = host-only cookies
+  SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+  LEGAL_COMPANY_NAME: ${LEGAL_COMPANY_NAME:-FlowHQ}
+  SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-336}
   PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/api/v1/google/callback}
+  GOOGLE_LOGIN_CLIENT_ID: ${GOOGLE_LOGIN_CLIENT_ID:-}
+  GOOGLE_LOGIN_CLIENT_SECRET: ${GOOGLE_LOGIN_CLIENT_SECRET:-}
+  GOOGLE_LOGIN_REDIRECT_URI: ${GOOGLE_LOGIN_REDIRECT_URI:-http://localhost:3000/api/v1/auth/google/callback}
   APP_DB_ROLE: flowqr_app
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+  RANK_PROVIDER: ${RANK_PROVIDER:-}
+  RANK_PROVIDER_KEY: ${RANK_PROVIDER_KEY:-}
+  PLACES_SUGGEST_ENABLED: ${PLACES_SUGGEST_ENABLED:-true}  # business/address suggestions while setting up; needs RANK_PROVIDER=google_places and RANK_PROVIDER_KEY
+  PLACES_SUGGEST_USER_DAILY_CAP: ${PLACES_SUGGEST_USER_DAILY_CAP:-150}
+  PLACES_SUGGEST_MONTHLY_CAP: ${PLACES_SUGGEST_MONTHLY_CAP:-3000}
+  GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL-minimal}
+  AI_PROVIDER: ${AI_PROVIDER:-gemini}  # gemini | openrouter | openai_compat
+  OPENAI_COMPAT_BASE_URL: ${OPENAI_COMPAT_BASE_URL:-}
+  OPENAI_COMPAT_API_KEY: ${OPENAI_COMPAT_API_KEY:-}
+  OPENAI_COMPAT_MODEL: ${OPENAI_COMPAT_MODEL:-}
+  OPENAI_COMPAT_NAME: ${OPENAI_COMPAT_NAME:-openai_compat}
+  AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-25}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  OPENROUTER_MODEL: ${OPENROUTER_MODEL:-nvidia/nemotron-3-ultra-550b-a55b:free}
+  OPENROUTER_DISABLE_REASONING: ${OPENROUTER_DISABLE_REASONING:-true}
+  AI_EXTRA_CA_BUNDLE: ${AI_EXTRA_CA_BUNDLE:-}  # dev only: extra trusted roots when a proxy/antivirus re-signs HTTPS
   REVIEW_SYNC_INTERVAL_MINUTES: ${REVIEW_SYNC_INTERVAL_MINUTES:-30}
+  REVIEW_MAX_ATTEMPTS: ${REVIEW_MAX_ATTEMPTS:-3}
+  REVIEW_VERIFY_WITH_AI: ${REVIEW_VERIFY_WITH_AI:-true}
+  REVIEW_SESSION_RETENTION_DAYS: ${REVIEW_SESSION_RETENTION_DAYS:-90}
+  REVIEW_MAX_DRAFTS_PER_SESSION: ${REVIEW_MAX_DRAFTS_PER_SESSION:-5}
+  RL_REVIEW_GENERATE_PER_10MIN: ${RL_REVIEW_GENERATE_PER_10MIN:-20}
   RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
   RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
   RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
-  TRIAL_DAYS: ${TRIAL_DAYS:-14}
+  TRIAL_DAYS: ${TRIAL_DAYS:-7}
+  TRIAL_REQUIRES_CARD: ${TRIAL_REQUIRES_CARD:-true}  # new trials need a card (charged only after the trial ends); set false for no-card trials
   CARD_PRICE_PAISE: ${CARD_PRICE_PAISE:-}  # no default: unset disables card ordering
   REQUIRE_VERIFIED_EMAIL: ${REQUIRE_VERIFIED_EMAIL:-true}
+  REGISTRATION_MODE: ${REGISTRATION_MODE:-}  # closed | allowlist | open. EMPTY = allowlist when APP_ENV is staging/production, open in development
+  REGISTRATION_ALLOWLIST: ${REGISTRATION_ALLOWLIST:-}  # comma separated addresses allowed to register in allowlist mode (administrators can also manage a database list)
+  ADMIN_SESSION_TTL_HOURS: ${ADMIN_SESSION_TTL_HOURS:-12}  # platform administrators sign in again at least this often
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM: ${SMTP_FROM:-FlowQR <no-reply@localhost>}
   SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+  AI_MONTHLY_BUDGET_USD: ${AI_MONTHLY_BUDGET_USD:-0}
+  AI_PRICE_IN_PER_MTOK: ${AI_PRICE_IN_PER_MTOK:-0}
+  AI_PRICE_OUT_PER_MTOK: ${AI_PRICE_OUT_PER_MTOK:-0}
+  AI_PLATFORM_HARD_LIMIT_USD: ${AI_PLATFORM_HARD_LIMIT_USD:-0}  # Phase 0 cost control: see .env.example
+  AI_PLATFORM_MONTHLY_TOKEN_LIMIT: ${AI_PLATFORM_MONTHLY_TOKEN_LIMIT:-0}
+  AI_PLATFORM_SOFT_PCT: ${AI_PLATFORM_SOFT_PCT:-90}
+  AI_TENANT_MONTHLY_BUDGET_USD: ${AI_TENANT_MONTHLY_BUDGET_USD:-0}
+  AI_TENANT_MONTHLY_TOKEN_BUDGET: ${AI_TENANT_MONTHLY_TOKEN_BUDGET:-0}
+  AI_REVIEW_RISK_CHECK: ${AI_REVIEW_RISK_CHECK:-true}
+  AUTONOMY_EMERGENCY_STOP: ${AUTONOMY_EMERGENCY_STOP:-false}  # Balanced Autonomy: see .env.example
+  AUTONOMY_FAILURE_SUSPEND: ${AUTONOMY_FAILURE_SUSPEND:-3}
+  AUTONOMY_MAX_ATTEMPTS: ${AUTONOMY_MAX_ATTEMPTS:-4}
+  AUTONOMY_APPROVAL_TTL_HOURS: ${AUTONOMY_APPROVAL_TTL_HOURS:-72}
+  AUTONOMY_AUTO_AUTH_TTL_HOURS: ${AUTONOMY_AUTO_AUTH_TTL_HOURS:-24}
+  AUTONOMY_PROPOSAL_TTL_DAYS: ${AUTONOMY_PROPOSAL_TTL_DAYS:-7}
+  AUTONOMY_HISTORY_RETENTION_DAYS: ${AUTONOMY_HISTORY_RETENTION_DAYS:-730}  # docs/DATA_RETENTION.md
+  RANK_GRID_RETENTION_DAYS: ${RANK_GRID_RETENTION_DAYS:-400}
+  RANK_PLATFORM_MONTHLY_CAP: ${RANK_PLATFORM_MONTHLY_CAP:-0}
+  RANK_PLATFORM_DAILY_CAP: ${RANK_PLATFORM_DAILY_CAP:-0}
+  RANK_GRID_ENABLED: ${RANK_GRID_ENABLED:-false}
+  RANK_ALERT_PCT: ${RANK_ALERT_PCT:-80}
+  RANK_COST_PER_CALL_USD: ${RANK_COST_PER_CALL_USD:-0}
+  # Places spend and map controls. Each default is PROVISIONAL (the owner has not approved final numbers): docs/COMMERCIAL_LIMITS_AND_COSTS.md
+  RANK_MAX_KEYWORDS_PER_LOCATION: ${RANK_MAX_KEYWORDS_PER_LOCATION:-10}
+  RANK_MONTHLY_CHECK_CAP: ${RANK_MONTHLY_CHECK_CAP:-300}
+  RANK_RADIUS_M: ${RANK_RADIUS_M:-3000}
+  RANK_AUTO_CHECK_DAYS: ${RANK_AUTO_CHECK_DAYS:-7}
+  RANK_GRID_MIN_SPACING_M: ${RANK_GRID_MIN_SPACING_M:-250}
+  RANK_GRID_MAX_SPACING_M: ${RANK_GRID_MAX_SPACING_M:-10000}
+  RANK_GRID_AUTO_DAYS: ${RANK_GRID_AUTO_DAYS:-7}
+  # Phase 2 commercial settings (docs/ENVIRONMENT_VARIABLES.md). Empty = not set: an unset price or cost input is shown as missing, never as zero.
+  API_PRICES: ${API_PRICES:-}
+  CARD_OFFERS: ${CARD_OFFERS:-}
+  PROMO_CARD_PLAN: ${PROMO_CARD_PLAN:-}
+  PROMO_CARD_DAYS: ${PROMO_CARD_DAYS:-}
+  PROMO_MAX_GRANTS_PER_BUSINESS: ${PROMO_MAX_GRANTS_PER_BUSINESS:-}
+  USD_INR_RATE: ${USD_INR_RATE:-}
+  HOSTING_MONTHLY_INR: ${HOSTING_MONTHLY_INR:-}
+  SUPPORT_MONTHLY_INR: ${SUPPORT_MONTHLY_INR:-}
+  PAYMENT_FEE_PCT: ${PAYMENT_FEE_PCT:-}
+  CARD_UNIT_COST_INR: ${CARD_UNIT_COST_INR:-}
+  CARD_FULFILMENT_PER_ORDER_INR: ${CARD_FULFILMENT_PER_ORDER_INR:-}
+  MARKETING_SPEND_MONTHLY_INR: ${MARKETING_SPEND_MONTHLY_INR:-}
+  BACKUP_STATUS_FILE: /backups/status.json
 
 services:
   db:
@@ -80,6 +158,8 @@ services:
     image: flowqr-backend:${FLOWQR_TAG:-local}
     restart: unless-stopped
     environment: *backend-env
+    volumes:
+      - ./backups:/backups:ro  # backup status only (written by deploy/backup.sh); the API cannot change backups
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -96,6 +176,8 @@ services:
     restart: unless-stopped
     command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
     environment: *backend-env
+    volumes:
+      - ./backups:/backups:ro
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -127,6 +209,7 @@ services:
       context: ./frontend
       args:
         BACKEND_URL: http://api:8000
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
     restart: unless-stopped
     depends_on:
       api: { condition: service_healthy }

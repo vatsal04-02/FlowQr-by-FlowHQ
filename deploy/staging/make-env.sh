@@ -6,7 +6,8 @@ D=${1:-flowqr-staging.dev}
 OUT=.env.staging
 [ -e "$OUT" ] && { echo "$OUT exists; refusing to overwrite (delete it first)"; exit 1; }
 rand() { openssl rand -hex "$1"; }
-FERNET=$(python3 -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())")
+FERNET=$(openssl rand -base64 32 | tr "+/" "-_" | tr -d "
+")   # url-safe base64 of 32 random bytes (a Fernet key); no Python needed
 umask 077
 cat > "$OUT" <<ENV
 APP_ENV=staging
@@ -18,6 +19,7 @@ MARKETING_DOMAIN=$D
 APP_DOMAIN=app.$D
 API_DOMAIN=api.$D
 CARD_DOMAIN=go.$D
+NEXT_PUBLIC_SITE_URL=https://$D
 FRONTEND_URL=https://app.$D
 PUBLIC_CARD_BASE_URL=https://go.$D
 CORS_ORIGINS=https://app.$D
@@ -25,6 +27,9 @@ GOOGLE_REDIRECT_URI=https://app.$D/api/v1/google/callback
 COOKIE_SECURE=true
 ACME_EMAIL=ops@$D
 PLATFORM_ADMIN_EMAILS=admin@$D
+# The rehearsal stack is private and its smoke test registers fresh throwaway users, so it runs OPEN on purpose. A real staging or production host must NOT: leave this unset
+# (allowlist by default) and approve addresses with `python -m app.cli registration --add`. See docs/REGISTRATION_GATE.md.
+REGISTRATION_MODE=open
 # --- integrations: fill in REAL staging credentials here (leave empty to keep the feature in 'configuration pending') ---
 GEMINI_API_KEY=
 GOOGLE_CLIENT_ID=

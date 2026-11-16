@@ -2,7 +2,7 @@ from celery import Celery
 
 from app.core.config import settings
 
-celery_app = Celery("flowqr", broker=settings.redis_url, backend=None, include=["app.workers.tasks"])
+celery_app = Celery("flowqr", broker=settings.redis_url, backend=None, include=["app.workers.tasks", "app.workers.monitor"])
 celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
@@ -15,5 +15,22 @@ celery_app.conf.update(
         },
         "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
         "retry-failed-replies": {"task": "flowqr.retry_failed_replies", "schedule": 900.0},
+        "auto-replies": {"task": "flowqr.auto_replies", "schedule": 300.0},  # template replies to new positive reviews (services/auto_reply.py)
+        "publish-due-posts": {"task": "flowqr.publish_due_posts", "schedule": 60.0},
+        "publish-due-media": {"task": "flowqr.publish_due_media", "schedule": 60.0},
+        "recover-stuck-posts": {"task": "flowqr.recover_stuck_posts", "schedule": 300.0},
+        "autonomy-execute": {"task": "flowqr.autonomy_execute", "schedule": 120.0},
+        "autonomy-housekeeping": {"task": "flowqr.autonomy_housekeeping", "schedule": 300.0},
+        "autonomy-followups": {"task": "flowqr.autonomy_followups", "schedule": 3600.0},
+        "autonomy-retention": {"task": "flowqr.autonomy_retention", "schedule": 86400.0},
+        "autonomy-scan": {"task": "flowqr.autonomy_scan", "schedule": 21600.0},
+        "daily-agent": {"task": "flowqr.daily_agent", "schedule": 1800.0},
+        "purge-deleted-accounts": {"task": "flowqr.purge_deleted_accounts", "schedule": 3600.0},
+        "purge-review-sessions": {"task": "flowqr.purge_review_sessions", "schedule": 86400.0},
+        "check-ranks": {"task": "flowqr.check_ranks", "schedule": 21600.0},
+        "check-rank-grids": {"task": "flowqr.check_rank_grids", "schedule": 21600.0},
+        "heartbeat": {"task": "flowqr.heartbeat", "schedule": 60.0},
+        "ops-watch": {"task": "flowqr.ops_watch", "schedule": 900.0},
+        "notify-by-email": {"task": "flowqr.notify_by_email", "schedule": 3600.0},
     },
 )

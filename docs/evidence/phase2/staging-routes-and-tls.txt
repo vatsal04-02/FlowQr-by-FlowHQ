@@ -1,0 +1,53 @@
+== marketing (flowqr-staging.dev)
+PASS GET /                                              -> 200  has[FlowQR]
+PASS GET /pricing                                       -> 200  has[Growth]
+PASS GET /about stays on the marketing host             -> 200  has[FlowQR]
+PASS GET /demo stays on the marketing host              -> 200  has[FlowQR]
+PASS GET /google-business stays on the marketing host   -> 200  has[FlowQR]
+PASS GET /review-cards stays on the marketing host      -> 200  has[FlowQR]
+PASS GET /ai-growth-agent stays on the marketing host   -> 200  has[FlowQR]
+PASS GET /industries stays on the marketing host        -> 200  has[FlowQR]
+PASS GET /privacy stays on the marketing host           -> 200  has[FlowQR]
+PASS GET /terms stays on the marketing host             -> 200  has[FlowQR]
+PASS GET /refund-policy stays on the marketing host     -> 200  has[FlowQR]
+PASS GET /data-deletion stays on the marketing host     -> 200  has[FlowQR]
+PASS marketing host serves the live plans (pricing page needs it) -> 200  has[starter]
+PASS marketing host serves legal info                   -> 200  has[company]
+PASS marketing host reaches the demo form endpoint (validation error, not a redirect) -> 422 
+PASS marketing host does NOT expose other API routes    -> 302 https://app.flowqr-staging.dev/api/v1/auth/me
+PASS marketing host does NOT expose the API docs/health -> 302 https://app.flowqr-staging.dev/api/health
+PASS GET /robots.txt                                    -> 200  has[Sitemap: https://]
+PASS GET /sitemap.xml uses the public origin            -> 200  has[https://flowqr-staging.dev/pricing]
+PASS GET /marketing/restaurants.jpg (asset)             -> 200 
+PASS GET /login leaves marketing host                   -> 302 https://app.flowqr-staging.dev/login has[https://app.flowqr-staging.dev/login]
+PASS GET /api/health not exposed                        -> 302 https://app.flowqr-staging.dev/api/health
+PASS www -> apex (301)                                  -> 301 https://flowqr-staging.dev/pricing has[https://flowqr-staging.dev/pricing]
+== app (app.flowqr-staging.dev)
+PASS GET /login                                         -> 200  has[Welcome back]
+PASS GET /api/health (Caddy->api)                       -> 200  has["ok"]
+PASS GET /api/v1/billing/plans                          -> 200  has[starter]
+PASS /api/docs hidden in staging                        -> 404 
+PASS /api/openapi.json hidden                           -> 404 
+== api (api.flowqr-staging.dev)
+PASS GET /api/health                                    -> 200  has["ok"]
+PASS GET / (no frontend served)                         -> 200  has[FlowQR API]
+PASS GET /login (not served)                            -> 200  has[FlowQR API]
+PASS POST webhook without signature -> rejected         -> 400 
+== card (go.flowqr-staging.dev)
+PASS GET /c/<token> landing page                        -> 200  has[<html]
+PASS public API unknown token -> not_found              -> 404  has[not_found]
+PASS GET /dashboard -> redirect to app                  -> 302 https://app.flowqr-staging.dev/dashboard has[https://app.flowqr-staging.dev/dashboard]
+PASS /api/v1/auth/me NOT proxied                        -> 302 https://app.flowqr-staging.dev/api/v1/auth/me
+PASS /api/health NOT proxied                            -> 302 https://app.flowqr-staging.dev/api/health
+PASS /api/v1/billing/plans NOT proxied                  -> 302 https://app.flowqr-staging.dev/api/v1/billing/plans
+== http -> https
+PASS http://go upgrades                                 -> 308 https://go.flowqr-staging.dev/c/abc has[https://go.flowqr-staging.dev/c/abc]
+PASS http://marketing upgrades                          -> 308 https://flowqr-staging.dev/pricing
+== security headers (app)
+permissions-policy: camera=(self), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+
+ROUTE FAILURES: 0

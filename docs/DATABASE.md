@@ -38,3 +38,12 @@ auth_sessions, password_reset_tokens   (not tenant scoped; token hashes only)
 
 ## Backups
 `deploy/backup.sh` (pg_dump, gzip, 14-day local retention) and `deploy/restore.sh`. Copy backups off-host. Test a restore before relying on it.
+
+## Phase 2 tables (migrations 0029, 0030)
+* `billing_plans` / `subscriptions`: `review_generations`, `review_replies`, `limits` (JSONB, e.g. `{"geo": {...}}`; a null number means "not configured" and the feature stays off).
+* `subscription_events`: append-only history of every status or plan change (the app role has SELECT and INSERT only). RLS.
+* `promotional_grants`: the free Growth month from a card purchase, one per card order; never counted as MRR. RLS.
+* `card_orders.offer_code`: which bundle was bought.
+* `api_usage_ledger`: one row per Google Places search or Business Profile call, with a configured price (NULL = unpriced, never free), a status of ok, error or refused, and an idempotency key. No foreign key to tenants (history outlives a deleted business); append-only; RLS.
+* `ai_call_ledger`: gains location, actor, request id, retry count, cached tokens and feature.
+* `tenants.places_monthly_cap`: optional per-business ceiling on Places searches.

@@ -1,0 +1,36 @@
+# FlowQR API site block for the EXISTING Caddy on the shared VPS. APPEND it to the END of that Caddyfile (in place, so the container's bind mount sees it); do not replace the file and
+# do not start a second Caddy. The apply and undo procedure is in docs/PRODUCTION_DEPLOYMENT_REPORT.md.
+#
+# Upstream 172.17.0.1:18000 = the FlowQR API, published on the docker0 gateway (private, not reachable from the internet; see deploy/vps/docker-compose.vps.yml). Verified on the server with
+# stand-in containers: a container on a separate user-defined bridge, which is how that Caddy is attached, reaches a service published at 172.17.0.1:18000, and the public address does
+# not. The API now runs and answers on 172.17.0.1:18000 from the host; reachability from the Caddy container itself is proven only by the first request after the reload.
+#
+# header_up X-Forwarded-For {remote_host}: the API trusts X-Forwarded-For (uvicorn --proxy-headers) and every per-IP limit (login, verification, the registration gate) keys on it. Caddy
+# already discards a client-supplied value by default, this line makes the overwrite explicit so a spoofed header can never choose its own "client address".
+api.flowqr.site {
+	encode zstd gzip
+	request_body {
+		max_size 12MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	@api path /api/*
+	handle @api {
+		reverse_proxy 172.17.0.1:18000 {
+			header_up X-Forwarded-For {remote_host}
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 90s
+			}
+			health_uri /api/health
+			health_interval 30s
+		}
+	}
+	handle {
+		respond "FlowQR API" 200
+	}
+}

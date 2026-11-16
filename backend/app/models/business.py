@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint,
+    Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -57,6 +57,10 @@ class GoogleConnection(IdMixin, TimestampMixin, Base):
     connected_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     disconnected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Whether Google has granted the FlowHQ Cloud project Business Profile API access: unknown | approved | awaiting_approval.
+    # OAuth login succeeding says nothing about this; it is learned from real API responses.
+    api_access: Mapped[str] = mapped_column(String(24), default="unknown", server_default="unknown")
+    api_access_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     google_locations: Mapped[list["GoogleLocation"]] = relationship(back_populates="connection")
 
@@ -78,6 +82,8 @@ class GoogleLocation(IdMixin, TimestampMixin, Base):
     title: Mapped[str | None] = mapped_column(String(300))
     address: Mapped[str | None] = mapped_column(String(500))
     place_id: Mapped[str | None] = mapped_column(String(200))
+    lat: Mapped[float | None] = mapped_column(Float)  # cached from Places once (centre of the local-rank search)
+    lng: Mapped[float | None] = mapped_column(Float)
     review_url: Mapped[str | None] = mapped_column(String(1000))
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -92,6 +98,7 @@ class GoogleLocation(IdMixin, TimestampMixin, Base):
 class ReplyStatus(str, enum.Enum):
     draft = "draft"
     approved = "approved"
+    publishing = "publishing"  # sent to Google, waiting for Google's answer (committed before the call so it is visible)
     published = "published"
     failed = "failed"
     rejected = "rejected"
@@ -119,6 +126,10 @@ class Review(IdMixin, TimestampMixin, Base):
     # Reply state as reported by Google (only set after Google confirms).
     google_reply_text: Mapped[str | None] = mapped_column(Text)
     google_reply_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Google's moderation of the owner reply: PENDING | APPROVED | REJECTED (NULL when Google did not report one).
+    # A REJECTED reply is not public, so google_reply_text stays NULL for it.
+    google_reply_state: Mapped[str | None] = mapped_column(String(16))
+    google_reply_policy_violation: Mapped[str | None] = mapped_column(String(64))
 
     drafts: Mapped[list["ReplyDraft"]] = relationship(back_populates="review", order_by="ReplyDraft.created_at")
 
@@ -139,12 +150,15 @@ class ReplyDraft(IdMixin, TimestampMixin, Base):
     generated_by_ai: Mapped[bool] = mapped_column(Boolean, default=False)
     requires_human_handling: Mapped[bool] = mapped_column(Boolean, default=False)
     flag_reasons: Mapped[list] = mapped_column(JSONB, default=list)
+    risk_level: Mapped[str | None] = mapped_column(String(8))  # low | medium | high (services/ai/safety.assess_risk)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_reason: Mapped[str | None] = mapped_column(Text)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    auto_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # approved by the template rule (services/auto_reply.py), not by a person
+    template_index: Mapped[int | None] = mapped_column(SmallInteger)  # which template an automatic reply used (rotation)
 
     review: Mapped[Review] = relationship(back_populates="drafts")
 

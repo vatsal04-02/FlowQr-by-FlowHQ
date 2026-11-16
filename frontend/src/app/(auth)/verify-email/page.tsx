@@ -20,7 +20,7 @@ function Inner() {
   }, [token, refresh]);
   if (state === "working") return <Spinner label="Verifying your email" />;
   return state === "ok"
-    ? <div className="space-y-4"><Alert tone="success" title="Email verified">Thanks! You can now invite your team, connect Google and manage billing.</Alert><LinkButton href="/dashboard">Go to dashboard</LinkButton></div>
+    ? <div className="space-y-4"><Alert tone="success" title="Email verified">Thanks! You can now invite your team, connect Google and manage billing.</Alert><LinkButton href="/overview">Go to dashboard</LinkButton></div>
     : <div className="space-y-4"><Alert tone="error" title="Couldn't verify your email">{msg} Log in and use &ldquo;Resend verification email&rdquo; to get a new link.</Alert><LinkButton href="/login" variant="secondary">Log in</LinkButton></div>;
 }
 export default function VerifyEmail() { return <AuthShell title="Verify your email"><Suspense><Inner /></Suspense></AuthShell>; }

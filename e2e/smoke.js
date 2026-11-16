@@ -59,7 +59,7 @@ async function apiCtx(browser, email, name) {
   await page.getByText('How do you want to collect reviews?').waitFor();
   await page.screenshot({ path: `${OUT}/05-onboarding-google.png`, fullPage: true });
   await page.getByRole('button', { name: /Use my Google review link/ }).click();
-  await page.waitForURL('**/dashboard');
+  await page.waitForURL('**/overview');
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${OUT}/06-dashboard-desktop.png`, fullPage: true });
 
@@ -106,7 +106,7 @@ async function apiCtx(browser, email, name) {
   await mctx.addCookies(await ctx.cookies());
   const md = await mctx.newPage(); await md.goto('/dashboard'); await md.waitForTimeout(1000);
   await md.screenshot({ path: `${OUT}/22-dashboard-mobile.png`, fullPage: false });
-  await md.getByRole('button', { name: 'More' }).click(); await md.waitForTimeout(400);
+  await md.getByRole('button', { name: 'Account menu' }).click(); await md.waitForTimeout(400);
   await md.screenshot({ path: `${OUT}/23-mobile-menu.png` });
 
   // admin UI
@@ -159,7 +159,7 @@ async function apiCtx(browser, email, name) {
   await page.screenshot({ path: `${OUT}/47-suspended.png` });
   const pub = await phone.newPage(); await pub.goto(`/c/${token}`); await pub.getByText('This card is no longer active').waitFor(); log('public card shows inactive while suspended');
   r = await admin.ctx.request.post(`/api/v1/admin/tenants/${tenant.id}/unsuspend`, { headers: H(admin.csrf) }); log('unsuspend', r.status());
-  await page.goto('/dashboard'); await page.getByText('Hello,').waitFor();
+  await page.goto('/dashboard'); await page.getByText(/^Good (morning|afternoon|evening)/).waitFor();
 
   // admin console (separate shell)
   await ap.goto('/admin/customers'); await ap.getByText('Customers').first().waitFor(); await ap.waitForTimeout(800);

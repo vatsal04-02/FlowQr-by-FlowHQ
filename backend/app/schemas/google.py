@@ -27,6 +27,10 @@ class ConnectionOut(ORM):
     last_error: str | None
     connected_at: datetime | None
     disconnected_at: datetime | None
+    api_access: str = "unknown"  # unknown | approved | awaiting_approval
+    api_access_checked_at: datetime | None = None
+    locations_found: int = 0  # Business Profile locations Google listed for this account
+    no_locations: bool = False  # signed in and API access works, but the account manages no location: NOT a working business connection
 
 
 class SelectionItem(BaseModel):

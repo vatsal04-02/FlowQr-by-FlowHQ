@@ -12,6 +12,7 @@ import { api, errorMessage } from "@/lib/api";
 import { rupees } from "@/lib/billing";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
+import { SpendingCeilings } from "@/components/admin/SpendingCeilings";
 import { SUB_TONE, type TenantRow } from "@/lib/admin-ui";
 
 interface Detail {
@@ -43,7 +44,7 @@ export default function CustomerDetail() {
   return (
     <>
       <Link href="/admin/customers" className="mb-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden />All customers</Link>
-      <PageHeader title={t.name} subtitle={`${t.category ?? ""} · owner ${t.owner_email ?? "?"} · joined ${fmtDate(t.created_at)}`} actions={<>
+      <PageHeader eyebrow="Customer" title={t.name} subtitle={`${t.category ?? ""} · owner ${t.owner_email ?? "?"} · joined ${fmtDate(t.created_at)}`} actions={<>
         <Button variant="secondary" icon={<LifeBuoy className="h-4 w-4" />} onClick={() => { setSup(t.support_status === "none" ? "open" : t.support_status); setText(t.support_note ?? ""); setModal("support"); }}>Support status</Button>
         {t.is_active ? <Button variant="danger" icon={<Ban className="h-4 w-4" />} onClick={() => setModal("suspend")}>Suspend</Button> : <Button icon={<ShieldCheck className="h-4 w-4" />} loading={busy} onClick={() => void run(() => api(`/admin/tenants/${id}/unsuspend`, { method: "POST" }), "Account restored.")}>Unsuspend</Button>}
       </>} />
@@ -57,8 +58,9 @@ export default function CustomerDetail() {
               ["Trial ends", fmtDate(s.trial_ends_at)], ["Period end", fmtDate(s.current_period_end)], ["Razorpay", s.razorpay_subscription_id ?? "–"], ["AI this month", d.ai_generations_this_month]].map(([k, v]) => <div key={k as string}><dt className="text-ink-500">{k}</dt><dd className="mt-0.5 break-all font-semibold">{v}</dd></div>)}
           </dl> : <p className="text-sm text-ink-500">No subscription.</p>}
         </Card>
+        <SpendingCeilings tenantId={id} />
         <Card><CardHeader title="Team" /><ul className="divide-y divide-ink-100 text-sm">{d.members.map((m) => (
-          <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><div><p className="font-semibold">{m.full_name} <Badge tone={m.role === "owner" ? "orange" : "gray"}>{m.role}</Badge></p><p className="text-ink-500">{m.email}{!m.email_verified && " · unverified"}</p></div>
+          <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><div><p className="font-semibold">{m.full_name} <Badge tone={m.role === "owner" ? "blue" : "gray"}>{m.role}</Badge></p><p className="text-ink-500">{m.email}{!m.email_verified && " · unverified"}</p></div>
             <Button size="sm" variant={m.is_active ? "danger" : "secondary"} onClick={() => { if (confirm(`${m.is_active ? "Deactivate" : "Reactivate"} ${m.email}?`)) void run(() => api(`/admin/users/${m.user_id}`, { method: "PATCH", body: { is_active: !m.is_active } }), "User updated."); }}>{m.is_active ? "Deactivate" : "Reactivate"}</Button></li>))}</ul></Card>
         <Card><CardHeader title={`Locations (${d.locations.length})`} /><ul className="space-y-1.5 text-sm">{d.locations.map((l) => <li key={l.id} className="flex items-center justify-between"><span>{l.name}{l.city && <span className="text-ink-500"> · {l.city}</span>}</span><Badge tone={l.has_review_link ? "green" : "amber"}>{l.has_review_link ? "link set" : "no link"}</Badge></li>)}</ul></Card>
         <Card><CardHeader title={`Cards (${d.cards.length})`} /><div className="flex flex-wrap gap-2">{d.cards.map((c) => <Badge key={c.id} tone={c.status === "active" ? "green" : "gray"}>{c.card_code} · {c.status}</Badge>)}{d.cards.length === 0 && <p className="text-sm text-ink-500">None assigned.</p>}</div></Card>
@@ -76,7 +78,7 @@ export default function CustomerDetail() {
       <Modal open={modal === "sub"} onClose={() => setModal(null)} title="Manual subscription override" footer={<><Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button><Button loading={busy} disabled={text.trim().length < 3} onClick={() => void run(() => api(`/admin/tenants/${id}/subscription`, { method: "POST", body: { plan: plan || null, status: status || null, extend_trial_days: extend ? Number(extend) : null, note: text.trim() } }), "Subscription updated.")}>Apply</Button></>}>
         <div className="space-y-4">
           <Alert tone="warning">This changes FlowQR access only. It does <b>not</b> change or cancel a live Razorpay subscription.</Alert>
-          <Select label="Plan" value={plan} onChange={(e) => setPlan(e.target.value)}><option value="">Keep current</option><option value="essential">Essential</option><option value="growth">Growth</option><option value="multi">Multi-location</option></Select>
+          <Select label="Plan" value={plan} onChange={(e) => setPlan(e.target.value)}><option value="">Keep current</option><option value="starter">Starter</option><option value="growth">Growth</option><option value="pro">Pro</option></Select>
           <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">Keep current</option><option value="manual">Manual / complimentary</option><option value="active">Active</option><option value="trialing">Trialing</option><option value="expired">Expired</option><option value="canceled">Canceled</option></Select>
           <Input label="Extend trial by (days)" inputMode="numeric" value={extend} onChange={(e) => setExtend(e.target.value)} />
           <Input label="Reason (required, goes to audit log)" value={text} onChange={(e) => setText(e.target.value)} />

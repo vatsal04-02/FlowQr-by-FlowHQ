@@ -88,7 +88,15 @@ def main() -> int:
     r = admin.register("FlowHQ Admin")
     if r.status_code == 409:
         r = admin.login()
-    check(r.status_code in (200, 201) and r.json()["user"]["is_platform_admin"], "platform admin account (email listed in PLATFORM_ADMIN_EMAILS)")
+    check(r.status_code in (200, 201), "platform admin account registered/signed in (email listed in PLATFORM_ADMIN_EMAILS)")
+    # Phase 2 security fix: an administrator address is NOT an administrator until its mailbox is proven. Verify through the delivered email, then sign in again.
+    if not admin.req("GET", "/auth/me").json()["user"]["is_platform_admin"]:
+        tok = token_from_mail(admin.email, "Verify")
+        check(bool(tok), "admin verification email delivered via SMTP")
+        if tok:
+            admin.req("POST", "/auth/verify-email", json={"token": tok})
+            admin.login()
+    check(admin.req("GET", "/auth/me").json()["user"]["is_platform_admin"], "platform admin rights granted only after email verification")
     check(owner.register("Staging Owner").status_code == 201, "owner registration")
     me = owner.req("GET", "/auth/me").json()
     check(me["user"]["email_verified_at"] is None, "new account starts unverified")
@@ -148,7 +156,7 @@ def main() -> int:
     r = admin.req("POST", "/admin/batches", json={"name": f"Staging batch {run}", "quantity": 3})
     check(r.status_code == 201 and r.json()["base_url"] == CARD, "card batch created; base URL recorded", r.json().get("base_url", ""))
     cards = admin.req("GET", "/admin/cards", params={"batch_id": r.json()["id"]}).json()["items"]
-    check(all(c["url"].startswith(CARD + "/c/") for c in cards), "card URLs use the go. card domain", cards[0]["url"])
+    check(all(c["url"].startswith((CARD + "/q/", CARD + "/c/")) for c in cards), "card URLs use the go. card domain (printed QR address is /q/)", cards[0]["url"])
     r = admin.req("POST", f"/admin/cards/{cards[0]['id']}/assign", json={"tenant_id": tenant["id"], "location_id": loc})
     check(r.status_code == 200, "card assigned to location")
     pub = httpx.Client(timeout=20)
