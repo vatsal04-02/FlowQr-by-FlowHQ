@@ -106,11 +106,11 @@ export default function ReportsPage() {
                     <td className="whitespace-nowrap text-muted">{timeAgo(l.fetched_at)}</td></tr>); })}</tbody>
               </table></div>
             ) : <p className="rounded-tile bg-surface-2 p-4 text-sm text-muted">{r.google_performance.note}</p>}
-            {r.google_performance.available && <p className="mt-3 text-[13px] text-muted">{r.google_performance.note} Day-by-day detail: <Link className="font-semibold text-accent-ink hover:underline" href="/analytics/performance">Search &amp; Maps</Link>.</p>}
+            {r.google_performance.available && <p className="mt-3 text-[13px] text-muted">{r.google_performance.note} Day-by-day detail: <Link className="font-semibold text-accent-ink hover:underline" href="/seo/performance">Search &amp; Maps</Link>.</p>}
             {r.google_performance.errors.map((e) => <p key={e.location} className="mt-2 text-[13px] text-warn">{e.location}: {e.error}</p>)}
           </Panel>
 
-          <Panel title="QR review campaigns" action={<Link className="text-sm font-semibold text-accent-ink hover:underline" href="/analytics/campaigns">Funnel detail</Link>}>
+          <Panel title="QR review campaigns" action={<Link className="text-sm font-semibold text-accent-ink hover:underline" href="/gbp/campaigns">Funnel detail</Link>}>
             {r.campaigns ? (
               <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 <Metric label="QR scans" value={fmtNum(r.campaigns.scans)} />
@@ -120,7 +120,7 @@ export default function ReportsPage() {
                 <Metric label="Continued to Google" value={fmtNum(r.campaigns.google_redirects)} />
               </dl>
             ) : <p className="text-sm text-muted">Campaign totals are not shown to location-restricted accounts.</p>}
-            <p className="mt-3 text-[13px] text-muted">A tap on &ldquo;Continue to Google&rdquo; is not proof that a review was posted. More: <Link className="font-semibold text-accent-ink hover:underline" href="/analytics/reviews">reviews</Link> · <Link className="font-semibold text-accent-ink hover:underline" href="/analytics/funnel">card scans</Link>.</p>
+            <p className="mt-3 text-[13px] text-muted">A tap on &ldquo;Continue to Google&rdquo; is not proof that a review was posted. More: <Link className="font-semibold text-accent-ink hover:underline" href="/reputation/insights">reviews</Link> · <Link className="font-semibold text-accent-ink hover:underline" href="/growth/funnel">card scans</Link>.</p>
           </Panel>
 
           {r.ai_activity && (

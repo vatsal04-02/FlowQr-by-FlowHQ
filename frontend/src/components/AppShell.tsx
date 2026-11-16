@@ -5,7 +5,7 @@ import { MotionConfig } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, errorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LocationScopeProvider, useLocationScope } from "@/lib/location-scope";
 import { navFor } from "@/lib/nav";
@@ -17,9 +17,9 @@ import { BellMenu } from "./shell/Bell";
 import { BottomNav, MoreSheet } from "./shell/BottomNav";
 import { HelpMenu, iconBtn, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
 import { Sidebar, SIDEBAR_W } from "./shell/Sidebar";
+import { StatusStrip } from "./shell/StatusStrip";
 import { LogoMark } from "./ui/Brand";
-import { LinkButton } from "./ui/Button";
-import { Alert, Spinner } from "./ui/Card";
+import { Spinner } from "./ui/Card";
 
 /** The free trial, once and small: days left plus the one action. Only shown when the trial is nearly over. */
 function TrialChip({ s }: { s: SubscriptionInfo | null }) {
@@ -46,30 +46,6 @@ function LocationPicker({ className }: { className?: string }) {
         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
       </select>
     </label>
-  );
-}
-
-function Banners({ s, deletion }: { s: SubscriptionInfo | null; deletion: { requested: boolean; scheduled_for: string | null } | null }) {
-  const { me, refresh } = useAuth();
-  const path = usePathname();
-  const [sent, setSent] = useState<string | null>(null);
-  return (
-    <div className="mb-4 space-y-3 empty:hidden">
-      {me && !me.user.email_verified_at && (
-        <Alert tone="warning" title="Verify your email" action={
-          <button className="tap rounded-full bg-white px-4 text-sm font-semibold text-ink hover:bg-ink-50" onClick={async () => {
-            try { const r = await api<{ email_sent: boolean; detail: string }>("/auth/resend-verification", { method: "POST" }); setSent(r.email_sent ? "Verification email sent. Check your inbox." : r.detail); void refresh(); } catch (e) { setSent(errorMessage(e)); }
-          }}>Resend email</button>}>
-          {sent ?? "Confirm your email to invite staff, connect Google and manage billing."}
-        </Alert>
-      )}
-      {deletion?.requested && <Alert tone="warning" title="This business is scheduled for deletion" action={<LinkButton href="/settings#data" size="sm" variant="inverse">Review</LinkButton>}>Everything works until {deletion.scheduled_for ? new Date(deletion.scheduled_for).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "the scheduled date"}; you can cancel in Settings.</Alert>}
-      {s && !path.startsWith("/settings/billing") && !path.startsWith("/settings/billing/payments") && (
-        !s.active ? <Alert tone="error" title="Subscription inactive" action={<LinkButton href="/settings/billing" size="sm">Choose a plan</LinkButton>}>Your data is safe and your cards keep working, but editing, AI and sync are paused.</Alert>
-        : s.status === "past_due" ? <Alert tone="warning" title="Payment failed" action={<LinkButton href="/settings/billing" size="sm" variant="inverse">Review billing</LinkButton>}>We couldn&rsquo;t charge your payment method. Access continues for now.</Alert>
-        : null  // the trial is shown once, as the compact chip above the page (TrialChip), not as a banner on every page
-      )}
-    </div>
   );
 }
 
@@ -116,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const s = sub.data;
   const notices = useMemo<Notice[]>(() => {
     const out: Notice[] = [];
-    if (s && !s.active) out.push({ id: "inactive", tone: "bad", title: "Subscription inactive", body: "Editing, AI and sync are paused. Your cards keep working.", href: "/settings/billing", cta: "Choose a plan" });
+    if (s && !s.active) out.push({ id: "inactive", tone: "bad", title: "Plan inactive", body: "Your data is safe and your cards keep working. Editing, AI and sync are paused until you choose a plan.", href: "/settings/billing", cta: "Choose a plan" });
     else if (s?.status === "past_due") out.push({ id: "past-due", tone: "bad", title: "Payment failed", body: "We couldn't charge your payment method.", href: "/settings/billing", cta: "Review billing" });
     // trial ending comes from GET /notifications (the bell), so it is not repeated here
     if (me && !me.user.email_verified_at) out.push({ id: "verify", tone: "warn", title: "Verify your email", body: "Needed to invite staff, connect Google and manage billing.", href: "/settings/account", cta: "Open your account" });
@@ -143,7 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
 
   const business = (
-    <PopoverButton label="Business menu" align="left" buttonClass="flex min-h-11 max-w-[56vw] items-center gap-2 rounded-xl px-2 text-left hover:bg-surface-2 sm:max-w-[320px]"
+    <PopoverButton label="Business menu" align="left" buttonClass="flex min-h-11 max-w-[calc(100vw-206px)] items-center gap-2 rounded-xl px-2 text-left hover:bg-surface-2 sm:max-w-[320px]"
       icon={<><span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-accent-tint text-[13px] font-semibold text-accent-ink">{tenant.name.slice(0, 1).toUpperCase()}</span>
         <span className="min-w-0"><span className="block truncate text-[15px] font-semibold leading-5">{tenant.name}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden /></>}>
       {(close) => (
@@ -201,8 +177,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1240px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
-          <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden"><TrialChip s={s ?? null} /><LocationPicker className="md:hidden" /></div>
-          <Banners s={s ?? null} deletion={deletion ?? null} />
+          <StatusStrip notices={path.startsWith("/settings/billing") ? notices.filter((n) => !n.href.startsWith("/settings/billing")) : notices} />
+          <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialChip s={s ?? null} />}<LocationPicker className="md:hidden" /></div>
           {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}
           <SubNav path={path} dests={dests} hidePrimaryOnWide={!collapsed} />
           {children}

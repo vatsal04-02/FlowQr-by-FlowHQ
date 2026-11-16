@@ -24,7 +24,7 @@ export function BottomNav({ path, dests, moreOpen, onMore }: { path: string; des
             <li key={d.id}>
               <Link href={d.href} aria-current={on ? "page" : undefined} className={clsx(base, "w-full", on ? "text-accent-ink" : "text-ink-500 active:text-ink")}>
                 {on && <span aria-hidden className="absolute inset-x-5 top-0 h-[3px] rounded-b-full bg-accent" />}
-                <d.icon className="h-[22px] w-[22px]" strokeWidth={on ? 2.1 : 1.75} aria-hidden /><span>{d.label}</span>
+                <d.icon className="h-[22px] w-[22px]" strokeWidth={on ? 2.1 : 1.75} aria-hidden />{d.short ? <><span aria-hidden>{d.short}</span><span className="sr-only">{d.label}</span></> : <span>{d.label}</span>}
               </Link>
             </li>
           );
@@ -86,7 +86,7 @@ export function MoreSheet({ open, onClose, role, onSearch, supportEmail }: { ope
             <div className="space-y-4 px-2 pt-1">
               {groups.map((g) => (
                 <section key={g.label} aria-label={g.label}>
-                  <h3 className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[.06em] text-ink-400">{g.label}</h3>
+                  <h3 className="px-3 pb-1 text-[12px] font-medium text-muted">{g.label}</h3>
                   <ul>
                     {g.items.map((it) => (
                       <li key={it.label}>

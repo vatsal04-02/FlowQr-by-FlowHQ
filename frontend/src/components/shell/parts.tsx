@@ -1,6 +1,7 @@
 "use client";
 import clsx from "clsx";
-import { HelpCircle, Moon, Sun } from "lucide-react";
+import { Check, ChevronDown, HelpCircle, Moon, Sun } from "lucide-react";
+import { Sheet } from "../ui/Sheet";
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { locate, type Dest } from "@/lib/nav";
@@ -52,42 +53,63 @@ export function ThemeToggle({ vertical = false, small = false }: { vertical?: bo
 }
 
 /**
- * Page tabs: the pages that belong to the current destination (for example Results: Google activity, Reviews, QR & NFC, Campaigns, Reports), and a second row for
- * pages that share a theme (Your Google profile: Improve, Business info, Hours, Posts, Photos). It is the only secondary navigation, so there is one way to move around.
- * Underlined tabs scroll sideways on a phone and never wrap.
+ * Page tabs: the pages inside the current section, and a lighter second row for pages that share a theme. At most four tabs, sharing the width equally, so no
+ * label is ever cut on a 390px phone. A section with more pages shows the current page as a button that opens a list (one sheet), never a cut-off strip.
  */
 export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests: Dest[]; hidePrimaryOnWide?: boolean }) {
   const l = locate(path);
-  const ref = useRef<HTMLAnchorElement>(null);
-  useEffect(() => { ref.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [path]);
+  const [pick, setPick] = useState<null | { label: string; items: { href: string; label: string }[]; on: string | null }>(null);
   if (!l) return null;
   const dest = dests.find((d) => d.id === l.dest.id) ?? l.dest;
   const kids = dest.children ?? [];
   const child = kids.find((c) => c.href === l.child?.href) ?? null;
-  const strip = (label: string, items: { href: string; label: string }[], on: (href: string) => boolean, small?: boolean, hideWide?: boolean) => (
-    <nav aria-label={label} className={clsx("-mx-4 overflow-x-auto px-4 no-scrollbar sm:mx-0 sm:px-0", small ? "mb-3" : "mb-4", hideWide && "md:hidden")}>
-      <ul className={clsx("flex w-max min-w-full gap-1 border-b border-ink-100", small && "border-b-0")}>
-        {items.map((x) => {
-          const active = on(x.href);
-          return (
-            <li key={x.href} className="shrink-0">
-              <Link ref={active ? ref : undefined} href={x.href} aria-current={active ? "page" : undefined}
-                className={clsx("relative inline-flex items-center whitespace-nowrap transition-colors",
-                  small ? "min-h-11 rounded-full px-3 text-[13px] font-medium sm:min-h-9" : "min-h-11 px-3 text-sm font-medium",
-                  small ? (active ? "bg-surface-3 text-ink" : "text-muted hover:text-ink") : (active ? "text-ink" : "text-muted hover:text-ink"))}>
-                {x.label}
-                {!small && active && <span aria-hidden className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-accent" />}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
+  const row = (label: string, items: { href: string; label: string }[], current: string | null, small?: boolean, hideWide?: boolean) => {
+    if (items.length > 4) {
+      const now = items.find((x) => x.href === current) ?? items[0];
+      return (
+        <nav aria-label={label} className={clsx(small ? "mb-3" : "mb-4", hideWide && "md:hidden")}>
+          <button type="button" aria-haspopup="dialog" onClick={() => setPick({ label, items, on: current })}
+            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[12px] bg-surface px-3 text-[14px] font-medium ring-1 ring-line hover:bg-surface-2 sm:w-auto sm:min-w-[240px]">
+            <span className="truncate">{now.label}</span><ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden />
+          </button>
+        </nav>
+      );
+    }
+    return (
+      <nav aria-label={label} className={clsx(small ? "mb-3" : "mb-4", hideWide && "md:hidden")}>
+        <ul className={clsx("grid gap-1", small ? "rounded-[12px] bg-surface-2 p-1" : "border-b border-line")} style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+          {items.map((x) => {
+            const active = x.href === current;
+            return (
+              <li key={x.href} className="min-w-0">
+                <Link href={x.href} aria-current={active ? "page" : undefined}
+                  className={clsx("relative flex min-h-11 items-center justify-center whitespace-nowrap px-2 text-center font-medium transition-colors",
+                    small ? clsx("rounded-[10px] text-[13px] sm:min-h-9", active ? "bg-surface text-ink shadow-card" : "text-muted hover:text-ink")
+                      : clsx("text-[14px]", active ? "text-ink" : "text-muted hover:text-ink"))}>
+                  {x.label}
+                  {!small && active && <span aria-hidden className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink-solid" />}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    );
+  };
+  const tabNow = child?.tabs ? (l.tab?.href ?? child.href) : null;
   return (
     <>
-      {kids.length > 1 && strip(`${dest.label} pages`, kids, (h) => child?.href === h, false, hidePrimaryOnWide)}
-      {child?.tabs && child.tabs.length > 1 && strip(`${child.label} sections`, child.tabs, (h) => l.tab?.href === h || (!l.tab && h === child.href), true)}
+      {kids.length > 1 && row(`${dest.label} pages`, kids, child?.href ?? null, false, hidePrimaryOnWide)}
+      {child?.tabs && child.tabs.length > 1 && row(`${child.label} sections`, child.tabs, tabNow, true)}
+      <Sheet open={!!pick} onClose={() => setPick(null)} title={pick?.label.replace(/ (pages|sections)$/, "") ?? ""}>
+        <ul className="pb-2">
+          {pick?.items.map((x) => (
+            <li key={x.href}><Link href={x.href} onClick={() => setPick(null)} aria-current={x.href === pick.on ? "page" : undefined}
+              className={clsx("flex min-h-12 items-center justify-between rounded-[12px] px-3 text-[15px]", x.href === pick.on ? "bg-surface-2 font-semibold" : "hover:bg-surface-2")}>
+              {x.label}{x.href === pick.on && <Check className="h-4 w-4" aria-hidden />}</Link></li>
+          ))}
+        </ul>
+      </Sheet>
     </>
   );
 }

@@ -11,7 +11,7 @@ export default function PerformancePage() {
   const [range, setRange] = useState(presetRange("30"));
   return (
     <>
-      <PageHeader title="Google activity" subtitle="How people found and used your Google profile. Google reports a few days late. This is not the same as card scans."
+      <PageHeader title="Performance" subtitle="Reported by Google, a few days late."
         actions={<DateRange value={range} onChange={setRange} />} />
       <div className="space-y-4">
         {/* One source for these numbers: what FlowQR stored from Google. The live detail below appears only once Google has really shared data, so a page never says

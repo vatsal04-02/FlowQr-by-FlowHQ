@@ -5,14 +5,21 @@
 // Order matters: the more specific path comes first.
 /** @type {[string, string][]} */
 export const LEGACY_ROUTES = [
+  // ---- Phase 3 UI plan: SEO & Google and Growth sections (one hop from every older URL)
+  ["/analytics/performance", "/seo/performance"],
+  ["/analytics/reviews", "/reputation/insights"],
+  ["/analytics/funnel", "/growth/funnel"],
+  ["/analytics/campaigns", "/gbp/campaigns"],
+  ["/analytics/reports", "/growth/reports"],
+  ["/seo/rank", "/seo/rankings"],
   // ---- Phase 2: the four-section URLs that moved
-  ["/overview/performance", "/analytics/performance"],
-  ["/overview/reviews", "/analytics/reviews"],            // merged into Performance as its "Reviews" tab
-  ["/overview/funnel", "/analytics/funnel"],
-  ["/overview/campaigns", "/analytics/campaigns"],
-  ["/overview/reports", "/analytics/reports"],
+  ["/overview/performance", "/seo/performance"],
+  ["/overview/reviews", "/reputation/insights"],            // merged into Performance as its "Reviews" tab
+  ["/overview/funnel", "/growth/funnel"],
+  ["/overview/campaigns", "/gbp/campaigns"],
+  ["/overview/reports", "/growth/reports"],
   ["/gbp", "/overview"],                                   // the GBP hub is merged into Overview and Local SEO
-  ["/gbp/rank", "/seo/rank"],
+  ["/gbp/rank", "/seo/rankings"],
   ["/ai", "/reputation/drafts"],                           // the reply assistant is a tab of Reviews & Inbox
   ["/ai/insights", "/reputation/insights"],
   ["/ai/assistant/settings", "/reputation/assistant/settings"],
@@ -24,13 +31,13 @@ export const LEGACY_ROUTES = [
   ["/settings/ai", "/settings/ai/usage"],                  // before the move this URL was the usage page
   // ---- Earlier generation: the pre-redesign URLs, pointed straight at today's pages
   ["/dashboard", "/overview"],
-  ["/analytics", "/analytics/reviews"],
-  ["/cards/analytics", "/analytics/funnel"],
-  ["/performance", "/analytics/performance"],
-  ["/local-visibility", "/seo/rank"],
-  ["/overview/visibility", "/seo/rank"],
-  ["/reports", "/analytics/reports"],
-  ["/review-growth/analytics", "/analytics/campaigns"],
+  ["/analytics", "/reputation/insights"],
+  ["/cards/analytics", "/growth/funnel"],
+  ["/performance", "/seo/performance"],
+  ["/local-visibility", "/seo/rankings"],
+  ["/overview/visibility", "/seo/rankings"],
+  ["/reports", "/growth/reports"],
+  ["/review-growth/analytics", "/gbp/campaigns"],
   ["/review-growth/campaigns/:id", "/gbp/campaigns/:id"],
   ["/review-growth/campaigns", "/gbp/campaigns"],
   ["/review-growth/customize", "/gbp/campaigns/landing"],

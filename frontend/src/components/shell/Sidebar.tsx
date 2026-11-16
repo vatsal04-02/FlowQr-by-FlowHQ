@@ -33,7 +33,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
           if (!items.length) return null;
           return (
             <div key={g} className={clsx(g !== "main" && "mt-4")}>
-              {GROUP_LABEL[g] && !collapsed && <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[.06em] text-ink-400">{GROUP_LABEL[g]}</p>}
+              {GROUP_LABEL[g] && !collapsed && <p className="px-3 pb-1 text-[12px] font-medium text-muted">{GROUP_LABEL[g]}</p>}
               {GROUP_LABEL[g] && collapsed && <div aria-hidden className="mx-3 mb-1 mt-1 border-t border-ink-100" />}
               <ul className="space-y-0.5">
                 {items.map((d) => {
@@ -43,7 +43,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
                   return (
                     <li key={d.id}>
                       <div className="relative flex items-center">
-                        <Link href={d.href} title={collapsed ? d.label : undefined} aria-current={on && !here?.detail && (kids.length < 2 || here?.child?.href === d.href) ? "page" : undefined}
+                        <Link href={d.href} title={collapsed ? d.label : undefined} aria-current={on && (kids.length < 2 || collapsed || shut[d.id]) ? "page" : undefined}
                           className={clsx("group relative flex min-h-11 flex-1 items-center gap-3 rounded-[10px] text-[14px] transition-colors md:min-h-10",
                             collapsed ? "justify-center px-0" : "pl-3 pr-2", on ? "bg-surface-2 font-semibold text-ink" : "font-medium text-ink-700 hover:bg-surface-2 hover:text-ink")}>
                           {on && <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-accent" />}

@@ -34,7 +34,7 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
     const bar = page.getByRole('navigation', { name: 'Primary' });
     check(`${tag}: bottom bar is visible`, await bar.isVisible());
     const labels = await bar.locator('a, button').allInnerTexts();
-    check(`${tag}: exactly Home, Reviews, Visibility, Results, More`, JSON.stringify(labels.map((t) => t.trim())) === JSON.stringify(['Home', 'Reviews', 'Visibility', 'Results', 'More']), JSON.stringify(labels));
+    check(`${tag}: exactly Home, Reviews, SEO, Growth, More`, JSON.stringify(labels.map((t) => t.split(String.fromCharCode(10))[0].trim())) === JSON.stringify(['Home', 'Reviews', 'SEO', 'Growth', 'More']), JSON.stringify(labels));
     const sizes = await bar.locator('a, button').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
     check(`${tag}: every bottom-bar target is at least 44px`, sizes.every(([w, h]) => w >= 44 && h >= 44), JSON.stringify(sizes));
     const gap = await bar.evaluate((n) => Math.round(window.innerHeight - n.getBoundingClientRect().bottom));
@@ -50,30 +50,30 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
 
     await bar.getByRole('link', { name: 'Reviews' }).click(); await page.waitForURL('**/gbp/reviews**');
     check(`${tag}: Reviews opens the reviews page`, true);
-    await bar.getByRole('link', { name: 'Visibility' }).click(); await page.waitForURL('**/seo');
-    check(`${tag}: Visibility is marked current`, (await bar.getByRole('link', { name: 'Visibility' }).getAttribute('aria-current')) === 'page');
+    await bar.getByRole('link', { name: /SEO/ }).click(); await page.waitForURL('**/seo');
+    check(`${tag}: SEO & Google is marked current`, (await bar.getByRole('link', { name: /SEO/ }).getAttribute('aria-current')) === 'page');
 
     // More sheet
     const more = bar.getByRole('button', { name: 'More' });
     await more.click();
     const dlg = page.getByRole('dialog', { name: 'More' });
     await dlg.waitFor();
-    for (const t of ['Business tools', 'Business assistant', 'Account']) check(`${tag}: More shows the group "${t}"`, await dlg.getByRole('heading', { name: t }).isVisible());
-    for (const t of ['QR & NFC Cards', 'Campaigns', 'Locations', 'AI Assistant', 'Tasks & Approvals', 'Activity', 'Settings', 'Billing', 'Help & Support']) check(`${tag}: More lists ${t}`, (await dlg.getByText(t, { exact: true }).count()) > 0);
+    for (const t of ['Business', 'Assistant', 'Account']) check(`${tag}: More shows the group "${t}"`, await dlg.getByRole('heading', { name: t }).isVisible());
+    for (const t of ['Locations', 'AI Assistant', 'Tasks & Approvals', 'Activity', 'Settings', 'Billing', 'Help & Support']) check(`${tag}: More lists ${t}`, (await dlg.getByText(t, { exact: true }).count()) > 0);
     const focusInside = await page.evaluate(() => !!document.activeElement.closest('[role=dialog]'));
     check(`${tag}: focus moves into the sheet`, focusInside);
     await page.keyboard.press('Escape'); await dlg.waitFor({ state: 'hidden' });
     check(`${tag}: Escape closes the sheet and focus returns to More`, await page.evaluate(() => document.activeElement && document.activeElement.textContent.includes('More')));
-    await more.click(); await dlg.getByRole('link', { name: /Campaigns/ }).click(); await page.waitForURL('**/gbp/campaigns'); await dlg.waitFor({ state: 'hidden' });
+    await more.click(); await dlg.getByRole('link', { name: /Locations/ }).click(); await page.waitForURL('**/gbp/locations'); await dlg.waitFor({ state: 'hidden' });
     check(`${tag}: choosing a page closes the sheet and opens it (More stays lit)`, !(await dlg.isVisible().catch(() => false)) && (await more.evaluate((b) => b.className.includes('accent'))));
 
     // Home rules
     await page.goto('/overview'); await page.getByRole('heading', { level: 1 }).waitFor(); await page.waitForTimeout(1500);
-    const metrics = await page.locator('main .grid.grid-cols-2 > *').count();
-    check(`${tag}: Home shows at most four summary numbers`, metrics <= 4, `${metrics}`);
-    check(`${tag}: Home has one chart`, (await page.locator('main svg[role=img]').count()) <= 1);
-    const todos = await page.locator('section[aria-label="Things to take care of"] li').count();
-    check(`${tag}: Home lists at most three things to take care of`, todos <= 3, `${todos}`);
+    const metrics = await page.locator('main .grid.grid-cols-2 > a').count();
+    check(`${tag}: Home shows four numbers`, metrics === 4, `${metrics}`);
+    check(`${tag}: Home opens with the Growth score`, await page.getByRole('img', { name: /Growth score|No score yet/ }).first().isVisible());
+    const todos = await page.locator('section[aria-label="Do this week"] li').first().locator('xpath=..').locator('li').count();
+    check(`${tag}: Home lists exactly three moves for the week`, todos === 3, `${todos}`);
     check(`${tag}: no console errors`, errors.length === 0, errors.slice(0, 2).join(' | '));
     await ctx.close();
   }
@@ -81,10 +81,10 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   // ------------------------------------------------------------------ tables become cards on a phone
   {
     const { ctx, page } = await open(browser, { width: 390, height: 844 });
-    await page.goto('/seo'); await page.getByRole('heading', { level: 1 }).waitFor(); await page.waitForTimeout(2000);
-    const list = page.getByRole('list', { name: 'Words you track' });
+    await page.goto('/seo/competitors'); await page.getByRole('heading', { level: 1 }).waitFor(); await page.waitForTimeout(2500);
+    const list = page.getByRole('list', { name: 'Businesses seen next to you' });
     if (await list.count()) {
-      check('phone: a table becomes a list of cards (words you track)', await list.isVisible() && !(await page.locator('table[aria-label="Words you track"]').isVisible()));
+      check('phone: a table becomes a list of cards (competitors)', await list.isVisible() && !(await page.locator('table[aria-label="Businesses seen next to you"]').isVisible()));
     } else { console.log('SKIP  phone: no tracked words in this test business'); }
     await ctx.close();
   }
@@ -112,8 +112,8 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
     check(`${tag}: only one primary navigation (no second pill nav)`, (await page.getByRole('navigation', { name: 'Main', exact: true }).count()) === 0);
     if (vp.width >= 1100) {
       const names = await aside.locator('nav[aria-label=Pages] > div > ul > li > div > a').allInnerTexts();
-      check(`${tag}: sidebar lists Home, Reviews, Visibility, Results, QR & NFC Cards, Campaigns, Locations, AI Assistant, Tasks & Approvals, Settings`,
-        JSON.stringify(names.map((t) => t.trim())) === JSON.stringify(['Home', 'Reviews', 'Visibility', 'Results', 'QR & NFC Cards', 'Campaigns', 'Locations', 'AI Assistant', 'Tasks & Approvals', 'Settings']), JSON.stringify(names));
+      check(`${tag}: sidebar lists Home, Reviews, SEO & Google, Growth, Locations, AI Assistant, Tasks & Approvals, Activity, Settings, Billing`,
+        JSON.stringify(names.map((t) => t.trim())) === JSON.stringify(['Home', 'Reviews', 'SEO & Google', 'Growth', 'Locations', 'AI Assistant', 'Tasks & Approvals', 'Activity', 'Settings', 'Billing']), JSON.stringify(names));
       check(`${tag}: the current page is marked`, (await aside.locator('a[aria-current=page]').first().innerText()).trim() === 'Home');
       await aside.getByRole('button', { name: 'Collapse sidebar' }).click(); await page.waitForTimeout(400);
       check(`${tag}: collapses to a 68px rail`, Math.round((await aside.boundingBox()).width) === 68);
@@ -128,7 +128,7 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   // ------------------------------------------------------------------ redirects and hidden placeholders
   {
     const { ctx, page } = await open(browser, { width: 1280, height: 800 });
-    for (const [from, to] of [['/gbp/rank', '/seo/rank'], ['/ai/voice', '/settings/ai/voice'], ['/gbp', '/overview'], ['/overview/performance', '/analytics/performance'], ['/dashboard', '/overview'], ['/reviews', '/gbp/reviews']]) {
+    for (const [from, to] of [['/gbp/rank', '/seo/rankings'], ['/analytics/performance', '/seo/performance'], ['/analytics/reports', '/growth/reports'], ['/ai/voice', '/settings/ai/voice'], ['/gbp', '/overview'], ['/overview/performance', '/seo/performance'], ['/dashboard', '/overview'], ['/reviews', '/gbp/reviews']]) {
       await page.goto(from); await page.waitForURL('**' + to + '**', { timeout: 15000 }).catch(() => {});
       check(`redirect ${from} -> ${to}`, new URL(page.url()).pathname.startsWith(to));
     }
