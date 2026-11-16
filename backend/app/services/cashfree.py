@@ -273,7 +273,7 @@ class HttpCashfreeClient:
         return r.json()
 
     def ensure_plan(self, *, plan_id: str, name: str, amount_paise: int, max_amount_paise: int) -> PlanResult:
-        """Idempotent: fetch first; create only on 404. An existing plan with a DIFFERENT amount is an error, never silently reused (a plan's amount cannot be edited)."""
+        """Idempotent: fetch first; create only when Cashfree says the plan does not exist. An existing plan with a DIFFERENT amount is an error, never silently reused (a plan's amount cannot be edited)."""
         def parse(d: dict) -> PlanResult:
             return PlanResult(plan_id=d.get("plan_id", plan_id), status=norm_status(d.get("plan_status")),
                               amount_paise=to_paise(d["plan_recurring_amount"]) if d.get("plan_recurring_amount") is not None else None,
@@ -281,7 +281,8 @@ class HttpCashfreeClient:
         try:
             found = parse(self._call("GET", f"/plans/{plan_id}", retries=2))
         except CashfreeError as exc:
-            if exc.status != 404:
+            # Observed in the Cashfree Sandbox (2026-11-16): a missing plan is answered with HTTP 400 and code `plan_not_found`, NOT 404. Both mean "does not exist"; any other error is real.
+            if exc.status != 404 and exc.code != "plan_not_found":
                 raise
             found = None
         if found is not None:

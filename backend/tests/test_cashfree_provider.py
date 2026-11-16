@@ -189,6 +189,19 @@ def test_ensure_plan_fetches_first_creates_only_on_404_and_never_reuses_a_differ
     assert e.value.code == "plan_amount_mismatch"
 
 
+def test_a_missing_plan_is_answered_by_cashfree_with_http_400_plan_not_found_and_is_created_not_failed(monkeypatch):
+    """The exact answer the Cashfree Sandbox gave (2026-11-16): HTTP 400, code plan_not_found. Treated as 'does not exist'; every other 400 is still an error."""
+    plan = {"plan_id": "flowqr-growth-79900", "plan_status": "ACTIVE", "plan_recurring_amount": 799.0, "plan_max_amount": 1499.0}
+    created = []
+    routes = {("GET", "/pg/plans/flowqr-growth-79900"): lambda r: httpx.Response(400, json={"code": "plan_not_found", "message": "Plan does not exist.", "type": "invalid_request_error"}),
+              ("POST", "/pg/plans"): lambda r: (created.append(1), httpx.Response(200, json=plan))[1]}
+    c, _ = make_client(monkeypatch, routes)
+    assert c.ensure_plan(plan_id="flowqr-growth-79900", name="x", amount_paise=79900, max_amount_paise=149900).plan_id == "flowqr-growth-79900" and created == [1]
+    other, _ = make_client(monkeypatch, {("GET", "/pg/plans/flowqr-growth-79900"): lambda r: httpx.Response(400, json={"code": "request_failed", "message": "bad", "type": "invalid_request_error"})})
+    with pytest.raises(cf.CashfreeError):
+        other.ensure_plan(plan_id="flowqr-growth-79900", name="x", amount_paise=79900, max_amount_paise=149900)
+
+
 def test_manage_calls_use_the_documented_actions(monkeypatch):
     ok = lambda r: httpx.Response(200, json={})  # noqa: E731
     c, rec = make_client(monkeypatch, {("POST", "/pg/subscriptions/s1/manage"): ok, ("POST", "/pg/subscriptions/s1/payments/p1/manage"): ok})
