@@ -1,0 +1,120 @@
+"""Migration 0034 (Cashfree billing columns, plan display names Launch / Growth / Scale): one clean path from production's revision 0032, additive, reversible, safe for existing rows and for a
+development database that ran the withdrawn card-on-file migration. Runs real alembic against the PostgreSQL test database."""
+import os
+import subprocess
+import sys
+
+import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+from tests.conftest import make_business, owner_exec, owner_query
+
+BACKEND = os.path.dirname(os.path.dirname(__file__))
+NEW = {
+    "billing_plans": {"cashfree_plan_id"},
+    "subscriptions": {"provider", "cashfree_subscription_id", "cashfree_cf_subscription_id", "authorization_status", "trial_started_at", "first_charge_at", "next_charge_at", "last_provider_sync_at"},
+    "payments": {"provider", "cashfree_payment_id", "cashfree_cf_payment_id", "payment_type", "period_start", "period_end", "failure_reason"},
+    "webhook_events": {"subscription_ref", "payment_ref", "payload_hash", "attempts", "last_error", "provider_event_time"},
+}
+
+
+def alembic(*a):
+    subprocess.run([sys.executable, "-m", "alembic", *a], check=True, env={**os.environ}, cwd=BACKEND)
+
+
+def cols(table):
+    return {r[0] for r in owner_query("SELECT column_name FROM information_schema.columns WHERE table_name = :t", t=table)}
+
+
+def present():
+    return all(c in cols(t) for t, cs in NEW.items() for c in cs)
+
+
+def absent():
+    return not any(c in cols(t) for t, cs in NEW.items() for c in cs)
+
+
+def plans():
+    return {r[0]: (r[1], r[2]) for r in owner_query("SELECT code, name, price_paise FROM billing_plans WHERE code IN ('starter', 'growth', 'pro')")}
+
+
+def test_the_history_is_one_straight_line_from_0032_with_no_revision_0033():
+    sd = ScriptDirectory.from_config(Config(os.path.join(BACKEND, "alembic.ini")))
+    assert sd.get_heads() == ["0034"]
+    assert sd.get_revision("0034").down_revision == "0032"
+    assert "0033" not in {r.revision for r in sd.walk_revisions()}  # withdrawn: no file, no reference, no dangling parent
+    assert not [f for f in os.listdir(os.path.join(BACKEND, "alembic", "versions")) if f.startswith("0033")]
+    chain = [r.revision for r in sd.walk_revisions()]
+    assert chain[:3] == ["0034", "0032", "0031"]  # newest first
+
+
+def test_at_head_everything_is_present_and_the_plans_have_their_final_names_and_unchanged_prices_and_codes():
+    assert present()
+    assert plans() == {"starter": ("Launch", 49900), "growth": ("Growth", 79900), "pro": ("Scale", 149900)}
+    assert owner_query("SELECT count(*) FROM billing_plans WHERE code IN ('starter','growth','pro')")[0][0] == 3  # no duplicate plan was created
+    assert "card_status" not in cols("subscriptions")
+    for table in ("subscriptions", "payments"):  # row-level security still forced on the tenant tables that gained columns
+        assert owner_query("SELECT relforcerowsecurity FROM pg_class WHERE relname = :t", t=table)[0][0] is True
+    assert owner_query("SELECT 1 FROM pg_constraint WHERE conname = 'uq_subscriptions_cashfree_subscription_id'") and owner_query("SELECT 1 FROM pg_constraint WHERE conname = 'uq_payments_cashfree_payment_id'")
+
+
+def test_downgrade_to_0032_removes_only_the_new_columns_restores_the_old_names_and_keeps_every_row_then_upgrade_restores_it_all():
+    biz = make_business()  # a real subscription row that must survive both directions
+    before_rows = owner_query("SELECT count(*) FROM subscriptions")[0][0]
+    before_pay = owner_query("SELECT count(*) FROM payments")[0][0]
+    before_plan = owner_query("SELECT plan, status FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id)[0]
+    alembic("downgrade", "0032")
+    try:
+        assert absent()
+        assert plans() == {"starter": ("Starter", 49900), "growth": ("Growth", 79900), "pro": ("Pro", 149900)}
+        assert owner_query("SELECT count(*) FROM subscriptions")[0][0] == before_rows and owner_query("SELECT count(*) FROM payments")[0][0] == before_pay
+        assert owner_query("SELECT plan, status FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id)[0] == before_plan
+        for t in ("razorpay_subscription_id", "razorpay_plan_id"):  # historical Razorpay columns untouched
+            assert any(t in cols(tbl) for tbl in ("subscriptions", "billing_plans"))
+        assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0032"
+    finally:
+        alembic("upgrade", "head")
+    assert present() and plans() == {"starter": ("Launch", 49900), "growth": ("Growth", 79900), "pro": ("Scale", 149900)}
+    assert owner_query("SELECT plan, status FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id)[0] == before_plan
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0034"
+
+
+def test_a_name_an_administrator_changed_is_never_overwritten_by_the_rename():
+    alembic("downgrade", "0032")
+    try:
+        owner_exec("UPDATE billing_plans SET name = 'Custom Scale' WHERE code = 'pro'")
+    finally:
+        alembic("upgrade", "head")
+    try:
+        assert plans()["pro"] == ("Custom Scale", 149900) and plans()["starter"][0] == "Launch"
+    finally:
+        owner_exec("UPDATE billing_plans SET name = 'Scale' WHERE code = 'pro'")
+    assert plans()["pro"][0] == "Scale"
+
+
+def test_a_database_that_ran_the_withdrawn_card_on_file_migration_converges_when_it_is_repaired_to_0032_and_upgraded():
+    alembic("downgrade", "0032")
+    try:
+        owner_exec("ALTER TABLE subscriptions ADD COLUMN card_status varchar(12)")  # what the withdrawn migration had added
+        owner_exec("UPDATE subscriptions SET card_status = 'on_file' WHERE id = (SELECT id FROM subscriptions LIMIT 1)")
+    finally:
+        alembic("upgrade", "head")
+    assert "card_status" not in cols("subscriptions") and present()
+
+
+def test_physical_qr_card_functionality_is_untouched():
+    for t in ("qr_cards", "card_batches", "card_assignments", "scan_events", "card_orders"):
+        assert cols(t), t
+    assert owner_query("SELECT 1 FROM pg_type WHERE typname = 'card_status'")  # the QR card lifecycle enum is a different thing from the withdrawn subscriptions.card_status column
+    assert "status" in cols("qr_cards")
+
+
+def test_the_unique_constraints_refuse_a_second_row_with_the_same_provider_id():
+    from sqlalchemy.exc import IntegrityError
+    biz = make_business()
+    owner_exec("UPDATE subscriptions SET cashfree_subscription_id = 'fqs_uniq_test' WHERE tenant_id = :t", t=biz.tenant_id)
+    other = make_business()
+    with pytest.raises(IntegrityError):
+        owner_exec("UPDATE subscriptions SET cashfree_subscription_id = 'fqs_uniq_test' WHERE tenant_id = :t", t=other.tenant_id)
+    owner_exec("UPDATE subscriptions SET cashfree_subscription_id = NULL WHERE cashfree_subscription_id = 'fqs_uniq_test'")

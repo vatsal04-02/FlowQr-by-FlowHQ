@@ -62,6 +62,8 @@ platform-admin	PATCH	/api/v1/admin/users/{user_id}
 platform-admin	POST	/api/v1/admin/users/{user_id}/revoke-sessions
 platform-admin	POST	/api/v1/admin/users/{user_id}/send-reset
 platform-admin	POST	/api/v1/admin/users/{user_id}/verify-email
+platform-admin	GET	/api/v1/admin/webhooks
+platform-admin	POST	/api/v1/admin/webhooks/{event_id}/reprocess
 platform-admin	GET	/api/v1/admin/work-queue
 member	GET	/api/v1/agent/actions
 role-admin	POST	/api/v1/agent/actions
@@ -131,6 +133,8 @@ role-owner	POST	/api/v1/billing/subscription/cancel
 role-owner	POST	/api/v1/billing/subscription/change-plan
 role-owner	POST	/api/v1/billing/subscription/checkout
 role-admin	GET	/api/v1/billing/subscription/history
+member	GET	/api/v1/billing/subscription/status
+role-owner	POST	/api/v1/billing/subscription/sync
 role-owner	POST	/api/v1/billing/subscription/verify
 member	GET	/api/v1/cards
 role-admin	POST	/api/v1/cards/lookup
@@ -272,6 +276,7 @@ role-admin	PATCH	/api/v1/tenant
 role-admin	POST	/api/v1/tenant/complete-onboarding
 role-admin	POST	/api/v1/tenant/voice-preview
 signed-in	POST	/api/v1/tenants
+public	POST	/api/v1/webhooks/cashfree
 member	GET	/api/v1/workspace/ai-usage
 role-admin	GET	/api/v1/workspace/audit-log
 member	GET	/api/v1/workspace/getting-started

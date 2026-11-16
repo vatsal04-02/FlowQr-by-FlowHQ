@@ -31,6 +31,7 @@ PUBLIC_PREFIXES = (
     "/api/v1/legal", "/api/v1/leads", "/api/v1/billing/plans",
     "/api/v1/auth/registration",  # GET: only the registration MODE (closed/allowlist/open), nothing about any address
     "/api/v1/auth/providers",  # GET: one boolean, whether Google sign-in is configured
+    "/api/v1/webhooks/",  # POST: payment-provider webhooks, each authenticated by its own signature over the raw body (not by a session)
 )
 FILL = {"uuid": "00000000-0000-0000-0000-000000000001"}
 

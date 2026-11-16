@@ -14,6 +14,7 @@ celery_app.conf.update(
             "schedule": settings.review_sync_interval_minutes * 60 / 2,  # check twice per interval
         },
         "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
+        "billing-reconcile": {"task": "flowqr.billing_reconcile", "schedule": 3600.0},  # Cashfree: the safety net for webhooks that never arrive
         "retry-failed-replies": {"task": "flowqr.retry_failed_replies", "schedule": 900.0},
         "auto-replies": {"task": "flowqr.auto_replies", "schedule": 300.0},  # template replies to new positive reviews (services/auto_reply.py)
         "publish-due-posts": {"task": "flowqr.publish_due_posts", "schedule": 60.0},

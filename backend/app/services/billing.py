@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models import BillingPlan, CardOrder, Payment, PromotionalGrant, Subscription, SubscriptionEvent, WebhookEvent
 from app.models.base import utcnow
+from app.services import entitlements as ent
 from app.services.audit import audit
 
 log = logging.getLogger("flowqr.billing")
@@ -65,7 +66,7 @@ def apply_plan(sub: Subscription, plan: BillingPlan) -> None:
 def start_trial(db: Session, tenant_id: uuid.UUID) -> Subscription:
     plan = db.get(BillingPlan, settings.trial_plan)
     now = utcnow()
-    sub = Subscription(tenant_id=tenant_id, plan="trial", status="trialing", currency="INR", source="trial",
+    sub = Subscription(tenant_id=tenant_id, plan="trial", status="trialing", currency="INR", source="trial", trial_started_at=now,
                        trial_ends_at=now + timedelta(days=settings.trial_days),
                        current_period_end=now + timedelta(days=settings.trial_days))
     if plan:
@@ -313,7 +314,7 @@ def refresh_statuses(db: Session) -> dict:
     now = utcnow()
     expired = lapsed = 0
     for sub in db.scalars(select(Subscription).where(Subscription.status == "trialing", Subscription.trial_ends_at < now)):
-        if not sub.razorpay_subscription_id:
+        if not sub.razorpay_subscription_id and not ent.awaiting_first_charge(sub, now):  # a Cashfree mandate whose first charge is settling is not an expired trial
             before = snapshot(sub)
             sub.status = "expired"
             record_change(db, sub, before, source="system", meta={"reason": "trial ended"})

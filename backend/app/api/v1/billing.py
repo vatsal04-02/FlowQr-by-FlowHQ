@@ -10,12 +10,14 @@ from app.core.config import settings
 from app.core.db import get_db, set_rls_context
 from app.core.deps import TenantContext, ensure_verified, get_tenant_context, require_role
 from app.core.rate_limit import client_ip, limit_by_ip
-from app.models import BillingPlan, CardOrder, Payment, PromotionalGrant, Role, Subscription, SubscriptionEvent
+from app.models import BillingPlan, CardOrder, Payment, PromotionalGrant, Role, Subscription, SubscriptionEvent, Tenant
 from app.models.base import utcnow
 from app.schemas.billing import (
     CancelIn, CardOrderIn, CardOrderOut, ChangePlanIn, CheckoutIn, PaymentOut, PlanOut, VerifyOrderIn, VerifySubscriptionIn,
 )
 from app.services import billing as svc
+from app.services import billing_cashfree as cfb
+from app.services import cashfree as cashfree_svc
 from app.services import entitlements as ent
 from app.services import razorpay as rz
 from app.services.ai_usage import usage_this_month
@@ -34,8 +36,18 @@ def _client():
                             "message": "Online payments aren't configured on this server yet (Razorpay keys missing)."})
 
 
+def _cf_client():
+    try:
+        return cashfree_svc.get_cashfree()
+    except cashfree_svc.CashfreeNotConfigured:
+        raise HTTPException(status_code=503, detail={"code": "billing_config_pending", "message": "Online payments aren't configured on this server yet."})
+
+
 def _config() -> dict:
-    return {"configured": settings.razorpay_configured, "mode": settings.razorpay_mode,
+    if settings.cashfree_enabled:
+        return {"configured": settings.cashfree_configured, "provider": "cashfree", "mode": "test" if (settings.cashfree_env or "").lower() == "sandbox" else "live", "key_id": None,
+                "authorization_paise": settings.cashfree_authorization_paise, "methods": settings.cashfree_method_list}
+    return {"configured": settings.razorpay_configured, "mode": settings.razorpay_mode, "provider": "razorpay" if settings.razorpay_configured else None,
             "key_id": settings.razorpay_key_id if settings.razorpay_configured else None}
 
 
@@ -65,6 +77,11 @@ def subscription(ctx: TenantContext = Depends(get_tenant_context)):
         "current_period_end": sub.current_period_end if sub else None, "cancel_at_period_end": bool(sub and sub.cancel_at_period_end),
         "pending_plan": sub.pending_plan if sub else None, "grace_until": e.grace_until, "source": sub.source if sub else None,
         "has_razorpay_subscription": bool(sub and sub.razorpay_subscription_id),
+        "provider": sub.provider if sub else None, "has_cashfree_subscription": bool(sub and sub.cashfree_subscription_id),
+        "authorization_status": sub.authorization_status if sub else None, "billing_state": cfb.billing_state(sub),
+        "first_charge_at": sub.first_charge_at if sub else None, "next_charge_at": sub.next_charge_at if sub else None,
+        "pending_plan_name": (ctx.db.get(BillingPlan, sub.pending_plan).name if sub and sub.pending_plan and ctx.db.get(BillingPlan, sub.pending_plan) else None),
+        "pending_plan_effective_at": (sub.next_charge_at or sub.first_charge_at) if sub and sub.pending_plan else None,
         "promo": None if not e.promo else {**e.promo, "note": "Included free with your card purchase. It ends on its own and nothing is charged."},
         "limits": {"locations": e.max_locations, "ai_generations": e.monthly_ai_generations, "review_generations": e.review_generations, "review_replies": e.review_replies,
                    "staff": e.max_staff, "features": sorted(e.features)},
@@ -88,10 +105,27 @@ def _locked_sub(ctx: TenantContext) -> Subscription:
     return sub
 
 
+def _cashfree_checkout(body: CheckoutIn, request: Request, ctx: TenantContext) -> dict:
+    """Cashfree: the server prices the plan, shows what will happen (see `disclosure`), creates the mandate request and hands back a session for Cashfree's hosted checkout."""
+    client = _cf_client()
+    sub = _locked_sub(ctx)
+    plan = ctx.db.get(BillingPlan, body.plan)
+    if not plan or not plan.is_active:
+        raise HTTPException(status_code=404, detail="Unknown plan")
+    tenant = ctx.db.get(Tenant, ctx.tenant_id)
+    out = cfb.start_checkout(ctx.db, client, sub=sub, plan=plan, user=ctx.user, tenant=tenant, phone=body.phone)
+    audit(ctx.db, action="billing.checkout_created", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="subscription", entity_id=sub.id,
+          meta={"plan": plan.code, "provider": "cashfree", "reused": out["reused"]}, ip=client_ip(request))
+    ctx.db.commit()
+    return out
+
+
 @router.post("/subscription/checkout")
 def checkout(body: CheckoutIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
     """Creates (or re-uses) a Razorpay subscription for the chosen plan. Idempotent per tenant+plan."""
     ensure_verified(ctx.user)
+    if settings.cashfree_enabled:
+        return _cashfree_checkout(body, request, ctx)
     client = _client()
     sub = _locked_sub(ctx)
     plan = ctx.db.get(BillingPlan, body.plan)
@@ -155,6 +189,11 @@ def verify(body: VerifySubscriptionIn, ctx: TenantContext = Depends(require_role
 @router.post("/subscription/cancel")
 def cancel(body: CancelIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
     sub = _locked_sub(ctx)
+    if settings.cashfree_enabled and sub.provider == "cashfree":
+        cfb.cancel(ctx.db, _cf_client(), sub, user_id=ctx.user.id)
+        audit(ctx.db, action="billing.cancel", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="subscription", entity_id=sub.id, meta={"provider": "cashfree"}, ip=client_ip(request))
+        ctx.db.commit()
+        return {"status": sub.status, "cancel_at_period_end": True, "access_until": sub.current_period_end}
     if not sub.razorpay_subscription_id or sub.status not in ("active", "past_due", "pending", "trialing"):
         raise HTTPException(status_code=409, detail="There is no paid subscription to cancel")
     client = _client()
@@ -182,9 +221,10 @@ def change_plan(body: ChangePlanIn, request: Request, ctx: TenantContext = Depen
     current = ctx.db.get(BillingPlan, sub.plan)
     if not target or not target.is_active:
         raise HTTPException(status_code=404, detail="Unknown plan")
-    if not sub.razorpay_subscription_id or sub.status != "active":
+    is_cf = settings.cashfree_enabled and sub.provider == "cashfree"
+    if not is_cf and (not sub.razorpay_subscription_id or sub.status != "active"):
         raise HTTPException(status_code=409, detail="Start a subscription first (checkout), then you can change plans.")
-    if current and current.code == target.code:
+    if current and current.code == target.code and not (is_cf and sub.pending_plan):
         raise HTTPException(status_code=409, detail="You're already on this plan")
     upgrade = current is None or target.price_paise > current.price_paise
     if not upgrade:  # downgrade guard: current usage must fit the smaller plan
@@ -195,6 +235,12 @@ def change_plan(body: ChangePlanIn, request: Request, ctx: TenantContext = Depen
             problems.append(f"reduce team members to {target.max_staff}")
         if problems:
             raise HTTPException(status_code=409, detail={"code": "downgrade_blocked", "message": "Before downgrading, " + " and ".join(problems) + "."})
+    if is_cf:
+        out = cfb.change_plan(ctx.db, _cf_client(), sub, target, current)
+        audit(ctx.db, action="billing.change_plan", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="subscription", entity_id=sub.id,
+              meta={"to": target.code, "immediate": False, "provider": "cashfree"}, ip=client_ip(request))
+        ctx.db.commit()
+        return out
     client = _client()
     try:
         rzp_plan_id = svc.ensure_razorpay_plan(ctx.db, client, target)
@@ -214,6 +260,33 @@ def change_plan(body: ChangePlanIn, request: Request, ctx: TenantContext = Depen
           entity_id=sub.id, meta={"to": target.code, "immediate": upgrade}, ip=client_ip(request))
     ctx.db.commit()
     return {"plan": sub.plan, "pending_plan": sub.pending_plan}
+
+
+@router.post("/subscription/sync", dependencies=[Depends(limit_by_ip("cf-sync", 30, 60))])
+def sync_subscription(ctx: TenantContext = Depends(require_role(Role.owner))):
+    """Cashfree: called by the checkout return page. It never reads what the browser says happened: it asks Cashfree for the subscription and its payments and applies the answer."""
+    if not settings.cashfree_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+    sub = _locked_sub(ctx)
+    if not sub.cashfree_subscription_id:
+        raise HTTPException(status_code=404, detail="No payment setup found")
+    try:
+        out = cfb.sync(ctx.db, _cf_client(), sub, source="user")
+    except cashfree_svc.CashfreeError:
+        ctx.db.rollback()
+        raise HTTPException(status_code=502, detail="We couldn't confirm this with the payment provider yet. It will update automatically.")
+    audit(ctx.db, action="billing.synced", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="subscription", entity_id=sub.id, meta={"status": sub.status})
+    ctx.db.commit()
+    return {"status": sub.status, "billing_state": cfb.billing_state(sub), "authorization_status": sub.authorization_status, **out}
+
+
+@router.get("/subscription/status")
+def subscription_status(ctx: TenantContext = Depends(get_tenant_context)):
+    """Read-only and cheap: what we currently know (the page polls this while a bank approval is pending)."""
+    sub = ctx.db.scalar(select(Subscription).where(Subscription.tenant_id == ctx.tenant_id))
+    e = ent.for_tenant(ctx.db, ctx.tenant_id)
+    return {"status": e.status, "active": e.active, "billing_state": cfb.billing_state(sub), "authorization_status": sub.authorization_status if sub else None,
+            "first_charge_at": sub.first_charge_at if sub else None, "next_charge_at": sub.next_charge_at if sub else None}
 
 
 @router.get("/payments", response_model=list[PaymentOut])

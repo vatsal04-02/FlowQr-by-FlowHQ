@@ -124,8 +124,9 @@ def revenue(db: Session, month: str | None = None) -> dict:
     price = _prices(db)
     subs = db.scalars(select(Subscription)).all()
     now = utcnow()
-    paid = [s for s in subs if s.status == "active" and s.source == "razorpay"]
-    at_risk = [s for s in subs if s.status == "past_due" and s.source == "razorpay"]
+    PAID_SOURCES = ("razorpay", "cashfree")  # verified provider billing; the Razorpay rows are history and are counted exactly as before
+    paid = [s for s in subs if s.status == "active" and s.source in PAID_SOURCES]
+    at_risk = [s for s in subs if s.status == "past_due" and s.source in PAID_SOURCES]
     mrr = sum(price.get(s.plan, 0) for s in paid)
     dist: dict[str, int] = {}
     for s in paid:
@@ -153,6 +154,8 @@ def revenue(db: Session, month: str | None = None) -> dict:
     return {
         "month": label,
         "mrr_paise": metric(mrr, "actual", "Active subscriptions paid through the payment provider, at list price. Trials, the free card month and comped subscriptions are not included."),
+        "mrr_by_provider_paise": metric({src: sum(price.get(s.plan, 0) for s in paid if s.source == src) for src in PAID_SOURCES}, "actual",
+                                        "Only subscriptions with a verified successful monthly charge. The refundable authorisation is never revenue."),
         "arr_paise": metric(mrr * 12, "estimated", "MRR x 12: a run-rate, not a forecast or a contract value."),
         "mrr_at_risk_paise": metric(sum(price.get(s.plan, 0) for s in at_risk), "actual", "Paid subscriptions whose last payment failed and are inside the grace period."),
         "paid_subscribers": metric(len(paid), "actual"),

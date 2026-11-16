@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cashfreepayments/cashfree-js": "1.0.7",
     "clsx": "^2.1.1",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.66.0",

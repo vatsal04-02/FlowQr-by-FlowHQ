@@ -19,7 +19,7 @@ from app.models import (
     CardAssignment, CardBatch, CardStatus, Location, Membership, QRCard, Review, ReviewCampaign, ScanEvent, ScanEventType, Tenant,
 )
 from app.models import (
-    AIGenerationLog, AuditLog, AuthSession, BillingPlan, CardOrder, Payment, Subscription, User,
+    AIGenerationLog, AuditLog, AuthSession, BillingPlan, CardOrder, Payment, Subscription, User, WebhookEvent,
 )
 from app.models.base import utcnow
 from app.models.tenancy import Membership as _M, Role as _R
@@ -587,7 +587,9 @@ def subscriptions(ctx: AuthContext = Depends(require_platform_admin), status: st
         q = q.where(Subscription.plan == plan)
     rows = ctx.db.execute(q.order_by(Subscription.created_at.desc()).limit(limit).offset(offset)).all()
     return [{"tenant_id": s.tenant_id, "tenant": name, "plan": s.plan, "status": s.status, "source": s.source, "trial_ends_at": s.trial_ends_at,
-             "current_period_end": s.current_period_end, "cancel_at_period_end": s.cancel_at_period_end, "razorpay_subscription_id": s.razorpay_subscription_id} for s, name in rows]
+             "current_period_end": s.current_period_end, "cancel_at_period_end": s.cancel_at_period_end, "razorpay_subscription_id": s.razorpay_subscription_id,
+             "provider": s.provider, "cashfree_subscription_id": s.cashfree_subscription_id, "authorization_status": s.authorization_status,
+             "first_charge_at": s.first_charge_at, "next_charge_at": s.next_charge_at, "pending_plan": s.pending_plan, "past_due_since": s.past_due_since} for s, name in rows]
 
 
 @router.get("/payments")
@@ -602,7 +604,44 @@ def all_payments(ctx: AuthContext = Depends(require_platform_admin), kind: str |
         q = q.where(Payment.tenant_id == tenant_id)
     rows = ctx.db.execute(q.order_by(Payment.created_at.desc()).limit(limit).offset(offset)).all()
     return [{"id": p.id, "tenant_id": p.tenant_id, "tenant": name, "kind": p.kind, "status": p.status, "amount_paise": p.amount_paise,
-             "razorpay_payment_id": p.razorpay_payment_id, "error_description": p.error_description, "created_at": p.created_at, "paid_at": p.paid_at} for p, name in rows]
+             "razorpay_payment_id": p.razorpay_payment_id, "error_description": p.error_description, "created_at": p.created_at, "paid_at": p.paid_at,
+             "provider": p.provider, "cashfree_payment_id": p.cashfree_payment_id, "payment_type": p.payment_type, "failure_reason": p.failure_reason} for p, name in rows]
+
+
+@router.get("/webhooks")
+def webhook_events(ctx: AuthContext = Depends(require_platform_admin), status: str | None = None, limit: int = Query(100, ge=1, le=200)):
+    """Provider events as they arrived: the type, our subscription reference, whether they were processed, and a short safe failure note. The payload itself is not stored."""
+    q = select(WebhookEvent).where(WebhookEvent.provider == "cashfree")
+    if status:
+        q = q.where(WebhookEvent.status == status)
+    rows = ctx.db.scalars(q.order_by(WebhookEvent.received_at.desc()).limit(limit)).all()
+    return [{"id": r.id, "type": r.event_type, "status": r.status, "attempts": r.attempts, "subscription_ref": r.subscription_ref, "payment_ref": r.payment_ref,
+             "received_at": r.received_at, "processed_at": r.processed_at, "provider_event_time": r.provider_event_time, "last_error": r.last_error} for r in rows]
+
+
+@router.post("/webhooks/{event_id}/reprocess")
+def reprocess_webhook(event_id: uuid.UUID, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    """Re-reads the subscription from Cashfree and applies it. It cannot mark anything paid: only what Cashfree itself reports can change a subscription."""
+    from app.services import billing_cashfree as cfb
+    from app.services import cashfree as cashfree_svc
+    row = ctx.db.get(WebhookEvent, event_id)
+    if row is None or row.provider != "cashfree":
+        raise HTTPException(status_code=404, detail="Not found")
+    sub = ctx.db.scalar(select(Subscription).where(Subscription.cashfree_subscription_id == row.subscription_ref)) if row.subscription_ref else None
+    if sub is None:
+        raise HTTPException(status_code=409, detail="This event does not belong to any subscription")
+    try:
+        client = cashfree_svc.get_cashfree()
+        cfb.sync(ctx.db, client, sub, source="admin", ref=str(row.id)[:16])
+    except cashfree_svc.CashfreeNotConfigured:
+        raise HTTPException(status_code=503, detail="Billing is not configured")
+    except cashfree_svc.CashfreeError:
+        ctx.db.rollback()
+        raise HTTPException(status_code=502, detail="Cashfree could not be reached")
+    row.status, row.processed_at, row.last_error, row.attempts = "processed", utcnow(), None, (row.attempts or 0) + 1
+    audit(ctx.db, action="admin.webhook_reprocess", user_id=ctx.user.id, tenant_id=sub.tenant_id, entity_type="webhook_event", entity_id=row.id, ip=client_ip(request))
+    ctx.db.commit()
+    return {"status": "processed", "subscription_status": sub.status}
 
 
 @router.get("/card-orders")

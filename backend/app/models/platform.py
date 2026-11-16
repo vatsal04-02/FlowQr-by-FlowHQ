@@ -115,6 +115,16 @@ class Subscription(IdMixin, TimestampMixin, Base):
     source: Mapped[str] = mapped_column(String(16), default="trial")  # trial | razorpay | manual
     razorpay_subscription_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     last_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Cashfree (0034). `provider` is NULL for trials and for historical Razorpay rows. Our own merchant id is what Cashfree echoes back in every event; the tenant is ALWAYS found from it,
+    # never from anything else in a payload.
+    provider: Mapped[str | None] = mapped_column(String(12))
+    cashfree_subscription_id: Mapped[str | None] = mapped_column(String(250), unique=True)
+    cashfree_cf_subscription_id: Mapped[str | None] = mapped_column(String(32))
+    authorization_status: Mapped[str | None] = mapped_column(String(24))  # initialized | bank_pending | authorized | expired | failed | cancelled
+    trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_charge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_charge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_provider_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuditLog(IdMixin, Base):

@@ -16,6 +16,16 @@ from app.services.plans import FEATURE_LABELS  # noqa: E402
 ACTIVE_STATUSES = {"trialing", "active", "manual"}
 
 
+def awaiting_first_charge(sub: Subscription | None, now=None) -> bool:
+    """A free period has ended and the customer's authorised monthly payment is due or settling. Access continues for CASHFREE_CHARGE_SETTLEMENT_HOURS so a payment that is merely
+    in flight never locks out someone who is paying. A failed charge ends this through the past_due path; a mandate that is not live (paused, cancelled, expired) never gets it."""
+    if sub is None or sub.provider != "cashfree" or sub.authorization_status != "authorized" or sub.first_charge_at is None:
+        return False
+    now = now or utcnow()
+    first = sub.first_charge_at if sub.first_charge_at.tzinfo else sub.first_charge_at.replace(tzinfo=now.tzinfo)
+    return now < first + timedelta(hours=settings.cashfree_charge_settlement_hours)
+
+
 @dataclass
 class Entitlements:
     active: bool
@@ -66,7 +76,9 @@ def _compute(sub: Subscription | None) -> Entitlements:
     trial_days_left = None
     if status == "trialing":
         if sub.trial_ends_at and sub.trial_ends_at <= now:
-            active, status, reason = False, "expired", "trial_ended"
+            if not awaiting_first_charge(sub, now):
+                active, status, reason = False, "expired", "trial_ended"
+            trial_days_left = 0
         elif sub.trial_ends_at:
             trial_days_left = max(0, (sub.trial_ends_at - now).days)
     elif status == "past_due":

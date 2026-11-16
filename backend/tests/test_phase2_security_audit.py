@@ -93,6 +93,7 @@ def test_every_route_is_classified_and_nothing_mutating_is_public_by_accident():
     reviewed_public_writes = {
         "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/password-reset/request", "/api/v1/auth/password-reset/confirm", "/api/v1/auth/verify-email",
         "/api/v1/billing/razorpay/webhook",
+        "/api/v1/webhooks/cashfree",  # reviewed: signature over the raw body, 5-minute window, stored before processing, treated as a hint (tests/test_cashfree_billing.py)
     }
     stray = [(m, p) for p, m, lvl in route_table()
              if lvl == "public" and m != "GET" and p not in reviewed_public_writes]

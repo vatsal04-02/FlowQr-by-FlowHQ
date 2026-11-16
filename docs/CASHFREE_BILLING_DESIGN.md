@@ -1,13 +1,13 @@
 # Cashfree recurring billing: Phase 1 design
 
-Status: **proposal for review. No Cashfree code is written yet.** The only code change on this branch is the removal of the card-on-file feature (Section 2). Production, the VPS, Vercel, the database and Cashfree are untouched. Read with `CASHFREE_BILLING_AUDIT.md`.
+Status: **implemented on the isolated branch `billing/cashfree-phase1` and tested locally (backend 1,577 tests, frontend type check and production build). Not pushed, not deployed, no Cashfree sandbox evidence yet.** Production, the VPS and Cashfree are untouched. Section 12 records the decisions the owner approved and what was built; Sections 1 to 11 are the original design. Read with `CASHFREE_BILLING_AUDIT.md`.
 
 ## 1. Decisions as understood
 
 | # | Decision | How it is applied |
 |---|---|---|
 | 1 | Remove card-on-file (migration 0033) | Done on this branch, Section 2. |
-| 2 | Plan names | The instruction names "Launch / Growth / scale" but also says these are the *existing* names and not to introduce Launch or Scale. The code, database, live API and site say **Starter ₹499, Growth ₹799, Pro ₹1,499** (verified), and "Launch"/"Scale" appear nowhere. This design uses **Starter / Growth / Pro**. The display name is read from `billing_plans.name`, so a later rename is a one-row data change, no code. **Please confirm.** |
+| 2 | Plan names | **CORRECTED by the owner: the final names are Launch ₹499, Growth ₹799, Scale ₹1,499.** An earlier reading of the instruction kept Starter / Growth / Pro; that was wrong. The internal codes `starter`, `growth`, `pro` and the prices are unchanged (stable ids; no duplicate plan). Only display names change: migration 0034 renames `billing_plans.name` (only rows still carrying the 0029 names), and the specification, onboarding text, frontend fallback, admin dropdown, tests and living docs are updated. Cashfree plan ids are `flowqr-<code>-<price_paise>` and their display name is `FlowQR Launch / Growth / Scale`. |
 | 3 | Seven-day trial; refundable ₹1 authorisation for UPI AutoPay and card; eNACH deferred | Section 3. |
 | 4 | Grace period | Stays at the existing **7 days** (`PAST_DUE_GRACE_DAYS`). |
 | 5 | Test first with signed payloads and mocked provider; sandbox deployment is a plan only | Sections 9 and 10. Nothing is deployed. |
@@ -146,7 +146,7 @@ Needs from you: Cashfree **sandbox** account with Subscriptions and UPI AutoPay 
 
 **Recurring-charge evidence.** Cashfree's sandbox cannot force a PERIODIC charge early ("a payment becomes PENDING only on its scheduled date"). To produce a real recurring charge, the sandbox test must create a subscription whose first charge is a day or two away, wait, then simulate SUCCESS on the PENDING payment, and again for the next monthly date or use the shortest allowed interval (to be checked: a DAY or WEEK sandbox plan purely for testing). Until a real sandbox recurring charge is observed, recurring billing is **not** claimed to work.
 
-## 11. Open points
+## 11. Open points (all answered, see Section 12)
 
 * **A.** Upgrades and downgrades both take effect at the next successful charge (recommended, no proration). Alternative: upgrade entitlements immediately with a prorated one-off ON_DEMAND charge (more code, more failure modes). Which?
 * **B.** Plan names: confirm Starter / Growth / Pro (Section 1).
@@ -154,3 +154,24 @@ Needs from you: Cashfree **sandbox** account with Subscriptions and UPI AutoPay 
 * **D.** Approve deploying this branch's frontend to fix the live "Card required" wording (copy only, no backend change).
 * **E.** Sandbox option (Section 10) and who enters the sandbox credentials.
 * **F.** Whether the revision id gap (0032 → 0034) is acceptable.
+
+## 12. Owner decisions and what was built (2026-11-16)
+
+| Decision | Applied |
+|---|---|
+| A. Plan changes: next billing cycle only, both directions, no proration, no extra charge, show the effective date, no duplicate mandates | `billing_cashfree.change_plan` tells Cashfree `CHANGE_PLAN` now but sets `pending_plan`; the plan is applied only by a verified CHARGE of the **new** amount (a charge of the old amount leaves the change waiting). The mandate ceiling is the highest plan price, so no new authorisation is needed. The billing page shows `pending_plan_name` and `pending_plan_effective_at`. A second mandate is refused (`already_subscribed`); a different plan chosen while one checkout is open closes the open one first. |
+| C. Local dev database repair | Done on `flowqr-db-1` only (backup, one transaction, schema compared with a fresh 0032 database: identical except one harmless grant line). |
+| D. Frontend-only copy correction | Deployed (`flowqr-m57az472a`, exported from commit `b5235cb`, 253 files matching their committed blobs, no backend, no migration): the live pages no longer say a card is required. |
+| E. Migration 0034 from 0032 | `0034_cashfree_billing`, `down_revision = 0032`, no 0033 file or reference (a test proves one straight history), drops `card_status` if present, additive otherwise, reversible, a plan name an administrator edited is not overwritten, QR-card functionality untouched (a test proves it). |
+| F. Option C sandbox | `deploy/sandbox/` (own Compose project, own database, `webhook-gate` that exposes only `POST /api/v1/webhooks/cashfree`, a temporary tunnel started only on request, hidden-prompt credential script). Not started: it needs the owner's sandbox credentials. |
+
+Additional requirements: Razorpay history preserved and Razorpay disabled (the guard refuses both providers at once); MRR counts `razorpay` and `cashfree` sources and a new `mrr_by_provider_paise` shows them apart; the refundable ₹1 authorisation is stored as `kind = sub_auth`, which every revenue query excludes; 7-day trial and 7-day grace unchanged; eNACH refused by the production guard; UPI AutoPay and card only.
+
+### Verified against Cashfree's documentation
+Signature `Base64(HMAC-SHA256(secret, timestamp + rawBody))` with headers `x-webhook-signature` and `x-webhook-timestamp` and a 5-minute window; **no event id exists**, so events are stored under `sha256(type | subscription_id | payment_id | status | event_time)` (fields really in the payload) and the real truth is re-read from Cashfree before any state changes; `CANCEL` is immediate; `CHANGE_PLAN` cannot exceed the plan's max amount; the hosted checkout SDK is `@cashfreepayments/cashfree-js` (pinned 1.0.7, MIT, loads `https://sdk.cashfree.com/js/v3/cashfree.js`); a first charge may be at most 14 days ahead (the code uses 13).
+
+### Not verified (sandbox must settle each; see CASHFREE_SANDBOX_TEST.md)
+Which key signs webhooks; the timestamp format (milliseconds, seconds and ISO are accepted, anything else refused); exact status spellings; the earliest first-charge date when there is no free period (the code uses 2 days); duplicate plan or subscription id behaviour; how the monthly date falls after the first charge; whether `CHANGE_PLAN` changes the next amount; the card retry behaviour; what `return_url` receives.
+
+### Built (files)
+Backend: `core/config.py` (settings, properties, production guard), `models/billing.py`, `models/platform.py`, `alembic/versions/0034_cashfree_billing.py`, `services/cashfree.py` (client, signature, parsing), `services/billing_cashfree.py` (lifecycle, reconcile), `api/v1/webhooks.py`, `api/v1/billing.py`, `api/v1/admin.py`, `services/finance.py`, `services/entitlements.py` (48-hour settlement window), `services/billing.py`, `workers/*` (hourly reconcile), `schemas/billing.py`, `main.py`. Frontend: `components/billing/CashfreeCheckout.tsx` (the disclosure dialog), `app/(app)/settings/billing/return/page.tsx`, billing, payments and admin billing pages, `lib/billing.ts`, `lib/types.ts`, pricing note. Tests: `test_cashfree_provider.py` (33), `test_cashfree_billing.py` (60), `test_migration_0034.py` (7).
