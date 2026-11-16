@@ -205,3 +205,34 @@ def insights(
     result = insights_svc.analyse(fetch(lo, hi), fetch(lo - span, lo))
     result["range"] = {"from": start.isoformat(), "to": end.isoformat()}
     return result
+
+
+@router.get("/google-metrics")
+def google_metrics(start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"), location_id: uuid.UUID | None = None,
+                   ctx: TenantContext = Depends(get_tenant_context)):
+    """Google Business Profile metrics FlowQR has stored from the Performance API (see services/gbp_metrics.py), for this period and the same-length period before it.
+
+    `availability.state` is "ok" only when stored rows exist; otherwise it is the reason Google's numbers are unavailable and every figure is null. A metric Google did not return is
+    null, a real zero is 0. Days Google has not reported yet (it runs a few days late) are left out of BOTH periods so the comparison is like for like. Nothing is estimated."""
+    from app.api.v1.seo import _glocs
+    from app.services import gbp_metrics as gm
+
+    glocs = _glocs(ctx, location_id)
+    start, end, *_ = _range(ctx, start, end)
+    end = min(end, datetime.now(ZoneInfo(ctx.tenant.timezone)).date() - timedelta(days=gm.LAG_DAYS))
+    avail = gm.availability(ctx.db, ctx.tenant_id, glocs)
+    out: dict = {"availability": avail, "source": "google", "range": {"from": start.isoformat(), "to": end.isoformat()}, "current": None, "previous": None, "series": {}, "by_location": [],
+                 "days_with_data": 0,
+                 "note": "Reported by Google Business Profile, a few days late, and collected once a day. Not the same as FlowQR card scans. Google does not report ranking positions here."}
+    if avail["state"] != "ok" or start > end:
+        return out
+    span = (end - start).days + 1
+    prev_end = start - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=span - 1)
+    cur, prev = gm.history(ctx.db, ctx.tenant_id, glocs, start, end), gm.history(ctx.db, ctx.tenant_id, glocs, prev_start, prev_end)
+    out.update(current=gm.summary(cur["totals"]), previous=gm.summary(prev["totals"]) if prev["days_with_data"] else None, series=cur["series"], days_with_data=cur["days_with_data"],
+               range_days=span, previous_range={"from": prev_start.isoformat(), "to": prev_end.isoformat(), "days_with_data": prev["days_with_data"]})
+    for g in glocs:
+        h = gm.history(ctx.db, ctx.tenant_id, [g], start, end)
+        out["by_location"].append({"id": str(g.id), "title": g.title, "days_with_data": h["days_with_data"], "totals": gm.summary(h["totals"]) if h["days_with_data"] else None})
+    return out
