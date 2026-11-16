@@ -47,7 +47,7 @@ export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null;
               <li key={p.key}>
                 <Link href={p.href} className="group grid grid-cols-[3.9rem_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] py-0.5 text-[13px] hover:bg-surface-2 md:grid-cols-[4.5rem_minmax(0,1fr)_7rem]" aria-label={`${p.label}: ${p.available ? p.detail : "no data yet"}`}>
                   <span className={clsx(p.key === g.weakest ? "font-semibold" : "text-ink-700")}>{p.label}</span>
-                  <Meter value={p.available ? p.value : null} tone={p.key === g.weakest ? "watch" : "ink"} />
+                  <Meter value={p.available ? p.value : null} />
                   <span className="num truncate text-right text-[12px] text-muted md:text-[13px]">{!p.available ? "–" : p.key === "rating" ? p.number?.toFixed(1) : p.key === "reviews" ? `${p.count}/${p.goal}` : p.key === "replies" ? `${Math.round((p.rate ?? 0) * 100)}%` : p.key === "profile" ? `${p.percent}%` : `${p.top10}/${p.measured}`}</span>
                 </Link>
               </li>
@@ -81,12 +81,12 @@ export function Numbers({ o, prev, weekly, loading }: { o: Overview | null; prev
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Tile label="Google rating" href="/reputation/insights" value={r.average_rating_all_time === null ? "–" : <span className="inline-flex items-center gap-1">{r.average_rating_all_time.toFixed(1)}<Star className="h-4 w-4 fill-star text-star" aria-hidden /></span>}
-        visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{[1, 2, 3, 4, 5].map((n) => <span key={n} className="flex-1 rounded-t-[2px] bg-ink-solid" style={{ height: `${Math.max(6, ((dist[String(n)] ?? 0) / peak) * 100)}%`, opacity: (dist[String(n)] ?? 0) ? 1 : 0.15 }} />)}</span>} />
+        visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={clsx("flex-1 rounded-t-[2px]", n >= 4 ? "bg-pos" : n === 3 ? "bg-caution" : "bg-neg")} style={{ height: `${Math.max(6, ((dist[String(n)] ?? 0) / peak) * 100)}%`, opacity: (dist[String(n)] ?? 0) ? 1 : 0.15 }} />)}</span>} />
       <Tile label="New reviews" href="/growth" value={fmtNum(r.new_in_range)} foot={<Delta cur={r.new_in_range} prev={prev?.reviews.new_in_range} />}
-        visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{weekly.map((v, i) => <span key={i} className="flex-1 rounded-t-[2px] bg-ink-solid" style={{ height: `${Math.max(6, (v / wk) * 100)}%`, opacity: v ? 1 : 0.15 }} />)}</span>} />
+        visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{weekly.map((v, i) => <span key={i} className="flex-1 rounded-t-[2px] bg-chart" style={{ height: `${Math.max(6, (v / wk) * 100)}%`, opacity: v ? 1 : 0.15 }} />)}</span>} />
       <Tile label="Replied" href="/gbp/reviews?state=none" value={replied === null ? "–" : `${Math.round(replied * 100)}%`} visual={<Meter value={replied} />} />
       <Tile label="Reply time" href="/gbp/reviews" value={hrs === null ? "–" : hrs < 1 ? "<1 h" : hrs < 48 ? `${Math.round(hrs)} h` : `${Math.round(hrs / 24)} d`}
-        visual={<span aria-hidden className="relative block h-2 rounded-full bg-surface-3">{hrs !== null && <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-ink-solid" style={{ left: `${Math.min(100, (Math.log10(Math.max(1, hrs)) / Math.log10(168)) * 100)}%` }} />}<span className="absolute -bottom-3.5 left-0 text-[10px] text-muted">1h</span><span className="absolute -bottom-3.5 right-0 text-[10px] text-muted">1wk</span></span>} />
+        visual={<span aria-hidden className="relative block h-2 rounded-full bg-surface-3">{hrs !== null && <span className={clsx("absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface", hrs <= 24 ? "bg-pos" : hrs <= 72 ? "bg-caution" : "bg-neg")} style={{ left: `${Math.min(100, (Math.log10(Math.max(1, hrs)) / Math.log10(168)) * 100)}%` }} />}<span className="absolute -bottom-3.5 left-0 text-[10px] text-muted">1h</span><span className="absolute -bottom-3.5 right-0 text-[10px] text-muted">1wk</span></span>} />
     </div>
   );
 }
@@ -159,7 +159,7 @@ export function FunnelStrip({ steps, hasCard, loading }: { steps: FunnelStep[] |
             {vals.map(([l, v], i) => (
               <li key={l} className="min-w-0">
                 <span className="num block text-[20px] font-semibold leading-7">{empty ? "–" : fmtNum(v)}</span>
-                <span aria-hidden className="mt-1 flex h-12 items-end rounded-[6px] bg-surface-2"><span className={clsx("fq-bar w-full rounded-[6px]", empty ? "h-[2px] bg-ink-300" : "bg-ink-solid")} style={empty ? undefined : { height: `${Math.max(4, (v / top) * 100)}%`, opacity: 1 - i * 0.15 }} /></span>
+                <span aria-hidden className="mt-1 flex h-12 items-end rounded-[6px] bg-surface-2"><span className={clsx("fq-bar w-full rounded-[6px]", empty ? "h-[2px] bg-ink-300" : "bg-chart")} style={empty ? undefined : { height: `${Math.max(4, (v / top) * 100)}%`, opacity: 1 - i * 0.15 }} /></span>
                 <span className="mt-1 block truncate text-[12px] text-muted">{l}</span>
               </li>
             ))}

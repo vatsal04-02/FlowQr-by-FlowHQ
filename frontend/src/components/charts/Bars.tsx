@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 export interface BarDatum { key: string; label: string; cur: number; prev?: number | null; tip?: string }
 
 /**
- * Counts as bars, never a smoothed line. This period is solid ink; the period before is a grey outline beside it; an optional goal is one dashed line. Every bar can be reached
+ * Counts as bars, never a smoothed line. This period is solid chart blue; the period before is a grey outline beside it; an optional goal is one dashed line. Every bar can be reached
  * with the keyboard (Tab, then the value shows) and tapped on a phone; "View as table" gives the same numbers as text.
  */
 export function Bars({ data, goal, goalLabel, height = 168, label, unit = "reviews" }: { data: BarDatum[]; goal?: number | null; goalLabel?: string; height?: number; label: string; unit?: string }) {
@@ -35,7 +35,7 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
               aria-label={`${d.label}: ${d.cur} ${unit}${hasPrev && d.prev !== null && d.prev !== undefined ? `, ${d.prev} before` : ""}`}
               className={clsx("relative flex h-full !min-h-0 !min-w-0 flex-1 items-end justify-center gap-[3px] rounded-[6px] outline-offset-2", on === i && "bg-surface-2")}>
               {hasPrev && <span aria-hidden className="w-[38%] max-w-[16px] rounded-t-[3px] border border-ink-400 bg-surface" style={{ height: d.prev ? pct(d.prev) : 0 }} />}
-              <span aria-hidden className="fq-bar w-[38%] max-w-[16px] rounded-t-[3px] bg-ink-solid" style={{ height: d.cur ? pct(d.cur) : "2px", opacity: d.cur ? 1 : 0.25 }} />
+              <span aria-hidden className="fq-bar w-[38%] max-w-[16px] rounded-t-[3px] bg-chart" style={{ height: d.cur ? pct(d.cur) : "2px", opacity: d.cur ? 1 : 0.25 }} />
             </button>
           ))}
         </div>
@@ -48,7 +48,7 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
       </div>
       <div aria-hidden className="ml-7 mt-1.5 flex justify-around gap-1 overflow-hidden">{data.map((d, i) => <span key={d.key} className="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center text-[11px] text-muted">{i % Math.max(1, Math.ceil(data.length / 5)) ? "" : d.label}</span>)}</div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        {hasPrev ? <p className="flex items-center gap-3 text-[12px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] bg-ink-solid" />This period</span><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] border border-ink-400" />Before</span></p> : <span />}
+        {hasPrev ? <p className="flex items-center gap-3 text-[12px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] bg-chart" />This period</span><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] border border-ink-400" />Before</span></p> : <span />}
         <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 text-[12px] font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
       </div>
       {table && (
@@ -59,25 +59,32 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
   );
 }
 
-/** A 0-100 ring. The number sits inside; the ring is a picture of the same number. */
-export function Ring({ value, size = 104, stroke = 10, children, label }: { value: number | null; size?: number; stroke?: number; children?: React.ReactNode; label: string }) {
+/** Meaning colour for a share (0..1): green from 75%, amber from 40%, red below. The number is always printed beside it, so colour is never the only signal. */
+export type Tone = "good" | "watch" | "bad";
+export const toneOf = (share: number): Tone => (share >= 0.75 ? "good" : share >= 0.4 ? "watch" : "bad");
+export const TONE_BG: Record<Tone, string> = { good: "bg-pos", watch: "bg-caution", bad: "bg-neg" };
+const TONE_RGB: Record<Tone, string> = { good: "rgb(var(--c-pos))", watch: "rgb(var(--c-caution))", bad: "rgb(var(--c-neg))" };
+
+/** A 0-100 ring, coloured by how good the number is. The number sits inside; the ring is a picture of the same number. */
+export function Ring({ value, size = 104, stroke = 10, children, label, tone }: { value: number | null; size?: number; stroke?: number; children?: React.ReactNode; label: string; tone?: Tone }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, v = value === null ? 0 : Math.max(0, Math.min(100, value));
+  const colour = TONE_RGB[tone ?? toneOf(v / 100)];
   return (
     <span className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }} role="img" aria-label={label}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(var(--c-surface-3))" strokeWidth={stroke} strokeDasharray={value === null ? "3 5" : undefined} />
-        {value !== null && <circle className="fq-ring" cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(var(--c-ink-solid))" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} style={{ ["--c" as string]: c }} />}
+        {value !== null && <circle className="fq-ring" cx={size / 2} cy={size / 2} r={r} fill="none" stroke={colour} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} style={{ ["--c" as string]: c }} />}
       </svg>
       <span className="absolute inset-0 grid place-items-center text-center">{children}</span>
     </span>
   );
 }
 
-/** A thin horizontal bar for one part of a whole (0..1). Dashes when there is no data. */
-export function Meter({ value, tone = "ink", className }: { value: number | null; tone?: "ink" | "watch"; className?: string }) {
+/** A thin horizontal bar for one part of a whole (0..1), coloured by how good it is unless a tone is given. Dashes when there is no data. */
+export function Meter({ value, tone, className }: { value: number | null; tone?: Tone; className?: string }) {
   return (
     <span aria-hidden className={clsx("block h-2 overflow-hidden rounded-full", value === null ? "bg-[repeating-linear-gradient(90deg,rgb(var(--c-surface-3))_0_6px,transparent_6px_10px)]" : "bg-surface-3", className)}>
-      {value !== null && <span className={clsx("fq-bar-x block h-full rounded-full", tone === "watch" ? "bg-warn" : "bg-ink-solid")} style={{ width: `${Math.max(2, value * 100)}%` }} />}
+      {value !== null && <span className={clsx("fq-bar-x block h-full rounded-full", TONE_BG[tone ?? toneOf(value)])} style={{ width: `${Math.max(2, value * 100)}%` }} />}
     </span>
   );
 }

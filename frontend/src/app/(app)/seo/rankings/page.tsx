@@ -38,7 +38,7 @@ export default function RankingsPage() {
                 {t.terms.slice(0, 5).map((x) => (
                   <li key={x.keyword}>
                     <div className="flex items-baseline justify-between gap-3 text-[14px]"><span data-words="skip" className="min-w-0 truncate">{x.keyword}</span><b className="num shrink-0 font-semibold">{x.value === null ? "<15" : fmtNum(x.value)}</b></div>
-                    <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full bg-ink-solid" style={{ width: `${x.value === null ? 3 : Math.max(3, (x.value / topTerm) * 100)}%` }} /></span>
+                    <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full bg-chart" style={{ width: `${x.value === null ? 3 : Math.max(3, (x.value / topTerm) * 100)}%` }} /></span>
                   </li>
                 ))}
               </ol>

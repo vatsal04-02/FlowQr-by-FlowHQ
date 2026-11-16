@@ -1,7 +1,7 @@
 "use client";
 import { Download, Image as ImageIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Ring } from "@/components/charts/Bars";
+import { Ring, toneOf } from "@/components/charts/Bars";
 import { SendLink } from "@/components/growth/SendLink";
 import { DoThisWeek, type GrowthScore } from "@/components/home/v2";
 import { Card, SeeAll, Title } from "@/components/seo/visuals";
@@ -87,7 +87,7 @@ export default function GoalsPage() {
           <Title>This month</Title>
           {score.loading && !rv ? <Skeleton className="mt-3 h-36" /> : (
             <div className="mt-3 flex flex-wrap items-center gap-5">
-              <Ring value={rv && rv.goal ? Math.min(100, ((rv.count ?? 0) / rv.goal) * 100) : null} size={120} stroke={11} label={`${rv?.count ?? 0} of ${rv?.goal ?? "–"} reviews this month`}>
+              <Ring value={rv && rv.goal ? Math.min(100, ((rv.count ?? 0) / rv.goal) * 100) : null} tone={paceTone(rv)} size={120} stroke={11} label={`${rv?.count ?? 0} of ${rv?.goal ?? "–"} reviews this month`}>
                 <span><b className="num block text-[30px] font-semibold leading-none">{rv?.count ?? "–"}</b><span className="num text-[12px] text-muted">of {rv?.goal ?? "–"}</span></span>
               </Ring>
               <div className="min-w-0 flex-1 space-y-1 text-[14px]">
@@ -107,7 +107,7 @@ export default function GoalsPage() {
               {vals.map(([l, v], i) => (
                 <li key={l} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-[14px]">
                   <span className="text-ink-700">{l}</span>
-                  <span aria-hidden className="h-3 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full bg-ink-solid" style={{ width: `${v ? Math.max(3, (v / top) * 100) : 0}%`, opacity: 1 - i * 0.15 }} /></span>
+                  <span aria-hidden className="h-3 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full bg-chart" style={{ width: `${v ? Math.max(3, (v / top) * 100) : 0}%`, opacity: 1 - i * 0.15 }} /></span>
                   <b className="num text-right font-semibold">{fmtNum(v)}</b>
                 </li>
               ))}
@@ -132,4 +132,12 @@ export default function GoalsPage() {
       </Sheet>
     </>
   );
+}
+
+/** Goal ring colour by pace, not by share: 20 of 80 on day 16 is on track, so it reads green. Expected = goal × share of the month gone. */
+function paceTone(rv: { count?: number | null; goal?: number | null; days_left?: number | null } | null | undefined) {
+  if (!rv || !rv.goal) return undefined;
+  const now = new Date(), days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const gone = Math.max(1, days - (rv.days_left ?? 0)) / days;
+  return toneOf((rv.count ?? 0) / Math.max(1, rv.goal * gone));
 }

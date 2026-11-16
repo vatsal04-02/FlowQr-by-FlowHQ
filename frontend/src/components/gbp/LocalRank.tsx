@@ -80,11 +80,11 @@ export function LocalRank({ gid }: { gid: string }) {
       <section className="panel p-5 sm:p-6" aria-labelledby="rk-h">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 id="rk-h" className="text-lg font-semibold">Where you appear for the searches that matter</h2>
-            <p className="mt-0.5 max-w-2xl text-sm text-muted">Pick up to {d.max_keywords} search terms customers use. FlowQR asks Google Places for the first 20 results around {d.location.title ?? "this location"} and records your position, with the date.</p>
+            <h2 id="rk-h" className="text-[15px] font-semibold">Manage words</h2>
+            <p className="mt-0.5 text-[13px] text-muted">Up to {d.max_keywords}. Checked weekly.</p>
           </div>
           <div className="text-right text-xs text-muted" aria-label="Monthly checks">
-            <div className="text-[13px] font-semibold text-ink">{left} of {d.usage.cap} checks left this month</div>
+            <div className="text-[13px] font-semibold text-ink">{left}/{d.usage.cap} checks</div>
             <div>Resets {new Date(d.usage.resets_on).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</div>
           </div>
         </div>
@@ -115,12 +115,12 @@ export function LocalRank({ gid }: { gid: string }) {
                         {!c ? <span className="text-xs">–</span> : c.status === "error" ? <span className="text-xs font-semibold">Failed</span> : c.rank ? <span className="text-xl font-semibold tabular-nums">#{c.rank}</span> : <span className="px-1 text-[11px] font-semibold leading-tight">Not in top 20</span>}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">{k.keyword}</p>
-                        <p className="text-xs text-muted">{c ? `Measured ${timeAgo(c.checked_at)}${c.source === "auto" ? " (automatic)" : ""}` : "Not measured yet"}{c?.status === "ok" && c.results_seen != null ? ` · ${c.results_seen} results read` : ""}</p>
+                        <p data-words="skip" className="truncate font-semibold">{k.keyword}</p>
+                        <p className="text-xs text-muted">{c ? `Checked ${timeAgo(c.checked_at)}` : "Not checked yet"}</p>
                         <Change k={k} />
                       </div>
                       <div className="flex items-center gap-1">
-                        {c?.status === "ok" && c.top_results.length > 0 && <Button size="sm" variant="ghost" onClick={() => setOpen(open === k.id ? null : k.id)} aria-expanded={open === k.id}>Who ranks above</Button>}
+                        {c?.status === "ok" && c.top_results.length > 0 && <Button size="sm" variant="ghost" onClick={() => setOpen(open === k.id ? null : k.id)} aria-expanded={open === k.id}>Above you</Button>}
                         {isAdmin && <Button size="sm" variant="secondary" onClick={() => void check(k.id)} loading={busy === k.id} disabled={!canRun || left === 0} aria-label={`Check ${k.keyword} now`} icon={<RefreshCw className="h-4 w-4" aria-hidden />}>Check</Button>}
                         {isAdmin && <Button size="sm" variant="ghost" onClick={() => void remove(k)} disabled={busy === k.id} aria-label={`Remove ${k.keyword}`}>{busy === k.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}</Button>}
                       </div>
@@ -143,7 +143,7 @@ export function LocalRank({ gid }: { gid: string }) {
             </ul>
           </>
         )}
-        <p className="mt-4 flex items-start gap-2 text-xs text-muted"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{d.note} Terms are re-checked automatically about once a week, within your monthly allowance.</p>
+        <p className="mt-4 flex items-start gap-2 text-xs text-muted"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />Measured from Google Places. Maps can order results differently.</p>
       </section>
     </div>
   );

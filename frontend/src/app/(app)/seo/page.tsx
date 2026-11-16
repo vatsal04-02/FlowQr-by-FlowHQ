@@ -54,7 +54,7 @@ export default function SeoOverviewPage() {
                 <div key={k} className="min-w-0">
                   <dt className="text-[13px] text-muted">{label}</dt>
                   <dd className="num text-[20px] font-semibold leading-7">{gOk && vals.length ? fmtNum(total) : "–"}</dd>
-                  {gOk && vals.length ? <span aria-hidden className="mt-1 flex h-10 items-end gap-[2px]">{vals.map((v, i) => <span key={i} className="flex-1 rounded-t-[1px] bg-ink-solid" style={{ height: `${Math.max(3, (v / top) * 100)}%` }} />)}</span> : <Dashes className="mt-1" />}
+                  {gOk && vals.length ? <span aria-hidden className="mt-1 flex h-10 items-end gap-[2px]">{vals.map((v, i) => <span key={i} className="flex-1 rounded-t-[1px] bg-chart" style={{ height: `${Math.max(3, (v / top) * 100)}%` }} />)}</span> : <Dashes className="mt-1" />}
                 </div>
               );
             })}

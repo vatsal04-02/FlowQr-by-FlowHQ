@@ -71,7 +71,7 @@ export default function InsightsPage() {
                   return (
                     <li key={n} className="grid grid-cols-[2.2rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-[13px]">
                       <span className="num inline-flex items-center gap-0.5">{n}<Star className="h-3 w-3 fill-star text-star" aria-hidden /></span>
-                      <span aria-hidden className="h-2.5 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full bg-ink-solid" style={{ width: `${(c / peak) * 100}%` }} /></span>
+                      <span aria-hidden className="h-2.5 overflow-hidden rounded-full bg-surface-3"><span className={`fq-bar-x block h-full rounded-full ${n >= 4 ? "bg-pos" : n === 3 ? "bg-caution" : "bg-neg"}`} style={{ width: `${(c / peak) * 100}%` }} /></span>
                       <span className="num text-right font-medium">{c}</span>
                     </li>
                   );
@@ -84,9 +84,9 @@ export default function InsightsPage() {
             {ov.loading && !r ? <Skeleton className="mt-3 h-20" /> : (
               <div className="mt-3 grid grid-cols-2 gap-4">
                 <div><p className="text-[13px] text-muted">Replied</p><p className="num text-[24px] font-semibold">{rate === null ? "–" : `${Math.round(rate * 100)}%`}</p>
-                  <span aria-hidden className="mt-1 block h-2 overflow-hidden rounded-full bg-surface-3"><span className="block h-full rounded-full bg-ink-solid" style={{ width: `${(rate ?? 0) * 100}%` }} /></span></div>
+                  <span aria-hidden className="mt-1 block h-2 overflow-hidden rounded-full bg-surface-3"><span className={`block h-full rounded-full ${rate === null ? "" : rate >= 0.75 ? "bg-pos" : rate >= 0.4 ? "bg-caution" : "bg-neg"}`} style={{ width: `${(rate ?? 0) * 100}%` }} /></span></div>
                 <div><p className="text-[13px] text-muted">Time to reply</p><p className="num text-[24px] font-semibold">{hrs === null ? "–" : hrs < 48 ? `${Math.round(hrs)} h` : `${Math.round(hrs / 24)} d`}</p>
-                  <span aria-hidden className="relative mt-1 block h-2 rounded-full bg-surface-3">{hrs !== null && <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-ink-solid" style={{ left: `${Math.min(100, (Math.log10(Math.max(1, hrs)) / Math.log10(168)) * 100)}%` }} />}</span></div>
+                  <span aria-hidden className="relative mt-1 block h-2 rounded-full bg-surface-3">{hrs !== null && <span className={`absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface ${hrs <= 24 ? "bg-pos" : hrs <= 72 ? "bg-caution" : "bg-neg"}`} style={{ left: `${Math.min(100, (Math.log10(Math.max(1, hrs)) / Math.log10(168)) * 100)}%` }} />}</span></div>
               </div>
             )}
           </Card>
