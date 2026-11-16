@@ -17,35 +17,64 @@ const NAV = [
   { href: "/admin/audit", label: "Audit", icon: ScrollText },
 ];
 
-/** Platform-admin console: separate chrome, only reachable by is_platform_admin (also enforced server-side on every /admin API). */
+/**
+ * Platform-admin console: the same brand, tokens and components as the customer app, in a denser layout (docs/DESIGN.md). A 220px sidebar from tablet width up; on a phone a
+ * scrolling tab strip under the top bar. Only reachable by is_platform_admin (also enforced server-side on every /admin API).
+ */
 export function AdminShell({ children }: { children: ReactNode }) {
   const { me, loading, logout } = useAuth();
   const path = usePathname();
   const router = useRouter();
-  useAppChrome(); // same tokens and light/dark choice as the customer app (DESIGN.md §11); its own navigation stays
+  useAppChrome();
   useEffect(() => { if (!loading && !me) router.replace("/login"); }, [loading, me, router]);
   if (loading || !me) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
   if (!me.user.is_platform_admin) return <div className="mx-auto max-w-md p-8"><Alert tone="error" title="Platform admins only">You don&rsquo;t have access to this area.</Alert></div>;
   const active = (h: string) => (h === "/admin" ? path === h : path.startsWith(h));
+  const brand = (
+    <Link href="/admin" className="flex items-center gap-2.5 rounded-lg" aria-label="Platform admin home">
+      <span className="hero-grad grid h-9 w-9 shrink-0 place-items-center rounded-[10px] !shadow-none"><LogoMark size={19} variant="onAccent" /></span>
+      <span className="text-[15px] font-semibold leading-4">FlowQR <span className="font-medium text-muted">Admin</span></span>
+    </Link>
+  );
   return (
     <div className="min-h-dvh bg-canvas">
-      <header className="sticky top-0 z-30 bg-ink text-white">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2.5 sm:px-6">
-          <Link href="/admin" className="flex items-center gap-2.5 rounded-lg" aria-label="Platform admin home"><LogoMark size={28} /><span className="font-display font-semibold">FlowQR <span className="text-ink-200">Admin</span></span></Link>
-          <span className="hidden items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-semibold sm:inline-flex"><ShieldCheck className="h-3.5 w-3.5" aria-hidden />FlowHQ staff</span>
-          <nav aria-label="Admin" className="ml-2 hidden flex-1 gap-1 lg:flex">
-            {NAV.map((n) => <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined} className={clsx("inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold", active(n.href) ? "bg-white/15" : "text-ink-200 hover:bg-white/10")}><n.icon className="h-4 w-4" aria-hidden />{n.label}</Link>)}
-          </nav>
-          <div className="ml-auto flex items-center gap-1">
-            {me.memberships.length > 0 && <Link href="/overview" className="tap hidden items-center rounded-lg px-3 text-sm text-ink-200 hover:bg-white/10 sm:inline-flex">My business</Link>}
-            <button onClick={() => void logout()} aria-label="Log out" className="tap grid place-items-center rounded-lg text-ink-200 hover:bg-white/10"><LogOut className="h-4 w-4" aria-hidden /></button>
-          </div>
-        </div>
-        <nav aria-label="Admin mobile" className="flex gap-1 overflow-x-auto border-t border-white/10 px-3 py-1.5 lg:hidden">
-          {NAV.map((n) => <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined} className={clsx("inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold", active(n.href) ? "bg-white/15" : "text-ink-200")}><n.icon className="h-4 w-4" aria-hidden />{n.label}</Link>)}
+      <aside aria-label="Admin navigation" className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col border-r border-ink-100 bg-surface md:flex">
+        <div className="flex h-16 shrink-0 items-center px-4">{brand}</div>
+        <nav aria-label="Admin" className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2.5 pb-3">
+          {NAV.map((n) => (
+            <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
+              className={clsx("relative flex min-h-10 items-center gap-3 rounded-[10px] pl-3 pr-2 text-[14px] transition-colors", active(n.href) ? "bg-surface-2 font-semibold text-ink" : "font-medium text-ink-700 hover:bg-surface-2 hover:text-ink")}>
+              {active(n.href) && <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-accent" />}
+              <n.icon className={clsx("h-[18px] w-[18px] shrink-0", active(n.href) ? "text-accent-ink" : "text-ink-500")} strokeWidth={1.75} aria-hidden />{n.label}
+            </Link>
+          ))}
         </nav>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+        <div className="space-y-0.5 border-t border-ink-100 p-2.5">
+          {me.memberships.length > 0 && <Link href="/overview" className="flex min-h-10 items-center rounded-[10px] px-3 text-[14px] font-medium text-ink-700 hover:bg-surface-2">My business</Link>}
+          <button type="button" onClick={() => void logout()} className="flex min-h-10 w-full items-center gap-3 rounded-[10px] px-3 text-left text-[14px] font-medium text-ink-700 hover:bg-surface-2"><LogOut className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />Log out</button>
+        </div>
+      </aside>
+
+      <div className="md:pl-[220px]">
+        <header className="sticky top-0 z-30 border-b border-ink-100 bg-canvas md:hidden">
+          <div className="flex h-14 items-center justify-between gap-2 px-3">
+            {brand}
+            <div className="flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-full bg-surface-3 px-2.5 py-0.5 text-xs font-semibold"><ShieldCheck className="h-3.5 w-3.5" aria-hidden />FlowHQ staff</span>
+              <button type="button" onClick={() => void logout()} aria-label="Log out" className="grid h-11 w-11 place-items-center rounded-full text-ink-600 hover:bg-surface-2"><LogOut className="h-[18px] w-[18px]" aria-hidden /></button>
+            </div>
+          </div>
+          <nav aria-label="Admin mobile" className="no-scrollbar flex overflow-x-auto px-2">
+            {NAV.map((n) => (
+              <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
+                className={clsx("relative inline-flex min-h-11 shrink-0 items-center whitespace-nowrap px-3 text-sm font-medium", active(n.href) ? "text-ink" : "text-muted")}>
+                {n.label}{active(n.href) && <span aria-hidden className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-accent" />}
+              </Link>
+            ))}
+          </nav>
+        </header>
+        <main className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-5 sm:px-6 md:py-6">{children}</main>
+      </div>
     </div>
   );
 }
