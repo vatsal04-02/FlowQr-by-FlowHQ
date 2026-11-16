@@ -79,6 +79,7 @@ def subscription(ctx: TenantContext = Depends(get_tenant_context)):
         "has_razorpay_subscription": bool(sub and sub.razorpay_subscription_id),
         "provider": sub.provider if sub else None, "has_cashfree_subscription": bool(sub and sub.cashfree_subscription_id), "mandate_required": settings.mandate_required,
         "trial_started_at": sub.trial_started_at if sub else None, "payment_method": _payment_method(ctx.db, ctx.tenant_id),
+        "trial_plan": sub.trial_plan if sub else None, "trial_plan_name": (ctx.db.get(BillingPlan, sub.trial_plan).name if sub and sub.trial_plan and ctx.db.get(BillingPlan, sub.trial_plan) else None),
         "next_charge_amount_paise": _next_amount(ctx.db, sub),
         "authorization_status": sub.authorization_status if sub else None, "billing_state": cfb.billing_state(sub),
         "first_charge_at": sub.first_charge_at if sub else None, "next_charge_at": sub.next_charge_at if sub else None,
@@ -156,7 +157,7 @@ def checkout(body: CheckoutIn, request: Request, ctx: TenantContext = Depends(re
         rzp_plan_id = svc.ensure_razorpay_plan(ctx.db, client, plan)
         start_at = None
         from datetime import timedelta
-        free_until = sub.trial_ends_at if sub.status == "trialing" and sub.trial_ends_at else None
+        free_until = sub.trial_ends_at if sub.status == "trialing" and sub.trial_ends_at else None  # the free trial is carried into whichever plan is chosen
         promo = ent.active_promo(ctx.db, ctx.tenant_id)
         if promo and (free_until is None or promo[0].ends_at > free_until):
             free_until = promo[0].ends_at

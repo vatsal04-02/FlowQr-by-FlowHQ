@@ -11,8 +11,10 @@ export const FALLBACK_PLANS: Plan[] = [
 
 export function usePlans() {
   const { data } = useFetch<PlansResponse>("/billing/plans");
-  return { plans: data?.plans ?? FALLBACK_PLANS, trialDays: data?.trial_days ?? 7 };
+  // null until the server has answered: the site then says nothing about payment rather than say something that may be wrong
+  return { plans: data?.plans ?? FALLBACK_PLANS, trialDays: data?.trial_days ?? 7, mandateRequired: data ? !!data.billing?.mandate_required : null };
 }
 
-/** What the site says about a card next to "N-day free trial". The trial itself needs no card: a recurring payment is authorised only when a plan is chosen. */
-export const TRIAL_TERMS = "No card needed.";
+/** What the site says about payment next to "N-day free trial", read from the server like the length. Where Cashfree billing is on, a payment method (UPI AutoPay or card) is authorised
+ *  before the trial starts and the first payment is after it; where it is off, no card is needed. */
+export const trialTerms = (mandateRequired: boolean | null) => (mandateRequired === null ? "" : mandateRequired ? "Authorise UPI AutoPay or a card to start. Your first payment is after the trial." : "No card needed.");

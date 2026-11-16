@@ -1,13 +1,15 @@
 "use client";
 import clsx from "clsx";
-import { AlertCircle } from "lucide-react";
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
+import { forwardRef, useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 // DESIGN.md "Input": grey well, 16px radius, no visible border until hover; focus = accent ring (globals.css).
-const control =
+export const controlClass =
   "w-full min-h-12 rounded-inner border border-transparent bg-surface-2 px-4 py-2.5 text-base text-ink placeholder:text-muted-soft transition-colors sm:min-h-11 sm:text-sm " +
   "hover:border-ink-200 focus-visible:border-accent disabled:opacity-60";
-const invalid = "border-neg hover:border-neg";
+export const invalidClass = "border-neg hover:border-neg";
+const control = controlClass;
+const invalid = invalidClass;
 
 interface FieldShell { label: string; hint?: string; error?: string; required?: boolean; children: (p: { id: string; describedBy?: string; invalid: boolean }) => ReactNode; className?: string }
 
@@ -40,6 +42,26 @@ export const Input = forwardRef<HTMLInputElement, BaseProps & InputHTMLAttribute
         {({ id, describedBy, invalid: inv }) => (
           <input ref={ref} id={id} required={required} aria-invalid={inv || undefined} aria-describedby={describedBy}
             className={clsx(control, inv && invalid, className)} {...rest} />
+        )}
+      </Field>
+    );
+  });
+
+/** A password field with a show/hide button (people on phones mistype long passwords). The button is a real, labelled control. */
+export const PasswordInput = forwardRef<HTMLInputElement, BaseProps & Omit<InputHTMLAttributes<HTMLInputElement>, "type">>(
+  function PasswordInput({ label, hint, error, wrapperClassName, className, required, ...rest }, ref) {
+    const [shown, setShown] = useState(false);
+    return (
+      <Field label={label} hint={hint} error={error} required={required} className={wrapperClassName}>
+        {({ id, describedBy, invalid: inv }) => (
+          <div className="relative">
+            <input ref={ref} id={id} type={shown ? "text" : "password"} required={required} aria-invalid={inv || undefined} aria-describedby={describedBy}
+              autoCapitalize="none" spellCheck={false} className={clsx(control, "pr-12", inv && invalid, className)} {...rest} />
+            <button type="button" onClick={() => setShown((v) => !v)} aria-pressed={shown} aria-label={shown ? "Hide password" : "Show password"}
+              className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full text-ink-500 hover:text-ink">
+              {shown ? <EyeOff className="h-[18px] w-[18px]" aria-hidden /> : <Eye className="h-[18px] w-[18px]" aria-hidden />}
+            </button>
+          </div>
         )}
       </Field>
     );

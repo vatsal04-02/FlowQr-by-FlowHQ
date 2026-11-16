@@ -194,3 +194,14 @@ This reverses the earlier "the trial needs no card" decision, for Cashfree only,
 * **Masked card or UPI details:** only the method kind (`upi` or `card`) is stored and shown. Whether Cashfree returns masked details is not documented in what was read, so none is stored or claimed.
 * **Swapping the payment method while the current mandate is healthy:** not implemented. Cashfree documents no in-place update, only a new mandate; replacing a healthy one while keeping continuity of the next charge date needs sandbox behaviour to be settled first. Today the customer can re-authorise when the mandate is paused, expired, cancelled or its card has expired.
 * **Payment methods:** UPI AutoPay and card are requested; which of them Cashfree actually enables for this merchant account is unverified until the sandbox run. eNACH stays refused.
+
+## 14. Trial entitlements follow the selected plan (owner decision, 2026-11-16)
+
+During the 7-day trial a customer has the features and limits of the plan they selected: Launch → Launch, Growth → Growth, Scale → Scale. Growth's features are never granted to every trial customer, and the duration is 7 days for all three.
+
+* The selection is the plan chosen at checkout (`subscriptions.pending_plan`). When the server has read the Cashfree mandate as `ACTIVE`, `_start_trial_if_authorized` applies that plan's entitlements to the subscription row (`max_locations`, `max_staff`, `review_generations`, `review_replies`, `features`) and records `subscriptions.trial_plan`. `plan` stays `trial` until the first successful charge makes the selected plan the paid plan, with identical entitlements, so nothing changes for the customer at the first payment.
+* Enforcement is server-side because every route and worker reads those columns through `entitlements.py`; the screen only reflects them. The browser cannot name the plan at sync or return time.
+* An account still `incomplete` (selected, not yet authorised) gets nothing, not even the features of the plan it is choosing.
+* A plan change during the trial is pending and takes effect when the new amount is charged; the trial keeps the original plan's entitlements until then.
+* A business with no selection (a trial that predates the gate, or Cashfree not configured) keeps the original trial entitlements; `trial_plan` is NULL.
+* Proved by `backend/tests/test_cashfree_trial_entitlements.py` (limits, features, a second location, Insights, per plan).

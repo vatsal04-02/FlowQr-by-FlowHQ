@@ -352,7 +352,7 @@ FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "src"
 def test_the_frontend_handles_every_refusal_the_backend_can_give():
     google_messages = (FRONTEND / "components" / "GoogleAuth.tsx").read_text(encoding="utf-8")
     register_page = (FRONTEND / "app" / "(auth)" / "register" / "page.tsx").read_text(encoding="utf-8")
-    onboarding = (FRONTEND / "app" / "onboarding" / "page.tsx").read_text(encoding="utf-8")
+    onboarding = (FRONTEND / "app" / "onboarding" / "page.tsx").read_text(encoding="utf-8") + (FRONTEND / "components" / "onboarding" / "BusinessStep.tsx").read_text(encoding="utf-8")  # the redesigned wizard keeps the business step in its own component
     backend_google_codes = set(__import__("re").findall(r'fail\("([a-z_]+)"\)', (Path(__file__).resolve().parents[1] / "app" / "api" / "v1" / "auth_google.py").read_text(encoding="utf-8")))
     assert "registration_restricted" in backend_google_codes
     for code in backend_google_codes:

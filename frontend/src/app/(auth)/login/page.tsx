@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleSignIn, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
-import { ErrorSummary, Input } from "@/components/ui/Form";
+import { ErrorSummary, Input, PasswordInput } from "@/components/ui/Form";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { emailRule, required, useForm } from "@/lib/form";
@@ -42,7 +42,7 @@ export default function LoginPage() {
       <form onSubmit={submit} noValidate className="space-y-4">
         <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
         <Input label="Email" type="email" autoComplete="email" inputMode="email" required {...f.bind("email")} />
-        <Input label="Password" type="password" autoComplete="current-password" required {...f.bind("password")} />
+        <PasswordInput label="Password" autoComplete="current-password" required {...f.bind("password")} />
         <div className="flex justify-end"><Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-semibold text-[#C94C00] underline">Forgot password?</Link></div>
         <Button type="submit" size="lg" variant="brand" className="w-full" loading={busy}>Log in</Button>
       </form>

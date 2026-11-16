@@ -307,11 +307,17 @@ def _start_trial_if_authorized(db: Session, sub: Subscription, remote: cf.Subscr
     if first is None or first <= now + timedelta(days=1):
         return "stale"
     before = svc.snapshot(sub)
+    chosen = db.get(BillingPlan, sub.pending_plan) if sub.pending_plan else None
+    if chosen is not None and chosen.is_active:
+        # The trial grants the features and limits of the plan the customer SELECTED (owner decision), copied onto the subscription row that every route and worker reads: so it is
+        # enforced server-side everywhere, and persisted (`trial_plan`). `sub.plan` stays 'trial' until the first successful charge makes it the paid plan.
+        svc.apply_plan(sub, chosen)
+        sub.plan, sub.trial_plan = "trial", chosen.code
     sub.status, sub.source = "trialing", "trial"
     sub.trial_started_at = now
     sub.trial_ends_at = min(now + timedelta(days=settings.trial_days), first)
     sub.current_period_start, sub.current_period_end = now, sub.trial_ends_at
-    svc.record_change(db, sub, before, source=source, ref=ref, kind="trial_started", meta={"days": settings.trial_days, "via": "cashfree_authorization", "first_charge_at": first.isoformat()})
+    svc.record_change(db, sub, before, source=source, ref=ref, kind="trial_started", meta={"days": settings.trial_days, "via": "cashfree_authorization", "first_charge_at": first.isoformat(), "entitlements_of": sub.trial_plan})
     return "started"
 
 

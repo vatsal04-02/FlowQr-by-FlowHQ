@@ -33,7 +33,7 @@ No other frontend variable is needed. `BACKEND_URL` (Docker only) is unused on V
 | `SUPPORT_EMAIL`, `LEGAL_COMPANY_NAME` | monitored address; `FlowHQ` | recommended | shown on the legal pages. **Were not passed through Compose before this pass** |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | key; `gemini-3.5-flash` | for AI features | |
 | `AI_PRICE_IN_PER_MTOK`, `AI_PRICE_OUT_PER_MTOK`, `AI_PLATFORM_HARD_LIMIT_USD`, `AI_TENANT_MONTHLY_BUDGET_USD` | **unset today** | decision | dollar budgets refuse AI calls while unpriced |
-| `RANK_PROVIDER`, `RANK_PROVIDER_KEY` | `google_places`, a new restricted key | for maps | rotate the exposed development key; do not reuse it |
+| `RANK_PROVIDER`, `RANK_PROVIDER_KEY` | `google_places`, a new restricted key | for maps and for the business/address suggestions in onboarding | rotate the exposed development key; do not reuse it. Enable Places API (New), restrict the key to this server's IP, link billing |
 | `RANK_PLATFORM_MONTHLY_CAP` | a number | **set before enabling scans** | `0` = no platform ceiling |
 | `API_PRICES` | from Cloud Billing | decision | unset = costs shown as unpriced |
 | `RAZORPAY_*`, `CARD_PRICE_PAISE` | **empty** | no | Cashfree is deferred; Razorpay must not be configured. The guard rejects half-set Razorpay keys |

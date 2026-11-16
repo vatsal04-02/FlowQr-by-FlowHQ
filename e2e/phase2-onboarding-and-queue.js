@@ -56,46 +56,57 @@ const call = (pg, method, url, body, headers) => pg.evaluate(async ([m, u, b, h]
     csrf = r.json.csrf_token;
     await page.goto(`${APP}/onboarding`);
     await page.getByRole('heading', { name: 'Tell us about your business' }).waitFor({ timeout: 30000 });
-    const steps = await page.getByRole('list', { name: 'Progress' }).locator('li').count();
+    const steps = await page.getByRole('navigation', { name: 'Set-up progress' }).locator('li').count();
     expect(steps === 4, `expected 4 wizard steps, saw ${steps}`);
   });
-  await step('step 1: business details create the business', async () => {
+  await step('step 1: one form creates the business and its first location, with a Google review link', async () => {
     await page.getByLabel('Business name').fill(NAME);
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await page.getByRole('heading', { name: 'Add your first location' }).waitFor({ timeout: 20000 });
-  });
-  await step('step 2: first location with a Google review link', async () => {
-    await page.getByLabel('Location name').fill('Hazratganj branch');
+    await page.getByLabel('Business type').selectOption('Physiotherapy clinic');  // no default any more: the owner (or Google) chooses
     await page.getByLabel('City').fill('Lucknow');
-    await page.getByLabel(/Google review link/).fill('https://g.page/r/ABC123/review');
+    await page.getByLabel('Review link').fill('https://g.page/r/ABC123/review');
+    await page.getByText('More options').click();
+    await page.getByLabel('Location name').fill('Hazratganj branch');
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByRole('heading', { name: 'How do you want to collect reviews?' }).waitFor({ timeout: 20000 });
+    const locs = (await call(page, 'GET', '/api/v1/locations')).json;
+    expect(locs.length === 1 && locs[0].name === 'Hazratganj branch' && locs[0].city === 'Lucknow', 'the first location was not saved with the business: ' + JSON.stringify(locs));
   });
-  await step('step 3: choosing the manual link does not finish set-up yet, and the Google permissions are explained', async () => {
+  await step('step 2: choosing the manual link does not finish set-up yet, and the Google permissions are explained', async () => {
     await page.getByText('What does connecting Google allow?').click();
     await page.getByText(/only after you .* approve that exact change/).waitFor();
-    await page.getByRole('button', { name: /Use my Google review link/ }).click();
-    await page.getByRole('heading', { name: 'You are nearly ready' }).waitFor({ timeout: 20000 });
+    await page.getByText('Use my Google review link', { exact: true }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('heading', { name: /Choose your plan|free trial/ }).waitFor({ timeout: 20000 });
     expect(!(await page.url()).includes('/overview'), 'the wizard left before its last step');
   });
-  await step('step 4: plan status comes from the account (trial days, allowances), nothing invented', async () => {
-    const planPanel = page.locator('section[aria-labelledby="ob-plan"]');
-    await planPanel.waitFor();
-    const text = await planPanel.innerText();
-    expect(/free trial has \d+ days? left/i.test(text), `trial line missing: ${text}`);
-    expect(/Includes \d+ location/.test(text) && /review-writing helps/.test(text) && /AI replies/.test(text), `allowances missing: ${text}`);
-    expect(/charged automatically/i.test(text), 'the no-automatic-charge promise is missing');
-    const api = (await call(page, 'GET', '/api/v1/billing/subscription')).json;
-    expect(text.includes(String(api.trial_days_left)), `page days (${text}) differ from the API (${api.trial_days_left})`);
+  await step('step 3: the plan step shows the real trial and prices, and the app stays closed until it is done', async () => {
+    const plans = (await call(page, 'GET', '/api/v1/billing/plans')).json;
+    const text = await page.locator('main').innerText();
+    expect(new RegExp(`${plans.trial_days} days`).test(text), `trial length (${plans.trial_days} days) missing: ${text}`);
+    const mandate = !!plans.billing.mandate_required;
+    await page.screenshot({ path: path.join(OUT, 'ob-plan.png'), fullPage: true });
+    if (mandate) {
+      // Cashfree payment authorisation is required on this server: every plan is shown, the only way forward is the authorisation button, and the server refuses to finish without a confirmed one.
+      expect(plans.plans.every((p) => text.includes(p.name)), 'a plan is missing');
+      expect(await page.getByRole('button', { name: 'Authorise payment and start free trial' }).count() === 1, 'the authorisation button is missing');
+      expect(await page.getByRole('button', { name: 'Start my free trial' }).count() === 0, 'a way around the authorisation exists');
+      const done = await call(page, 'POST', '/api/v1/tenant/complete-onboarding', null, { 'X-CSRF-Token': csrf });
+      expect(done.status === 402, `complete-onboarding without an authorisation answered ${done.status}`);
+      throw new Error('Cashfree payment authorisation is required on this server, so this script cannot go on: it cannot complete a bank or UPI authorisation. The gate itself was verified above.');
+    }
+    await page.getByRole('button', { name: 'Start my free trial' }).click();
+    await page.getByRole('heading', { name: 'You are all set' }).waitFor({ timeout: 20000 });
+    const summary = await page.locator('main').innerText();
+    expect(/Free trial/i.test(summary) && /charged automatically/i.test(summary), `launch summary incomplete: ${summary}`);
     await page.screenshot({ path: path.join(OUT, 'ob-ready.png'), fullPage: true });
   });
   await step('step 4: the first review page is created for real, then the dashboard opens with a checklist', async () => {
     expect((await call(page, 'GET', '/api/v1/review-growth/campaigns')).json.length === 0, 'a campaign existed before the button was pressed');
     await page.getByRole('button', { name: /Create my review page/ }).click();
-    await page.locator('section[aria-labelledby="ob-camp"]').getByText('created', { exact: true }).waitFor({ timeout: 20000 });
+    await page.getByText('Created', { exact: true }).waitFor({ timeout: 20000 });
     const camps = (await call(page, 'GET', '/api/v1/review-growth/campaigns')).json;
     expect(camps.length === 1 && camps[0].name.includes('Hazratganj'), 'the campaign was not stored');
-    await page.getByRole('button', { name: 'Go to my dashboard' }).click();
+    await page.getByRole('button', { name: 'Open my dashboard' }).click();
     await page.waitForURL(/\/overview/, { timeout: 30000 });
     await page.getByRole('heading', { name: 'Getting started' }).waitFor({ timeout: 20000 });
     const list = await page.locator('section[aria-labelledby="gs-h"]').innerText();

@@ -4,7 +4,7 @@ import { Check, Minus } from "lucide-react";
 import { FEATURE_LABELS, rupees } from "@/lib/billing";
 import type { PlansResponse } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
-import { TRIAL_TERMS } from "@/lib/plans";
+import { trialTerms } from "@/lib/plans";
 import { MButton } from "./kit";
 import { EASE, Rise } from "./motion";
 import { motion } from "motion/react";
@@ -36,7 +36,7 @@ export function PlanCards() {
   const rec = plans.find((p) => p.code === "growth")?.code ?? plans[Math.floor(plans.length / 2)]?.code;
   return (
     <>
-      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial. {TRIAL_TERMS}</p>
+      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial. {trialTerms(data.billing ? !!data.billing.mandate_required : null)}</p>
       {data.billing?.provider === "cashfree" && <p className="-mt-5 mb-8 text-center text-[13px] text-m-muted">Plans renew monthly. When you choose a plan you authorise a recurring payment (UPI AutoPay or card) through Cashfree: we take ₹1 to set it up and return it automatically, and your first payment is after your free trial. Cancel any time before then.</p>}
       <div className="grid gap-3 md:grid-cols-3">
         {plans.map((p, i) => {

@@ -147,19 +147,22 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
     await step('business onboarding through the real forms (business, location, review link, first review page)', async () => {
       await page.goto(`${SITE}/onboarding`); await page.waitForLoadState('networkidle'); await page.waitForTimeout(1500);
       if (/\/overview/.test(page.url())) { console.log('     (already onboarded: this account has its test business)'); return; }
-      if (await page.getByLabel(/business name/i).count()) {
-        await page.getByLabel(/business name/i).fill(BIZ); await page.getByRole('button', { name: /^continue$/i }).click();
-      }
-      await page.getByLabel(/location name/i).waitFor({ timeout: 20000 });
-      await page.getByLabel(/location name/i).fill('Main branch'); await page.getByLabel(/^city/i).fill('Lucknow'); await page.getByLabel(/google review link/i).fill(REVIEW_URL);
+      // one form: the business and its first location
+      await page.getByLabel(/business name/i).waitFor({ timeout: 20000 });
+      await page.getByLabel(/business name/i).fill(BIZ); await page.getByLabel(/business type/i).selectOption('Physiotherapy clinic');
+      await page.getByLabel(/^city/i).fill('Lucknow'); await page.getByLabel(/^review link/i).fill(REVIEW_URL);
       await page.getByRole('button', { name: /^continue$/i }).click();
-      await page.getByRole('button', { name: /use my google review link/i }).click({ timeout: 20000 });
-      await page.getByText(/you are nearly ready/i).waitFor({ timeout: 20000 });
-      await page.getByText(/your first review page/i).waitFor({ timeout: 20000 });
+      await page.getByText(/use my google review link/i).first().click({ timeout: 20000 }); await page.getByRole('button', { name: /^continue$/i }).click();
+      await page.getByRole('heading', { name: /choose your plan|free trial/i }).waitFor({ timeout: 20000 });
+      // A card-required server cannot be passed by a script (it cannot type a card): say so plainly instead of timing out.
+      expect(await page.getByRole('button', { name: /authorise payment and start free trial/i }).count() === 0, 'Payment authorisation is required: this script cannot complete one. Use an account that already finished onboarding.');
+      await page.getByRole('button', { name: /start my free trial/i }).click();
+      await page.getByText(/you are all set/i).waitFor({ timeout: 20000 });
+      await page.getByText(/first review page/i).first().waitFor({ timeout: 20000 });
       const mk = page.getByRole('button', { name: /create my review page/i });
       await mk.waitFor({ timeout: 15000 }).catch(() => {}); // the page is still loading the plan and locations
       if (await mk.count()) { await mk.click(); await page.getByText(/^created$/i).first().waitFor({ timeout: 20000 }); }
-      await page.getByRole('button', { name: /go to my dashboard/i }).click();
+      await page.getByRole('button', { name: /open my dashboard/i }).click();
       await page.waitForURL(/\/overview/, { timeout: 25000 });
     });
     let bizName = BIZ;

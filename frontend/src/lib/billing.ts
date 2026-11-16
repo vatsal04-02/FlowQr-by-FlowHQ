@@ -39,7 +39,7 @@ export function loadRazorpay(): Promise<NonNullable<Window["Razorpay"]>> {
 export async function openCheckout(opts: Omit<RazorpayOptions, "handler" | "theme" | "name"> & { onSuccess: (r: Record<string, string>) => void; onDismiss?: () => void }) {
   const Razorpay = await loadRazorpay();
   const { onSuccess, onDismiss, ...rest } = opts;
-  new Razorpay({ ...rest, name: "FlowQR by FlowHQ", theme: { color: "#1A5FD0" }, handler: onSuccess, modal: { ondismiss: onDismiss } }).open();
+  new Razorpay({ ...rest, name: "FlowQR by FlowHQ", theme: { color: "#BD3E1B" }, handler: onSuccess, modal: { ondismiss: onDismiss } }).open();
 }
 
 /** Opens Cashfree's hosted subscription checkout for a session the SERVER created. Whatever happens there, the app believes only what the server reads back from Cashfree (see the

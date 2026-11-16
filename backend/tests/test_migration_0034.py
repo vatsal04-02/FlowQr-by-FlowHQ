@@ -13,7 +13,7 @@ from tests.conftest import make_business, owner_exec, owner_query
 BACKEND = os.path.dirname(os.path.dirname(__file__))
 NEW = {
     "billing_plans": {"cashfree_plan_id"},
-    "subscriptions": {"provider", "cashfree_subscription_id", "cashfree_cf_subscription_id", "authorization_status", "trial_started_at", "first_charge_at", "next_charge_at", "last_provider_sync_at"},
+    "subscriptions": {"provider", "cashfree_subscription_id", "cashfree_cf_subscription_id", "authorization_status", "trial_plan", "trial_started_at", "first_charge_at", "next_charge_at", "last_provider_sync_at"},
     "payments": {"provider", "cashfree_payment_id", "cashfree_cf_payment_id", "payment_type", "period_start", "period_end", "failure_reason"},
     "webhook_events": {"subscription_ref", "payment_ref", "payload_hash", "attempts", "last_error", "provider_event_time"},
 }
