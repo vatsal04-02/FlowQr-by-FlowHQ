@@ -22,7 +22,7 @@ export default function LocationsOverviewPage() {
   const sync = new Map((o?.sync ?? []).map((s) => [s.location, s]));
   return (
     <>
-      <PageHeader title="Locations" subtitle="Compare your branches for the same period." actions={<DateRange value={range} onChange={setRange} />} />
+      <PageHeader title="Compare branches" subtitle="Compare your branches for the same period." actions={<DateRange value={range} onChange={setRange} />} />
       {ov.error && <Alert tone="error" title="We couldn't load your locations">{ov.error}</Alert>}
       {!o && !ov.error && <Skeleton className="h-60" />}
       {o && rows.length === 0 && <EmptyState title="No locations yet" action={<Link className="font-semibold text-accent-ink hover:underline" href="/gbp/locations">Add a location</Link>}>Each branch gets its own cards, review link and numbers.</EmptyState>}

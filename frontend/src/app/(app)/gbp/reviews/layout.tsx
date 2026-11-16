@@ -17,7 +17,7 @@ import type { Location, Review } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 const PAGE = 25;
-const STATES = [["", "All"], ["none", "To reply"], ["draft", "Drafts"], ["failed", "Failed"], ["published", "Replied"]] as const;
+const STATES = [["", "All"], ["none", "Needs a reply"], ["draft", "Waiting for you"], ["failed", "Didn't send"], ["published", "Replied"]] as const;
 
 export default function ReviewsLayout({ children }: { children: ReactNode }) {
   return <Suspense><Workspace>{children}</Workspace></Suspense>;
@@ -65,7 +65,7 @@ function Workspace({ children }: { children: ReactNode }) {
   return (
     <ReviewsCtx.Provider value={ctx}>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div><p className="eyebrow mb-1">Reputation</p><h1 className="text-xl font-bold sm:text-[22px]">Reviews</h1></div>
+        <div><h1 className="text-[22px] font-semibold leading-7 sm:text-[26px] sm:leading-8">Reviews</h1><p className="text-[14px] text-muted">Read what customers wrote, and reply. Nothing is posted until you approve it.</p></div>
         {isAdmin && connected && <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} loading={syncing} onClick={() => void sync()}>Sync now</Button>}
       </div>
       <div className="grid overflow-hidden rounded-panel border border-ink-100 bg-white md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">

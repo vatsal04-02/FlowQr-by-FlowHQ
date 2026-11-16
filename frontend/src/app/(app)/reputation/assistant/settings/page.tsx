@@ -16,7 +16,7 @@ export default function ReviewGrowthSettings() {
 
   return (
     <>
-      <PageHeader eyebrow="Review Growth" title="Settings" subtitle="Google review links, AI status and how customer data is handled." />
+      <PageHeader title="Review page settings" subtitle="Google review links, AI status and how customer data is handled." />
       {error && <Alert tone="error">{error}</Alert>}
       {!s && !error && <Skeleton className="h-80" />}
       {s && (

@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/Card";
 export default function RankPage() {
   return (
     <>
-      <PageHeader title="Local ranking" subtitle="Where this business appears in Google for the searches your customers use, measured and dated. Nothing is estimated." />
+      <PageHeader title="Search words you track" subtitle="Add the words your customers search. FlowQR checks where your business appears on Google Maps and keeps the history. Nothing is estimated." />
       <GbpFrame>{(gid) => <div className="space-y-6"><LocalRank key={gid} gid={gid} /><GeoGrid key={`map-${gid}`} gid={gid} /></div>}</GbpFrame>
     </>
   );

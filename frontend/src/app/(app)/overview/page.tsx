@@ -71,7 +71,7 @@ export default function Home() {
         <section aria-label="How FlowQR works" className="panel grid gap-8 p-4 sm:p-6"><CardToReview /><div className="border-t border-line pt-6"><AiReply /></div></section>
       ) : (
         <div className="space-y-4">
-          <Metrics o={o} prev={p} gm={gm.data} days={days} loading={loading} />
+          <Metrics o={o} prev={p} gm={gm.data} days={days} loading={loading} prevLoading={prevOv.loading && !p} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <ReviewGrowth o={o} prev={p} days={days} loading={loading || (prevOv.loading && !p)} />
             <ThingsToDo todos={todos} loading={!o && !ov.error && !plan.data} />

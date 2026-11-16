@@ -98,7 +98,7 @@ export default function Automations() {
   }
   return (
     <>
-      <PageHeader title="Automations" subtitle="What your AI assistant may do by itself. Nothing goes live without your approval." />
+      <PageHeader title="Helpers" subtitle="Choose what your assistant may prepare for you. Nothing goes live without your approval." />
       {error && <Alert tone="error">{error}</Alert>}
       {!isAdmin && <div className="mb-4"><Alert tone="info">Only owners and admins can change automations.</Alert></div>}
       {!data ? <Skeleton className="h-48" /> : (

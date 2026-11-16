@@ -121,7 +121,7 @@ export default function ReplyAssistantPage() {
 
   return (
     <>
-      <PageHeader title="Reply assistant" subtitle="AI drafts for your Google reviews. Nothing is posted until you approve it." />
+      <PageHeader title="Draft replies" subtitle="Suggested replies to your reviews. Nothing is posted until you approve it." />
       <div className="grid gap-5 sm:gap-6 xl:grid-cols-3">
         <section className="hero-grad rv relative overflow-hidden rounded-card p-6 sm:p-7 xl:col-span-2" aria-label="Drafts waiting">
           <span className="scrim">Waiting for approval</span>

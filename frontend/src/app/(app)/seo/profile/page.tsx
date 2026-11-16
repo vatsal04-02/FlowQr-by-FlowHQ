@@ -35,14 +35,14 @@ export default function ProfileHealthPage() {
   const h = d?.health;
   return (
     <>
-      <PageHeader title="Google Profile Health" subtitle="What to fix on your Google profile so customers can find and trust you. Checked against the profile Google last shared with FlowQR." />
+      <PageHeader title="Improve your Google profile" subtitle="A complete profile helps customers find and trust you. Fix the items below, one at a time." />
       {q.error && <Alert tone="error" title="We couldn't load your profile health">{q.error}</Alert>}
       {q.loading && !d && <Skeleton className="h-64" />}
       {d?.state === "no_location" && <EmptyState title="Connect a Google location first" action={<Link href="/gbp/locations" className="font-semibold text-accent-ink hover:underline">Connect Google</Link>}>Profile health reads the Business Profile Google returns for your location.</EmptyState>}
       {d && d.state === "ok" && (
         <div className="space-y-4">
           <section aria-label="Business Health Score" className="panel !rounded-[16px] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[15px] font-semibold">Business Health Score</h2><SourceTag source="flowqr" /></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[15px] font-semibold">Your profile score</h2><SourceTag source="flowqr" /></div>
             {h && h.score !== null ? (
               <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3">
                 <p className="num text-[44px] font-semibold leading-none tracking-[-.03em]">{h.score}<span className="text-lg font-medium text-muted"> / 100</span></p>
@@ -53,7 +53,7 @@ export default function ProfileHealthPage() {
                   ))}
                 </ul>
               </div>
-            ) : <Unavailable className="mt-3" title="Not enough real data for a score yet">{h?.message ?? "Connect Google and let it sync."}</Unavailable>}
+            ) : <Unavailable className="mt-3" title="Not enough information for a score yet">{h?.message ?? "Connect Google and let it sync."}</Unavailable>}
             {h && <p className="mt-3 text-xs text-muted">{h.formula} Measures without real data are left out, never counted as zero. The thresholds are FlowQR&rsquo;s own heuristics, not Google&rsquo;s rules.</p>}
           </section>
 
@@ -61,7 +61,7 @@ export default function ProfileHealthPage() {
             {d.locations.map((l) => (
               <Panel dense key={l.id} title={l.title ?? "Location"} meta={l.completeness !== null ? `${l.completeness}% of core fields` : undefined} action={<SourceTag source="google" />}>
                 {l.state === "unavailable"
-                  ? <Unavailable title="Google hasn't shared this profile yet">{l.reason}</Unavailable>
+                  ? <Unavailable title="Google hasn't shared this profile with FlowQR yet">{l.reason}</Unavailable>
                   : <>
                       <ul className="divide-y divide-ink-100">{l.checks.map((c) => <Row key={c.key} c={c} />)}</ul>
                       <p className="mt-3 text-xs text-muted">Profile as Google reported it on {when(l.fetched_at)}. Changes you make show here after the next daily refresh.</p>

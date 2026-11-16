@@ -72,7 +72,7 @@ export default function QrPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Cards" title="QR design & export" subtitle="Change how your QR codes look and download them for printing. The design never changes where a code leads, so codes you have already printed keep working." />
+      <PageHeader title="Designs & export" subtitle="Change how your QR codes look and download them for printing. The design never changes where a code leads, so codes you have already printed keep working." />
       {info.error && <Alert tone="error" title="Couldn't load your QR design">{info.error}</Alert>}
       {!isAdmin && <div className="mb-4"><Alert tone="info" title="View only">Owners and admins can change the design and export codes.</Alert></div>}
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">

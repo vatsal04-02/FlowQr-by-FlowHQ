@@ -56,7 +56,7 @@ export default function ReportsPage() {
 
   return (
     <>
-      <PageHeader title="Reports" subtitle="Real numbers only. Anything Google or a setup hasn't provided is marked as missing, never estimated." actions={<DateRange value={range} onChange={setRange} />} />
+      <PageHeader title="Reports" subtitle="Download your numbers as PDF or CSV. Anything we don't have is marked as missing." actions={<DateRange value={range} onChange={setRange} />} />
       {error && <Alert tone="error" title="We couldn't build the report" action={<Button size="sm" variant="inverse" onClick={() => void reload()}>Try again</Button>}>{error}</Alert>}
       {loading && !r ? <Skeleton className="h-72" /> : r && (
         <div className="space-y-6">

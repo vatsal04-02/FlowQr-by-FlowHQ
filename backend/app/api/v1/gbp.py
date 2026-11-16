@@ -15,6 +15,7 @@ from app.services import entitlements as ent
 from app.services import google as g
 from app.services.agent import content_exec, executor
 from app.services.audit import audit
+from app.services import gbp_metrics
 from app.services.google.provider import PERFORMANCE_METRICS
 from app.services.google import tokens
 from app.services.google.tokens import get_access_token
@@ -285,5 +286,7 @@ def performance(google_location_id: uuid.UUID, start: date | None = Query(None, 
     ctx.db.commit()
     series = _call(ctx, conn, lambda p, t: p.fetch_performance(t, gl.google_location_name, start.isoformat(), end.isoformat(), PERFORMANCE_METRICS))
     totals = {m: sum(pt["value"] for pt in pts) for m, pts in series.items()}
+    gbp_metrics.record(ctx.db, gl, series)  # a successful answer from Google is kept, exactly as the daily job keeps it, so every page shows the same numbers
+    ctx.db.commit()
     return {"from": start.isoformat(), "to": end.isoformat(), "totals": totals, "series": series,
             "note": "Reported by Google Business Profile; typically delayed by a few days. Not the same as FlowQR card scans."}

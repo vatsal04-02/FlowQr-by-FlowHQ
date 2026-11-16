@@ -1,5 +1,9 @@
 "use client";
 import { useState } from "react";
+import { GoalCard } from "@/components/overview/widgets";
+import { useToast } from "@/components/ui/Toast";
+import { api, errorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { ColumnChart } from "@/components/charts/ColumnChart";
 import { LineChart } from "@/components/charts/LineChart";
 import { DateRange, presetRange } from "@/components/DateRange";
@@ -20,6 +24,8 @@ function Metric({ label, value, note }: { label: string; value: React.ReactNode;
  */
 export default function ReviewsOverviewPage() {
   const [range, setRange] = useState(presetRange("30"));
+  const { tenant, isAdmin, refresh } = useAuth();
+  const toast = useToast();
   const { locationId } = useLocationScope();
   const ov = useFetch<Overview>("/analytics/overview", { from: range.from, to: range.to, location_id: locationId ?? "" });
   const o = ov.data;
@@ -29,7 +35,7 @@ export default function ReviewsOverviewPage() {
 
   return (
     <>
-      <PageHeader title="Reviews" subtitle="Ratings, volume and how fast you reply, as published on Google." actions={<DateRange value={range} onChange={setRange} />} />
+      <PageHeader title="Review results" subtitle="Your rating, how many reviews you got, and how fast you reply." actions={<DateRange value={range} onChange={setRange} />} />
       {ov.error && <Alert tone="error" title="We couldn't load your reviews">{ov.error}</Alert>}
       {!o && !ov.error && <Skeleton className="h-60" />}
       {o && (
@@ -43,6 +49,10 @@ export default function ReviewsOverviewPage() {
               <Metric label="Average reply time" value={fmtHours(o.reviews.avg_response_hours)} note={o.reviews.avg_response_hours === null ? "Not measurable yet" : `Reply rate ${fmtPct(o.reviews.reply_rate_in_range)} this period`} />
             </dl>
           </section>
+          <GoalCard i={1} goal={tenant?.review_goal} canEdit={isAdmin} onSave={async (g) => {
+            try { await api("/tenant", { method: "PATCH", body: { review_goal: g } }); await refresh(); toast(g ? "Goal saved." : "Goal cleared."); }
+            catch (e) { toast(errorMessage(e), "error"); }
+          }} />
           <div className="grid gap-6 lg:grid-cols-2">
             <Panel title="New reviews" meta="per day"><ColumnChart data={o.reviews.series} valueKey="count" label="new reviews" ariaLabel="New reviews per day" height={200} /></Panel>
             <Panel title="Average rating" meta="days with reviews"><LineChart ariaLabel="Average rating per day" yMax={5} height={200} gaps data={o.reviews.series} series={[{ key: "avg_rating", label: "Avg rating", color: "rgb(var(--c-ink-solid))" }]} /></Panel>

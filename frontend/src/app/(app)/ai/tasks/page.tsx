@@ -14,7 +14,7 @@ export default function Recommendations() {
   const { data, error, loading, reload } = useFetch<TasksResponse>("/agent/tasks", { scope, kind });
   return (
     <>
-      <PageHeader eyebrow="AI Growth Agent" title="Recommendations" subtitle="Everything the agent has suggested, with the data behind it. History shows what was published, done or dismissed."
+      <PageHeader title="Tasks" subtitle="Things that would help your business, with the reason for each."
         actions={<Segmented label="Show" value={scope} onChange={setScope} options={[["open", "Open"], ["history", "History"]] as const} />} />
       <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Filter by kind">
         {KINDS.map(([k, l]) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`min-h-9 rounded-full border px-3 text-[13px] font-medium ${kind === k ? "border-brand-600 bg-brand-50 text-brand-700" : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50"}`}>{l}</button>)}

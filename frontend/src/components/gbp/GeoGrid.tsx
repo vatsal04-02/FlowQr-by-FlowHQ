@@ -150,7 +150,7 @@ export function GeoGrid({ gid }: { gid: string }) {
 
   if (ov.error) return <Alert tone="error" title="Couldn't load the map view">{ov.error}</Alert>;
   if (!d) return <Skeleton className="h-48" />;
-  if (!d.allowance.enabled) return <Panel title="Map view"><p className="text-sm text-muted">{d.allowance.reason === "not_in_plan" ? "Measuring your ranking from several points around your business isn't included in your current plan. The single-point ranking above still works." : "Map ranking is switched off for now while FlowQR finishes setting its Google search limits and allowances. The single-point ranking above still works."}</p></Panel>;
+  if (!d.allowance.enabled) return <Panel title="Visibility across nearby areas"><p className="text-sm text-muted">{d.allowance.reason === "not_in_plan" ? "Measuring your ranking from several points around your business isn't included in your current plan. The single-point ranking above still works." : "Map ranking is switched off for now while FlowQR finishes setting its Google search limits and allowances. The single-point ranking above still works."}</p></Panel>;
 
   const a = d.allowance;
   const need = grid?.point_count ?? 0;

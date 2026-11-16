@@ -69,7 +69,7 @@ export default function SubscriptionPage() {
   const statusTone = s?.status === "active" ? "green" : s?.status === "trialing" ? "blue" : s?.status === "past_due" ? "amber" : "red";
   return (
     <>
-      <PageHeader eyebrow="Business" title="Subscription" subtitle="Your plan, usage and billing." actions={<LinkButton href="/settings/billing/payments" size="sm" variant="secondary" icon={<CreditCard className="h-4 w-4" />}>Payment history</LinkButton>} />
+      <PageHeader eyebrow="Business" title="Billing" subtitle="Your plan, usage and billing." actions={<LinkButton href="/settings/billing/payments" size="sm" variant="secondary" icon={<CreditCard className="h-4 w-4" />}>Payment history</LinkButton>} />
       {plans.data && !plans.data.billing.configured && <div className="mb-5"><Alert tone="warning" title="Online payments are not switched on yet">Paying online isn&rsquo;t available on this server yet, so plans can&rsquo;t be purchased here. Your trial and all features keep working meanwhile.</Alert></div>}
       {plans.data?.billing.mode === "test" && <div className="mb-5"><Alert tone="info" title="Payment test mode">Payments are simulated by the payment provider&rsquo;s test environment. No real money moves.</Alert></div>}
       {err && <div className="mb-5"><Alert tone="error" title="Couldn't complete that">{err.message}</Alert></div>}

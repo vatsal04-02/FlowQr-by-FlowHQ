@@ -56,7 +56,7 @@ export function ThemeToggle({ vertical = false, small = false }: { vertical?: bo
  * pages that share a theme (Your Google profile: Improve, Business info, Hours, Posts, Photos). It is the only secondary navigation, so there is one way to move around.
  * Underlined tabs scroll sideways on a phone and never wrap.
  */
-export function SubNav({ path, dests }: { path: string; dests: Dest[] }) {
+export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests: Dest[]; hidePrimaryOnWide?: boolean }) {
   const l = locate(path);
   const ref = useRef<HTMLAnchorElement>(null);
   useEffect(() => { ref.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [path]);
@@ -64,8 +64,8 @@ export function SubNav({ path, dests }: { path: string; dests: Dest[] }) {
   const dest = dests.find((d) => d.id === l.dest.id) ?? l.dest;
   const kids = dest.children ?? [];
   const child = kids.find((c) => c.href === l.child?.href) ?? null;
-  const strip = (label: string, items: { href: string; label: string }[], on: (href: string) => boolean, small?: boolean) => (
-    <nav aria-label={label} className={clsx("-mx-4 overflow-x-auto px-4 no-scrollbar sm:mx-0 sm:px-0", small ? "mb-3" : "mb-4")}>
+  const strip = (label: string, items: { href: string; label: string }[], on: (href: string) => boolean, small?: boolean, hideWide?: boolean) => (
+    <nav aria-label={label} className={clsx("-mx-4 overflow-x-auto px-4 no-scrollbar sm:mx-0 sm:px-0", small ? "mb-3" : "mb-4", hideWide && "md:hidden")}>
       <ul className={clsx("flex w-max min-w-full gap-1 border-b border-ink-100", small && "border-b-0")}>
         {items.map((x) => {
           const active = on(x.href);
@@ -86,7 +86,7 @@ export function SubNav({ path, dests }: { path: string; dests: Dest[] }) {
   );
   return (
     <>
-      {kids.length > 1 && strip(`${dest.label} pages`, kids, (h) => child?.href === h)}
+      {kids.length > 1 && strip(`${dest.label} pages`, kids, (h) => child?.href === h, false, hidePrimaryOnWide)}
       {child?.tabs && child.tabs.length > 1 && strip(`${child.label} sections`, child.tabs, (h) => l.tab?.href === h || (!l.tab && h === child.href), true)}
     </>
   );

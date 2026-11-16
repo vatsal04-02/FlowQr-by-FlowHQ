@@ -29,7 +29,7 @@ export default function AppearancePage() {
   const { mode, setTheme } = useTheme();
   return (
     <>
-      <PageHeader title="Appearance" subtitle="Choose how FlowQR looks on this device. The sun and moon in the left rail switch it too." />
+      <PageHeader title="Appearance" subtitle="Choose light or dark for this device." />
       <div role="radiogroup" aria-label="Theme" className="grid gap-4 sm:grid-cols-3 sm:gap-6">
         {OPTIONS.map(([m, label, desc]) => {
           const on = mode === m;

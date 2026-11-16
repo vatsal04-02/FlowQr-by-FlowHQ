@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { Move, SourceTag, when } from "@/components/seo/parts";
+import { DataTable } from "@/components/ui/DataTable";
 import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
@@ -11,7 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { Panel } from "@/components/ui/kit";
 import { fmtNum } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
-import type { Competitors } from "@/lib/seo";
+import type { Competitor, Competitors } from "@/lib/seo";
 import { useFetch } from "@/lib/use-api";
 
 const rating = (r: number | null) => (r === null ? "–" : r.toFixed(1));
@@ -40,7 +41,7 @@ export default function CompetitorsPage() {
   }
   return (
     <>
-      <PageHeader title="Competitor Analysis" subtitle="Who appears next to you in Google for the searches you track, with the rating and reviews seen on each date." />
+      <PageHeader title="Nearby competitors" subtitle="Other businesses that show up next to yours on Google for the words you track, with their rating and reviews on each date." />
       {q.error && <Alert tone="error" title="We couldn't load competitor observations">{q.error}</Alert>}
       {q.loading && !d && <Skeleton className="h-64" />}
       {d?.state === "no_location" && <EmptyState icon={<Crosshair className="h-5 w-5" />} title="Connect a Google location first" action={<Link href="/gbp/locations" className="font-semibold text-accent-ink hover:underline">Connect Google</Link>}>Competitors are found through the searches you track for a location.</EmptyState>}
@@ -62,25 +63,18 @@ export default function CompetitorsPage() {
               <ul className="space-y-2 text-sm">{d.opportunities!.map((o, i) => <li key={i}>{o.detail}</li>)}</ul>
             </Panel>
           )}
-          <Panel dense title="Businesses seen next to you" meta={`${d.competitors.length} in the last ${d.window_days} days · ${d.observations} checks`} action={<SourceTag source="places" />} flush>
-            {d.competitors.length === 0 ? <p className="p-3 text-sm text-muted">No other business appeared in the stored results.</p> : (
-              <div className="overflow-x-auto">
-                <table className="dt min-w-[760px]">
-                  <thead><tr><th>Business</th><th>Rating</th><th>Reviews</th><th>Change in reviews</th><th>Where they appear</th><th className="!text-right">Last seen</th>{isAdmin && <th aria-label="Follow"></th>}</tr></thead>
-                  <tbody>{d.competitors.map((c) => (
-                    <tr key={c.place_id ?? c.name}>
-                      <td className="font-medium">{c.name ?? "Unnamed place"}</td>
-                      <td className="num">{rating(c.rating)}</td>
-                      <td className="num">{c.reviews === null ? "–" : fmtNum(c.reviews)}</td>
-                      <td>{c.change ? <span className="inline-flex flex-col"><Move change={c.change.reviews_change} unit="reviews" /><span className="text-xs text-muted">{when(c.change.from)} to {when(c.change.to)}</span></span> : <span className="text-[13px] text-muted">Seen once, no change to show</span>}</td>
-                      <td className="text-[13px]">{c.keywords.slice(0, 2).map((k) => <p key={k.keyword}><b className="font-semibold">#{k.best_position}</b> for {k.keyword}<span className="text-muted"> · above you in {k.ahead_of_you} of {k.your_checks}</span></p>)}</td>
-                      <td className="!text-right text-muted">{when(c.observed_at)}</td>
-                      {isAdmin && <td className="!text-right">{c.pinned ? <span className="text-xs font-medium text-muted">Following</span>
-                        : <button type="button" disabled={busy === c.place_id || (d.pinned?.length ?? 0) >= (d.pin_limit ?? 5)} onClick={() => void pin(c.place_id, c.google_location_ids)} className="inline-flex min-h-9 items-center gap-1 rounded-full bg-surface-2 px-3 text-[13px] font-semibold hover:bg-surface-3 disabled:opacity-50"><Pin className="h-3.5 w-3.5" aria-hidden />Follow</button>}</td>}
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
+          <Panel dense title="Businesses seen next to you" meta={`${d.competitors.length} in the last ${d.window_days} days`} action={<SourceTag source="places" />}>
+            {d.competitors.length === 0 ? <p className="text-sm text-muted">No other business appeared in the stored results.</p> : (
+              <DataTable label="Businesses seen next to you" rows={d.competitors} rowKey={(c) => c.place_id ?? c.name ?? "x"} cols={[
+                { key: "n", header: "Business", cell: (c) => <span className="font-semibold">{c.name ?? "Unnamed place"}</span> },
+                { key: "r", header: "Rating", cell: (c) => <span className="num">{rating(c.rating)}</span> },
+                { key: "v", header: "Reviews", cell: (c) => <span className="num">{c.reviews === null ? "–" : fmtNum(c.reviews)}</span> },
+                { key: "g", header: "New reviews", cell: (c) => c.change ? <span className="inline-flex flex-col items-end sm:items-start"><Move change={c.change.reviews_change} unit="reviews" /><span className="text-xs font-normal text-muted">{when(c.change.from)} to {when(c.change.to)}</span></span> : <span className="text-[13px] font-normal text-muted">Seen once</span> },
+                { key: "w", header: "Where they appear", tableOnly: true, cell: (c) => <span className="text-[13px]">{c.keywords.slice(0, 2).map((k) => <span key={k.keyword} className="block"><b className="font-semibold">#{k.best_position}</b> for {k.keyword}<span className="text-muted"> · above you in {k.ahead_of_you} of {k.your_checks}</span></span>)}</span> },
+                { key: "s", header: "Last seen", align: "right", cell: (c) => <span className="text-muted">{when(c.observed_at)}</span> },
+                ...(isAdmin ? [{ key: "f", header: "Follow", align: "right" as const, cell: (c: Competitor) => c.pinned ? <span className="text-xs font-medium text-muted">Following</span>
+                  : <button type="button" disabled={busy === c.place_id || (d.pinned?.length ?? 0) >= (d.pin_limit ?? 5)} onClick={() => void pin(c.place_id, c.google_location_ids)} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-surface-3 px-3 text-[13px] font-semibold hover:bg-ink-200/60 disabled:opacity-50 sm:min-h-9"><Pin className="h-3.5 w-3.5" aria-hidden />Follow</button> }] : []),
+              ]} />
             )}
           </Panel>
           <Panel dense title="Competitors you follow" meta={`${d.pinned?.length ?? 0} of ${d.pin_limit ?? 5}`} action={<SourceTag source="places" />}>

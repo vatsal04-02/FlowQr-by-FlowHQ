@@ -21,7 +21,7 @@ export default function ActivityPage() {
   if (loading || !a) return <Skeleton className="h-64" />;
   return (
     <>
-      <PageHeader eyebrow="AI Growth Agent" title="Activity" subtitle="What the agent did, what is queued, what failed and why, and how much AI you have used." />
+      <PageHeader title="Activity" subtitle="What your assistant did, what is waiting, and what failed." />
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel title="Status">
           <dl className="space-y-2 text-sm"><div className="flex justify-between"><dt className="text-ink-500">Last plan</dt><dd>{a.last_plan_run ? <Status tone={a.last_plan_run.status === "ok" ? "ok" : "bad"}>{a.last_plan_run.status === "ok" ? "Ran" : "Failed"} {timeAgo(a.last_plan_run.at)}</Status> : "Not run yet"}</dd></div>

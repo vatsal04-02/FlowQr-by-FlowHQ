@@ -18,7 +18,7 @@ export default function AuditPage() {
   const [more, setMore] = useState<Entry[]>([]);
   const [next, setNext] = useState<string | null | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
-  if (!isAdmin) return <><PageHeader eyebrow="Settings" title="Audit log" /><Alert tone="info">Only owners and admins can see the audit log.</Alert></>;
+  if (!isAdmin) return <><PageHeader eyebrow="Settings" title="Audit" /><Alert tone="info">Only owners and admins can see the audit log.</Alert></>;
   const entries = [...(data?.entries ?? []), ...more];
   const cursor = next === undefined ? data?.next_before : next;
   async function load() { try { const r = await api<Page>("/workspace/audit-log", { params: { before: cursor ?? undefined, action: prefix, limit: 50 } }); setMore([...more, ...r.entries]); setNext(r.next_before); } catch (e) { setErr(errorMessage(e)); } }

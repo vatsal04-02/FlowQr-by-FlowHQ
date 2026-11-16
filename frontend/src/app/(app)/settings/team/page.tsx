@@ -96,7 +96,7 @@ export default function StaffPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Business" title="Staff" subtitle={data ? `${data.members.length} ${data.members.length === 1 ? "person" : "people"}${data.invitations.length ? ` · ${data.invitations.length} invited` : ""}` : "Invite teammates and control what they can do."} />
+      <PageHeader eyebrow="Business" title="Team" subtitle={data ? `${data.members.length} ${data.members.length === 1 ? "person" : "people"}${data.invitations.length ? ` · ${data.invitations.length} invited` : ""}` : "Invite teammates and control what they can do."} />
       {error && <Alert tone="error">{error}</Alert>}
       {locs.error && <div className="mb-3"><Alert tone="error" title="Couldn't load locations">{locs.error} Location access can&rsquo;t be edited until this loads.</Alert></div>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

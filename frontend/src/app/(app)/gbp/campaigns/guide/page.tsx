@@ -35,7 +35,7 @@ export default function ReviewGrowthOverview() {
 
   return (
     <>
-      <PageHeader eyebrow="Review Growth" title="Overview" subtitle="Make it easy for happy customers to say so, in their own words. Last 30 days."
+      <PageHeader title="Setup guide" subtitle="Make it easy for happy customers to say so, in their own words. Last 30 days."
         actions={isAdmin ? <LinkButton href="/gbp/campaigns?new=1" size="sm" icon={<Plus className="h-4 w-4" />}>New QR campaign</LinkButton> : undefined} />
 
       {campaigns.loading && !campaigns.data ? <Skeleton className="h-60" /> : list.length === 0 ? (

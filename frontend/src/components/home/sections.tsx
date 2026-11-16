@@ -53,7 +53,7 @@ function Metric({ label, value, sub, href, hint }: { label: string; value: React
 }
 
 /** At most four numbers. The fourth appears only when Google has really shared it; otherwise one plain sentence says so (no zero, no estimate). */
-export function Metrics({ o, prev, gm, days, loading }: { o: Overview | null; prev: Overview | null; gm: GoogleMetrics | null; days: number; loading: boolean }) {
+export function Metrics({ o, prev, gm, days, loading, prevLoading }: { o: Overview | null; prev: Overview | null; gm: GoogleMetrics | null; days: number; loading: boolean; prevLoading?: boolean }) {
   if (loading || !o) return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((k) => <Skeleton key={k} className="h-[116px] !rounded-[16px]" />)}</div>;
   const r = o.reviews;
   const answered = r.total_synced ? Math.round(((r.total_synced - r.awaiting_reply) / r.total_synced) * 100) : null;
@@ -66,7 +66,7 @@ export function Metrics({ o, prev, gm, days, loading }: { o: Overview | null; pr
         value={r.average_rating_all_time === null ? "–" : <span className="inline-flex items-center gap-1">{fmtRating(r.average_rating_all_time)}<Star className="h-5 w-5 fill-accent text-accent" aria-hidden /></span>}
         sub={r.total_synced ? `from ${fmtNum(r.total_synced)} ${r.total_synced === 1 ? "review" : "reviews"}` : "No reviews yet"} />
       <Metric label="New reviews" href="/analytics/reviews" hint="Reviews customers left during this period."
-        value={fmtNum(r.new_in_range)} sub={<Short cur={r.new_in_range} prev={prev?.reviews.new_in_range} />} />
+        value={fmtNum(r.new_in_range)} sub={prevLoading ? "" : <Short cur={r.new_in_range} prev={prev?.reviews.new_in_range} />} />
       <Metric label="Reviews answered" href="/gbp/reviews?state=none" hint="Reviews that have a reply from you."
         value={answered === null ? "–" : `${answered}%`} sub={r.awaiting_reply > 0 ? `${fmtNum(r.awaiting_reply)} still ${r.awaiting_reply === 1 ? "needs" : "need"} a reply` : r.total_synced ? "Every review is answered" : "Nothing to answer yet"} />
       {gOk

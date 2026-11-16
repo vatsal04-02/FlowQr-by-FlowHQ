@@ -102,7 +102,7 @@ export default function GeneratorPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Review Growth" title="AI review generator" subtitle="Customers type a few words; AI turns them into a review they edit, confirm and post themselves."
+      <PageHeader title="What customers see" subtitle="When a customer scans your card, a few words they type become a review they can edit and post themselves."
         actions={campaigns.length > 0 && selected ? <FilterSelect label="Campaign" value={selected.id} onChange={(e) => choose(e.target.value)}>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</FilterSelect> : undefined} />
 
       {ai && !ai.configured && <div className="mb-4"><Alert tone="warning" title="AI drafting isn't configured on this server">Set the AI provider key on the server to enable it. Until then customers write their own review and still continue to Google.</Alert></div>}

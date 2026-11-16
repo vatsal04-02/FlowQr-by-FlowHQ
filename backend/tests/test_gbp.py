@@ -169,3 +169,15 @@ def test_google_400_is_shown_as_a_rejected_change_not_a_server_error(connected, 
 def test_media_categories_follow_googles_enum(connected, fake, gid):
     assert connected.post(f"/gbp/{gid}/media", json={"source_url": "https://cdn.example.com/menu.jpg", "category": "MENU"}).status_code == 201
     assert connected.post(f"/gbp/{gid}/media", json={"source_url": "https://cdn.example.com/x.jpg", "category": "SELFIE"}).status_code == 422
+
+
+def test_a_live_performance_read_is_stored_so_every_page_shows_the_same_numbers(connected, fake, gid):
+    """Google's answer is kept exactly as the daily job keeps it; the stored view then agrees with the live one (no 'not shared yet' beside real numbers)."""
+    params = {"from": "2025-01-01", "to": "2025-01-31"}
+    before = connected.get("/analytics/google-metrics", params=params).json()
+    assert before["availability"]["state"] != "ok" and before["current"] is None
+    live = connected.get(f"/gbp/{gid}/performance", params=params)
+    assert live.status_code == 200
+    after = connected.get("/analytics/google-metrics", params=params).json()
+    assert after["availability"]["state"] == "ok"
+    assert after["current"]["calls"] == live.json()["totals"]["CALL_CLICKS"] == 7 and after["current"]["website"] == 10

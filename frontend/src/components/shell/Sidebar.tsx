@@ -43,7 +43,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
                   return (
                     <li key={d.id}>
                       <div className="relative flex items-center">
-                        <Link href={d.href} title={collapsed ? d.label : undefined} aria-current={on && !here?.detail && here?.child?.href === d.href ? "page" : undefined}
+                        <Link href={d.href} title={collapsed ? d.label : undefined} aria-current={on && !here?.detail && (kids.length < 2 || here?.child?.href === d.href) ? "page" : undefined}
                           className={clsx("group relative flex min-h-11 flex-1 items-center gap-3 rounded-[10px] text-[14px] transition-colors md:min-h-10",
                             collapsed ? "justify-center px-0" : "pl-3 pr-2", on ? "bg-surface-2 font-semibold text-ink" : "font-medium text-ink-700 hover:bg-surface-2 hover:text-ink")}>
                           {on && <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-accent" />}

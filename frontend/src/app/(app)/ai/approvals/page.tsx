@@ -31,7 +31,7 @@ export default function ApprovalsPage() {
   const total = (data?.replies.length ?? 0) + (data?.posts.length ?? 0) + (data?.profile.length ?? 0);
   return (
     <>
-      <PageHeader eyebrow="AI Growth Agent" title="Approvals" subtitle="Everything waiting for a person. Only the exact text you approve here is ever sent to Google." />
+      <PageHeader title="Waiting for your approval" subtitle="Only the exact text you approve here is sent to Google." />
       {!isAdmin && <div className="mb-4"><Alert tone="info">You can see what is waiting; an owner or admin approves it.</Alert></div>}
       {error && <Alert tone="error">{error}</Alert>}
       {loading && !data ? <Skeleton className="h-48" /> : total === 0 ? <EmptyState title="Nothing is waiting for approval">New AI drafts and scheduled posts show up here before anything goes live.</EmptyState> : (

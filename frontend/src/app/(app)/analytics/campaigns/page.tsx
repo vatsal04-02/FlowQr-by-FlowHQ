@@ -26,7 +26,7 @@ export default function ReviewGrowthAnalytics() {
 
   return (
     <>
-      <PageHeader title="Review analytics" subtitle="How customers get from your card to Google."
+      <PageHeader title="Review campaign results" subtitle="How many people scanned, opened the page and tapped to Google, for each campaign."
         actions={<>
           <FilterSelect label="Campaign" value={campaign} onChange={(e) => setPicked(e.target.value)}><option value="">All campaigns</option>{list.data?.map((c) => <option key={c.id} value={c.id}>{c.name}{c.status === "archived" ? " (archived)" : ""}</option>)}</FilterSelect>
           <DateRange value={range} onChange={setRange} />

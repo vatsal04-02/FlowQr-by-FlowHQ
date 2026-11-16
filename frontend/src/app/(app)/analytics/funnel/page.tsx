@@ -27,7 +27,7 @@ export default function CardAnalytics() {
 
   return (
     <>
-      <PageHeader eyebrow="Cards" title="Card analytics" subtitle="How each card and location performs, step by step."
+      <PageHeader title="QR & NFC results" subtitle="From QR scan to Google: how many scans became page visits and clicks to Google."
         actions={<>
           <FilterSelect label="Location" value={loc} onChange={(ev) => setLoc(ev.target.value)}><option value="">All locations</option>{locs.data?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</FilterSelect>
           <DateRange value={range} onChange={setRange} />

@@ -40,7 +40,7 @@ export default function CustomizePage() {
 
   return (
     <>
-      <PageHeader eyebrow="Review Growth" title="Landing page" subtitle="Make the page customers see match your brand. Changes show in the preview straight away."
+      <PageHeader title="Page design" subtitle="Make the page customers see match your brand. Changes show in the preview straight away."
         actions={campaigns.length > 0 && selected ? <FilterSelect label="Campaign" value={selected.id} onChange={(e) => choose(e.target.value)}>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</FilterSelect> : undefined} />
       {loading && !campaigns.length ? <Skeleton className="h-96" /> : !selected ? (
         <EmptyState icon={<Palette className="h-5 w-5" />} title="Create a campaign to customize its page"

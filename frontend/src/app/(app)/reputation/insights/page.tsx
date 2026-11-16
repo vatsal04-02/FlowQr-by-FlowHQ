@@ -52,7 +52,7 @@ export default function InsightsPage() {
   const d = ins.data;
   return (
     <>
-      <PageHeader title="Insights" subtitle="What customers keep mentioning in their reviews, and how they feel about it." actions={<DateRange value={range} onChange={setRange} />} />
+      <PageHeader title="What customers are saying" subtitle="The things customers mention most in their reviews, and how they feel about them." actions={<DateRange value={range} onChange={setRange} />} />
       {ins.loading && !d ? <Skeleton className="h-64" /> : locked ? (
         <div className="panel flex flex-wrap items-center gap-3 p-6"><Lock className="h-5 w-5 text-muted" aria-hidden /><p className="flex-1 text-sm">Sentiment and topic insights are part of the Growth and Multi-location plans (and your free trial).</p><LinkButton href="/settings/billing" size="sm">View plans</LinkButton></div>
       ) : ins.error ? <Alert tone="error" title="We couldn't load insights">{ins.error}</Alert> : d && (

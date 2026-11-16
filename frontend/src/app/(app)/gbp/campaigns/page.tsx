@@ -53,7 +53,7 @@ export default function CampaignsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Review Growth" title="QR campaigns" subtitle="Each campaign is a QR code that opens a branded review page for one location."
+      <PageHeader title="Review campaigns" subtitle="Each campaign is a QR code that opens a review page for one location."
         actions={<>
           <Segmented label="Show" value={filter} onChange={setFilter} options={[["active", "Active"], ["paused", "Paused"], ["archived", "Archived"], ["all", "All"]] as const} />
           {isAdmin && <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => setOpen(true)}>New campaign</Button>}

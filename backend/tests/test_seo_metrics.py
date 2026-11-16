@@ -248,3 +248,4 @@ def test_profile_health_checks_come_from_the_stored_profile(connected, fake, gid
     assert by["services"]["status"] == "warn" and by["photos"]["status"] == "missing" and by["posts"]["status"] == "warn"
     assert loc0["completeness"] == 30  # phone 15 + category 15; the 5-character description does not count
     assert j["health"]["formula"]
+

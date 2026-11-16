@@ -14,7 +14,7 @@ import type { Role } from "@/lib/types";
 export function BottomNav({ path, dests, moreOpen, onMore }: { path: string; dests: Dest[]; moreOpen: boolean; onMore: (open: boolean) => void }) {
   const active = bottomActive(path);
   const four = BOTTOM_IDS.map((id) => dests.find((d) => d.id === id)).filter((d): d is Dest => !!d);
-  const base = "relative flex min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-semibold leading-[14px] transition-colors";
+  const base = "relative flex !min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-semibold leading-[14px] transition-colors";
   return (
     <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-100 bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
       <ul className="grid grid-cols-5">
@@ -70,7 +70,7 @@ export function MoreSheet({ open, onClose, role, onSearch, supportEmail }: { ope
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
 
-  const row = "flex min-h-[52px] w-full items-center gap-3 rounded-xl px-3 text-left transition-colors active:bg-surface-3 hover:bg-surface-2";
+  const row = "flex !min-h-[52px] w-full items-center gap-3 rounded-xl px-3 text-left transition-colors active:bg-surface-3 hover:bg-surface-2";
   return (
     <AnimatePresence>
       {open && (
