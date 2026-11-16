@@ -1,4 +1,5 @@
 "use client";
+import clsx from "clsx";
 import { Check, ChevronDown, LogOut, Search, ShieldCheck } from "lucide-react";
 import { MotionConfig } from "motion/react";
 import Link from "next/link";
@@ -7,13 +8,15 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LocationScopeProvider, useLocationScope } from "@/lib/location-scope";
-import { locate, navFor } from "@/lib/nav";
+import { navFor } from "@/lib/nav";
 import { useAppChrome } from "@/lib/theme";
 import type { SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 import { CommandPalette } from "./shell/CommandPalette";
 import { BellMenu } from "./shell/Bell";
-import { HelpMenu, iconBtn, MobileBar, PopoverButton, Rail, SectionNav, SubNav, ThemeToggle, UtilButtons, type Notice } from "./shell/parts";
+import { BottomNav, MoreSheet } from "./shell/BottomNav";
+import { HelpMenu, iconBtn, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
+import { Sidebar, SIDEBAR_W } from "./shell/Sidebar";
 import { LogoMark } from "./ui/Brand";
 import { LinkButton } from "./ui/Button";
 import { Alert, Spinner } from "./ui/Card";
@@ -30,14 +33,15 @@ function TrialChip({ s }: { s: SubscriptionInfo | null }) {
   );
 }
 
-function LocationPicker() {
+/** Which location the page shows. Hidden with one location (nothing to choose). It is a convenience filter: the API enforces access. */
+function LocationPicker({ className }: { className?: string }) {
   const { locations, locationId, setLocationId } = useLocationScope();
-  if (locations.length < 2) return null; // one location: nothing to choose
+  if (locations.length < 2) return null;
   return (
-    <label className="flex items-center gap-2 text-[13px] text-muted">
-      <span className="hidden sm:inline">Location</span>
+    <label className={clsx("flex items-center gap-2 text-[13px] text-muted", className)}>
+      <span className="sr-only">Location</span>
       <select aria-label="Show data for location" value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)}
-        className="min-h-10 max-w-[220px] rounded-full bg-surface px-4 text-sm font-medium text-ink shadow-pill">
+        className="min-h-11 max-w-[200px] rounded-xl bg-surface px-3 text-sm font-medium text-ink ring-1 ring-ink-100 sm:min-h-10">
         <option value="">All locations</option>
         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
       </select>
@@ -50,7 +54,7 @@ function Banners({ s, deletion }: { s: SubscriptionInfo | null; deletion: { requ
   const path = usePathname();
   const [sent, setSent] = useState<string | null>(null);
   return (
-    <div className="mb-5 space-y-3 empty:hidden">
+    <div className="mb-4 space-y-3 empty:hidden">
       {me && !me.user.email_verified_at && (
         <Alert tone="warning" title="Verify your email" action={
           <button className="tap rounded-full bg-white px-4 text-sm font-semibold text-ink hover:bg-ink-50" onClick={async () => {
@@ -75,20 +79,27 @@ const initials = (name: string | undefined, email: string) => {
 };
 
 /**
- * The logged-in app frame (DESIGN.md §4): floating pills on a soft canvas. Top bar = brand, the four sections, search / notifications /
- * help, and the account menu. Left rail = the current section's pages, theme toggle, help and log out. On phones the sections move to a
- * floating bottom pill and the pages to a chip row. Every page keeps its own URL; this only decides how it is reached.
+ * The logged-in app frame (docs/DESIGN.md, "Shell"). One navigation system: a bottom bar on phones, one left sidebar on tablet and desktop. The top bar holds only the
+ * business, the location filter, search, notifications and the account. Every page keeps its own URL; this only decides how it is reached.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const { me, tenant, role, loading, logout, refresh } = useAuth();
   const path = usePathname();
   const router = useRouter();
   const [palette, setPalette] = useState(false);
+  const [more, setMore] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   useAppChrome();
   const sub = useFetch<SubscriptionInfo>(tenant ? "/billing/subscription" : null);
   const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
   const legal = useFetch<{ support_email: string | null }>("/legal/info").data;
-  const sections = useMemo(() => navFor(role), [role]);
+  const dests = useMemo(() => navFor(role), [role]);
+
+  // The sidebar remembers how the person left it; with no saved choice it starts open on a desktop and as an icon rail on a tablet.
+  useEffect(() => {
+    try { const v = localStorage.getItem("flowqr:sidebar"); setCollapsed(v ? v === "collapsed" : window.innerWidth < 1100); } catch { setCollapsed(window.innerWidth < 1100); }
+  }, []);
+  const toggleSidebar = () => setCollapsed((c) => { try { localStorage.setItem("flowqr:sidebar", c ? "expanded" : "collapsed"); } catch { /* private mode */ } return !c; });
 
   useEffect(() => {
     if (loading) return;
@@ -100,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  useEffect(() => setPalette(false), [path]);
+  useEffect(() => { setPalette(false); setMore(false); }, [path]);
 
   const s = sub.data;
   const notices = useMemo<Notice[]>(() => {
@@ -126,37 +137,41 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const here = locate(path);
-  const section = here ? sections.find((x) => x.id === here.section.id) ?? null : null;
   const switchTenant = async (id: string) => { await api("/auth/select-tenant", { method: "POST", params: { tenant_id: id } }); await refresh(); router.refresh(); };
   const name = me.user.full_name?.trim() || me.user.email;
-  const avatar = <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3b3540] to-[#131014] text-[13px] font-semibold text-pure-white">{initials(me.user.full_name, me.user.email)}</span>;
+  const avatar = <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-solid text-[13px] font-semibold text-ink-on">{initials(me.user.full_name, me.user.email)}</span>;
   const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
 
+  const business = (
+    <PopoverButton label="Business menu" align="left" buttonClass="flex min-h-11 max-w-[56vw] items-center gap-2 rounded-xl px-2 text-left hover:bg-surface-2 sm:max-w-[320px]"
+      icon={<><span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-accent-tint text-[13px] font-semibold text-accent-ink">{tenant.name.slice(0, 1).toUpperCase()}</span>
+        <span className="min-w-0"><span className="block truncate text-[15px] font-semibold leading-5">{tenant.name}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden /></>}>
+      {(close) => (
+        <div className="p-1">
+          <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted">{me.memberships.length > 1 ? "Your businesses" : "Your business"}</p>
+          {me.memberships.map((m) => (
+            <button key={m.tenant.id} type="button" onClick={() => { close(); if (m.tenant.id !== tenant.id) void switchTenant(m.tenant.id); }}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 text-left font-medium hover:bg-surface-2">
+              <span className="truncate">{m.tenant.name}</span>{m.tenant.id === tenant.id && <Check className="h-4 w-4 shrink-0 text-accent-ink" aria-label="Current" />}
+            </button>
+          ))}
+          <div className="mt-1 border-t border-ink-100 pt-1"><Link href="/settings" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Business settings</Link></div>
+        </div>
+      )}
+    </PopoverButton>
+  );
+
   const account = (
-    <PopoverButton label="Account menu" buttonClass="pill flex h-14 items-center gap-2.5 pl-2.5 pr-2.5 text-left lg:pr-4"
-      icon={<>{avatar}<span className="hidden min-w-0 xl:block"><span className="block max-w-[160px] truncate text-sm font-semibold leading-4">{name}</span><span className="block max-w-[160px] truncate text-xs leading-4 text-muted">{tenant.name}</span></span><ChevronDown className="hidden h-4 w-4 text-muted xl:block" aria-hidden /></>}>
+    <PopoverButton label="Account menu" buttonClass="grid h-11 w-11 place-items-center rounded-full hover:bg-surface-2" icon={avatar}>
       {(close) => (
         <div className="p-1">
           <div className="px-3 pb-2 pt-2"><p className="truncate font-semibold">{name}</p><p className="truncate text-[13px] text-muted">{me.user.email}</p></div>
-          {me.memberships.length > 1 && (
-            <div className="border-t border-line py-1">
-              <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted">Switch business</p>
-              {me.memberships.map((m) => (
-                <button key={m.tenant.id} type="button" onClick={() => { close(); if (m.tenant.id !== tenant.id) void switchTenant(m.tenant.id); }}
-                  className="flex w-full items-center justify-between gap-3 rounded-full px-3 py-2.5 text-left font-medium hover:bg-surface-2">
-                  <span className="truncate">{m.tenant.name}</span>{m.tenant.id === tenant.id && <Check className="h-4 w-4 shrink-0 text-accent-ink" aria-label="Current" />}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="border-t border-line py-1">
-            <Link href="/settings/account" onClick={close} className="block rounded-full px-3 py-2.5 font-medium hover:bg-surface-2">Your account</Link>
-            <Link href="/settings" onClick={close} className="block rounded-full px-3 py-2.5 font-medium hover:bg-surface-2">Business settings</Link>
-            <Link href="/settings/appearance" onClick={close} className="block rounded-full px-3 py-2.5 font-medium hover:bg-surface-2">Appearance</Link>
-            {me.user.is_platform_admin && <Link href="/admin" onClick={close} className="flex items-center gap-2 rounded-full px-3 py-2.5 font-medium hover:bg-surface-2"><ShieldCheck className="h-4 w-4" aria-hidden />Platform admin</Link>}
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 lg:hidden"><span className="font-medium">Theme</span><ThemeToggle vertical={false} /></div>
-            <button type="button" onClick={() => { close(); void logout(); }} className="flex w-full items-center gap-2 rounded-full px-3 py-2.5 text-left font-medium text-neg hover:bg-neg-tint"><LogOut className="h-4 w-4" aria-hidden />Log out</button>
+          <div className="border-t border-ink-100 py-1">
+            <Link href="/settings/account" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Your account</Link>
+            <Link href="/settings/appearance" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Appearance</Link>
+            {me.user.is_platform_admin && <Link href="/admin" onClick={close} className="flex min-h-11 items-center gap-2 rounded-xl px-3 font-medium hover:bg-surface-2"><ShieldCheck className="h-4 w-4" aria-hidden />Platform admin</Link>}
+            <div className="flex min-h-11 items-center justify-between gap-2 px-3"><span className="font-medium">Theme</span><ThemeToggle small /></div>
+            <button type="button" onClick={() => { close(); void logout(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left font-medium text-neg hover:bg-neg-tint"><LogOut className="h-4 w-4" aria-hidden />Log out</button>
           </div>
         </div>
       )}
@@ -166,35 +181,35 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <MotionConfig reducedMotion="user">
     <LocationScopeProvider>
-    <div className="min-h-dvh bg-canvas-outer lg:p-5">
-      <div className="mx-auto min-h-dvh w-full max-w-[1440px] bg-canvas px-4 pb-32 pt-4 sm:px-6 lg:min-h-[calc(100dvh-40px)] lg:rounded-frame lg:px-10 lg:pb-10 lg:pt-6">
-        <header className="relative z-50 flex items-center justify-between gap-3 lg:gap-3 xl:gap-6">
-          <Link href="/overview" aria-label="FlowQR overview" className="pill flex h-14 shrink-0 items-center gap-2.5 pl-2 pr-5 text-[15px] font-semibold">
-            <span className="hero-grad grid h-10 w-10 place-items-center rounded-full !shadow-none"><LogoMark size={20} variant="onAccent" /></span>FlowQR
-          </Link>
-          <div className="hidden flex-1 justify-center lg:flex"><SectionNav path={path} /></div>
-          <div className="flex items-center gap-3">
-            <div className="pill flex h-14 items-center px-1.5">
-              <button type="button" aria-label="Search (Ctrl K)" onClick={() => setPalette(true)} className={iconBtn}><Search className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden /></button>
-              <BellMenu notices={notices} />
-              <div className="hidden lg:block">{help()}</div>
+    <div className="min-h-dvh bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
+      <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
+      <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} />
+      <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
+        <header className="sticky top-0 z-30 border-b border-ink-100 bg-canvas">
+          <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Link href="/overview" aria-label="FlowQR home" className="hero-grad grid h-9 w-9 shrink-0 place-items-center rounded-[10px] !shadow-none md:hidden"><LogoMark size={19} variant="onAccent" /></Link>
+              {business}
             </div>
-            {account}
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+              <LocationPicker className="hidden md:flex" />
+              <button type="button" aria-label="Search (Ctrl K)" onClick={() => setPalette(true)} className={iconBtn}><Search className="h-[19px] w-[19px]" strokeWidth={1.75} aria-hidden /></button>
+              <BellMenu notices={notices} />
+              {account}
+            </div>
           </div>
         </header>
 
-        <div className="mt-6 lg:mt-2 lg:grid lg:grid-cols-[52px_minmax(0,1fr)] lg:gap-6">
-          {section ? <Rail section={section} path={path} util={<UtilButtons onLogout={() => void logout()} help={help(true)} />} /> : <div className="hidden lg:block" />}
-          <main id="app-main" className="min-w-0 lg:pt-2">
-            <SubNav path={path} section={section} />
-            <div className="mb-3 flex flex-wrap items-center justify-end gap-2 empty:hidden"><TrialChip s={s ?? null} /><LocationPicker /></div>
-            <Banners s={s ?? null} deletion={deletion ?? null} />
-            {children}
-          </main>
-        </div>
+        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1240px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
+          <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden"><TrialChip s={s ?? null} /><LocationPicker className="md:hidden" /></div>
+          <Banners s={s ?? null} deletion={deletion ?? null} />
+          <SubNav path={path} dests={dests} />
+          {children}
+        </main>
       </div>
-      <MobileBar path={path} />
-      <CommandPalette open={palette} onClose={() => setPalette(false)} sections={sections} />
+      <BottomNav path={path} dests={dests} moreOpen={more} onMore={setMore} />
+      <MoreSheet open={more} onClose={() => setMore(false)} role={role} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
+      <CommandPalette open={palette} onClose={() => setPalette(false)} dests={dests} />
     </div>
     </LocationScopeProvider>
     </MotionConfig>

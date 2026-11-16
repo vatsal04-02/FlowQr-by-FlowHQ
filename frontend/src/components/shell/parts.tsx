@@ -1,10 +1,9 @@
 "use client";
 import clsx from "clsx";
-import { HelpCircle, LogOut, Moon, Sun } from "lucide-react";
-import { motion } from "motion/react";
+import { HelpCircle, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { locate, NAV, sectionHref, type Item, type Section } from "@/lib/nav";
+import { locate, type Dest } from "@/lib/nav";
 import { useTheme } from "@/lib/theme";
 
 /** Close a popover on outside press or Escape (focus goes back to its trigger). */
@@ -41,20 +40,43 @@ export function PopoverButton({ label, icon, children, align = "right", dot, cla
   );
 }
 
-/** The six sections as one pill; the black indicator slides to the current one (spring 380/32, DESIGN.md §8). */
-export function SectionNav({ path }: { path: string }) {
-  const here = locate(path)?.section.id;
-  return (
-    <nav aria-label="Main" className="pill flex h-14 items-center p-1.5">
-      <ul className="flex">
-        {NAV.map((s) => {
-          const on = here === s.id;
+/** Sun / moon. The selected mode sits in a grey circle; switching grows the new theme out of the button. */
+export function ThemeToggle({ vertical = false, small = false }: { vertical?: boolean; small?: boolean }) {
+  const { resolved, setTheme } = useTheme();
+  const b = (mode: "light" | "dark", Icon: typeof Sun, label: string) => (
+    <button type="button" aria-label={label} aria-pressed={resolved === mode}
+      onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTheme(mode, { x: r.left + r.width / 2, y: r.top + r.height / 2 }); }}
+      className={clsx(iconBtn, small && "!h-9 !w-9", resolved === mode && "bg-surface text-accent-ink shadow-pill")}><Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden /></button>
+  );
+  return <div className={clsx("flex gap-0.5 rounded-full bg-surface-3 p-0.5", vertical && "flex-col")}>{b("light", Sun, "Light mode")}{b("dark", Moon, "Dark mode")}</div>;
+}
+
+/**
+ * Page tabs: the pages that belong to the current destination (for example Results: Google activity, Reviews, QR & NFC, Campaigns, Reports), and a second row for
+ * pages that share a theme (Your Google profile: Improve, Business info, Hours, Posts, Photos). It is the only secondary navigation, so there is one way to move around.
+ * Underlined tabs scroll sideways on a phone and never wrap.
+ */
+export function SubNav({ path, dests }: { path: string; dests: Dest[] }) {
+  const l = locate(path);
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => { ref.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [path]);
+  if (!l) return null;
+  const dest = dests.find((d) => d.id === l.dest.id) ?? l.dest;
+  const kids = dest.children ?? [];
+  const child = kids.find((c) => c.href === l.child?.href) ?? null;
+  const strip = (label: string, items: { href: string; label: string }[], on: (href: string) => boolean, small?: boolean) => (
+    <nav aria-label={label} className={clsx("-mx-4 overflow-x-auto px-4 no-scrollbar sm:mx-0 sm:px-0", small ? "mb-3" : "mb-4")}>
+      <ul className={clsx("flex w-max min-w-full gap-1 border-b border-ink-100", small && "border-b-0")}>
+        {items.map((x) => {
+          const active = on(x.href);
           return (
-            <li key={s.id}>
-              <Link href={sectionHref(s)} aria-current={on ? "page" : undefined}
-                className={clsx("relative grid h-11 place-items-center rounded-full px-2.5 text-sm font-medium transition-colors xl:px-3 min-[1400px]:px-5", on ? "text-ink-on" : "text-ink hover:bg-surface-2")}>
-                {on && <motion.span layoutId="fq-section-indicator" aria-hidden className="absolute inset-0 rounded-full bg-ink-solid" transition={{ type: "spring", stiffness: 380, damping: 32 }} />}
-                <span className="relative whitespace-nowrap">{s.label}</span>
+            <li key={x.href} className="shrink-0">
+              <Link ref={active ? ref : undefined} href={x.href} aria-current={active ? "page" : undefined}
+                className={clsx("relative inline-flex items-center whitespace-nowrap transition-colors",
+                  small ? "min-h-11 rounded-full px-3 text-[13px] font-medium sm:min-h-9" : "min-h-11 px-3 text-sm font-medium",
+                  small ? (active ? "bg-surface-3 text-ink" : "text-muted hover:text-ink") : (active ? "text-ink" : "text-muted hover:text-ink"))}>
+                {x.label}
+                {!small && active && <span aria-hidden className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-accent" />}
               </Link>
             </li>
           );
@@ -62,145 +84,10 @@ export function SectionNav({ path }: { path: string }) {
       </ul>
     </nav>
   );
-}
-
-/** Sun / moon. The selected mode sits in a grey circle; switching grows the new theme out of the button. */
-export function ThemeToggle({ vertical = true }: { vertical?: boolean }) {
-  const { resolved, setTheme } = useTheme();
-  const b = (mode: "light" | "dark", Icon: typeof Sun, label: string) => (
-    <button type="button" aria-label={label} aria-pressed={resolved === mode}
-      onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTheme(mode, { x: r.left + r.width / 2, y: r.top + r.height / 2 }); }}
-      className={clsx(iconBtn, resolved === mode && "bg-surface-2")}><Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden /></button>
-  );
-  return <div className={clsx("pill flex gap-1.5 p-1", vertical ? "w-[52px] flex-col" : "")}>{b("light", Sun, "Light mode")}{b("dark", Moon, "Dark mode")}</div>;
-}
-
-/**
- * Left rail: the current section's pages as icons. Hover or keyboard focus opens a labelled flyout over the content (180 ms in, 120 ms
- * out, Esc closes); Arrow Up/Down move between pages. The flyout is a visual label for the icons, so it is hidden from assistive tech and
- * out of the tab order; every icon link carries its own name.
- */
-export function Rail({ section, path, util }: { section: Section; path: string; util: ReactNode }) {
-  const current = locate(path)?.item;
-  const [open, setOpen] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
-  const wrap = useRef<HTMLDivElement>(null);
-  const show = () => { window.clearTimeout(timer.current); setOpen(true); };
-  const hide = (ms = 120) => { window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setOpen(false), ms); };
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  useEffect(() => setOpen(false), [path]);
-  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape") { setOpen(false); return; }
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-    const links = Array.from(wrap.current?.querySelectorAll<HTMLAnchorElement>("[data-rail]") ?? []);
-    const i = links.indexOf(document.activeElement as HTMLAnchorElement);
-    if (i < 0) return;
-    e.preventDefault();
-    links[(i + (e.key === "ArrowDown" ? 1 : -1) + links.length) % links.length]?.focus();
-    setOpen(true);
-  };
-  return (
-    <aside aria-label="Pages in this section" className="sticky top-5 z-40 hidden min-h-[max(580px,calc(100dvh-136px))] flex-col gap-5 self-start lg:flex">
-      <ThemeToggle />
-      <div ref={wrap} className="relative mt-14" onMouseEnter={show} onMouseLeave={() => hide()} onFocus={show}
-        onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget as Node)) hide(0); }} onKeyDown={onKey}>
-        <nav aria-label={`${section.label} pages`} className="pill flex w-[52px] flex-col gap-1.5 p-1">
-          {section.items.map((it) => <RailLink key={it.href} item={it} on={current?.href === it.href} />)}
-        </nav>
-        <div aria-hidden className={clsx("absolute left-full top-[-4px] pl-3 transition-[opacity,transform] duration-[180ms]", open ? "visible translate-x-0 opacity-100" : "invisible -translate-x-1.5 opacity-0")}>
-          <div className="w-[264px] rounded-card bg-surface p-2 shadow-lift">
-            <p className="px-3 pb-1.5 pt-2.5 text-xs font-medium text-muted">{section.label}</p>
-            {section.items.map((it) => {
-              const on = current?.href === it.href;
-              return (
-                <Link key={it.href} href={it.href} tabIndex={-1} className={clsx("flex items-center gap-3 rounded-full py-1.5 pl-1.5 pr-3 transition-colors hover:bg-surface-2", on && "bg-surface-2")}>
-                  <span className={clsx("grid h-9 w-9 shrink-0 place-items-center rounded-full", on ? "bg-ink-solid text-ink-on" : "bg-surface-2")}><it.icon className="h-[17px] w-[17px]" strokeWidth={1.75} /></span>
-                  <span className="min-w-0"><span className="block truncate font-medium">{it.label}</span><span className="block truncate text-xs text-muted">{it.desc}</span></span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      <div className="pill mt-auto flex w-[52px] flex-col gap-1.5 p-1">{util}</div>
-    </aside>
-  );
-}
-
-function RailLink({ item, on }: { item: Item; on: boolean }) {
-  return (
-    <Link data-rail href={item.href} aria-label={item.label} aria-current={on ? "page" : undefined}
-      className={clsx(iconBtn, on && "!bg-ink-solid !text-ink-on")}>
-      <item.icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
-    </Link>
-  );
-}
-
-/** Help and log out, pinned to the bottom of the rail (and in the account menu on phones). */
-export function UtilButtons({ onLogout, help }: { onLogout: () => void; help: ReactNode }) {
   return (
     <>
-      {help}
-      <button type="button" aria-label="Log out" onClick={onLogout} className={iconBtn}><LogOut className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden /></button>
-    </>
-  );
-}
-
-/** Phones and tablets: the six sections as a floating pill at the bottom (DESIGN.md §9). Short labels keep six of them on one row. */
-export function MobileBar({ path }: { path: string }) {
-  const here = locate(path)?.section.id;
-  return (
-    <nav aria-label="Primary" className="pill fixed inset-x-4 bottom-[calc(14px+env(safe-area-inset-bottom))] z-40 flex gap-0.5 p-1.5 lg:hidden">
-      {NAV.map((s) => {
-        const on = here === s.id;
-        return (
-          <Link key={s.id} href={sectionHref(s)} aria-current={on ? "page" : undefined}
-            className={clsx("flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[11px] font-semibold leading-[14px] transition-colors", on ? "bg-ink-solid text-ink-on" : "text-muted")}>
-            <s.icon className="h-[18px] w-[18px]" strokeWidth={on ? 2.1 : 1.75} aria-hidden /><span className="truncate px-0.5">{s.short}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-/**
- * Under the top bar: on phones the section's pages as a chip scroller (the rail's job on desktop), and on every screen the sibling pages
- * of the current item as small pills (for example Cards | Designs & export).
- */
-export function SubNav({ path, section }: { path: string; section: Section | null }) {
-  const l = locate(path);
-  const chipRef = useRef<HTMLAnchorElement>(null);
-  useEffect(() => { chipRef.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [path]);
-  if (!l) return null;
-  const items = section?.items ?? l.section.items;
-  const item = items.find((i) => i.href === l.item.href) ?? l.item;  // the role-filtered copy, so a tab this person may not open is not shown
-  return (
-    <>
-      <nav aria-label={`${l.section.label} pages (scroll)`} className="-mx-4 mb-4 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
-        <ul className="flex gap-2">
-          {items.map((it) => {
-            const on = l.item.href === it.href;
-            return (
-              <li key={it.href} className="shrink-0">
-                <Link ref={on ? chipRef : undefined} href={it.href} aria-current={on ? "page" : undefined}
-                  className={clsx("inline-flex h-10 items-center whitespace-nowrap rounded-full px-4 text-sm font-medium shadow-pill transition-colors", on ? "bg-ink-solid text-ink-on" : "bg-surface text-ink")}>{it.label}</Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-      {item.sub && item.sub.length > 1 && (
-        <nav aria-label={`${item.label} pages`} className="mb-5">
-          <ul className="inline-flex max-w-full flex-wrap gap-1 rounded-full bg-surface p-1 shadow-pill">
-            {item.sub.map((x) => {
-              const on = l.sub?.href === x.href;
-              return <li key={x.href}><Link href={x.href} aria-current={on ? "page" : undefined}
-                className={clsx("inline-flex min-h-10 items-center whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors sm:min-h-9", on ? "bg-ink-solid text-ink-on" : "text-muted hover:text-ink")}>{x.label}</Link></li>;
-            })}
-          </ul>
-        </nav>
-      )}
+      {kids.length > 1 && strip(`${dest.label} pages`, kids, (h) => child?.href === h)}
+      {child?.tabs && child.tabs.length > 1 && strip(`${child.label} sections`, child.tabs, (h) => l.tab?.href === h || (!l.tab && h === child.href), true)}
     </>
   );
 }

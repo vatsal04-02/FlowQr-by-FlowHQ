@@ -19,11 +19,11 @@ export function CardHeader({ title, subtitle, action }: { title: string; subtitl
 /** Page title row: big H1, one muted line, at most one primary action on the right (DESIGN.md §4). */
 export function PageHeader({ title, subtitle, actions, eyebrow }: { title: string; subtitle?: ReactNode; actions?: ReactNode; eyebrow?: string }) {
   return (
-    <div className="mb-6 mt-1 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 lg:mb-8">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 sm:mb-5 lg:mb-6">
       <div className="min-w-0">
         {/* `eyebrow` is accepted for older callers but not shown: the section pill and the rail already say where you are. */}
-        <h1 className="text-[30px] font-semibold leading-[34px] tracking-[-.02em] text-ink lg:text-[40px] lg:leading-[44px]">{title}</h1>
-        {subtitle && <div className="mt-1.5 max-w-2xl text-base leading-6 text-muted">{subtitle}</div>}
+        <h1 className="text-[22px] font-semibold leading-7 tracking-[-.015em] text-ink sm:text-[26px] sm:leading-8 lg:text-[30px] lg:leading-9">{title}</h1>
+        {subtitle && <div className="mt-1 max-w-2xl text-[14px] leading-5 text-muted sm:text-[15px] sm:leading-6">{subtitle}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

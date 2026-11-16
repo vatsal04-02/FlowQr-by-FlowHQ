@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root { color-scheme: light;
-  --shadow-card: 0 1px 2px rgba(19,16,20,.04), 0 12px 32px -14px rgba(19,16,20,.10);
+  --shadow-card: 0 1px 2px rgba(19,16,20,.05), 0 1px 1px rgba(19,16,20,.03);
   --shadow-pill: 0 1px 2px rgba(19,16,20,.04), 0 6px 18px -10px rgba(19,16,20,.12);
   --shadow-hero: 0 14px 28px -12px rgba(234,84,46,.55);
   --shadow-lift: 0 18px 40px -16px rgba(19,16,20,.18);
   --c-ink: 17 23 63; --c-ink-800: 35 35 38; --c-ink-700: 59 58 56; --c-ink-600: 73 71 63; --c-ink-500: 87 85 79; --c-ink-400: 107 104 96; --c-ink-300: 140 136 128; --c-ink-200: 216 213 206; --c-ink-100: 232 229 223; --c-ink-50: 244 242 238; --c-ink-solid: 19 16 20; --c-on-ink: 255 255 255; --c-navy: 17 23 63; --c-white: 255 255 255; --c-ok: 11 122 85; --c-star: 242 176 30; --c-fq: 254 106 5; --c-fq-hover: 236 95 0; --c-fq-50: 255 244 236; --c-fq-100: 255 229 209; --c-brand-50: 255 244 236; --c-brand-100: 255 229 209; --c-brand-200: 255 203 163; --c-brand-300: 255 173 112; --c-brand-400: 255 138 61; --c-brand-500: 254 106 5; --c-brand-600: 254 106 5; --c-brand-700: 184 74 0; --c-brand-800: 143 57 0; --c-brand-900: 107 43 0; --c-brand-950: 61 23 0; --c-flow-50: 255 244 236; --c-flow-100: 255 229 209; --c-flow-400: 255 138 61; --c-flow-500: 242 107 29; --c-flow-600: 217 86 11; --c-flow-700: 177 68 9; --c-red-50: 254 242 242; --c-red-100: 254 226 226; --c-red-200: 254 202 202; --c-red-300: 252 165 165; --c-red-400: 248 113 113; --c-red-500: 239 68 68; --c-red-600: 220 38 38; --c-red-700: 185 28 28; --c-red-800: 153 27 27; --c-red-900: 127 29 29; --c-red-950: 69 10 10; --c-green-50: 240 253 244; --c-green-100: 220 252 231; --c-green-200: 187 247 208; --c-green-300: 134 239 172; --c-green-400: 74 222 128; --c-green-500: 34 197 94; --c-green-600: 22 163 74; --c-green-700: 21 128 61; --c-green-800: 22 101 52; --c-green-900: 20 83 45; --c-green-950: 5 46 22; --c-amber-50: 255 251 235; --c-amber-100: 254 243 199; --c-amber-200: 253 230 138; --c-amber-300: 252 211 77; --c-amber-400: 251 191 36; --c-amber-500: 245 158 11; --c-amber-600: 217 119 6; --c-amber-700: 180 83 9; --c-amber-800: 146 64 14; --c-amber-900: 120 53 15; --c-amber-950: 69 26 3; --c-canvas-outer: 231 228 232; --c-canvas: 242 239 243; --c-surface: 255 255 255; --c-surface-2: 243 240 244; --c-surface-3: 234 230 236; --c-muted: 107 103 109; --c-muted-soft: 154 150 160; --c-line: 239 236 240; --c-accent: 234 84 46; --c-accent-hi: 244 117 76; --c-accent-lo: 218 69 26; --c-accent-ink: 189 62 27; --c-accent-tint: 253 234 228; --c-accent-edge: 245 185 166; --c-pos: 24 122 79; --c-pos-tint: 227 244 235; --c-neg: 196 54 57; --c-neg-tint: 253 236 236; --c-warn: 143 90 0; --c-warn-tint: 255 243 214; }
 /* The dashboard palette (DESIGN.md §2.1). The app shell puts .fq-app on <html>; a tiny script in layout.tsx does it before first paint. */
 html.fq-app { --c-ink: 13 10 16; --c-ink-800: 35 31 38; --c-ink-700: 58 54 61; --c-ink-600: 79 75 82; --c-ink-500: 107 103 109; --c-ink-400: 116 112 120; --c-ink-300: 168 164 173; --c-ink-200: 227 223 229; --c-ink-100: 236 233 238; --c-ink-50: 243 240 244; --c-ink-solid: 19 16 20; --c-on-ink: 255 255 255; --c-navy: 13 10 16; --c-white: 255 255 255; --c-ok: 24 122 79; --c-star: 234 84 46; --c-fq: 234 84 46; --c-fq-hover: 218 69 26; --c-fq-50: 253 234 228; --c-fq-100: 251 217 206; --c-brand-50: 253 234 228; --c-brand-100: 251 217 206; --c-brand-200: 245 185 166; --c-brand-300: 244 149 111; --c-brand-400: 244 117 76; --c-brand-500: 234 84 46; --c-brand-600: 234 84 46; --c-brand-700: 189 62 27; --c-brand-800: 154 50 22; --c-brand-900: 122 40 17; --c-brand-950: 70 22 10; --c-flow-50: 253 234 228; --c-flow-100: 251 217 206; --c-flow-400: 244 117 76; --c-flow-500: 234 84 46; --c-flow-600: 218 69 26; --c-flow-700: 189 62 27; --c-canvas-outer: 231 228 232; --c-canvas: 242 239 243; --c-surface: 255 255 255; --c-surface-2: 243 240 244; --c-surface-3: 234 230 236; --c-muted: 107 103 109; --c-muted-soft: 154 150 160; --c-line: 239 236 240; --c-accent: 234 84 46; --c-accent-hi: 244 117 76; --c-accent-lo: 218 69 26; --c-accent-ink: 189 62 27; --c-accent-tint: 253 234 228; --c-accent-edge: 245 185 166; --c-pos: 24 122 79; --c-pos-tint: 227 244 235; --c-neg: 196 54 57; --c-neg-tint: 253 236 236; --c-warn: 143 90 0; --c-warn-tint: 255 243 214;
-  --shadow-card: 0 1px 2px rgba(19,16,20,.04), 0 12px 32px -14px rgba(19,16,20,.10);
+  --shadow-card: 0 1px 2px rgba(19,16,20,.05), 0 1px 1px rgba(19,16,20,.03);
   --shadow-pill: 0 1px 2px rgba(19,16,20,.04), 0 6px 18px -10px rgba(19,16,20,.12);
   --shadow-hero: 0 14px 28px -12px rgba(234,84,46,.55);
   --shadow-lift: 0 18px 40px -16px rgba(19,16,20,.18);
@@ -94,6 +94,15 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 242 239 245; --c-i
   .container-page { @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6; }
   .tap { min-height: 44px; min-width: 44px; }
 
+  /* Touch targets (docs/DESIGN.md "Mobile"): on a phone every button, tab, select, summary and slider is at least 44px tall, whatever its own class says; dense rows
+     keep their desktop size from tablet width up. Screen-reader-only controls and switch inputs are left alone. */
+  @media (max-width: 767px) {
+    html.fq-app :is(button, [role="tab"], select, summary):not(.sr-only):not([role="switch"]) { min-height: 44px; }
+    html.fq-app :is(button, [role="tab"]):not(.sr-only):not([role="switch"]) { min-width: 44px; }
+    html.fq-app summary { display: flex; align-items: center; }
+    html.fq-app input[type="range"] { min-height: 44px; }
+  }
+
   /* Content panel (DESIGN.md "Card"): white, 28px radius, no border, soft shadow. */
   .surface { @apply rounded-card bg-white shadow-card; }
   .panel { @apply rounded-card bg-white shadow-card; }
@@ -103,7 +112,7 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 242 239 245; --c-i
   .pill { @apply rounded-full bg-surface shadow-pill; }
   /* Hover lift for clickable cards (whileHover y:-5 in the reference). */
   .lift { transition: transform .2s cubic-bezier(.2,.7,.2,1), box-shadow .2s; }
-  .lift:hover { transform: translateY(-5px); box-shadow: var(--shadow-lift); }
+  .lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
   /* "The rest" of a progress bar or a secondary series: diagonal hatch, never flat grey (DESIGN.md §1.5). */
   .hatch { background-image: repeating-linear-gradient(135deg, var(--hatch-c, rgb(var(--c-surface-3))) 0 1.5px, transparent 1.5px 5px); }
   .hatch-strong { --hatch-c: rgb(var(--c-ink-300) / .55); }

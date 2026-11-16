@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "Get found on Google, get genuine reviews and manage your online presence in one place. Google Business management, an AI Review Assistant, QR/NFC review cards and human-approved replies and posts.",
   robots: { index: true, follow: true },
 };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#F4F2EE" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#F4F2EE" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

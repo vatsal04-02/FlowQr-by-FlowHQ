@@ -45,7 +45,8 @@ const config: Config = {
         mono: ["'Geist Mono'", "ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       fontWeight: { semibold: "600", bold: "650", extrabold: "700" },
-      borderRadius: { panel: "10px", frame: "32px", card: "28px", tile: "22px", inner: "16px" },
+      // App radii (docs/DESIGN.md): data cards 16px, wells and tiles inside them 12px, inner rows 10px. Nested radii are always smaller than their parent.
+      borderRadius: { panel: "10px", frame: "32px", card: "16px", tile: "12px", inner: "10px" },
       boxShadow: {
         panel: "0 1px 0 rgba(23,23,25,.03)",
         pop: "0 12px 32px -8px rgba(23,23,25,.24), 0 2px 6px rgba(23,23,25,.06)",

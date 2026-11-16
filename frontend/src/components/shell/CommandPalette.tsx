@@ -4,21 +4,24 @@ import { CornerDownLeft, MapPin, MessageSquare, QrCode, Search, Star } from "luc
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import type { Item, Section } from "@/lib/nav";
+import type { Dest } from "@/lib/nav";
 
-type Entry = { key: string; label: string; hint: string; href: string; icon: Item["icon"] };
+type Entry = { key: string; label: string; hint: string; href: string; icon: Dest["icon"] };
 
-/** Every page this person can see (and each page's sibling pages), flattened. */
-const pagesOf = (nav: Section[]): Entry[] => nav.flatMap((s) => s.items.flatMap((it) => [
-  { key: it.href, label: it.label, hint: `${s.label} · ${it.desc}`, href: it.href, icon: it.icon },
-  ...(it.sub ?? []).filter((x) => x.href !== it.href).map((x) => ({ key: x.href, label: x.label, hint: `${s.label} · ${it.label}`, href: x.href, icon: it.icon })),
-]));
+/** Every page this person can see (and each page's sibling pages and tabs), flattened. */
+const pagesOf = (dests: Dest[]): Entry[] => dests.flatMap((d) => [
+  { key: d.href, label: d.label, hint: d.desc, href: d.href, icon: d.icon },
+  ...(d.children ?? []).filter((c) => c.href !== d.href).flatMap((c) => [
+    { key: c.href, label: c.label, hint: d.label, href: c.href, icon: d.icon },
+    ...(c.tabs ?? []).filter((t) => t.href !== c.href).map((t) => ({ key: t.href, label: t.label, hint: `${d.label} · ${c.label}`, href: t.href, icon: d.icon })),
+  ]),
+]);
 
 /**
  * Ctrl/⌘ K: jump to any page, or search reviews by reviewer or text (opens the reviews inbox with that search). Keyboard first:
  * type, Arrow Up/Down, Enter; Esc closes and focus returns to where it was.
  */
-export function CommandPalette({ open, onClose, sections }: { open: boolean; onClose: () => void; sections: Section[] }) {
+export function CommandPalette({ open, onClose, dests }: { open: boolean; onClose: () => void; dests: Dest[] }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [i, setI] = useState(0);
@@ -26,7 +29,7 @@ export function CommandPalette({ open, onClose, sections }: { open: boolean; onC
   const last = useRef<Element | null>(null);
   const listId = useId();
 
-  const all = useMemo(() => pagesOf(sections), [sections]);
+  const all = useMemo(() => pagesOf(dests), [dests]);
   // GET /search (reviews by reviewer or words, locations, cards), 200 ms after typing stops
   const [found, setFound] = useState<Entry[]>([]);
   useEffect(() => {
