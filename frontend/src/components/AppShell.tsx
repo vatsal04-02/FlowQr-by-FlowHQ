@@ -203,7 +203,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1240px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
           <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden"><TrialChip s={s ?? null} /><LocationPicker className="md:hidden" /></div>
           <Banners s={s ?? null} deletion={deletion ?? null} />
-          <SubNav path={path} dests={dests} />
+          {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}
+          <SubNav path={path} dests={dests} hidePrimaryOnWide={!collapsed} />
           {children}
         </main>
       </div>
