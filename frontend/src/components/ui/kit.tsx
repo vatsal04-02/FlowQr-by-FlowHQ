@@ -3,16 +3,17 @@ import clsx from "clsx";
 import { useId, type ReactNode } from "react";
 
 /** Card with an optional title row (DESIGN.md "Card"). `flush` keeps a small inset so a table's rounded header row sits inside the card. */
-export function Panel({ title, meta, action, children, className, flush }: { title?: ReactNode; meta?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; flush?: boolean }) {
+export function Panel({ title, meta, action, children, className, flush, dense }: { title?: ReactNode; meta?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; flush?: boolean; dense?: boolean }) {
+  // `dense` is for data-heavy cards (Local SEO, Performance): a 16px radius and tighter padding so more numbers fit on a screen. The default stays the 28px card.
   return (
-    <section className={clsx("panel min-w-0 overflow-hidden", className)}>
+    <section className={clsx("panel min-w-0 overflow-hidden", dense && "!rounded-[16px]", className)}>
       {(title || action) && (
-        <header className="flex min-h-12 flex-wrap items-center justify-between gap-2 px-5 pb-1 pt-4 sm:px-6 sm:pt-5">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2"><h2 className="text-lg font-semibold leading-6">{title}</h2>{meta && <span className="truncate text-[13px] text-muted">{meta}</span>}</div>
+        <header className={clsx("flex flex-wrap items-center justify-between gap-2", dense ? "min-h-11 px-4 pb-0.5 pt-3.5" : "min-h-12 px-5 pb-1 pt-4 sm:px-6 sm:pt-5")}>
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2"><h2 className={clsx("font-semibold", dense ? "text-[15px] leading-5" : "text-lg leading-6")}>{title}</h2>{meta && <span className="truncate text-[13px] text-muted">{meta}</span>}</div>
           {action}
         </header>
       )}
-      <div className={flush ? "px-2 pb-2 sm:px-3 sm:pb-3" : "p-5 sm:p-6"}>{children}</div>
+      <div className={flush ? "px-2 pb-2 sm:px-3 sm:pb-3" : dense ? "p-4" : "p-5 sm:p-6"}>{children}</div>
     </section>
   );
 }
