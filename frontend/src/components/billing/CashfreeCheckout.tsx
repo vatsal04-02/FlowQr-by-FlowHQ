@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/Button";
 import { Alert, Skeleton } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Form";
 import { Modal } from "@/components/ui/Modal";
-import { api, errorMessage } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
+import { ResendVerification } from "./ResendVerification";
 import { useAuth } from "@/lib/auth";
 import { openCashfreeCheckout, rupees } from "@/lib/billing";
 import { fmtDate } from "@/lib/format";
@@ -25,22 +26,26 @@ export function CashfreeCheckoutDialog({ plan, plans, onClose }: { plan: Plan; p
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [errCode, setErrCode] = useState<string | null>(null);
   const p = preview.data;
   const auth = p?.authorization_paise ?? plans.billing.authorization_paise ?? 100;
 
   async function go() {
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setErrCode(null);
     try {
       const out = await api<{ subscription_session_id: string; environment: string }>("/billing/subscription/checkout", { method: "POST", body: { plan: plan.code, phone } });
       await openCashfreeCheckout(out.subscription_session_id, out.environment);  // Cashfree takes over; we come back and ask the server what happened
-    } catch (e) { setErr(e instanceof Error ? errorMessage(e) : "Something went wrong. Please try again."); setBusy(false); }
+    } catch (e) { setErr(e instanceof Error ? errorMessage(e) : "Something went wrong. Please try again."); setErrCode(e instanceof ApiError ? (e.code ?? null) : null); setBusy(false); }
   }
 
   return (
     <Modal open onClose={onClose} title={`Authorise payment for ${plan.name}`}
-      footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Not now</Button><Button loading={busy} disabled={!agree || phone.length !== 10 || !p} onClick={() => void go()}>Continue to Cashfree</Button></>}>
+      footer={<div className="w-full">
+        {/* the answer to the button is shown right above the button: the body of this dialog scrolls, and a message at its top is out of sight exactly when the button is pressed */}
+        {err && <div className="mb-3 text-left"><Alert tone="error" title={errCode === "email_not_verified" ? "Verify your email first" : "We couldn't start the authorisation"} action={errCode === "email_not_verified" ? <ResendVerification /> : undefined}>{err}</Alert></div>}
+        <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={onClose} disabled={busy}>Not now</Button><Button loading={busy} disabled={!agree || phone.length !== 10 || !p} onClick={() => void go()}>Continue to Cashfree</Button></div>
+      </div>}>
       <div className="space-y-3 text-sm text-ink-700">
-        {err && <Alert tone="error">{err}</Alert>}
         {preview.error && <Alert tone="error">{preview.error}</Alert>}
         {!p && !preview.error && <Skeleton className="h-24" />}
         {p && <>

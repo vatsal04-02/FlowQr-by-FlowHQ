@@ -3,6 +3,8 @@ import clsx from "clsx";
 import { ArrowRight, Check, CheckCircle2, Clock, Lock, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CashfreeCheckoutDialog } from "@/components/billing/CashfreeCheckout";
+import { ResendVerification } from "@/components/billing/ResendVerification";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/Button";
 import { Alert, Spinner } from "@/components/ui/Card";
 import { api, errorMessage } from "@/lib/api";
@@ -28,6 +30,7 @@ function highlights(plans: Plan[], i: number): string[] {
  * Where authorisation is not required (Cashfree not configured) it is the original step: the trial simply starts.
  */
 export function PlanStep({ onBack, onDone, reason }: { onBack: () => void; onDone: () => void; reason?: string | null }) {
+  const { me, refresh } = useAuth();
   const plansQ = useFetch<PlansResponse>("/billing/plans");
   const subQ = useFetch<SubscriptionInfo>("/billing/subscription");
   const [sel, setSel] = useState<string | null>(null);
@@ -48,6 +51,7 @@ export function PlanStep({ onBack, onDone, reason }: { onBack: () => void; onDon
   const failed = mandate && (auth === "expired" || auth === "cancelled");
   const chosen = plans.find((p) => p.code === (sel ?? s?.pending_plan ?? "growth")) ?? plans[0];
   const authPaise = plansQ.data?.billing.authorization_paise ?? 100;
+  const unverified = mandate && !!me && !me.user.email_verified_at;  // the server refuses billing actions until the address is verified (403 email_not_verified); this only says why, before the button is pressed
 
   const check = useCallback(async (n = 0) => {
     setChecking(true);
@@ -110,6 +114,7 @@ export function PlanStep({ onBack, onDone, reason }: { onBack: () => void; onDon
       </StepHeading>
 
       {reason && <div className="mt-5"><Alert tone="warning" title="One more step before your dashboard opens">{reason}</Alert></div>}
+      {unverified && <div className="mt-5"><Alert tone="warning" title="Verify your email to authorise a payment">We need a verified email address before we can set up a payment. Open the link in our email, then continue here.<div className="mt-2"><ResendVerification onCheck={async () => { await refresh(); }} /></div></Alert></div>}
       {note && <div className="mt-5"><Alert tone="warning">{note}</Alert></div>}
       {pending && <div className="mt-5"><Alert tone="info" title="Your bank is approving the authorisation">This can take a day or two. Your trial starts as soon as it is approved and this page updates by itself. Nothing was charged.
         <div className="mt-2"><Button size="sm" variant="secondary" loading={checking} onClick={() => void check()}>Check now</Button></div></Alert></div>}

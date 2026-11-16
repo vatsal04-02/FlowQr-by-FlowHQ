@@ -26,8 +26,9 @@ const NAME = { starter: 'Launch', growth: 'Growth', pro: 'Scale' };
 const GROWTH = PLANS[1];
 
 /** A scripted server. `onSync(state)` decides what Cashfree "said" when the app asked the server to look. */
+function opts_unverified(st) { return !!st.unverified; }
 function newServer(opts = {}) {
-  const st = { auth: null, status: 'incomplete', selected: null, checkouts: 0, syncs: 0, completeCalls: 0, completed: false, onSync: opts.onSync || (() => {}), refuseFinish: !!opts.refuseFinish, requests: [] };
+  const st = { unverified: !!opts.unverified, auth: null, status: 'incomplete', selected: null, checkouts: 0, syncs: 0, completeCalls: 0, completed: false, onSync: opts.onSync || (() => {}), refuseFinish: !!opts.refuseFinish, requests: [] };
   if (opts.authorised) Object.assign(st, { auth: 'authorized', status: 'trialing', selected: 'pro' });
   return st;
 }
@@ -59,11 +60,13 @@ async function install(ctx, st) {
     st.requests.push(`${m} ${p}`);
     const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     const tenant = { id: 't1', name: 'ZZ Test Cafe', slug: 'zz', category: 'cafe', email: null, phone: null, address: null, website: null, language: 'en', timezone: 'Asia/Kolkata', logo_url: null, brand_tone: null, ai_instructions: null, onboarding_completed: st.completed, suspended_at: null, suspension_reason: null, support_status: 'none' };
-    if (m === 'GET' && p === '/auth/me') return json({ user: { id: 'u1', email: 'owner@example.com', full_name: 'Owner', phone: '9876543210', email_verified: true }, memberships: [{ tenant, role: 'owner' }], active_tenant_id: 't1', csrf_token: 'x', integrations: { google_configured: false, ai_configured: false, public_card_base_url: 'https://flowqr.site' } });
+    if (m === 'GET' && p === '/auth/me') return json({ user: { id: 'u1', email: 'owner@example.com', full_name: 'Owner', phone: '9876543210', email_verified_at: opts_unverified(st) ? null : '2026-01-01T00:00:00Z' }, memberships: [{ tenant, role: 'owner' }], active_tenant_id: 't1', csrf_token: 'x', integrations: { google_configured: false, ai_configured: false, public_card_base_url: 'https://flowqr.site' } });
     if (m === 'GET' && p === '/locations') return json([{ id: 'l1', name: 'Main', address_line: null, city: 'Lucknow', state: null, postal_code: null, phone: null, review_url: 'https://g.page/r/abc/review', review_url_source: 'manual', is_active: true }]);
     if (m === 'GET' && p === '/billing/plans') return json({ plans: PLANS, trial_days: 7, billing: subscription(st).billing, card_price_paise: null, card_ordering_enabled: false, card_offers: [], card_offer_note: '' });
     if (m === 'GET' && p === '/billing/subscription') return json(subscription(st));
     if (m === 'GET' && p === '/billing/subscription/preview') { const pl = PLANS.find((x) => x.code === url.searchParams.get('plan')); return json({ plan_name: pl.name, amount_paise: pl.price_paise, first_charge_at: '2030-01-08T04:30:00Z', free_period_honoured: true, trial_days: 7, trial_starts_on_authorization: true, authorization_paise: 100, mandate_ceiling_paise: 149900 }); }
+    if (m === 'POST' && p === '/billing/subscription/checkout' && st.unverified) return json({ detail: { code: 'email_not_verified', message: 'Please verify your email address first.' } }, 403);
+    if (m === 'POST' && p === '/auth/resend-verification') { st.resent = (st.resent || 0) + 1; return json({ email_sent: true, detail: 'sent' }, 202); }
     if (m === 'POST' && p === '/billing/subscription/checkout') { const b = req.postDataJSON(); st.checkouts += 1; st.auth = 'initialized'; st.selected = b.plan; return json({ subscription_session_id: `session_${st.checkouts}`, environment: 'sandbox' }); }
     if (m === 'POST' && p === '/billing/subscription/sync') { st.syncs += 1; st.onSync(st); return json({ status: st.status, authorization_status: st.auth, billing_state: subscription(st).billing_state }); }
     if (m === 'POST' && p === '/tenant/complete-onboarding') {
@@ -191,6 +194,23 @@ async function install(ctx, st) {
     expect(!/\/overview/.test(page.url()), 'the app opened although the server refused');
     expect(st.completeCalls === 1 && !st.completed, 'the refusal was not honoured');
     await page.getByRole('heading', { name: /free trial/ }).first().waitFor({ timeout: 20000 });
+  });
+
+  await scenario('403 email_not_verified: the reason is visible next to the button in a short window, with a resend action; nothing starts', { unverified: true }, async (page, st) => {
+    await page.setViewportSize({ width: 1280, height: 640 });
+    await toPlanStep(page);
+    expect(await page.getByText('Verify your email to authorise a payment').count() === 1, 'the plan step does not warn about the unverified email');
+    await page.getByRole('button', { name: /Authorise payment and start free trial/ }).click();
+    const dlg = page.getByRole('dialog'); await dlg.getByRole('checkbox').check(); await dlg.getByRole('button', { name: 'Continue to Cashfree' }).click();
+    const msg = page.getByText('Please verify your email address first.');
+    await msg.first().waitFor({ timeout: 15000 });
+    const inView = await msg.first().evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; });
+    expect(inView, 'the 403 message is not visible in the window');
+    expect(await page.evaluate(() => !!window.__cfSession) === false, 'Cashfree must not open for an unverified owner');
+    await dlg.getByRole('button', { name: 'Resend verification email' }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('Verification email sent'), null, { timeout: 10000 });
+    expect(st.resent === 1 && st.status === 'incomplete', 'resend was not requested or the trial changed');
+    await page.screenshot({ path: path.join(OUT, 'cf-ob-6-unverified.png') });
   });
 
   await browser.close();
