@@ -1,10 +1,15 @@
-import { Activity, Bot, Building2, CircleHelp, CreditCard, Home, ListChecks, MessageSquare, Search, Settings2, TrendingUp, type LucideIcon } from "lucide-react";
+import { Activity, Bot, Building2, CircleHelp, CreditCard, Home, ListChecks, MessageSquare, Settings2, TrendingUp, type LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
+import { GbpIcon } from "@/components/icons/Gbp";
 import type { Role } from "./types";
 
+/** A lucide icon, or a brand mark (GBP) that takes the same props. */
+export type NavIcon = LucideIcon | ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean | "true" | "false" }>;
+
 /**
- * One navigation system for the whole app (docs/DESIGN.md). Phones: a bottom bar with Home, Reviews, SEO & Google, Growth and More. Tablet and desktop: one left sidebar.
+ * One navigation system for the whole app (docs/DESIGN.md). Phones: a bottom bar with Home, Reviews, GBP (Google Business Profile), Growth and More. Tablet and desktop: one left sidebar.
  * Both read this file, so a page is added or renamed in exactly one place. Each owner question has one home: am I getting better (Home), what do people say (Reviews),
- * do people find me on Google (SEO & Google), how do I get more reviews (Growth). Every old URL keeps working through legacy-routes.mjs. Pages for unfinished integrations
+ * do people find me on Google (GBP), how do I get more reviews (Growth). Every old URL keeps working through legacy-routes.mjs. Pages for unfinished integrations
  * (WhatsApp inbox, Studio calendar, brand kit, assets, social) are deliberately not listed (their routes and source are untouched).
  */
 export type Tab = { href: string; label: string; also?: string[]; only?: Role[] };
@@ -17,7 +22,7 @@ export type Child = {
   only?: Role[];
 };
 export type Group = "main" | "tools" | "assistant" | "account";
-export type Dest = { id: string; href: string; label: string; short?: string; desc: string; icon: LucideIcon; group: Group; children?: Child[]; also?: string[]; only?: Role[] };
+export type Dest = { id: string; href: string; label: string; short?: string; desc: string; icon: NavIcon; group: Group; children?: Child[]; also?: string[]; only?: Role[] };
 
 export const GROUP_LABEL: Record<Group, string | null> = { main: null, tools: "Business", assistant: "Assistant", account: "Account" };
 
@@ -28,7 +33,7 @@ export const DESTS: Dest[] = [
     { href: "/reputation/drafts", label: "Drafts" },
     { href: "/reputation/insights", label: "Insights" },
   ] },
-  { id: "seo", href: "/seo", label: "SEO & Google", short: "SEO", desc: "How you show up on Google", icon: Search, group: "main", children: [
+  { id: "seo", href: "/seo", label: "GBP", desc: "Google Business Profile: how you show up on Google", icon: GbpIcon, group: "main", children: [
     { href: "/seo", label: "Overview" },
     { href: "/seo/rankings", label: "Rankings", also: ["/seo/searches", "/seo/competitors"] },
     { href: "/seo/performance", label: "Performance" },

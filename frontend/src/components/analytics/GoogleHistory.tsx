@@ -27,7 +27,7 @@ function Change({ cur, prev }: { cur: number | null; prev: number | null }) {
 }
 
 /**
- * SEO & Google › Performance, from the daily figures FlowQR stored from Google (gbp_metric_daily): four cards, each its number, the change against the period before and a bar per
+ * GBP › Performance, from the daily figures FlowQR stored from Google (gbp_metric_daily): four cards, each its number, the change against the period before and a bar per
  * day (counts are bars). Until Google has shared anything, the page is one card of dashes with one button. `extra` (the live detail) only appears once data exists.
  */
 export function GoogleHistory({ range, extra }: { range: Range; extra?: ReactNode }) {
@@ -59,7 +59,7 @@ export function GoogleHistory({ range, extra }: { range: Range; extra?: ReactNod
   }
   return (
     <div className="space-y-3 lg:space-y-4">
-      <div className="grid gap-3 md:grid-cols-2 lg:gap-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
         {CARDS.map(([k, label, metrics]) => {
           const cur = val(d!.current, k), prev = d!.previous ? val(d!.previous, k) : null;
           return (

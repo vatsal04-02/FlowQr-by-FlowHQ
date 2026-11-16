@@ -19,7 +19,7 @@ function rangeFor(days: Days) {
 
 /**
  * Home answers "am I getting better, and what do I do this week?" with pictures first: the Growth score ring and its five parts, four numbers each with its own small chart,
- * reviews by week against the goal, three moves for the week (never empty), and the four steps from card to Google. Detail lives in Reviews, SEO & Google and Growth.
+ * reviews by week against the goal, three moves for the week (never empty), and the four steps from card to Google. Detail lives in Reviews, GBP and Growth.
  */
 export default function Home() {
   const { tenant } = useAuth();
@@ -59,7 +59,7 @@ export default function Home() {
     <>
       <h1 className="sr-only">Home, {tenant?.name}</h1>
       {ov.error && <div className="mb-4"><Alert tone="error" title="We couldn't load your numbers" action={<button type="button" onClick={() => { void ov.reload(); void prevOv.reload(); }} className="inline-flex min-h-11 items-center rounded-[10px] bg-surface px-4 text-sm font-semibold text-ink">Try again</button>}>{ov.error}</Alert></div>}
-      <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <div className="space-y-3 lg:col-span-8 lg:space-y-4">
           <ScoreCard g={score.data} loading={score.loading && !score.data} days={days} onDays={setDays} />
           <Numbers o={o} prev={p} weekly={weekly} loading={loading} />

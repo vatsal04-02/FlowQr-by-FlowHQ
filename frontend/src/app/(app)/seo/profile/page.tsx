@@ -15,7 +15,7 @@ import { useFetch } from "@/lib/use-api";
 const EFFORT = ["phone", "website", "hours", "category", "additional_categories", "unanswered", "description", "services", "photos", "posts"];
 const MINUTES: Record<string, string> = { phone: "1 min", website: "1 min", hours: "2 min", category: "2 min", additional_categories: "2 min", unanswered: "5 min", description: "5 min", services: "5 min", photos: "10 min", posts: "10 min" };
 
-/** SEO & Google › Profile: the strength ring, then every check ordered by how long it takes, each opening its editor. Built only from the profile Google returned. */
+/** GBP › Profile: the strength ring, then every check ordered by how long it takes, each opening its editor. Built only from the profile Google returned. */
 export default function ProfilePage() {
   const { locationId } = useLocationScope();
   const q = useFetch<ProfileHealth>("/seo/profile-health", { location_id: locationId ?? "" });
@@ -27,7 +27,7 @@ export default function ProfilePage() {
       {q.loading && !d ? <Skeleton className="h-64" /> : !d || d.state === "no_location" ? (
         <Card><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-[14px] text-muted">Connect a Google location first.</p><LinkButton href="/gbp/locations" variant="secondary" size="sm">Connect Google</LinkButton></div></Card>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {d.locations.map((l) => {
             const checks = [...l.checks].sort((a, b) => (a.status === "ok" ? 1 : 0) - (b.status === "ok" ? 1 : 0) || EFFORT.indexOf(a.key) - EFFORT.indexOf(b.key));
             const done = l.checks.filter((c) => c.status === "ok").length;

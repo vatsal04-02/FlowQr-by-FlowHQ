@@ -37,7 +37,7 @@ export default function InsightsPage() {
         <h1 className="text-[22px] font-semibold leading-7 sm:text-[26px]">Insights</h1>
         <DateRange value={range} onChange={setRange} />
       </div>
-      <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <Card label="Topics from review text" className="lg:col-span-7">
           <Title>Topics from review text</Title>
           {ins.loading && !d ? <Skeleton className="mt-3 h-48" /> : locked ? (

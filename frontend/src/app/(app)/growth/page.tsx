@@ -82,7 +82,7 @@ export default function GoalsPage() {
   return (
     <>
       <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Goals</h1>
-      <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <Card label="This month" className="lg:col-span-7">
           <Title>This month</Title>
           {score.loading && !rv ? <Skeleton className="mt-3 h-36" /> : (

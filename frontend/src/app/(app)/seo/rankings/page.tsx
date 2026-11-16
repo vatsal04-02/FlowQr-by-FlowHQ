@@ -11,7 +11,7 @@ import type { Competitors, SeoOverview } from "@/lib/seo";
 import { useFetch } from "@/lib/use-api";
 
 /**
- * SEO & Google › Rankings: where you show up for each word (Places, measured), the words people searched (Google, impressions: not a position), and who is ahead.
+ * GBP › Rankings: where you show up for each word (Places, measured), the words people searched (Google, impressions: not a position), and who is ahead.
  * Adding words and running checks stays in the existing manager below; the map grid stays off until its cost is approved.
  */
 export default function RankingsPage() {
@@ -25,7 +25,7 @@ export default function RankingsPage() {
     <>
       <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Rankings</h1>
       {ov.error && <Alert tone="error">{ov.error}</Alert>}
-      <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <Card label="Your words" className="lg:col-span-7">
           <Title right={<SourceTag source="places" />}>Your words</Title>
           <div className="mt-4">{ov.loading && !d ? <Skeleton className="h-40" /> : d && d.keywords.length ? <RankLadder words={d.keywords} /> : <p className="text-[14px] text-muted">No words yet. Add one below.</p>}</div>

@@ -14,7 +14,7 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const SLOTS: [string, string, string[]][] = [["calls", "Calls", ["CALL_CLICKS"]], ["directions", "Directions", ["BUSINESS_DIRECTION_REQUESTS"]], ["website", "Website", ["WEBSITE_CLICKS"]],
   ["views", "Views", ["BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS"]]];
 
-/** SEO & Google › Overview: the rank ladder first, then what Google reports (or one honest empty card), who is ahead, and what to fix on the profile. */
+/** GBP › Overview: the rank ladder first, then what Google reports (or one honest empty card), who is ahead, and what to fix on the profile. */
 export default function SeoOverviewPage() {
   const { locationId } = useLocationScope();
   const loc = locationId ?? "";
@@ -32,7 +32,7 @@ export default function SeoOverviewPage() {
     <>
       <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">How you show up on Google</h1>
       {ov.error && <Alert tone="error">{ov.error}</Alert>}
-      <div className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <Card label="Your words on Google Maps" className="lg:col-span-7">
           <Title right={<SourceTag source="places" />}>Your words on Maps</Title>
           <div className="mt-4">
