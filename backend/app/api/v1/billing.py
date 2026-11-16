@@ -45,7 +45,7 @@ def plans(db: Session = Depends(get_db)):
     set_rls_context(db, bypass=True)
     rows = db.scalars(select(BillingPlan).where(BillingPlan.is_active.is_(True)).order_by(BillingPlan.sort_order)).all()
     offers = [{"code": o["code"], "quantity": o["quantity"], "price_paise": o["price_paise"], "includes": f"{settings.promo_card_days} days of {settings.promo_card_plan.title()}"} for o in (settings.card_offers or [])]
-    return {"plans": [PlanOut.model_validate(p) for p in rows], "trial_days": settings.trial_days, "trial_requires_card": bool(settings.trial_requires_card and settings.razorpay_configured),
+    return {"plans": [PlanOut.model_validate(p) for p in rows], "trial_days": settings.trial_days, "trial_requires_card": bool(settings.trial_requires_card and settings.razorpay_configured), "trial_plan": settings.trial_plan,
             "billing": _config(), "card_price_paise": settings.card_price_paise,
             "card_ordering_enabled": (bool(settings.card_price_paise) or bool(offers)) and settings.razorpay_configured, "card_offers": offers,
             "card_offer_note": "Card prices are one-time purchases, separate from any subscription. The included month is free access, not a subscription: nothing is charged when it ends."}
@@ -108,7 +108,8 @@ def checkout(body: CheckoutIn, request: Request, ctx: TenantContext = Depends(re
         rzp_plan_id = svc.ensure_razorpay_plan(ctx.db, client, plan)
         start_at = None
         from datetime import timedelta
-        free_until = sub.trial_ends_at if sub.status == "trialing" and sub.trial_ends_at else None
+        # The free trial belongs to ONE plan (settings.trial_plan, Growth). Choosing any other plan starts it today: the trial is not carried over to it.
+        free_until = sub.trial_ends_at if sub.status == "trialing" and sub.trial_ends_at and plan.code == settings.trial_plan else None
         promo = ent.active_promo(ctx.db, ctx.tenant_id)
         if promo and (free_until is None or promo[0].ends_at > free_until):
             free_until = promo[0].ends_at

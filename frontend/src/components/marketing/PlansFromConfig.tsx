@@ -36,7 +36,7 @@ export function PlanCards() {
   const rec = plans.find((p) => p.code === "growth")?.code ?? plans[Math.floor(plans.length / 2)]?.code;
   return (
     <>
-      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial. {trialTerms(data.trial_requires_card ?? true)}</p>
+      <p className="mb-8 text-center text-[15px] text-m-muted">{data.trial_days}-day free trial on Growth. {trialTerms(data.trial_requires_card ?? true)}</p>
       <div className="grid gap-3 md:grid-cols-3">
         {plans.map((p, i) => {
           const hot = p.code === rec;

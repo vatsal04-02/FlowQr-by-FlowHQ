@@ -396,7 +396,7 @@ def test_card_required_trial_is_locked_until_a_card_is_authorised(rzp, biz_a):
     s = biz_a.get("/billing/subscription").json()
     assert s["card_required"] is True and s["active"] is False and s["inactive_reason"] == "card_required" and s["status"] == "trialing"
     # checkout still works while locked, and defers the first charge until the trial ends
-    sid = start_checkout(biz_a, "starter")["subscription_id"]
+    sid = start_checkout(biz_a, "growth")["subscription_id"]
     start_at = [c for c in rzp.calls if c[0] == "create_subscription"][0][2]
     assert start_at and start_at > time.time() + (settings.trial_days - 1) * 86400
     rzp.subs[sid]["status"] = "authenticated"  # mandate authorised, nothing charged yet
@@ -410,3 +410,20 @@ def test_card_required_trial_is_locked_until_a_card_is_authorised(rzp, biz_a):
 def test_card_not_required_by_default_for_new_trials(biz_a):
     s = biz_a.get("/billing/subscription").json()
     assert s["card_required"] is False and s["active"] is True
+
+
+def test_only_the_trial_plan_is_free_during_the_trial(rzp, biz_a, biz_b):
+    """Growth carries the free trial: its first charge is scheduled for the end of the trial. Any other plan is charged from today (no start_at)."""
+    assert settings.trial_plan == "growth"
+    start_checkout(biz_a, "growth")
+    start_checkout(biz_b, "starter")
+    starts = {c[1]: c[2] for c in rzp.calls if c[0] == "create_subscription"}
+    assert len(starts) == 2
+    deferred = [v for v in starts.values() if v]
+    immediate = [v for v in starts.values() if not v]
+    assert len(deferred) == 1 and deferred[0] > time.time() + (settings.trial_days - 1) * 86400
+    assert len(immediate) == 1
+
+
+def test_the_plans_endpoint_names_the_trial_plan(client):
+    assert client.get("/api/v1/billing/plans").json()["trial_plan"] == "growth"
