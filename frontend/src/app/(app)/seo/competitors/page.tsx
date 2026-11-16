@@ -66,7 +66,7 @@ export default function CompetitorsPage() {
             {d.competitors.length === 0 ? <p className="p-3 text-sm text-muted">No other business appeared in the stored results.</p> : (
               <div className="overflow-x-auto">
                 <table className="dt min-w-[760px]">
-                  <thead><tr><th>Business</th><th>Rating</th><th>Reviews</th><th>Change in reviews</th><th>Where they appear</th><th className="!text-right">Last seen</th>{isAdmin && <th><span className="sr-only">Follow</span></th>}</tr></thead>
+                  <thead><tr><th>Business</th><th>Rating</th><th>Reviews</th><th>Change in reviews</th><th>Where they appear</th><th className="!text-right">Last seen</th>{isAdmin && <th aria-label="Follow"></th>}</tr></thead>
                   <tbody>{d.competitors.map((c) => (
                     <tr key={c.place_id ?? c.name}>
                       <td className="font-medium">{c.name ?? "Unnamed place"}</td>
@@ -92,9 +92,9 @@ export default function CompetitorsPage() {
                       <p className="truncate font-semibold">{c.name}</p>
                       <p className="mt-0.5 text-[13px] text-muted">{c.rating === null ? "–" : c.rating.toFixed(1)}&nbsp;&#9733; · {c.reviews === null ? "–" : fmtNum(c.reviews)} reviews as last seen {when(c.observed_at)}</p>
                       <p className="mt-0.5 text-[13px] text-muted">Appeared in <b className="num text-ink">{c.visibility.appeared_in}</b> of {c.visibility.of_checks} checks · top 10 in {c.visibility.in_top10} · above you in {c.visibility.ahead_of_you}</p>
-                      <p className="mt-0.5 text-xs text-muted">{c.change ? <>Reviews {c.change.reviews_change >= 0 ? "+" : ""}{c.change.reviews_change}{c.change.rating_change !== null ? `, rating ${c.change.rating_change >= 0 ? "+" : ""}${c.change.rating_change}` : ""} between {when(c.change.from)} and {when(c.change.to)}</> : `${c.observations} observation${c.observations === 1 ? "" : "s"} so far: a change needs two on different days.`}</p>
+                      <p className="mt-0.5 text-xs text-muted">{c.change ? <>Reviews {c.change.reviews_change >= 0 ? "+" : ""}{c.change.reviews_change}{c.change.rating_change ? `, rating ${c.change.rating_change > 0 ? "+" : ""}${c.change.rating_change}` : ""} between {when(c.change.from)} and {when(c.change.to)}</> : `${c.observations} observation${c.observations === 1 ? "" : "s"} so far: a change needs two on different days.`}</p>
                     </div>
-                    <div className="text-accent" aria-hidden>{c.series.filter((p) => p.reviews !== null).length >= 2 && <Sparkline id={`sp-${c.id}`} values={c.series.filter((p) => p.reviews !== null).map((p) => p.reviews as number)} width={96} height={30} />}</div>
+                    <div className="text-accent" aria-hidden>{c.series.filter((p) => p.reviews !== null).length >= 2 && <Sparkline id={`sp-${c.id}`} values={c.series.filter((p) => p.reviews !== null).map((p) => p.reviews as number)} width={96} height={30} fit />}</div>
                     {isAdmin && <button type="button" disabled={busy === c.id} onClick={() => void unpin(c.id)} className="inline-flex min-h-9 items-center gap-1 justify-self-start rounded-full bg-surface-2 px-3 text-[13px] font-semibold hover:bg-surface-3 disabled:opacity-50 sm:justify-self-end"><PinOff className="h-3.5 w-3.5" aria-hidden />Unfollow</button>}
                   </li>
                 ))}

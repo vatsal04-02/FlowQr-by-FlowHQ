@@ -52,7 +52,7 @@ export function SectionNav({ path }: { path: string }) {
           return (
             <li key={s.id}>
               <Link href={sectionHref(s)} aria-current={on ? "page" : undefined}
-                className={clsx("relative grid h-11 place-items-center rounded-full px-3.5 text-sm font-medium transition-colors xl:px-5", on ? "text-ink-on" : "text-ink hover:bg-surface-2")}>
+                className={clsx("relative grid h-11 place-items-center rounded-full px-2.5 text-sm font-medium transition-colors xl:px-3 min-[1400px]:px-5", on ? "text-ink-on" : "text-ink hover:bg-surface-2")}>
                 {on && <motion.span layoutId="fq-section-indicator" aria-hidden className="absolute inset-0 rounded-full bg-ink-solid" transition={{ type: "spring", stiffness: 380, damping: 32 }} />}
                 <span className="relative whitespace-nowrap">{s.label}</span>
               </Link>

@@ -4,6 +4,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { HealthCard } from "@/components/agent/HealthCard";
 import { Growth } from "@/components/dashboard/Growth";
 import { AiReply, CardToReview } from "@/components/dashboard/HowItWorks";
+import { CompetitorCard, GoogleBand, ProfileCard, RatingTrend, VisibilityCard } from "@/components/overview/summary";
 import { Attention, Funnel, GoalCard, KeyTiles, Mentions, RatingCard, RecentActivity, ReviewTrend, Tile } from "@/components/overview/widgets";
 import { Alert, PageHeader } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
@@ -25,7 +26,9 @@ function rangeFor(days: Days) {
 }
 
 /**
- * Overview › Summary (PRD §6.1): "how is my Google profile doing?" on one screen, in the reference grid. Every number comes from the
+ * Workspace › Overview: the central business summary. Reputation first (rating, reviews, replies, growth), then what Google reports, local visibility, profile health,
+ * competitors and what to do next. Date range and location filters apply to the whole page (the location comes from the app-wide picker).
+ * (Originally PRD §6.1: "how is my Google profile doing?" on one screen.) Every number comes from the
  * existing APIs; a period is compared with the one before it by fetching that period for real, and anything without data says so
  * instead of showing a zero or a guess. Loading this page never calls Google: Google's numbers are the ones FlowQR's daily job stored.
  */
@@ -97,21 +100,30 @@ export default function Dashboard() {
       {o && isNew ? (
         <FirstRun />
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-flow-row-dense lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-flow-row-dense lg:grid-cols-2 xl:grid-cols-3">
+          {/* 1. reputation: rating, total reviews, new reviews, pending replies, review growth */}
           <RatingCard o={o} prev={p} locs={locs.data ?? []} days={days} loading={loading} googleConnected={googleConnected} />
           <KeyTiles o={o} prev={p} google={googleNow} days={days} loading={loading} />
           <ReviewTrend o={o} days={days} loading={loading} googleConnected={googleConnected} />
-          <GoalCard i={3} goal={tenant?.review_goal} canEdit={isAdmin} onSave={async (g) => {
+          {/* 2. what Google reports about the profile (explicit unavailable state until Google shares it) and local search visibility */}
+          <GoogleBand range={range} loc={loc} days={days} />
+          <VisibilityCard loc={loc} />
+          {/* 3. trends over time */}
+          <Growth className="rv lg:col-span-2" style={{ "--d": "360ms" } as CSSProperties} o={o} prev={p} range={range} loc={loc} days={days}
+            loading={loading || (prevOv.loading && !p)} error={ov.error} googleConnected={googleConnected} />
+          <ProfileCard loc={loc} />
+          <RatingTrend o={o} loading={loading} days={days} />
+          <CompetitorCard loc={loc} />
+          <GoalCard i={8} goal={tenant?.review_goal} canEdit={isAdmin} onSave={async (g) => {
             try { await api("/tenant", { method: "PATCH", body: { review_goal: g } }); await refresh(); toast(g ? "Goal saved." : "Goal cleared."); }
             catch (e) { toast(errorMessage(e), "error"); }
           }} />
-          <RecentActivity i={4} items={recent.data?.items ?? null} loading={recent.loading} error={recent.error} />
-          <Funnel i={5} o={o} loading={loading} />
-          <Growth className="rv lg:col-span-2" style={{ "--d": "360ms" } as CSSProperties} o={o} prev={p} range={range} loc={loc} days={days}
-            loading={loading || (prevOv.loading && !p)} error={ov.error} googleConnected={googleConnected} />
-          <Mentions i={7} ins={ins.data} loading={ins.loading} error={ins.error} />
-          <Attention i={8} todos={todos} loading={!o && !ov.error && !plan.data} noPlanYet={noPlanYet} tasksError={plan.error} />
-          <Tile i={9} label="How your business is doing" className="lg:col-span-2 xl:col-span-3"><HealthCard compact variant="strip" /></Tile>
+          {/* 4. what to do next */}
+          <Attention i={9} todos={todos} loading={!o && !ov.error && !plan.data} noPlanYet={noPlanYet} tasksError={plan.error} />
+          <RecentActivity i={10} items={recent.data?.items ?? null} loading={recent.loading} error={recent.error} />
+          <Mentions i={11} ins={ins.data} loading={ins.loading} error={ins.error} />
+          <Funnel i={12} o={o} loading={loading} />
+          <Tile i={13} label="How your business is doing" className="lg:col-span-2 xl:col-span-3"><HealthCard compact variant="strip" /></Tile>
         </div>
       )}
     </>

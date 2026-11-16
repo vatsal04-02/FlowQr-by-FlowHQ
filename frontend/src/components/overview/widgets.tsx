@@ -40,10 +40,10 @@ export function CountUp({ value, format = fmtNum }: { value: number; format?: (n
 }
 
 /** Card shell for the overview grid: reveal blur-to-sharp with a stagger, optional hover lift (only when the whole card is a target). */
-export function Tile({ children, className, i = 0, lift, label, labelledBy }: { children: ReactNode; className?: string; i?: number; lift?: boolean; label?: string; labelledBy?: string }) {
+export function Tile({ children, className, i = 0, lift, label, labelledBy, dense }: { children: ReactNode; className?: string; i?: number; lift?: boolean; label?: string; labelledBy?: string; dense?: boolean }) {
   return (
     <section aria-label={label} aria-labelledby={labelledBy} style={{ "--d": `${i * 60}ms` } as CSSProperties}
-      className={clsx("panel rv min-w-0 p-5 sm:p-6", lift && "lift", className)}>{children}</section>
+      className={clsx("panel rv min-w-0", dense ? "!rounded-[16px] p-4" : "p-5 sm:p-6", lift && "lift", className)}>{children}</section>
   );
 }
 
@@ -159,7 +159,7 @@ export function RatingCard({ o, prev, locs, days, loading, googleConnected }: {
             })}
           </ul>
         )}
-        {rows.length > 3 && <Link href="/overview/reports" className="mt-3 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">Compare all {rows.length} locations<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>}
+        {rows.length > 3 && <Link href="/analytics/reports" className="mt-3 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">Compare all {rows.length} locations<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>}
       </div>
     </Tile>
   );
@@ -215,11 +215,9 @@ export function KeyTiles({ o, prev, google, days, loading }: { o: Overview | nul
           spark={r.reply_rate_in_range === null ? undefined : <Ring pct={r.reply_rate_in_range * 100} size={46} stroke={6} label={`${Math.round(r.reply_rate_in_range * 100)}% of new reviews answered`} />}
           foot={r.reply_rate_in_range === null ? <span className="text-xs text-muted">No new reviews to answer</span>
             : <><DeltaChip cur={r.reply_rate_in_range} prev={prev?.reviews.reply_rate_in_range} kind="pts" days={days} />{r.avg_response_hours !== null && <span className="text-xs text-muted">Avg {fmtHours(Math.round(r.avg_response_hours))}</span>}</>} />
-        <StatTile i={2} label="Actions" href="/overview/performance" icon={<MousePointerClick className={ic} strokeWidth={1.75} aria-hidden />}
-          value={google.state === "ready" ? <CountUp value={google.current} /> : google.state === "loading" ? <Skeleton className="h-9 w-20" /> : "–"}
-          foot={google.state === "ready" ? <><DeltaChip cur={google.current} prev={google.previous} kind="pct" days={28} /><span className="text-xs text-muted">On Google · 28 days</span></>
-            : google.state === "not-connected" ? <Link href="/gbp/locations" className="text-xs font-semibold text-accent-ink hover:underline">Connect Google</Link>
-            : <span className="text-xs text-muted">{google.state === "unavailable" ? "Not shared by Google yet" : " "}</span>} />
+        <StatTile i={2} label="Waiting for a reply" href="/gbp/reviews?state=none" icon={<MessageSquare className={ic} strokeWidth={1.75} aria-hidden />}
+          value={<CountUp value={r.awaiting_reply} />}
+          foot={r.awaiting_reply === 0 ? <span className="text-xs text-muted">Every review is answered</span> : <span className="text-xs text-muted">Replies need your approval</span>} />
         <StatTile i={3} label="Card scans" href="/gbp/cards" icon={<ScanLine className={ic} strokeWidth={1.75} aria-hidden />}
           value={o.cards.length === 0 ? "–" : <CountUp value={e.scans} />} spark={o.cards.length === 0 ? undefined : <Sparkline id="sp-scan" values={e.series.map((p) => Number(p.scan) || 0)} />}
           foot={o.cards.length === 0 ? <Link href="/gbp/cards" className="text-xs font-semibold text-accent-ink hover:underline">No card yet</Link>
@@ -472,7 +470,7 @@ export function Mentions({ ins, loading, error, i }: { ins: Insights | null; loa
           )}
         </>
       )}
-      <LinkButton href="/ai/insights" variant="secondary" size="sm" className="mt-5" icon={<Sparkles className="h-4 w-4" aria-hidden />}>See all insights</LinkButton>
+      <LinkButton href="/reputation/insights" variant="secondary" size="sm" className="mt-5" icon={<Sparkles className="h-4 w-4" aria-hidden />}>See all insights</LinkButton>
     </Tile>
   );
 }
