@@ -1,4 +1,4 @@
-"""Migration 0034 (Cashfree billing columns, plan display names Launch / Growth / Scale): one clean path from production's revision 0033, additive, reversible, safe for existing rows (production's four trial subscriptions hold NULL in the dropped card_status). Runs real alembic against the PostgreSQL test database."""
+"""Migration 0037 (Cashfree billing columns, plan display names Launch / Growth / Scale): one clean path from production's revision 0036, additive, reversible, safe for existing rows (production's four trial subscriptions hold NULL in the dropped card_status). Runs real alembic against the PostgreSQL test database."""
 import os
 import subprocess
 import sys
@@ -38,13 +38,13 @@ def plans():
     return {r[0]: (r[1], r[2]) for r in owner_query("SELECT code, name, price_paise FROM billing_plans WHERE code IN ('starter', 'growth', 'pro')")}
 
 
-def test_the_history_is_one_straight_line_from_production_revision_0033():
+def test_the_history_is_one_straight_line_from_production_head_0036():
     sd = ScriptDirectory.from_config(Config(os.path.join(BACKEND, "alembic.ini")))
-    assert sd.get_heads() == ["0034"]
-    assert sd.get_revision("0034").down_revision == "0033"  # production is stamped 0033: this must be the next revision after it
-    assert sd.get_revision("0033").down_revision == "0032"
+    assert sd.get_heads() == ["0037"]  # one head
+    assert sd.get_revision("0037").down_revision == "0036"  # production is stamped 0036: this is the next revision after it
     chain = [r.revision for r in sd.walk_revisions()]
-    assert chain[:4] == ["0034", "0033", "0032", "0031"]  # newest first
+    assert chain[:5] == ["0037", "0036", "0035", "0033", "0032"]  # newest first
+    assert not [f for f in os.listdir(os.path.join(BACKEND, "alembic", "versions")) if f.startswith("0034")]  # no stray second file with the old id
 
 
 def test_at_head_everything_is_present_and_the_plans_have_their_final_names_and_unchanged_prices_and_codes():
@@ -57,29 +57,29 @@ def test_at_head_everything_is_present_and_the_plans_have_their_final_names_and_
     assert owner_query("SELECT 1 FROM pg_constraint WHERE conname = 'uq_subscriptions_cashfree_subscription_id'") and owner_query("SELECT 1 FROM pg_constraint WHERE conname = 'uq_payments_cashfree_payment_id'")
 
 
-def test_downgrade_to_0033_removes_only_the_new_columns_restores_the_old_names_and_the_empty_card_status_then_upgrade_restores_it_all():
+def test_downgrade_to_0036_removes_only_the_new_columns_restores_the_old_names_and_card_status_then_upgrade_restores_it_all():
     biz = make_business()  # a real subscription row that must survive both directions
     before_rows = owner_query("SELECT count(*) FROM subscriptions")[0][0]
     before_pay = owner_query("SELECT count(*) FROM payments")[0][0]
     before_plan = owner_query("SELECT plan, status FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id)[0]
-    alembic("downgrade", "0033")
+    alembic("downgrade", "0036")
     try:
-        assert absent() and "card_status" in cols("subscriptions")  # exactly 0033's shape
+        assert absent() and "card_status" in cols("subscriptions")  # exactly 0036's shape
         assert plans() == {"starter": ("Starter", 49900), "growth": ("Growth", 79900), "pro": ("Pro", 149900)}
         assert owner_query("SELECT count(*) FROM subscriptions")[0][0] == before_rows and owner_query("SELECT count(*) FROM payments")[0][0] == before_pay
         assert owner_query("SELECT plan, status FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id)[0] == before_plan
         for t in ("razorpay_subscription_id", "razorpay_plan_id"):  # historical Razorpay columns untouched
             assert any(t in cols(tbl) for tbl in ("subscriptions", "billing_plans"))
-        assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0033"
+        assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0036"
     finally:
         alembic("upgrade", "head")
     assert present() and plans() == {"starter": ("Launch", 49900), "growth": ("Growth", 79900), "pro": ("Scale", 149900)}
     assert owner_query("SELECT plan, status FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id)[0] == before_plan
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0034"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0037"
 
 
 def test_a_name_an_administrator_changed_is_never_overwritten_by_the_rename():
-    alembic("downgrade", "0033")
+    alembic("downgrade", "0036")
     try:
         owner_exec("UPDATE billing_plans SET name = 'Custom Scale' WHERE code = 'pro'")
     finally:
@@ -91,8 +91,8 @@ def test_a_name_an_administrator_changed_is_never_overwritten_by_the_rename():
     assert plans()["pro"][0] == "Scale"
 
 
-def test_production_shape_0033_upgrades_without_touching_card_status_or_any_row():
-    alembic("downgrade", "0033")
+def test_production_shape_0036_upgrades_without_touching_card_status_or_any_row():
+    alembic("downgrade", "0036")
     try:
         assert owner_query("SELECT count(*) FROM subscriptions WHERE card_status IS NOT NULL")[0][0] == 0
         rows = owner_query("SELECT count(*) FROM subscriptions")[0][0]

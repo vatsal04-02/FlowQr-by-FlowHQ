@@ -168,7 +168,7 @@ print(g.id)
       await toast('Draft saved');
     });
     await step('performance: search terms keep Google\'s "fewer than" values', async () => {
-      await page.goto('/overview/performance');
+      await page.goto('/analytics/performance');
       await page.getByRole('heading', { name: 'What people searched' }).waitFor({ timeout: 20000 });
       await page.getByText('< 15').waitFor();
       await page.getByRole('heading', { name: 'What these numbers mean' }).waitFor();
@@ -201,7 +201,7 @@ print(g.id)
     });
     if (process.env.SHOOT) {  // phone-width pass of the same pages (screenshots only; reviewed by hand)
       await page.setViewportSize({ width: 390, height: 844 });
-      for (const [n, u] of [['gbp', '/gbp'], ['photos', '/gbp/photos'], ['info', '/gbp/info'], ['posts', '/gbp/posts'], ['perf', '/overview/performance'], ['ai', '/ai'], ['automations', '/ai/automations'], ['notfound', '/no-such-page']]) {
+      for (const [n, u] of [['gbp', '/gbp'], ['photos', '/gbp/photos'], ['info', '/gbp/info'], ['posts', '/gbp/posts'], ['perf', '/analytics/performance'], ['ai', '/ai'], ['automations', '/ai/automations'], ['notfound', '/no-such-page']]) {
         await page.goto(u); await page.waitForTimeout(1500);
         await page.screenshot({ path: path.join(OUT, `mobile-${n}.png`), fullPage: true }).catch(() => {});
       }
@@ -216,7 +216,7 @@ print(g.id)
       sql(`UPDATE google_locations SET place_id = 'ChIJ-e2e-seeded', lat = 26.8467, lng = 80.9462 WHERE id = '${gid}';`);
       await page.goto('/gbp');
       await page.getByRole('link', { name: /Local ranking/ }).first().click();
-      await page.waitForURL('**/gbp/rank');
+      await page.waitForURL('**/seo/rank');
       await page.getByRole('heading', { name: 'Where you appear for the searches that matter' }).waitFor({ timeout: 20000 });
       await page.getByLabel('Add a search term').fill('physiotherapy');
       await page.getByRole('button', { name: 'Add', exact: true }).click();
@@ -231,7 +231,7 @@ print(g.id)
       await page.getByText(/checks left this month/).waitFor();
       expect(!(await page.content()).includes('AIza'), 'the Places key must never reach the browser');
       await page.goto('/overview/visibility');
-      await page.waitForURL('**/gbp/rank');
+      await page.waitForURL('**/seo/rank');
       await page.getByRole('button', { name: 'Remove physiotherapy' }).click();
       await toast('Removed');
     });

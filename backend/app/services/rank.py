@@ -146,6 +146,7 @@ def check_keyword(db: Session, gl: GoogleLocation, kw: RankKeyword, *, source: s
     if (why := api_usage.places_budget_problem(db, gl.tenant_id, 1, feature="rank_check", location_id=gl.id)):
         raise RankError(why, 429)
     row = RankCheck(tenant_id=gl.tenant_id, keyword_id=kw.id, google_location_id=gl.id, status="error", source=source, top_results=[])
+    results: list[dict] = []
     try:
         lat, lng = _ensure_center(db, client, gl)
         row.center_lat, row.center_lng = lat, lng
@@ -164,6 +165,9 @@ def check_keyword(db: Session, gl: GoogleLocation, kw: RankKeyword, *, source: s
         row.error = str(exc)
     db.add(row)
     db.flush()
+    if row.status == "ok":
+        from app.services import competitors as competitors_svc  # snapshots for followed competitors, from the results just received (no extra Google call)
+        competitors_svc.record_from_check(db, gl, kw, row, results)
     return row
 
 

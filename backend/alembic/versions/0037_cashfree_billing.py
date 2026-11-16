@@ -1,12 +1,14 @@
 """Cashfree recurring billing, plan display names Launch / Growth / Scale.
 
-Revision ID: 0034
-Revises: 0033
+Revision ID: 0037
+Revises: 0036
 
-Production is at revision 0033 (`trial_card_required`: the nullable `subscriptions.card_status` column of the Razorpay card-on-file trial), a real, kept revision. That feature is withdrawn
-in favour of Cashfree payment authorisation, but this migration deliberately LEAVES the column in place (every production row holds NULL there): it is unused by the new code, harmless, and
-keeping it means the release that is running today still works against the migrated schema, so a rollback of the application image needs no database change. A later cleanup migration
-may drop it once the release is settled.
+Numbering: this revision was written as 0034 (parent 0032), then 0033 (card-on-file) and Phase 2's 0035 and 0036 reached production first, so it sits on top of production's head 0036
+(see docs/MIGRATION_RECONCILIATION.md, case 1). Nothing Cashfree-related had ever been applied anywhere real, so the renumbering moves no data.
+
+`subscriptions.card_status` (revision 0033, the withdrawn Razorpay card-on-file trial) is deliberately LEFT in place: every production row holds NULL there, the new code does not use it, and
+keeping it means the release that is running when this migration is applied still works against the migrated schema, so an application rollback needs no database change. A later cleanup
+migration may drop it once the release is settled.
 
 Plan display names: the internal codes (starter, growth, pro) and the prices do not change. `billing_plans.name` becomes Launch / Growth / Scale. A row is renamed only if it
 still carries the name migration 0029 gave it, so a name an administrator has edited is never overwritten.
@@ -14,8 +16,8 @@ still carries the name migration 0029 gave it, so a name an administrator has ed
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0034"
-down_revision = "0033"
+revision = "0037"
+down_revision = "0036"
 branch_labels = None
 depends_on = None
 

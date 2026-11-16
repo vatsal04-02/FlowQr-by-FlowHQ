@@ -221,3 +221,7 @@ Sections 5 and 12 were written when production was at `0032` and `0033` existed 
 * `0033_trial_card_required.py` is restored byte-for-byte from `phase-2/commercial-readiness` (a real revision, not a placeholder).
 * `0034_cashfree_billing` now has `down_revision = "0033"`. It deliberately **leaves** the unused `card_status` column in place (production: 4 trialing subscriptions, all NULL, checked read-only), so the release running today still works against the migrated schema and an application rollback needs no database change. A later cleanup migration may drop it.
 * The production path is `0033 → 0034`. `phase-2/commercial-readiness` has since added `0035` and `0036` (both descend from 0033): when that branch and this one are merged, `0035` must be re-pointed to `down_revision = "0034"` so there is a single head.
+
+## 16. Final numbering: Cashfree is revision 0037 on top of production's 0036 (2026-11-16)
+
+Between sections 15 and the deployment, Phase 2 (`prod-12c5ef1`) reached production with `0035_gbp_metric_daily` and `0036_pinned_competitors`, so production is stamped **0036**. Following `docs/MIGRATION_RECONCILIATION.md` (case 1, "Phase 2 ships first"), the Cashfree migration is `0037_cashfree_billing.py` (`revision = "0037"`, `down_revision = "0036"`). Everything in section 5 otherwise stands, and `card_status` (revision 0033) is still left in place (section 15). The production path is `0036 → 0037`.

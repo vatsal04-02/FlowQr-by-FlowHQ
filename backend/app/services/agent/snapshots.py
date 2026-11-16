@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import GbpSnapshot, GoogleConnection, GoogleConnectionStatus, GoogleLocation
 from app.models.base import utcnow
 from app.services import google as g
+from app.services import gbp_metrics
 from app.services.google.provider import PERFORMANCE_METRICS
 from app.services.google.tokens import get_access_token, note_not_approved
 
@@ -88,6 +89,7 @@ def refresh(db: Session, gloc: GoogleLocation, *, provider=None, today: date | N
         first = (last.replace(day=1) - timedelta(days=62)).replace(day=1)
         keywords = attempt("search keywords", lambda: provider.search_keywords(token, gloc.google_location_name, f"{first:%Y-%m}", f"{last:%Y-%m}", limit=100))
     if perf is not None:
+        gbp_metrics.record(db, gloc, perf)  # history: the exact daily points Google returned, with the fetch time (no back-fill from this summary)
         snap.performance = {"current": _sum_window(perf, cur_start, end), "previous": _sum_window(perf, prev_start, prev_end),
                             "window_days": 28, "from": cur_start.isoformat(), "to": end.isoformat(), "metrics": ACTION_METRICS}
         if keywords is not None:  # only Google's own terms, top 25 by count, with the months they cover

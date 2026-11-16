@@ -156,7 +156,7 @@ export default function ReplyAssistantPage() {
               <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted"><Lock className="h-3 w-3" aria-hidden />Always on</span>
             </li>
           </ul>
-          <LinkButton href="/ai/voice" variant="secondary" size="sm" className="mt-4">Brand voice</LinkButton>
+          <LinkButton href="/settings/ai/voice" variant="secondary" size="sm" className="mt-4">Brand voice</LinkButton>
         </Panel>
 
         <section id="drafts" className="panel rv scroll-mt-6 p-5 sm:p-6 xl:col-span-2" aria-labelledby="drafts-h">

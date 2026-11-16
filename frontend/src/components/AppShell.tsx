@@ -168,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <LocationScopeProvider>
     <div className="min-h-dvh bg-canvas-outer lg:p-5">
       <div className="mx-auto min-h-dvh w-full max-w-[1440px] bg-canvas px-4 pb-32 pt-4 sm:px-6 lg:min-h-[calc(100dvh-40px)] lg:rounded-frame lg:px-10 lg:pb-10 lg:pt-6">
-        <header className="relative z-50 flex items-center justify-between gap-3 lg:gap-6">
+        <header className="relative z-50 flex items-center justify-between gap-3 lg:gap-3 xl:gap-6">
           <Link href="/overview" aria-label="FlowQR overview" className="pill flex h-14 shrink-0 items-center gap-2.5 pl-2 pr-5 text-[15px] font-semibold">
             <span className="hero-grad grid h-10 w-10 place-items-center rounded-full !shadow-none"><LogoMark size={20} variant="onAccent" /></span>FlowQR
           </Link>

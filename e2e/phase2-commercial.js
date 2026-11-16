@@ -112,10 +112,10 @@ db.commit()
 
     await step('Launch: the autonomy area is closed with a message that names what to upgrade for', async () => {
       sql(`UPDATE subscriptions SET plan = 'starter', status = 'active', source = 'manual', features = (SELECT features FROM billing_plans WHERE code = 'starter') WHERE tenant_id = '${tenant.id}'; UPDATE promotional_grants SET status = 'ended' WHERE tenant_id = '${tenant.id}';`);
-      await page.goto('/ai/autonomy');
+      await page.goto('/settings/ai/autonomy');
       await page.getByText(/Autonomous SEO maintenance isn't included in your current plan/).waitFor({ timeout: 30000 });
       await page.screenshot({ path: path.join(OUT, 'p2-2-starter-gate.png'), fullPage: true });
-      await page.goto('/gbp/rank');
+      await page.goto('/seo/rank');
       await page.getByText(/Keyword tracking isn't included|Google connection|isn't included in your current plan/).first().waitFor({ timeout: 30000 });
       sql(`UPDATE subscriptions SET plan = 'growth', features = (SELECT features FROM billing_plans WHERE code = 'growth') WHERE tenant_id = '${tenant.id}';`);
     });

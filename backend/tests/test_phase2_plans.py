@@ -434,7 +434,11 @@ def test_a_tampered_webhook_changes_nothing(rzp, client):
 
 # ============================================================================ map allowances: off until approved, set by a platform admin
 
-def test_maps_stay_off_on_a_plan_that_includes_them_until_the_owner_approves_the_numbers(connected, fake, gid):  # noqa: F811
+def test_maps_stay_off_on_a_plan_that_includes_them_until_the_owner_approves_the_numbers(connected, fake, gid, monkeypatch):  # noqa: F811
+    # the platform guards are satisfied here (TEST values): this test is about the per-plan allowances, which still fail closed
+    monkeypatch.setattr(settings, "rank_grid_enabled", True)
+    monkeypatch.setattr(settings, "rank_platform_daily_cap", 100000)
+    monkeypatch.setattr(settings, "rank_cost_per_call_usd", 0.001)
     owner_exec("UPDATE subscriptions SET limits = '{}'::jsonb WHERE tenant_id = :t", t=connected.tenant_id)
     ov = connected.get(f"/gbp/{gid}/rank/grids").json()
     assert ov["allowance"]["enabled"] is False and ov["allowance"]["reason"] == "not_configured"

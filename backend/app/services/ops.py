@@ -244,6 +244,25 @@ def check_rank_quota(db: Session) -> dict | None:
                "Failed checks usually mean the key, billing or restrictions." if failed >= 5 else "")
 
 
+def check_geo_grid(db: Session) -> dict:
+    """Geo-grid (maps) spend control. Off is a normal, healthy state. When on, warn at settings.rank_alert_pct of a platform cap and go critical at 100%."""
+    from app.services import rank_grid as rg
+
+    guard = rg.platform_guard()
+    if guard == "switched_off":
+        return row("geo_grid", "Geo-grid maps", "ok", "Switched off (RANK_GRID_ENABLED is false). No map scan can spend Google searches")
+    if guard:
+        return row("geo_grid", "Geo-grid maps", "critical", f"Switched on but not safe to run: {rg.GUARD_MESSAGES[guard]}", "Set RANK_PLATFORM_DAILY_CAP or RANK_PLATFORM_MONTHLY_CAP and the search price, or switch maps off.")
+    parts, worst = [], "ok"
+    for label, used, cap in (("today", rg.platform_used_today(db), settings.rank_platform_daily_cap), ("this month", rg.platform_used_this_month(db), settings.rank_platform_monthly_cap)):
+        if cap > 0:
+            pct = 100 * used / cap
+            parts.append(f"{used:,} of {cap:,} searches {label} ({pct:.0f}%)")
+            worst = "critical" if pct >= 100 else ("warn" if pct >= settings.rank_alert_pct and worst != "critical" else worst)
+    est = f"; about ${rg.platform_used_this_month(db) * settings.rank_cost_per_call_usd:,.2f} this month at the configured price"
+    return row("geo_grid", "Geo-grid maps", worst, "On. " + "; ".join(parts) + est, "Raise the cap deliberately or switch maps off (RANK_GRID_ENABLED=false)." if worst != "ok" else "")
+
+
 def check_subscriptions(db: Session) -> list[dict]:
     now = utcnow()
     past_due = db.scalar(select(func.count()).select_from(Subscription).where(Subscription.status == "past_due")) or 0
@@ -310,6 +329,7 @@ def run_checks(db: Session) -> dict:
     rk = check_rank_quota(db)
     if rk:
         checks.append(rk)
+    checks.append(check_geo_grid(db))
     checks += [*check_subscriptions(db), check_backup(), *check_monitoring_and_mail()]
     worst = max((c["status"] for c in checks), key=lambda s: RANK[s])
     return {"status": worst, "checked_at": utcnow().isoformat(), "counts": {s: sum(1 for c in checks if c["status"] == s) for s in RANK}, "checks": checks}

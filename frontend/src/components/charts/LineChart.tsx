@@ -11,6 +11,29 @@ function niceMax(v: number) {
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow;
 }
 
+/** Smooth line through the points (monotone cubic, so it never dips below a real value or overshoots between two days). */
+export function smoothPath(pts: [number, number][]) {
+  const n = pts.length;
+  if (n === 0) return "";
+  if (n < 3) return pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const dx: number[] = [], m: number[] = [];
+  for (let i = 0; i < n - 1; i++) { dx[i] = pts[i + 1][0] - pts[i][0] || 1; m[i] = (pts[i + 1][1] - pts[i][1]) / dx[i]; }
+  const t: number[] = [m[0]];
+  for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+  t[n - 1] = m[n - 2];
+  for (let i = 0; i < n - 1; i++) {
+    if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+    const a = t[i] / m[i], b = t[i + 1] / m[i], h = Math.hypot(a, b);
+    if (h > 3) { t[i] = (3 * a / h) * m[i]; t[i + 1] = (3 * b / h) * m[i]; }
+  }
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    d += ` C${(pts[i][0] + h).toFixed(1)},${(pts[i][1] + t[i] * h).toFixed(1)} ${(pts[i + 1][0] - h).toFixed(1)},${(pts[i + 1][1] - t[i + 1] * h).toFixed(1)} ${pts[i + 1][0].toFixed(1)},${pts[i + 1][1].toFixed(1)}`;
+  }
+  return d;
+}
+
 function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(0); // 0 until measured, so the SVG never forces the layout wider than its container
@@ -37,7 +60,8 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
   const yMax = useMemo(() => yMaxProp ?? niceMax(Math.max(0, ...data.flatMap((d) => series.map((s) => Number(d[s.key]) || 0)))), [data, series, yMaxProp]);
   const x = (i: number) => pad.l + (data.length <= 1 ? iw / 2 : (i / (data.length - 1)) * iw);
   const y = (v: number) => pad.t + ih - (v / yMax) * ih;
-  const ticks = yMax <= 6 ? Array.from({ length: yMax + 1 }, (_, i) => i) : [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(t * yMax));
+  // whole-number ticks only: quarters when they divide evenly, halves otherwise
+  const ticks = yMax <= 6 && Number.isInteger(yMax) ? Array.from({ length: yMax + 1 }, (_, i) => i) : (yMax % 4 === 0 ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.5, 1]).map((t) => t * yMax);
   const xStep = Math.max(1, Math.ceil(data.length / Math.max(2, Math.floor(iw / 80))));
   const label = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
@@ -48,6 +72,7 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
   const empty = data.length === 0 || series.every((s) => data.every((d) => !Number(d[s.key])));
   // With `gaps`, a zero means "no data that day" (e.g. average rating), so the line breaks instead of plunging to 0.
   const pathFor = (key: string) => {
+    if (!gaps) return smoothPath(data.map((row, i) => [x(i), y(Number(row[key]) || 0)] as [number, number]));
     let d = "", pen = false;
     data.forEach((row, i) => {
       const v = Number(row[key]) || 0;
@@ -59,7 +84,7 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
 
   return (
     <div>
-      <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-700">
+      <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-medium text-ink-700">
         {series.map((s) => (
           <li key={s.key} className="flex items-center gap-2">
             <svg width="26" height="8" aria-hidden><line x1="0" y1="4" x2="26" y2="4" stroke={s.color} strokeWidth="3" strokeDasharray={s.dash} strokeLinecap="round" /></svg>{s.label}
@@ -86,7 +111,7 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
           <defs>
             {series.map((s) => (
               <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={s.area ?? s.color} stopOpacity=".2" /><stop offset="100%" stopColor={s.area ?? s.color} stopOpacity="0" />
+                <stop offset="0%" stopColor={s.area ?? s.color} stopOpacity=".32" /><stop offset="100%" stopColor={s.area ?? s.color} stopOpacity="0" />
               </linearGradient>
             ))}
           </defs>
@@ -94,17 +119,25 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
           <g key={`${data.length}-${data[0]?.date}-${data[data.length - 1]?.date}`} style={{ animation: "chart-reveal .7s cubic-bezier(.22,1,.36,1) both" }}>
             {series.length > 0 && data.length > 1 && !gaps && (
               <path fill={`url(#${gid}-${series[0].key})`} stroke="none"
-                d={`${data.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(Number(d[series[0].key]) || 0).toFixed(1)}`).join(" ")} L${x(data.length - 1).toFixed(1)},${y(0)} L${x(0).toFixed(1)},${y(0)} Z`} />
+                d={`${pathFor(series[0].key)} L${x(data.length - 1).toFixed(1)},${y(0)} L${x(0).toFixed(1)},${y(0)} Z`} />
             )}
             {series.map((s) => (
               <g key={s.key}>
-                <path fill="none" stroke={s.color} strokeWidth={s.dash ? 1.5 : 2.25} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash} d={pathFor(s.key)} />
+                <path fill="none" stroke={s.color} strokeWidth={s.dash ? 1.75 : 2.75} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash} d={pathFor(s.key)} />
                 {gaps && data.map((d, i) => Number(d[s.key]) > 0 && <circle key={d.date} cx={x(i)} cy={y(Number(d[s.key]))} r="2.5" fill={s.color} />)}
               </g>
             ))}
+            {/* the latest value, marked so the eye lands on where things stand now */}
+            {!gaps && !empty && data.length > 1 && (
+              <g>
+                <circle cx={x(data.length - 1)} cy={y(Number(data[data.length - 1][series[0].key]) || 0)} r="9" fill={series[0].color} opacity=".16" />
+                <circle cx={x(data.length - 1)} cy={y(Number(data[data.length - 1][series[0].key]) || 0)} r="4.5" fill={series[0].color} stroke="rgb(var(--c-surface))" strokeWidth="2" />
+              </g>
+            )}
           </g>
           {active !== null && data[active] && (
             <g>
+              <rect x={x(active) - 9} y={pad.t} width="18" height={ih} rx="9" fill="rgb(var(--c-ink) / .05)" />
               <line x1={x(active)} x2={x(active)} y1={pad.t} y2={pad.t + ih} stroke="rgb(var(--c-ink-300))" strokeDasharray="3 3" />
               {series.map((s) => <circle key={s.key} cx={x(active)} cy={y(Number(data[active][s.key]) || 0)} r="5" fill="rgb(var(--c-surface))" stroke={s.color} strokeWidth="3" />)}
             </g>
@@ -112,10 +145,15 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
         </svg>}
         {empty && <p className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-ink-400">No data in this period yet</p>}
         {active !== null && data[active] && (
-          <div className="pointer-events-none absolute top-2 z-10 min-w-[140px] rounded-inner bg-ink-solid p-2.5 text-xs text-ink-on shadow-lift"
-            style={{ left: Math.min(Math.max(x(active) - 70, 0), width - 150) }}>
-            <p className="mb-1 font-semibold">{label(data[active].date)}</p>
-            {series.map((s) => <p key={s.key} className="flex justify-between gap-3 opacity-90"><span>{s.label}</span><b className="tabular-nums">{String(data[active][s.key] ?? 0)}</b></p>)}
+          <div className="pointer-events-none absolute top-2 z-10 min-w-[150px] rounded-xl bg-surface p-3 text-xs text-ink shadow-lift ring-1 ring-ink-100"
+            style={{ left: Math.min(Math.max(x(active) - 75, 0), width - 160) }}>
+            <p className="mb-1.5 font-semibold text-ink-500">{label(data[active].date)}</p>
+            {series.map((s) => (
+              <p key={s.key} className="flex items-center justify-between gap-4 py-0.5">
+                <span className="flex items-center gap-2"><svg width="14" height="6" aria-hidden><line x1="0" y1="3" x2="14" y2="3" stroke={s.color} strokeWidth="3" strokeDasharray={s.dash ? "3 2" : undefined} strokeLinecap="round" /></svg>{s.label}</span>
+                <b className="text-[13px] tabular-nums">{String(data[active][s.key] ?? 0)}</b>
+              </p>
+            ))}
           </div>
         )}
       </div>

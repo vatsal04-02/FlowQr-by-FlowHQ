@@ -7,6 +7,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Sparkline } from "@/components/charts/Sparkline";
 import { LinkButton } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
@@ -39,10 +40,10 @@ export function CountUp({ value, format = fmtNum }: { value: number; format?: (n
 }
 
 /** Card shell for the overview grid: reveal blur-to-sharp with a stagger, optional hover lift (only when the whole card is a target). */
-export function Tile({ children, className, i = 0, lift, label, labelledBy }: { children: ReactNode; className?: string; i?: number; lift?: boolean; label?: string; labelledBy?: string }) {
+export function Tile({ children, className, i = 0, lift, label, labelledBy, dense }: { children: ReactNode; className?: string; i?: number; lift?: boolean; label?: string; labelledBy?: string; dense?: boolean }) {
   return (
     <section aria-label={label} aria-labelledby={labelledBy} style={{ "--d": `${i * 60}ms` } as CSSProperties}
-      className={clsx("panel rv min-w-0 p-5 sm:p-6", lift && "lift", className)}>{children}</section>
+      className={clsx("panel rv min-w-0", dense ? "!rounded-[16px] p-4" : "p-5 sm:p-6", lift && "lift", className)}>{children}</section>
   );
 }
 
@@ -108,10 +109,25 @@ export function RatingCard({ o, prev, locs, days, loading, googleConnected }: {
       </div>
       {loading || !o ? <Skeleton className="mt-3 h-24" /> : (
         <>
-          <p className="num mt-2 flex items-center gap-2 text-[32px] font-semibold leading-9 tracking-[-.02em]">
-            {avg === null ? "–" : <CountUp value={avg} format={(n) => fmtRating(n)} />}{avg !== null && <StarFill className="h-6 w-6" />}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-5">
+            <p className="num flex items-center gap-2 text-[44px] font-semibold leading-[48px] tracking-[-.03em]">
+              {avg === null ? "–" : <CountUp value={avg} format={(n) => fmtRating(n)} />}{avg !== null && <StarFill className="h-8 w-8" />}
+            </p>
+            {avg !== null && (
+              <ul className="min-w-0 space-y-1" aria-label="How many reviews gave each rating">
+                {[5, 4, 3, 2, 1].map((n) => {
+                  const c = o.reviews.rating_distribution?.[String(n)] ?? 0, peak = Math.max(1, ...Object.values(o.reviews.rating_distribution ?? {}));
+                  return (
+                    <li key={n} className="grid grid-cols-[1.1rem_minmax(0,1fr)_1.6rem] items-center gap-1.5 text-[11px] text-muted">
+                      <span className="num text-right font-medium">{n}★</span>
+                      <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-surface-2"><span className="grow-x block h-full rounded-full bg-gradient-to-r from-accent-hi to-accent" style={{ width: `${(c / peak) * 100}%`, "--d": `${(5 - n) * 60}ms` } as CSSProperties} /></span>
+                      <span className="num text-right font-medium text-ink">{c}</span>
+                    </li>);
+                })}
+              </ul>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {o.reviews.new_in_range > 0 && <DeltaChip cur={o.reviews.average_rating_in_range} prev={prev?.reviews.new_in_range ? prev.reviews.average_rating_in_range : null} kind="abs" days={days} />}
             <span className="text-xs text-muted">
               {avg === null ? (googleConnected ? "No Google reviews synced yet" : "Connect Google to see your rating")
@@ -143,7 +159,7 @@ export function RatingCard({ o, prev, locs, days, loading, googleConnected }: {
             })}
           </ul>
         )}
-        {rows.length > 3 && <Link href="/overview/reports" className="mt-3 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">Compare all {rows.length} locations<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>}
+        {rows.length > 3 && <Link href="/analytics/reports" className="mt-3 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">Compare all {rows.length} locations<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>}
       </div>
     </Tile>
   );
@@ -151,15 +167,35 @@ export function RatingCard({ o, prev, locs, days, loading, googleConnected }: {
 
 // ------------------------------------------------------------------------------------------ 2. the four key numbers
 
-function StatTile({ hero, label, icon, href, value, foot, i }: { hero?: boolean; label: string; icon: ReactNode; href: string; value: ReactNode; foot: ReactNode; i: number }) {
+/** A circular gauge. The number beside or inside it says the same thing, so the ring is decorative unless it is given a label. `marker` (0-100) puts a dot where a steady pace would be. */
+function Ring({ pct, size = 120, stroke = 10, label, children, marker }: { pct: number; size?: number; stroke?: number; label?: string; children?: ReactNode; marker?: number }) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, p = Math.max(0, Math.min(100, pct)), gid = `ring-${size}-${stroke}`;
+  const ang = marker !== undefined ? (Math.max(0, Math.min(100, marker)) / 100) * 2 * Math.PI : null;
+  return (
+    <span className="relative inline-grid shrink-0 place-items-center text-ink" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} className="-rotate-90 overflow-visible">
+        <defs><linearGradient id={gid} x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="rgb(var(--c-accent-hi))" /><stop offset="100%" stopColor="rgb(var(--c-accent-lo))" /></linearGradient></defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity=".1" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`url(#${gid})`} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)} style={{ transition: "stroke-dashoffset .9s cubic-bezier(.2,.7,.2,1)" }} />
+        {ang !== null && <circle cx={size / 2 + r * Math.cos(ang)} cy={size / 2 + r * Math.sin(ang)} r={stroke / 2 + 1} fill="rgb(var(--c-surface))" stroke="rgb(var(--c-ink-solid))" strokeWidth="2" />}
+      </svg>
+      {children && <span className="absolute inset-0 grid place-items-center text-center">{children}</span>}
+    </span>
+  );
+}
+
+function StatTile({ hero, label, icon, href, value, foot, i, spark }: { hero?: boolean; label: string; icon: ReactNode; href: string; value: ReactNode; foot: ReactNode; i: number; spark?: ReactNode }) {
   return (
     <div style={{ "--d": `${80 + i * 50}ms` } as CSSProperties}
-      className={clsx("rv lift flex min-h-[168px] min-w-0 flex-col justify-between rounded-tile p-4 sm:min-h-[176px] sm:p-[18px]", hero ? "hero-grad" : "bg-surface-2")}>
+      className={clsx("rv lift relative flex min-h-[168px] min-w-0 flex-col justify-between overflow-hidden rounded-tile p-4 sm:min-h-[176px] sm:p-[18px]", hero ? "hero-grad" : "bg-surface-2 ring-1 ring-ink-100")}>
       <div className="flex items-center justify-between gap-2">
-        <span className={clsx("min-w-0 truncate font-medium", hero && "scrim !px-2.5 !text-[13px] !font-semibold")}>{label}</span>
-        <Link href={href} aria-label={`Open ${label}`} className={clsx("grid h-11 w-11 shrink-0 place-items-center rounded-full sm:h-9 sm:w-9", hero ? "bg-white/20 text-pure-white" : "bg-surface")}>{icon}</Link>
+        <span className={clsx("min-w-0 font-medium leading-tight", hero && "scrim !h-auto !rounded-xl !px-2.5 !py-0.5 !text-[13px] !font-semibold")}>{label}</span>
+        <Link href={href} aria-label={`Open ${label}`} className={clsx("grid h-11 w-11 shrink-0 place-items-center rounded-full transition-colors sm:h-9 sm:w-9", hero ? "bg-white/20 text-pure-white hover:bg-white/30" : "bg-accent-tint text-accent-ink hover:bg-accent-edge/60")}>{icon}</Link>
       </div>
-      <div className={clsx("num my-3 font-semibold tracking-[-.02em]", hero ? "text-[40px] leading-[44px] sm:text-[44px] sm:leading-[46px]" : "text-[30px] leading-9 sm:text-[34px] sm:leading-[38px]")}>{value}</div>
+      <div className="my-3 flex items-end justify-between gap-2">
+        <div className={clsx("num font-semibold tracking-[-.02em]", hero ? "text-[40px] leading-[44px] sm:text-[44px] sm:leading-[46px]" : "text-[30px] leading-9 sm:text-[34px] sm:leading-[38px]")}>{value}</div>
+        {spark && <div className={clsx("hidden shrink-0 pb-1 min-[380px]:block", hero ? "text-white/90" : "text-accent")}>{spark}</div>}
+      </div>
       <div className="flex flex-wrap items-center gap-2">{foot}</div>
     </div>
   );
@@ -172,19 +208,18 @@ export function KeyTiles({ o, prev, google, days, loading }: { o: Overview | nul
   return (
     <Tile i={1} label="Key numbers" className="!p-4 sm:!p-5">
       <div className="grid h-full grid-cols-2 gap-3 sm:gap-4">
-        <StatTile hero i={0} label="New reviews" href="/gbp/reviews" icon={<Star className={ic} strokeWidth={1.75} aria-hidden />} value={<CountUp value={r.new_in_range} />}
+        <StatTile hero i={0} label="New reviews" href="/gbp/reviews" icon={<Star className={ic} strokeWidth={1.75} aria-hidden />} value={<CountUp value={r.new_in_range} />} spark={<Sparkline id="sp-rev" values={r.series.map((p) => Number(p.count) || 0)} />}
           foot={<><DeltaChip onHero cur={r.new_in_range} prev={prev?.reviews.new_in_range} kind="pct" days={days} /><span className="scrim">Last {days} days</span></>} />
         <StatTile i={1} label="Reply rate" href="/gbp/reviews?state=none" icon={<MessageSquare className={ic} strokeWidth={1.75} aria-hidden />}
           value={r.reply_rate_in_range === null ? "–" : <CountUp value={Math.round(r.reply_rate_in_range * 100)} format={(n) => `${Math.round(n)}%`} />}
+          spark={r.reply_rate_in_range === null ? undefined : <Ring pct={r.reply_rate_in_range * 100} size={46} stroke={6} label={`${Math.round(r.reply_rate_in_range * 100)}% of new reviews answered`} />}
           foot={r.reply_rate_in_range === null ? <span className="text-xs text-muted">No new reviews to answer</span>
             : <><DeltaChip cur={r.reply_rate_in_range} prev={prev?.reviews.reply_rate_in_range} kind="pts" days={days} />{r.avg_response_hours !== null && <span className="text-xs text-muted">Avg {fmtHours(Math.round(r.avg_response_hours))}</span>}</>} />
-        <StatTile i={2} label="Actions" href="/overview/performance" icon={<MousePointerClick className={ic} strokeWidth={1.75} aria-hidden />}
-          value={google.state === "ready" ? <CountUp value={google.current} /> : google.state === "loading" ? <Skeleton className="h-9 w-20" /> : "–"}
-          foot={google.state === "ready" ? <><DeltaChip cur={google.current} prev={google.previous} kind="pct" days={28} /><span className="text-xs text-muted">On Google · 28 days</span></>
-            : google.state === "not-connected" ? <Link href="/gbp/locations" className="text-xs font-semibold text-accent-ink hover:underline">Connect Google</Link>
-            : <span className="text-xs text-muted">{google.state === "unavailable" ? "Not shared by Google yet" : " "}</span>} />
+        <StatTile i={2} label="Waiting for a reply" href="/gbp/reviews?state=none" icon={<MessageSquare className={ic} strokeWidth={1.75} aria-hidden />}
+          value={<CountUp value={r.awaiting_reply} />}
+          foot={r.awaiting_reply === 0 ? <span className="text-xs text-muted">Every review is answered</span> : <span className="text-xs text-muted">Replies need your approval</span>} />
         <StatTile i={3} label="Card scans" href="/gbp/cards" icon={<ScanLine className={ic} strokeWidth={1.75} aria-hidden />}
-          value={o.cards.length === 0 ? "–" : <CountUp value={e.scans} />}
+          value={o.cards.length === 0 ? "–" : <CountUp value={e.scans} />} spark={o.cards.length === 0 ? undefined : <Sparkline id="sp-scan" values={e.series.map((p) => Number(p.scan) || 0)} />}
           foot={o.cards.length === 0 ? <Link href="/gbp/cards" className="text-xs font-semibold text-accent-ink hover:underline">No card yet</Link>
             : <><DeltaChip cur={e.scans} prev={prev?.engagement.scans} kind="pct" days={days} /><span className="text-xs text-muted">QR + NFC</span></>} />
       </div>
@@ -221,29 +256,40 @@ export function ReviewTrend({ o, days, loading, googleConnected }: { o: Overview
   const y = (v: number) => T + (H - B - T) * (1 - v / max);
   const every = data.length > 8 ? 2 : 1;
   const empty = !!o && data.every((d) => d.total === 0);
+  const sum = data.reduce((a, d) => a + d.total, 0);
+  const best = data.reduce<Bucket | null>((b, d) => (d.total > (b?.total ?? 0) ? d : b), null);
+  const wavg = sum ? data.reduce((a, d) => a + (d.avg ?? 0) * d.total, 0) / sum : null;
   return (
     <Tile i={2} labelledBy="ov-trend" className="flex flex-col">
       <TileHead id="ov-trend" title="Review trend" sub={`New Google reviews per ${days <= 7 ? "day" : "week"}${split ? ", split by rating" : ""}`} />
       <div className="well mt-4 flex flex-1 flex-col px-4 pb-2.5 pt-3.5">
         <div className="mb-1.5 flex items-center justify-between gap-2 text-[13px] font-semibold">
           <span>New reviews</span>
-          {split && <span className="flex gap-3 text-xs font-medium"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-ink-solid" />4–5★</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-accent" />1–3★</span></span>}
+          {split && <span className="flex gap-3 text-xs font-medium"><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-gradient-to-b from-accent-hi to-accent-lo" />4–5★</span><span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundImage: "repeating-linear-gradient(135deg, rgb(var(--c-ink-solid)) 0 2px, rgb(var(--c-ink-300)) 2px 4px)" }} />1–3★</span></span>}
         </div>
         {loading || !o ? <Skeleton className="h-52 flex-1" /> : (o.reviews.total_synced === 0 && !googleConnected) ? (
           <div className="grid flex-1 place-items-center py-8 text-center"><div><p className="font-semibold">Reviews appear once Google is connected</p><Link href="/gbp/locations" className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-ink hover:underline">Connect Google<ArrowRight className="h-4 w-4" aria-hidden /></Link></div></div>
         ) : (
           <div className="relative flex flex-1 items-center">
             <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full overflow-visible" role="img" aria-label={`New reviews per ${days <= 7 ? "day" : "week"} for the last ${days} days`}>
-              <defs><pattern id="ov-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="rgb(var(--c-accent))" /><rect width="1.6" height="6" fill="rgba(255,255,255,.55)" /></pattern></defs>
-              {[0, .25, .5, .75, 1].map((t) => <text key={t} x={L - 8} y={y(max * t) + 4} textAnchor="end" fontSize="11" fill="rgb(var(--c-ink-500))">{Math.round(max * t)}</text>)}
+              <defs>
+                <pattern id="ov-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="rgb(var(--c-ink-solid))" /><rect width="2" height="6" fill="rgb(var(--c-ink-300))" /></pattern>
+                <linearGradient id="ov-bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--c-accent-hi))" /><stop offset="100%" stopColor="rgb(var(--c-accent-lo))" /></linearGradient>
+              </defs>
+              {[0, .25, .5, .75, 1].map((t) => (
+                <g key={t}>
+                  <line x1={L} x2={W} y1={y(max * t)} y2={y(max * t)} stroke="rgb(var(--c-ink-200))" strokeOpacity={t === 0 ? 1 : .7} strokeDasharray={t === 0 ? undefined : "2 4"} />
+                  <text x={L - 8} y={y(max * t) + 4} textAnchor="end" fontSize="11" fill="rgb(var(--c-ink-500))">{Math.round(max * t)}</text>
+                </g>
+              ))}
               {data.map((d, i) => {
                 const x = L + i * pitch + (pitch - bw) / 2;
                 const hi = split ? d.total - d.low : d.total;
                 const hiH = (H - B - T) * hi / max, loH = (H - B - T) * d.low / max;
                 return (
                   <g key={d.from} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} opacity={hover === null || hover === i ? 1 : 0.55} style={{ transition: "opacity .15s" }}>
-                    <rect x={x - 3} y={T} width={bw + 6} height={H - B - T} fill="transparent" />
-                    {hi > 0 && <rect className="grow-y" style={{ "--d": `${i * 40}ms` } as CSSProperties} x={x} y={y(hi)} width={bw} height={hiH} rx={Math.min(9, bw / 2.6)} fill="rgb(var(--c-ink-solid))" />}
+                    <rect x={x - 4} y={T} width={bw + 8} height={H - B - T} rx="8" fill={hover === i ? "rgb(var(--c-ink) / .06)" : "transparent"} />
+                    {hi > 0 && <rect className="grow-y" style={{ "--d": `${i * 40}ms` } as CSSProperties} x={x} y={y(hi)} width={bw} height={hiH} rx={Math.min(9, bw / 2.6)} fill="url(#ov-bar)" />}
                     {split && d.low > 0 && <rect className="grow-y" style={{ "--d": `${i * 40 + 120}ms` } as CSSProperties} x={x} y={y(hi) - loH - (hi > 0 ? 3 : 0)} width={bw} height={loH} rx={Math.min(9, bw / 2.6)} fill="url(#ov-hatch)" />}
                     {d.total === 0 && <rect x={x} y={H - B - 3} width={bw} height={3} rx={1.5} fill="rgb(var(--c-ink-200))" />}
                     {i % every === 0 && <text x={x + bw / 2} y={H - 7} textAnchor="middle" fontSize="11" fill="rgb(var(--c-ink-500))">{d.label}</text>}
@@ -252,13 +298,21 @@ export function ReviewTrend({ o, days, loading, googleConnected }: { o: Overview
               })}
             </svg>
             {hover !== null && data[hover] && (
-              <div className="pointer-events-none absolute -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-solid px-3 py-1 text-xs font-medium text-ink-on"
-                style={{ left: `${((L + hover * pitch + pitch / 2) / W) * 100}%`, top: `${(y(data[hover].total) / H) * 100 - 14}%` }}>
-                {fmtNum(data[hover].total)} {data[hover].total === 1 ? "review" : "reviews"}{split && data[hover].low ? ` · ${data[hover].low} at 1–3★` : ""}{data[hover].avg ? ` · avg ${fmtRating(data[hover].avg)}` : ""}
+              <div className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-xl bg-surface px-3 py-2 text-xs shadow-lift ring-1 ring-ink-100"
+                style={{ left: `${Math.min(80, Math.max(20, ((L + hover * pitch + pitch / 2) / W) * 100))}%`, top: `${Math.max(0, (y(data[hover].total) / H) * 100 - 30)}%` }}>
+                <span className="text-ink-500">{days <= 7 ? fmtDate(data[hover].from) : `Week of ${fmtDate(data[hover].from)}`}</span><br />
+                <b className="text-[13px] tabular-nums">{fmtNum(data[hover].total)}</b> {data[hover].total === 1 ? "review" : "reviews"}{split && data[hover].low ? <span className="text-ink-500"> · {data[hover].low} at 1–3★</span> : null}{data[hover].avg ? <span className="text-ink-500"> · avg {fmtRating(data[hover].avg)}</span> : null}
               </div>
             )}
             {empty && <p className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-muted">No new reviews in this period</p>}
           </div>
+        )}
+        {o && !loading && !empty && (
+          <dl className="mt-2 grid grid-cols-3 gap-2 border-t border-ink-100 pt-3 text-center">
+            <div><dt className="text-[11px] text-muted">In this period</dt><dd className="num text-[15px] font-semibold">{fmtNum(sum)}</dd></div>
+            <div><dt className="text-[11px] text-muted">Busiest {days <= 7 ? "day" : "week"}</dt><dd className="num text-[15px] font-semibold">{best ? `${best.label} · ${best.total}` : "–"}</dd></div>
+            <div><dt className="text-[11px] text-muted">Average rating</dt><dd className="num text-[15px] font-semibold">{wavg ? fmtRating(wavg) : "–"}</dd></div>
+          </dl>
         )}
         {o && !loading && (
           <table className="sr-only"><caption>New reviews per period</caption><thead><tr><th>From</th><th>Reviews</th>{split && <th>1–3 stars</th>}<th>Average rating</th></tr></thead>
@@ -353,18 +407,23 @@ export function Funnel({ o, loading, i }: { o: Overview | null; loading: boolean
           <Link href="/gbp/cards" className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-ink hover:underline">See your cards<ArrowRight className="h-4 w-4" aria-hidden /></Link></div>
       ) : (
         <>
-          <ul className="mt-5 space-y-3.5">
-            {rows.map(([label, v], n) => (
-              <li key={label}>
-                <p className="flex justify-between gap-3 font-medium"><span>{label}</span><span className="num font-semibold">{fmtNum(v)}</span></p>
-                <span className="mt-1.5 block h-3 overflow-hidden rounded-full bg-surface-2"><span className="grow-x block h-full rounded-full bg-ink-solid" style={{ width: `${(v / top) * 100}%`, "--d": `${n * 90}ms` } as CSSProperties} /></span>
-              </li>
-            ))}
-            <li>
-              <p className="flex justify-between gap-3 font-medium"><span>New Google reviews (synced)</span><span className="num font-semibold">{fmtNum(o.reviews.new_in_range)}</span></p>
-              <span className="mt-1.5 block h-3 overflow-hidden rounded-full bg-surface-2"><span className="grow-x block h-full rounded-full bg-accent" style={{ width: `${Math.max(o.reviews.new_in_range ? 3 : 0, (o.reviews.new_in_range / top) * 100)}%`, "--d": "300ms" } as CSSProperties} /></span>
-            </li>
-          </ul>
+          <ol className="mt-5 space-y-1">
+            {rows.map(([label, v], n) => {
+              const prevV = n > 0 ? rows[n - 1][1] : null;
+              const conv = prevV ? Math.round((v / prevV) * 100) : null;
+              return (
+                <li key={label}>
+                  {conv !== null && <p className="my-1.5 flex items-center gap-1.5 pl-1 text-[11px] font-medium text-muted"><ArrowDownRight className="h-3 w-3" aria-hidden /><span><b className="num text-ink">{conv}%</b> of the step above</span></p>}
+                  <div className="flex items-baseline justify-between gap-3"><span className="text-[13px] font-medium text-ink-700">{label}</span><span className="num text-[17px] font-semibold">{fmtNum(v)}</span></div>
+                  <span className="mt-1 block h-3.5 overflow-hidden rounded-full bg-surface-2"><span className="grow-x block h-full rounded-full" style={{ width: `${Math.max(v ? 4 : 0, (v / top) * 100)}%`, "--d": `${n * 90}ms`, background: `linear-gradient(90deg, rgb(var(--c-accent-hi) / ${[.55, .78, 1][n] ?? 1}), rgb(var(--c-accent) / ${[.7, .9, 1][n] ?? 1}))` } as CSSProperties} /></span>
+                </li>);
+            })}
+          </ol>
+          <div className="mt-5 border-t border-dashed border-ink-200 pt-4">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">Counted separately</p>
+            <div className="flex items-baseline justify-between gap-3"><span className="text-[13px] font-medium text-ink-700">New Google reviews (synced)</span><span className="num text-[17px] font-semibold">{fmtNum(o.reviews.new_in_range)}</span></div>
+            <span className="mt-1 block h-3.5 overflow-hidden rounded-full bg-surface-2"><span className="grow-x block h-full rounded-full bg-ink-solid" style={{ width: `${Math.max(o.reviews.new_in_range ? 3 : 0, (o.reviews.new_in_range / top) * 100)}%`, "--d": "300ms" } as CSSProperties} /></span>
+          </div>
           <p className="mt-4 rounded-inner bg-surface-2 px-3.5 py-3 text-[13px] text-muted">Clicks are not reviews. We can&rsquo;t tell which scan led to a review, so reviews are counted separately.</p>
         </>
       )}
@@ -387,22 +446,31 @@ export function Mentions({ ins, loading, error, i }: { ins: Insights | null; loa
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="Topics">
             {topics.map((t) => {
               const good = t.positive >= t.negative;
-              return <li key={t.topic} className="inline-flex h-9 items-center gap-2 rounded-full bg-surface-2 px-3.5 font-medium">{t.label}<b className={clsx("text-xs font-semibold", good ? "text-pos" : "text-neg")}>{t.mentions}<span className="sr-only"> mentions, mostly {good ? "positive" : "negative"}</span></b></li>;
+              return (
+                <li key={t.topic} className={clsx("inline-flex h-9 items-center gap-2 rounded-full px-3.5 text-sm font-medium", good ? "bg-pos-tint" : "bg-neg-tint")}>
+                  <i aria-hidden className={clsx("h-2 w-2 rounded-full", good ? "bg-pos" : "bg-neg")} />{t.label}
+                  <b className={clsx("num rounded-full bg-surface px-2 text-xs font-semibold leading-5", good ? "text-pos" : "text-neg")}>{t.mentions}<span className="sr-only"> mentions, mostly {good ? "positive" : "negative"}</span></b>
+                </li>);
             })}
           </ul>
           {s && total > 0 && (
             <div className="mt-6">
-              <p className="flex justify-between text-xs text-muted"><span>Sentiment</span><span><b className="font-semibold text-ink">{Math.round(pct(s.positive))}%</b> positive</span></p>
-              <div className="mt-2 flex h-3 gap-[3px]" role="img" aria-label={`${Math.round(pct(s.positive))}% positive, ${Math.round(pct(s.neutral))}% neutral, ${Math.round(pct(s.negative))}% negative`}>
-                {s.positive > 0 && <i className="grow-x block rounded-full bg-ink-solid" style={{ width: `${pct(s.positive)}%` }} />}
-                {s.neutral > 0 && <i className="block rounded-full bg-surface-3" style={{ width: `${pct(s.neutral)}%` }} />}
-                {s.negative > 0 && <i className="block rounded-full bg-accent" style={{ width: `${pct(s.negative)}%` }} />}
+              <p className="flex items-baseline justify-between text-xs text-muted"><span className="font-medium">Overall sentiment</span><span><b className="num text-[17px] font-semibold text-ink">{Math.round(pct(s.positive))}%</b> positive</span></p>
+              <div className="mt-2 flex h-3.5 gap-[3px]" role="img" aria-label={`${Math.round(pct(s.positive))}% positive, ${Math.round(pct(s.neutral))}% neutral, ${Math.round(pct(s.negative))}% negative`}>
+                {s.positive > 0 && <i className="grow-x block rounded-full bg-pos" style={{ width: `${pct(s.positive)}%` }} />}
+                {s.neutral > 0 && <i className="grow-x block rounded-full bg-ink-300" style={{ width: `${pct(s.neutral)}%`, "--d": "80ms" } as CSSProperties} />}
+                {s.negative > 0 && <i className="grow-x block rounded-full bg-neg" style={{ width: `${pct(s.negative)}%`, "--d": "160ms" } as CSSProperties} />}
               </div>
+              <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                <li className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-pos" />Positive <b className="num text-ink">{Math.round(pct(s.positive))}%</b></li>
+                <li className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-ink-300" />Neutral <b className="num text-ink">{Math.round(pct(s.neutral))}%</b></li>
+                <li className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-neg" />Negative <b className="num text-ink">{Math.round(pct(s.negative))}%</b></li>
+              </ul>
             </div>
           )}
         </>
       )}
-      <LinkButton href="/ai/insights" variant="secondary" size="sm" className="mt-5" icon={<Sparkles className="h-4 w-4" aria-hidden />}>See all insights</LinkButton>
+      <LinkButton href="/reputation/insights" variant="secondary" size="sm" className="mt-5" icon={<Sparkles className="h-4 w-4" aria-hidden />}>See all insights</LinkButton>
     </Tile>
   );
 }
@@ -487,11 +555,17 @@ export function GoalCard({ i, goal, canEdit, onSave }: { i: number; goal: number
       <TileHead id="ov-goal" title="Monthly review goal" right={goal ? undefined : <span className="rounded-full bg-accent-tint px-2.5 py-0.5 text-xs font-medium text-accent-ink">{suggested ? "Suggested" : "Not set"}</span>} />
       {!cur ? <Skeleton className="mt-5 h-40" /> : (
         <>
-          <div className="hatch relative mt-6 h-3 overflow-hidden rounded-full" role="progressbar" aria-label="Reviews this month" aria-valuenow={count} aria-valuemin={0} aria-valuemax={target ?? undefined}>
-            <i className="grow-x absolute inset-y-0 left-0 block rounded-full bg-accent" style={{ width: `${pct}%` }} />
+          <div className="mt-5 flex items-center gap-5" role="progressbar" aria-label="Reviews this month" aria-valuenow={count} aria-valuemin={0} aria-valuemax={target ?? undefined}>
+            <Ring pct={pct} size={128} stroke={12} marker={target ? (day / daysInMonth) * 100 : undefined}>
+              <span><b className="num block text-[28px] font-semibold leading-none tracking-[-.02em]">{fmtNum(count)}</b><span className="mt-1 block text-[11px] text-muted">of {target ? fmtNum(target) : "–"}</span></span>
+            </Ring>
+            <div className="min-w-0 space-y-2 text-[13px]">
+              <p><b className="num text-[22px] font-semibold tracking-[-.02em]">{target ? `${Math.round(pct)}%` : "–"}</b><span className="ml-1.5 text-muted">of this month&rsquo;s goal</span></p>
+              {target && <p className="flex items-start gap-2 text-muted"><i aria-hidden className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full border-2 border-ink-solid bg-surface" /><span>Steady pace by today: <b className="num text-ink">{fmtNum(Math.round((target * day) / daysInMonth))}</b></span></p>}
+              <p className="text-muted">{daysInMonth - day} {daysInMonth - day === 1 ? "day" : "days"} left this month</p>
+            </div>
           </div>
-          <p className="mt-3.5 flex items-baseline justify-between text-sm"><span><b className="num font-semibold">{fmtNum(count)}</b> <span className="text-xs text-muted">reviews this month</span></span><b className="num font-semibold">{target ? fmtNum(target) : "–"}</b></p>
-          <p className="mt-4 rounded-inner bg-surface-2 px-3.5 py-3 text-[13px] text-muted">
+          <p className="mt-5 rounded-inner bg-surface-2 px-3.5 py-3 text-[13px] text-muted">
             {!target ? "Set a goal to see your pace." : left === 0 ? <>Goal reached with {daysInMonth - day} {daysInMonth - day === 1 ? "day" : "days"} to spare.</>
               : count === 0 ? <>No new reviews yet this month. {fmtNum(left)} to go.</>
               : <>{fmtNum(left)} more to hit your goal. At this month&rsquo;s pace you&rsquo;ll reach it around <b className="text-ink">{eta && eta.getMonth() === now.getMonth() ? eta.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "next month"}</b>.</>}
@@ -502,7 +576,7 @@ export function GoalCard({ i, goal, canEdit, onSave }: { i: number; goal: number
               {locs.map((l) => (
                 <div key={l.location} className="grid grid-cols-[minmax(0,6rem)_1fr_2.5rem] items-center gap-3 text-sm">
                   <span className="truncate font-medium" title={l.location}>{l.location}</span>
-                  <span className="hatch block h-2 overflow-hidden rounded-full"><span className="grow-x block h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (l.new_reviews / target) * 100)}%` }} /></span>
+                  <span className="block h-2 overflow-hidden rounded-full bg-surface-2"><span className="grow-x block h-full rounded-full bg-gradient-to-r from-accent-hi to-accent" style={{ width: `${Math.min(100, (l.new_reviews / target) * 100)}%` }} /></span>
                   <b className="num text-right font-semibold">{fmtNum(l.new_reviews)}</b>
                 </div>))}
             </div>

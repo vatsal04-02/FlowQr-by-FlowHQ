@@ -81,7 +81,7 @@ export function Glance({ o, prev, google, days, googleConnected, loading }: {
           hint="Calls, website clicks, direction requests, bookings and messages from your Google profile, as reported by Google. FlowQR saves Google's last 28 days each day, so this one doesn't change with the 7/30/90 filter.">
           {google.state === "loading" ? <Skeleton className="h-16" />
             : google.state === "not-connected" ? <Missing href="/gbp/locations" cta="Connect Google">Connect Google to see how customers use your profile.</Missing>
-            : google.state === "unavailable" ? <Missing href="/overview/performance" cta="See details">{google.note}</Missing>
+            : google.state === "unavailable" ? <Missing href="/analytics/performance" cta="See details">{google.note}</Missing>
             : <><Big>{fmtNum(google.current)}</Big><Change d={delta(google.current, google.previous)} days={28} />
                 <p className="mt-1 text-[13px] text-ink-500">Google&rsquo;s last 28 days · updated {timeAgo(google.fetchedAt)}</p></>}
         </Cell>

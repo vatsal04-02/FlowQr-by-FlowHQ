@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { DateRange, presetRange } from "@/components/DateRange";
 import { GbpFrame } from "@/components/gbp/GbpFrame";
 import { KeywordsPanel, MetricGlossary, MonthlyTrend } from "@/components/gbp/Insights";
+import { GoogleHistory } from "@/components/analytics/GoogleHistory";
 import { Gate, PerfTab } from "@/components/gbp/tools";
 import { Button } from "@/components/ui/Button";
 import { Alert, PageHeader, Skeleton } from "@/components/ui/Card";
@@ -52,10 +53,15 @@ function Compare() {
 }
 
 export default function PerformancePage() {
+  const [range, setRange] = useState(presetRange("30"));
   return (
     <>
-      <PageHeader title="Search & Maps" subtitle="What Google reports about your profile: views and customer actions. Google's data runs a few days behind and is not the same as FlowQR card scans. Nothing here is estimated." />
-      <GbpFrame>{(gid) => <div className="space-y-6"><PerfTab key={gid} gid={gid} /><div className="grid gap-6 xl:grid-cols-2"><MonthlyTrend key={`m-${gid}`} gid={gid} /><KeywordsPanel key={`k-${gid}`} gid={gid} /></div><Compare /><MetricGlossary /></div>}</GbpFrame>
+      <PageHeader title="Performance" subtitle="What Google reports about your profile, stored daily so you can compare periods. Google's data runs a few days behind and is not the same as FlowQR card scans. Nothing here is estimated."
+        actions={<DateRange value={range} onChange={setRange} />} />
+      <div className="space-y-6">
+        <GoogleHistory range={range} />
+        <GbpFrame>{(gid) => <div className="space-y-6"><PerfTab key={gid} gid={gid} /><div className="grid gap-6 xl:grid-cols-2"><MonthlyTrend key={`m-${gid}`} gid={gid} /><KeywordsPanel key={`k-${gid}`} gid={gid} /></div><Compare /><MetricGlossary /></div>}</GbpFrame>
+      </div>
     </>
   );
 }

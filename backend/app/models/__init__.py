@@ -16,6 +16,8 @@ from app.models.tenancy import (  # noqa: F401
 
 from app.models.notifications import NotificationPref  # noqa: F401,E402
 from app.models.rank import RankCheck, RankKeyword  # noqa: F401,E402
+from app.models.metrics import GbpMetricDaily  # noqa: F401,E402
+from app.models.competitors import CompetitorSnapshot, PinnedCompetitor  # noqa: F401,E402
 from app.models.rank_grid import RankGrid, RankGridPoint, RankGridScan  # noqa: F401,E402
 from app.models.ai_quality import AIOutput  # noqa: F401,E402
 from app.models.agent import (  # noqa: F401,E402
