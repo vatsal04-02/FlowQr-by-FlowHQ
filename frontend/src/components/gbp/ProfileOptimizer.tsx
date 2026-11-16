@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { AlertCircle, ArrowRight, Check, CircleHelp, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, CircleHelp, PenLine } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/Card";
 import { Panel } from "@/components/ui/kit";
@@ -84,7 +84,7 @@ export function ProfileOptimizer({ gid }: { gid: string }) {
             <div className="rounded-tile bg-surface-2 p-4"><p className="text-xs font-medium text-muted">Now on Google</p>
               <p className="mt-2 whitespace-pre-wrap text-sm">{o.current.description?.trim() || <span className="text-muted">No description</span>}</p>
               <p className="mt-2 text-xs text-muted">{(o.current.description ?? "").length} characters</p></div>
-            <div className="rounded-tile bg-accent-tint p-4 ring-1 ring-inset ring-accent-edge"><p className="flex items-center gap-1.5 text-xs font-medium text-accent-ink"><Sparkles className="h-3.5 w-3.5" aria-hidden />Suggested</p>
+            <div className="rounded-tile bg-accent-tint p-4 ring-1 ring-inset ring-accent-edge"><p className="flex items-center gap-1.5 text-xs font-medium text-accent-ink"><PenLine className="h-3.5 w-3.5" aria-hidden />Suggested</p>
               <p className="mt-2 whitespace-pre-wrap text-sm">{after}</p><p className="mt-2 text-xs text-muted">{after.length} / 750 characters</p></div>
           </div>
         </Panel>

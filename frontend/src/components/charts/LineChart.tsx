@@ -117,7 +117,7 @@ export function LineChart({ data, series, height = 230, ariaLabel, yMax: yMaxPro
           </defs>
           {/* Keyed on the data so the left-to-right reveal replays when the range or location changes. */}
           <g key={`${data.length}-${data[0]?.date}-${data[data.length - 1]?.date}`} style={{ animation: "chart-reveal .7s cubic-bezier(.22,1,.36,1) both" }}>
-            {series.length > 0 && data.length > 1 && !gaps && (
+            {series.length > 0 && data.length > 1 && !gaps && series[0].area && (
               <path fill={`url(#${gid}-${series[0].key})`} stroke="none"
                 d={`${pathFor(series[0].key)} L${x(data.length - 1).toFixed(1)},${y(0)} L${x(0).toFixed(1)},${y(0)} Z`} />
             )}

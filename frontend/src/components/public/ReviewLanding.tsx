@@ -1,7 +1,7 @@
 "use client";
 import { API_V1 } from "@/lib/config";
 import clsx from "clsx";
-import { Check, Clock, Copy, ExternalLink, Loader2, Pencil, QrCode, ShieldCheck, Sparkles, Star, TriangleAlert, UserCheck } from "lucide-react";
+import { Check, Clock, Copy, ExternalLink, Loader2, Pencil, QrCode, ShieldCheck, PenLine, Star, TriangleAlert, UserCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LandingFrame } from "@/components/review-growth/LandingFrame";
 import { api, ApiError } from "@/lib/api";
@@ -303,7 +303,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const reviewUrl = page.review_url;
   const isEdited = text.trim() !== "" && text.trim() !== aiText.trim();
   const badge = handoff?.copied ? { icon: Check, text: t.badgeCopied } : isEdited || (origin === "none" && text.trim()) ? { icon: Pencil, text: t.badgeEdited }
-    : origin === "refined" ? { icon: Sparkles, text: t.badgeRefined } : null;
+    : origin === "refined" ? { icon: PenLine, text: t.badgeRefined } : null;
   const ready2go = text.trim().length >= MIN_CHARS;
   const busy = loading !== null;
 
@@ -475,7 +475,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
                   <span>{t.consentLabel}</span>
                 </label>
                 <button type="button" onClick={() => void submitReview()} disabled={!consent || sending || !ready2go} data-testid="submit-review" className={ctaCls} style={ctaStyle}>
-                  {sending ? <Loader2 className="h-5 w-5 fq-spin" aria-hidden /> : <Sparkles className="h-5 w-5" aria-hidden />}{sending ? t.submitting : t.submit}
+                  {sending ? <Loader2 className="h-5 w-5 fq-spin" aria-hidden /> : <PenLine className="h-5 w-5" aria-hidden />}{sending ? t.submitting : t.submit}
                 </button>
                 <p id="cta-hint" className="mt-1.5 text-center text-[12px] leading-snug text-ink-700">{t.submitHint}</p>
                 {reviewUrl && <a href={reviewUrl} target="_blank" rel="noopener noreferrer" onClick={onCopyContinue} data-testid="copy-continue" className="mt-0.5 flex min-h-10 items-center justify-center gap-1 text-[13px] font-semibold text-[var(--brand-ink)] hover:underline">{t.orHandoff}<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}

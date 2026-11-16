@@ -1,5 +1,5 @@
 "use client";
-import { Check, Pencil, RotateCcw, Sparkles, X } from "lucide-react";
+import { Check, Pencil, RotateCcw, PenLine, X } from "lucide-react";
 import { useState } from "react";
 import { Violations } from "@/components/agent/TaskCard";
 import { GbpFrame } from "@/components/gbp/GbpFrame";
@@ -129,7 +129,7 @@ function Compose({ gid, onCreated }: { gid: string; onCreated: () => void }) {
             <Button loading={busy === "save"} disabled={text.trim().length < 10} onClick={() => void go("save")}>Save draft</Button>
             <span className="pb-3 text-sm text-ink-500">or</span>
             <div className="min-w-[180px] flex-1"><Input label="Let AI write it: topic (optional)" placeholder="e.g. Winter back care tips" value={topic} onChange={(e) => setTopic(e.target.value)} /></div>
-            <Button variant="secondary" icon={<Sparkles className="h-4 w-4" />} loading={busy === "ai"} onClick={() => void go("ai")}>Write with AI</Button>
+            <Button variant="secondary" icon={<PenLine className="h-4 w-4" />} loading={busy === "ai"} onClick={() => void go("ai")}>Write with AI</Button>
             <Button variant="ghost" loading={busy === "ideas"} onClick={() => void getIdeas()}>Suggest 3 ideas</Button></div>
           {ideas && (
             <div className="space-y-2 border-t border-ink-100 pt-3" aria-label="Post ideas">

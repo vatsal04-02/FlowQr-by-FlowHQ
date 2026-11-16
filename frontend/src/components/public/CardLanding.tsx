@@ -1,6 +1,6 @@
 "use client";
 import { API_V1 } from "@/lib/config";
-import { Check, Copy, ExternalLink, Info, Loader2, QrCode, Sparkles } from "lucide-react";
+import { Check, Copy, ExternalLink, Info, Loader2, QrCode, PenLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/ui/Brand";
 import { publicButtonClass } from "@/components/ui/Button";
@@ -119,7 +119,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
             </div>
             <button onClick={() => void improve()} disabled={busy || text.trim().length < 8}
               className={publicButtonClass("primary", "flex-1")}>
-              {busy ? <Loader2 className="h-5 w-5 fq-spin" aria-hidden /> : <Sparkles className="h-5 w-5" aria-hidden />}{busy ? "Improving…" : "Improve my wording"}
+              {busy ? <Loader2 className="h-5 w-5 fq-spin" aria-hidden /> : <PenLine className="h-5 w-5" aria-hidden />}{busy ? "Improving…" : "Improve my wording"}
             </button>
           </div>
         ) : (
@@ -129,7 +129,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
 
         {suggestion !== null && (
           <div className="fq-enter mt-5 rounded-lg border border-ink-200 bg-white p-4">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-700"><Sparkles className="h-4 w-4 text-ink-500" aria-hidden />AI-assisted suggestion · edit freely</p>
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-700"><PenLine className="h-4 w-4 text-ink-500" aria-hidden />AI-assisted suggestion · edit freely</p>
             <label htmlFor="sugg" className="sr-only">Suggested review (editable)</label>
             <textarea id="sugg" value={suggestion} onChange={(e) => setSuggestion(e.target.value)} rows={5} maxLength={4000}
               className="mt-2 w-full resize-y rounded-xl border border-ink-300 bg-white p-3 text-[16px] leading-relaxed focus-visible:border-brand-600" />

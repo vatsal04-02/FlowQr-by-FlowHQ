@@ -1,5 +1,5 @@
 "use client";
-import { Check, RefreshCw, Sparkles } from "lucide-react";
+import { Check, RefreshCw, PenLine } from "lucide-react";
 import { useState } from "react";
 import { Violations } from "@/components/agent/TaskCard";
 import { GbpFrame } from "@/components/gbp/GbpFrame";
@@ -70,7 +70,7 @@ function Completeness({ gid, compact = false }: { gid: string; compact?: boolean
         </div>)}
       </>)}
       <div className={compact ? "" : "mt-4 border-t border-ink-100 pt-4"}>
-        <div className="flex flex-wrap items-center gap-2"><Button size="sm" icon={<Sparkles className="h-4 w-4" />} loading={busy === "ai"} disabled={!c || !!draft} onClick={() => void run("ai", () => api(`/agent/profile/${gid}/suggest-description`, { method: "POST" }), "Draft ready below. Review it before anything goes live.")}>Suggest a description with AI</Button>
+        <div className="flex flex-wrap items-center gap-2"><Button size="sm" icon={<PenLine className="h-4 w-4" />} loading={busy === "ai"} disabled={!c || !!draft} onClick={() => void run("ai", () => api(`/agent/profile/${gid}/suggest-description`, { method: "POST" }), "Draft ready below. Review it before anything goes live.")}>Suggest a description with AI</Button>
           <span className="text-[13px] text-ink-500">Written from your Knowledge Base. It goes live only when you approve it.</span></div>
         {err && <div className="mt-3"><Alert tone="error">{err}</Alert></div>}
         {draft && t && (

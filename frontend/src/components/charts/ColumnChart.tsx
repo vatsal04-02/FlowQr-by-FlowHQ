@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 type Row = { date: string; [k: string]: number | string | null | undefined };
 
 /** Daily columns with rounded tops, a soft gradient, a hover/focus highlight and a tooltip. Native titles stay as the fallback for assistive tech. */
-export function ColumnChart({ data, valueKey, label, color = "rgb(var(--c-accent))", height = 170, ariaLabel }: { data: Row[]; valueKey: string; label: string; color?: string; height?: number; ariaLabel: string }) {
+export function ColumnChart({ data, valueKey, label, color = "rgb(var(--c-ink-solid))", height = 170, ariaLabel }: { data: Row[]; valueKey: string; label: string; color?: string; height?: number; ariaLabel: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -31,7 +31,7 @@ export function ColumnChart({ data, valueKey, label, color = "rgb(var(--c-accent
       {w > 0 && (
         <svg width={w} height={height} role="img" aria-label={ariaLabel} className="block overflow-visible" onPointerLeave={() => setHover(null)}>
           <defs>
-            <linearGradient id={`${gid}-bar`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="1" /><stop offset="100%" stopColor={color} stopOpacity=".55" /></linearGradient>
+            <linearGradient id={`${gid}-bar`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="1" /><stop offset="100%" stopColor={color} stopOpacity="1" /></linearGradient>
           </defs>
           {ticks.map((t) => (
             <g key={t}>

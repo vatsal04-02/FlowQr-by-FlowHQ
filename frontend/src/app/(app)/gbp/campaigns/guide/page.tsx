@@ -1,5 +1,5 @@
 "use client";
-import { Check, Circle, Plus, QrCode, ScanLine, Sparkles, UserCheck } from "lucide-react";
+import { Check, Circle, Plus, QrCode, ScanLine, PenLine, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { LineChart } from "@/components/charts/LineChart";
 import { Funnel, StatusBadge, useCampaigns } from "@/components/review-growth/shared";
@@ -13,7 +13,7 @@ import { useFetch } from "@/lib/use-api";
 
 const HOW = [
   [QrCode, "Customer scans your QR code", "A fast, branded page opens on their phone. No app, no account."],
-  [Sparkles, "They type a few words", "Keywords, a sentence or a whole review. Nothing is mandatory."],
+  [PenLine, "They type a few words", "Keywords, a sentence or a whole review. Nothing is mandatory."],
   [UserCheck, "They confirm their own words", "AI organises them (or they write it themselves), they confirm it, and post it on Google themselves."],
 ] as const;
 
@@ -68,7 +68,7 @@ export default function ReviewGrowthOverview() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr]">
-            <Panel title="Funnel" meta="30 days" action={<Link href="/analytics/campaigns" className="text-[13px] font-medium text-brand-700 hover:underline">Full analytics</Link>}>
+            <Panel title="Funnel" meta="30 days" action={<Link href="/gbp/campaigns" className="text-[13px] font-medium text-brand-700 hover:underline">Full analytics</Link>}>
               {stats.data ? <Funnel steps={stats.data.funnel} /> : <Skeleton className="h-40" />}
             </Panel>
             <Panel title="Activity over time">

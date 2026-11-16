@@ -1,5 +1,5 @@
 "use client";
-import { Sparkles } from "lucide-react";
+import { PenLine } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Alert, PageHeader } from "@/components/ui/Card";
@@ -64,7 +64,7 @@ export default function BrandVoicePage() {
               : <p className="text-muted">Write a sample to hear how your replies will sound with the text on the left (saved or not).</p>}
           </div>
           {pErr && <div className="mt-3"><Alert tone="error">{pErr}</Alert></div>}
-          <Button className="mt-4" variant="secondary" icon={<Sparkles className="h-4 w-4" />} loading={pBusy} disabled={!isAdmin} onClick={() => void sample()}>{preview ? "Write another" : "Write a sample"}</Button>
+          <Button className="mt-4" variant="secondary" icon={<PenLine className="h-4 w-4" />} loading={pBusy} disabled={!isAdmin} onClick={() => void sample()}>{preview ? "Write another" : "Write a sample"}</Button>
           <p className="mt-2 text-xs text-muted">Uses one AI generation from this month&rsquo;s allowance.</p>
         </Panel>
       </div>

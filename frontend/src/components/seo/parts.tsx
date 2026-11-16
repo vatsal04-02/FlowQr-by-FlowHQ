@@ -7,7 +7,7 @@ import type { Source } from "@/lib/seo";
 
 const SRC: Record<Source, { label: string; tip: string; cls: string }> = {
   google: { label: "Google", tip: "Reported by Google Business Profile.", cls: "bg-pos-tint text-pos" },
-  places: { label: "Measured · Places", tip: "Measured with Google's Places API: the position among the first 20 results around your location. Google Maps itself can order results differently by device and person.", cls: "bg-accent-tint text-accent-ink" },
+  places: { label: "Measured · Places", tip: "Measured with Google's Places API: the position among the first 20 results around your location. Google Maps itself can order results differently by device and person.", cls: "bg-surface-3 text-ink-700" },
   flowqr: { label: "Calculated", tip: "Calculated by FlowQR from the data shown, with the formula visible.", cls: "bg-surface-3 text-ink-700" },
 };
 

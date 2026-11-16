@@ -20,6 +20,7 @@ const config: Config = {
         fq: { DEFAULT: "rgb(var(--c-fq) / <alpha-value>)", hover: "rgb(var(--c-fq-hover) / <alpha-value>)", 50: "rgb(var(--c-fq-50) / <alpha-value>)", 100: "rgb(var(--c-fq-100) / <alpha-value>)" },
         gold: { 50: "#FFF6DC", 100: "#FFE9AE", 400: "#F2B01E", 500: "#E39B0B", 600: "#A56A00", 700: "#8A5600" },
         star: "rgb(var(--c-star) / <alpha-value>)",
+        "on-accent": "rgb(var(--c-on-accent) / <alpha-value>)",
         navy: "rgb(var(--c-navy) / <alpha-value>)",
         ok: "rgb(var(--c-ok) / <alpha-value>)",
         // white follows the theme inside the app (a card is white in light mode, near-black in dark). pure.* never changes.

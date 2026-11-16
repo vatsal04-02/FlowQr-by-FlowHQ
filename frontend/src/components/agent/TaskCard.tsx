@@ -1,5 +1,5 @@
 "use client";
-import { Check, Clock, ExternalLink, Sparkles, X } from "lucide-react";
+import { Check, Clock, ExternalLink, PenLine, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
@@ -70,8 +70,8 @@ export function TaskCard({ t, onChange }: { t: Task; onChange: () => void }) {
       {(t.status === "scheduled" || t.status === "approved") && t.post && <p className="mt-2 text-sm text-ink-500">{t.post.scheduled_for ? `Goes out ${new Date(t.post.scheduled_for).toLocaleString("en-IN")}` : "Approved."} Track it in <Link className="text-brand-700 underline" href="/gbp/posts">Posts</Link>.</p>}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {t.status === "suggested" && AI_KINDS.has(t.kind) && <Button size="sm" icon={<Sparkles className="h-4 w-4" />} loading={busy === "draft"} onClick={() => void run("draft", () => api(`/agent/tasks/${t.id}/draft`, { method: "POST" }), "Draft ready for your approval.")}>Draft with AI</Button>}
-        {t.status === "suggested" && t.kind === "profile_fix" && t.evidence.field === "description" && <Button size="sm" icon={<Sparkles className="h-4 w-4" />} loading={busy === "draft"} onClick={() => void run("draft", () => api(`/agent/tasks/${t.id}/draft`, { method: "POST" }), "Draft ready for your approval.")}>Draft with AI</Button>}
+        {t.status === "suggested" && AI_KINDS.has(t.kind) && <Button size="sm" icon={<PenLine className="h-4 w-4" />} loading={busy === "draft"} onClick={() => void run("draft", () => api(`/agent/tasks/${t.id}/draft`, { method: "POST" }), "Draft ready for your approval.")}>Draft with AI</Button>}
+        {t.status === "suggested" && t.kind === "profile_fix" && t.evidence.field === "description" && <Button size="sm" icon={<PenLine className="h-4 w-4" />} loading={busy === "draft"} onClick={() => void run("draft", () => api(`/agent/tasks/${t.id}/draft`, { method: "POST" }), "Draft ready for your approval.")}>Draft with AI</Button>}
         {t.status === "suggested" && OPEN_LINK[t.kind] && !(t.kind === "profile_fix" && t.evidence.field === "description") && <LinkButton href={OPEN_LINK[t.kind]![0]} size="sm" variant="secondary" icon={<ExternalLink className="h-4 w-4" />}>{OPEN_LINK[t.kind]![1]}</LinkButton>}
         {t.status === "suggested" && t.kind === "reply_review" && t.evidence.review_id && <LinkButton href={`/gbp/reviews/${t.evidence.review_id}`} size="sm" variant="secondary">Open review</LinkButton>}
 
