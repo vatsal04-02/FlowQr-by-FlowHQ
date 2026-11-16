@@ -17,6 +17,8 @@ import { useFetch } from "@/lib/use-api";
 import { useGbp } from "@/lib/use-gbp";
 
 const CTAS = [["", "No button"], ["LEARN_MORE", "Learn more"], ["BOOK", "Book"], ["ORDER", "Order online"], ["SHOP", "Shop"], ["SIGN_UP", "Sign up"], ["CALL", "Call now"]] as const;
+/** colour per post state: meaning colours only (amber waits for you, green is live on Google, red failed) */
+const DOT: Record<string, string> = { draft: "bg-ink-300", awaiting_approval: "bg-warn", scheduled: "bg-ink-solid", published: "bg-pos", failed: "bg-neg", all: "bg-ink-300" };
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 
 function PostCard({ p, onChange }: { p: PostItem; onChange: () => void }) {
@@ -36,8 +38,8 @@ function PostCard({ p, onChange }: { p: PostItem; onChange: () => void }) {
   const st = POST_LABEL[p.status];
   const editable = ["draft", "awaiting_approval", "failed"].includes(p.status);
   return (
-    <li className="rounded-xl border border-ink-100 bg-white p-4" aria-label={`Post: ${p.summary.slice(0, 40)}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2"><Status tone={st.tone}>{st.label}</Status><span className="text-xs text-ink-500">{p.generated_by_ai ? "AI draft · " : ""}{p.location_title}</span></div>
+    <li className="min-w-0 rounded-xl border border-ink-100 bg-surface p-4" aria-label={`Post: ${p.summary.slice(0, 40)}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2"><Status tone={st.tone}>{st.label}</Status><span data-words="skip" className="min-w-0 truncate text-xs text-ink-500">{p.generated_by_ai ? "Draft by FlowQR · " : ""}{p.location_title}</span></div>
       {edit === null ? <div className="mt-2"><PostPreview business={p.location_title ?? "Your business"} text={p.summary} photo={p.photo_url} cta={p.cta_type} when={p.published_at ? when(p.published_at) : p.scheduled_for ? when(p.scheduled_for) : "Not published yet"}
         topic={p.topic_type ?? "STANDARD"} title={p.event_title} start={p.event_start} end={p.event_end} coupon={p.offer_coupon} terms={p.offer_terms} />
         {p.visual_hint && <p className="mt-2 rounded-inner bg-surface-2 px-3 py-2 text-[13px]"><b className="font-semibold">Photo idea:</b> {p.visual_hint}</p>}
@@ -89,7 +91,7 @@ function Compose({ gid, onCreated }: { gid: string; onCreated: () => void }) {
     setBusy(which); setErr(null);
     try {
       const ev = kind !== "STANDARD" ? { event_title: title || null, event_start: start || null, event_end: end || null } : {};
-      if (which === "ai") { await api("/posts/ai-draft", { method: "POST", body: { google_location_id: gid, topic: topic || null, kind: kind === "OFFER" ? "offer" : kind === "EVENT" ? "event" : "update", ...ev } }); toast("AI draft ready: review and approve it below."); }
+      if (which === "ai") { await api("/posts/ai-draft", { method: "POST", body: { google_location_id: gid, topic: topic || null, kind: kind === "OFFER" ? "offer" : kind === "EVENT" ? "event" : "update", ...ev } }); toast("Draft ready: review and approve it below."); }
       else {
         await api("/posts", { method: "POST", body: { google_location_id: gid, summary: text, cta_type: cta || null, cta_url: url || null, photo_url: photo || null, topic_type: kind, ...ev,
           ...(kind === "OFFER" ? { offer_coupon: coupon || null, offer_terms: terms || null } : {}) } });
@@ -102,9 +104,9 @@ function Compose({ gid, onCreated }: { gid: string; onCreated: () => void }) {
   const business = gbp.selected.find((l) => l.id === gid)?.title ?? "Your business";
   return (
     <section aria-labelledby="new-post-h" className="panel p-5 sm:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="new-post-h" className="text-base font-bold text-navy">New post</h2><span className="text-[13px] text-ink-500">Nothing goes live until an owner or admin approves it</span></div>
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="new-post-h" className="text-[15px] font-semibold">New post</h2><span className="text-[13px] text-muted">Goes live only after approval</span></div>
+      <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-3">
           {err && <Alert tone="error">{err}</Alert>}
           <div role="radiogroup" aria-label="Post type" className="inline-flex rounded-full bg-surface-2 p-1">
             {([["STANDARD", "Update"], ["OFFER", "Offer"], ["EVENT", "Event"]] as const).map(([v, l]) => (
@@ -128,8 +130,8 @@ function Compose({ gid, onCreated }: { gid: string; onCreated: () => void }) {
           <div className="flex flex-wrap items-end gap-2 border-t border-ink-100 pt-3">
             <Button loading={busy === "save"} disabled={text.trim().length < 10} onClick={() => void go("save")}>Save draft</Button>
             <span className="pb-3 text-sm text-ink-500">or</span>
-            <div className="min-w-[180px] flex-1"><Input label="Let AI write it: topic (optional)" placeholder="e.g. Winter back care tips" value={topic} onChange={(e) => setTopic(e.target.value)} /></div>
-            <Button variant="secondary" icon={<PenLine className="h-4 w-4" />} loading={busy === "ai"} onClick={() => void go("ai")}>Write with AI</Button>
+            <div className="min-w-0 basis-full sm:basis-auto sm:min-w-[180px] sm:flex-1"><Input label="Draft topic (optional)" placeholder="e.g. Winter back care tips" value={topic} onChange={(e) => setTopic(e.target.value)} /></div>
+            <Button variant="secondary" icon={<PenLine className="h-4 w-4" />} loading={busy === "ai"} onClick={() => void go("ai")}>Draft a post</Button>
             <Button variant="ghost" loading={busy === "ideas"} onClick={() => void getIdeas()}>Suggest 3 ideas</Button></div>
           {ideas && (
             <div className="space-y-2 border-t border-ink-100 pt-3" aria-label="Post ideas">
@@ -137,7 +139,7 @@ function Compose({ gid, onCreated }: { gid: string; onCreated: () => void }) {
               <ul className="grid gap-2 lg:grid-cols-3">
                 {ideas.map((i) => (
                   <li key={i.title + i.text.slice(0, 12)} className="flex flex-col rounded-xl bg-white p-3 ring-1 ring-ink-100">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-brand-700">{i.type.replace("_", " ")}</span>
+                    <span className="text-[12px] font-medium text-muted">{i.type.replace("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())}</span>
                     <p className="mt-0.5 text-sm font-bold text-navy">{i.title}</p>
                     <p className="mt-1 flex-1 text-[13px] leading-snug text-ink-700">{i.text}</p>
                     {i.image && <p className="mt-2 text-xs text-ink-500"><span className="font-semibold">Photo to take:</span> {i.image}</p>}
@@ -147,7 +149,7 @@ function Compose({ gid, onCreated }: { gid: string; onCreated: () => void }) {
               </ul>
             </div>)}
         </div>
-        <div className="lg:sticky lg:top-4 lg:self-start"><p className="mb-2 text-[13px] font-semibold text-ink-700">How it will look on Google</p><PostPreview business={business} text={text} photo={photo} cta={cta || null} topic={kind} title={title} start={start || null} end={end || null} coupon={coupon} terms={terms} /></div>
+        <div className="min-w-0 lg:sticky lg:top-4 lg:self-start"><p className="mb-2 text-[13px] font-semibold text-ink-700">Preview</p><PostPreview business={business} text={text} photo={photo} cta={cta || null} topic={kind} title={title} start={start || null} end={end || null} coupon={coupon} terms={terms} /></div>
       </div>
     </section>
   );
@@ -161,21 +163,33 @@ function Body({ gid }: { gid: string }) {
   const group = (p: PostItem) => (p.status === "approved" || p.status === "publishing" ? "scheduled" : p.status);
   const count = (k: string) => live.filter((p) => group(p) === k).length;
   const shown = live.filter((p) => filter === "all" || group(p) === filter);
-  const STEPS: [typeof filter, string][] = [["draft", "Drafts"], ["awaiting_approval", "Waiting for approval"], ["scheduled", "Scheduled"], ["published", "Published"]];
+  const STEPS: [typeof filter, string][] = [["draft", "Drafts"], ["awaiting_approval", "Waiting"], ["scheduled", "Scheduled"], ["published", "Published"]];
   return (
     <div className="space-y-5">
       <Compose gid={gid} onCreated={() => void reload()} />
       <div className="flex flex-wrap items-center justify-between gap-2"><Segmented label="View" value={tab} onChange={setTab} options={[["queue", "Posts"], ["calendar", "Calendar"]] as const} />
       </div>
-      {tab === "queue" && (
-        <ol aria-label="Where your posts are" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {STEPS.map(([k, l]) => (
-            <li key={k}><button type="button" aria-pressed={filter === k} onClick={() => setFilter(filter === k ? "all" : k)} className={`flex min-h-[64px] w-full flex-col items-start justify-center rounded-xl px-3 text-left transition-colors ${filter === k ? "bg-navy text-white" : "bg-brand-50 text-navy hover:bg-brand-100"}`}>
-              <span className="num text-2xl font-bold leading-none">{count(k)}</span><span className="mt-1 text-[13px] font-medium">{l}</span></button></li>))}
-          {count("failed") > 0 && <li><button type="button" aria-pressed={filter === "failed"} onClick={() => setFilter(filter === "failed" ? "all" : "failed")} className={`flex min-h-[64px] w-full flex-col items-start justify-center rounded-xl px-3 text-left ${filter === "failed" ? "bg-red-700 text-white" : "bg-red-50 text-red-900"}`}><span className="num text-2xl font-bold leading-none">{count("failed")}</span><span className="mt-1 text-[13px] font-medium">Didn&rsquo;t publish</span></button></li>}
-        </ol>)}
+      {tab === "queue" && (() => {
+        const steps: [typeof filter, string][] = [...STEPS, ...(count("failed") > 0 ? [["failed", "Didn't publish"] as [typeof filter, string]] : [])];
+        return (
+          <div className="space-y-2">
+            {/* one bar for where every post is; dashed when there are none yet */}
+            {live.length ? (
+              <div role="img" aria-label={steps.map(([k, l]) => `${l} ${count(k)}`).join(", ")} className="flex h-2.5 gap-[2px] overflow-hidden rounded-full">
+                {steps.filter(([k]) => count(k) > 0).map(([k]) => <span key={k} className={`fq-bar-x h-full ${DOT[k]}`} style={{ flexGrow: count(k) }} />)}
+              </div>
+            ) : <div aria-hidden className="h-2.5 rounded-full border border-dashed border-ink-300" />}
+            <ol aria-label="Where your posts are" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {steps.map(([k, l]) => (
+                <li key={k} className="min-w-0"><button type="button" aria-pressed={filter === k} onClick={() => setFilter(filter === k ? "all" : k)}
+                  className={`flex min-h-11 w-full items-center gap-2 rounded-[12px] px-3 text-left text-[13px] font-medium transition-colors ${filter === k ? "bg-ink-solid text-ink-on" : "bg-surface-2 text-ink hover:bg-surface-3"}`}>
+                  <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${DOT[k]}`} /><span className="min-w-0 flex-1 truncate">{l}</span><span className="num font-semibold">{count(k)}</span></button></li>))}
+            </ol>
+          </div>
+        );
+      })()}
       {tab === "calendar" ? <PostCalendar /> : (
-        error ? <Alert tone="error">{error}</Alert> : loading && !data ? <Skeleton className="h-40" /> : shown.length === 0 ? <EmptyState title="No posts here">Write one above, or let your AI assistant suggest one.</EmptyState>
+        error ? <Alert tone="error">{error}</Alert> : loading && !data ? <Skeleton className="h-40" /> : shown.length === 0 ? <EmptyState title="No posts here" />
           : <ul className="space-y-3">{shown.map((p) => <PostCard key={p.id} p={p} onChange={() => void reload()} />)}</ul>)}
     </div>
   );
@@ -184,7 +198,7 @@ function Body({ gid }: { gid: string }) {
 export default function PostsPage() {
   return (
     <>
-      <PageHeader title="Posts" subtitle="Write, approve and schedule updates for Google. A post counts as published only when Google confirms it." />
+      <PageHeader title="Posts" subtitle="Updates on your Google profile." />
       <GbpFrame>{(gid) => <Body key={gid} gid={gid} />}</GbpFrame>
     </>
   );

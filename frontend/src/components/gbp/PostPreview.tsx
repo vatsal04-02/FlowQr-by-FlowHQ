@@ -25,7 +25,7 @@ export function PostPreview({ business, text, photo, cta, when = "Just now", top
     <figure aria-label="Preview of this post on Google" className="keep-light overflow-hidden rounded-2xl border border-ink-100 bg-white">
       <figcaption className="flex items-center gap-2.5 px-4 pb-2 pt-3.5">
         <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-navy text-sm font-bold text-white">{initial}</span>
-        <span className="min-w-0 leading-tight"><span className="block truncate text-sm font-semibold text-navy">{business}</span><span className="text-xs text-ink-500">{topic === "OFFER" ? "Offer" : topic === "EVENT" ? "Event" : "Update"} · {when}</span></span>
+        <span className="min-w-0 leading-tight"><span data-words="skip" className="block truncate text-sm font-semibold text-navy">{business}</span><span className="text-xs text-ink-500">{topic === "OFFER" ? "Offer" : topic === "EVENT" ? "Event" : "Update"} · {when}</span></span>
       </figcaption>
       {showPhoto && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -39,7 +39,7 @@ export function PostPreview({ business, text, photo, cta, when = "Just now", top
         </div>
       )}
       <div className="px-4 pb-4 pt-1">
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-navy">{text.trim() ? text : <span className="text-ink-400">Your post text shows here as you type.</span>}</p>
+        <p data-words={text.trim() ? "skip" : undefined} className="whitespace-pre-wrap break-words text-sm leading-relaxed text-navy">{text.trim() ? text : <span className="text-ink-400">Your text shows here.</span>}</p>
         {topic === "OFFER" && coupon && <p className="mt-3 rounded-lg border border-dashed border-ink-300 px-3 py-2 text-center text-sm font-semibold tracking-wider text-navy">{coupon}</p>}
         {topic === "OFFER" && terms && <p className="mt-2 text-xs text-ink-500">{terms}</p>}
         {topic !== "OFFER" && cta && CTA_LABEL[cta] && <span className="mt-3 inline-flex min-h-9 items-center rounded-full border border-ink-300 px-4 text-sm font-semibold text-brand-700">{CTA_LABEL[cta]}</span>}
