@@ -118,7 +118,7 @@ print("seeded", hours.status, cat.status)
 
   if (ready) {
     await step('the owner finds Autonomy in the AI section and the page opens off, asking for nothing', async () => {
-      await page.goto('/ai/autonomy');
+      await page.goto('/settings/ai/autonomy');
       await page.getByRole('heading', { level: 1, name: 'Autonomy' }).waitFor({ timeout: 30000 });
       const rail = page.getByRole('navigation', { name: 'AI pages', exact: true });
       await rail.waitFor({ timeout: 20000 });
@@ -128,7 +128,7 @@ print("seeded", hours.status, cat.status)
       await page.screenshot({ path: path.join(OUT, 'autonomy-1-overview.png'), fullPage: true });
     });
     await step('the map shows every measured point with its position, a legend and what changed since last time', async () => {
-      await page.goto('/gbp/rank');
+      await page.goto('/seo/rank');
       await page.getByText('Map view').waitFor({ timeout: 30000 });
       const map = page.getByRole('img', { name: /Map of 9 measured points/ });
       await map.waitFor({ timeout: 20000 });
@@ -141,7 +141,7 @@ print("seeded", hours.status, cat.status)
       await page.screenshot({ path: path.join(OUT, 'autonomy-6-map.png'), fullPage: true });
     });
     await step('what is waiting shows what is on Google now, what it would become, the level, and who decides', async () => {
-      await page.goto('/ai/autonomy');
+      await page.goto('/settings/ai/autonomy');
       await tab(/^Needs you/).waitFor();
       const card = page.locator('li', { hasText: 'Regular opening hours' }).first();
       await card.waitFor({ timeout: 20000 });
@@ -228,14 +228,14 @@ print("seeded", hours.status, cat.status)
     });
     await step('phone width: no horizontal scroll, tabs reachable, the cards stay readable', async () => {
       await page.setViewportSize({ width: 390, height: 844 });
-      for (const u of ['/ai/autonomy', '/gbp/rank']) {
+      for (const u of ['/settings/ai/autonomy', '/seo/rank']) {
         await page.goto(u);
         await page.locator('h1').first().waitFor({ timeout: 30000 });
         await page.waitForLoadState('networkidle');
         const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(over <= 1, `${u} scrolls sideways by ${over}px`);
       }
-      await page.goto('/ai/autonomy');
+      await page.goto('/settings/ai/autonomy');
       await tab(/^Needs you/).waitFor();
       await tab('Usage').click();
       await page.getByText('AI review generations', { exact: true }).waitFor();

@@ -154,7 +154,7 @@ export default function CampaignDetail() {
               {([["QR scans", c.stats.scans], ["Unique scans", c.stats.unique_scans ?? 0], ["Feedback submitted", c.stats.feedback_submitted], ["Drafts approved", c.stats.drafts_approved], ["Continued to Google", c.stats.google_redirects]] as const).map(([k, v]) => (
                 <div key={k}><dt className="text-[13px] text-ink-500">{k}</dt><dd className="num mt-1 text-2xl font-bold leading-none">{fmtNum(v)}</dd></div>))}
             </dl>
-            <p className="mt-4 text-xs text-ink-500">Unique scans count different devices per day (FlowQR keeps no identity for them). &ldquo;Continued to Google&rdquo; is a tap, not a published review. <Link href="/overview/campaigns" className="font-medium text-brand-700 hover:underline">See the full funnel</Link></p>
+            <p className="mt-4 text-xs text-ink-500">Unique scans count different devices per day (FlowQR keeps no identity for them). &ldquo;Continued to Google&rdquo; is a tap, not a published review. <Link href="/analytics/campaigns" className="font-medium text-brand-700 hover:underline">See the full funnel</Link></p>
           </Panel>
 
           {isAdmin && !archived && (
@@ -188,7 +188,7 @@ export default function CampaignDetail() {
                   </form>)}
                 <div className="flex flex-wrap gap-2 border-t border-ink-100 pt-4">
                   <Link href={`/gbp/campaigns/landing?c=${c.id}`} className={dl}><Palette className="h-4 w-4" aria-hidden />Customize page</Link>
-                  <Link href={`/ai/assistant?c=${c.id}`} className={dl}><Sparkles className="h-4 w-4" aria-hidden />AI settings</Link>
+                  <Link href={`/reputation/assistant?c=${c.id}`} className={dl}><Sparkles className="h-4 w-4" aria-hidden />AI settings</Link>
                 </div>
               </div>
             </Panel>)}

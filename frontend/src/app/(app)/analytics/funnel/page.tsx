@@ -75,7 +75,7 @@ export default function CardAnalytics() {
             )}
           </Panel>
 
-          <Panel title="Locations compared" action={<Link href="/overview/reviews" className="text-[13px] font-medium text-brand-700 hover:underline">Full analytics</Link>} flush>
+          <Panel title="Locations compared" action={<Link href="/analytics/reviews" className="text-[13px] font-medium text-brand-700 hover:underline">Full analytics</Link>} flush>
             <div className="overflow-x-auto"><table className="dt min-w-[560px]">
               <thead><tr><th>Location</th><th className="!text-right">Scans</th><th className="!text-right">Visits</th><th className="!text-right">Clicks</th><th className="!text-right">New reviews</th><th className="!text-right">Avg ★</th></tr></thead>
               <tbody>{o.locations.map((l) => (

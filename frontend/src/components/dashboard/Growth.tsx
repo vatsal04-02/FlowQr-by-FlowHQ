@@ -93,7 +93,7 @@ export function Growth({ o, prev, range, loc, days, loading, error, googleConnec
   } else {
     if (google.state === "loading" || google.state === "idle") body = <Skeleton className="h-64" />;
     else if (google.state === "disconnected") body = <Blocked title={google.reason === "no-locations" ? "Choose which Google locations to follow" : "Connect Google to see this"} href="/gbp/locations" cta={google.reason === "no-locations" ? "Choose locations" : "Connect Google"}>Google tells FlowQR how customers find and use your profile. This chart fills in once it&rsquo;s connected.</Blocked>;
-    else if (google.state === "error") body = <Blocked title="Google didn't share these numbers just now" href="/overview/performance" cta="See details">{google.message}</Blocked>;
+    else if (google.state === "error") body = <Blocked title="Google didn't share these numbers just now" href="/analytics/performance" cta="See details">{google.message}</Blocked>;
     else if (tab === "google") body = (
       <>
         <Headline total={google.current.interactions} d={delta(google.current.interactions, google.previous.interactions)} days={google.reportedDays || days} unit={["action", "actions"]}

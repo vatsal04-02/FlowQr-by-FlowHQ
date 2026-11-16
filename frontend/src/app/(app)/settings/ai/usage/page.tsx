@@ -45,7 +45,7 @@ export default function AiUsage() {
           <p className="mt-3 text-xs text-ink-500">{u.note}</p></Panel>
         <Panel title="AI provider" action={<Status tone={!u.provider.configured ? "warn" : u.provider.paused ? "warn" : "ok"}>{!u.provider.configured ? "Setup required" : u.provider.paused ? "Paused" : "Configured"}</Status>}>
           <p className="text-sm text-ink-700">{!u.provider.configured ? "No AI provider is configured on this server, so nothing can be drafted. The platform owner has to add a key." : u.provider.paused ? u.provider.paused.message : `Using ${u.provider.name}${u.provider.model ? ` (${u.provider.model})` : ""}. Health is judged from real requests, not a ping.`}</p>
-          <p className="mt-3 text-[13px] text-ink-500">What customers see on the review page is set in <Link className="text-brand-700 underline" href="/ai/assistant">AI Review Assistant</Link>.</p></Panel>
+          <p className="mt-3 text-[13px] text-ink-500">What customers see on the review page is set in <Link className="text-brand-700 underline" href="/reputation/assistant">AI Review Assistant</Link>.</p></Panel>
       </div>
       <div className="mt-4"><Acceptance /></div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

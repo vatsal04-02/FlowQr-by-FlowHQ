@@ -28,7 +28,7 @@ export default function ReviewGrowthOverview() {
 
   const checklist: [string, boolean, string | null][] = [
     ["Create your first QR campaign", list.length > 0, "/gbp/campaigns"],
-    ["Add your Google review link", !!settings.data && settings.data.locations.length > 0 && missingLinks.length === 0, "/ai/assistant/settings"],
+    ["Add your Google review link", !!settings.data && settings.data.locations.length > 0 && missingLinks.length === 0, "/reputation/assistant/settings"],
     ["AI drafting is configured", !!settings.data?.ai.configured, null],
     ["Download and place your QR code", list.some((c) => c.stats.scans > 0), "/gbp/campaigns"],
   ];
@@ -53,12 +53,12 @@ export default function ReviewGrowthOverview() {
       ) : (
         <div className="space-y-4">
           {missingLinks.length > 0 && (
-            <Alert tone="warning" title="A location has no Google review link" action={<LinkButton href="/ai/assistant/settings" size="sm" variant="secondary">Add link</LinkButton>}>
+            <Alert tone="warning" title="A location has no Google review link" action={<LinkButton href="/reputation/assistant/settings" size="sm" variant="secondary">Add link</LinkButton>}>
               Customers can finish their review, but can&rsquo;t continue to Google: {missingLinks.map((l) => l.name).join(", ")}.
             </Alert>
           )}
           {settings.data && !settings.data.ai.configured && <Alert tone="info" title="AI drafting isn't configured on this server">Customers can still write their own review and continue to Google.</Alert>}
-          {settings.data?.ai.degraded && <Alert tone="warning" title="AI writing help is paused" action={<LinkButton href="/ai/assistant" size="sm" variant="secondary">See why</LinkButton>}>{settings.data.ai.degraded.message} Customers can still write their own review.</Alert>}
+          {settings.data?.ai.degraded && <Alert tone="warning" title="AI writing help is paused" action={<LinkButton href="/reputation/assistant" size="sm" variant="secondary">See why</LinkButton>}>{settings.data.ai.degraded.message} Customers can still write their own review.</Alert>}
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Page opened" value={fmtNum(t?.scans)} hint={t ? `${fmtNum(t.unique_visitors)} unique visitors` : undefined} icon={<ScanLine className="h-4 w-4" />} />
@@ -68,7 +68,7 @@ export default function ReviewGrowthOverview() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr]">
-            <Panel title="Funnel" meta="30 days" action={<Link href="/overview/campaigns" className="text-[13px] font-medium text-brand-700 hover:underline">Full analytics</Link>}>
+            <Panel title="Funnel" meta="30 days" action={<Link href="/analytics/campaigns" className="text-[13px] font-medium text-brand-700 hover:underline">Full analytics</Link>}>
               {stats.data ? <Funnel steps={stats.data.funnel} /> : <Skeleton className="h-40" />}
             </Panel>
             <Panel title="Activity over time">

@@ -41,7 +41,7 @@ export function PopoverButton({ label, icon, children, align = "right", dot, cla
   );
 }
 
-/** The four sections as one pill; the black indicator slides to the current one (spring 380/32, DESIGN.md §8). */
+/** The six sections as one pill; the black indicator slides to the current one (spring 380/32, DESIGN.md §8). */
 export function SectionNav({ path }: { path: string }) {
   const here = locate(path)?.section.id;
   return (
@@ -146,7 +146,7 @@ export function UtilButtons({ onLogout, help }: { onLogout: () => void; help: Re
   );
 }
 
-/** Phones and tablets: the four sections as a floating pill at the bottom (DESIGN.md §9). */
+/** Phones and tablets: the six sections as a floating pill at the bottom (DESIGN.md §9). Short labels keep six of them on one row. */
 export function MobileBar({ path }: { path: string }) {
   const here = locate(path)?.section.id;
   return (
@@ -156,7 +156,7 @@ export function MobileBar({ path }: { path: string }) {
         return (
           <Link key={s.id} href={sectionHref(s)} aria-current={on ? "page" : undefined}
             className={clsx("flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[11px] font-semibold leading-[14px] transition-colors", on ? "bg-ink-solid text-ink-on" : "text-muted")}>
-            <s.icon className="h-[18px] w-[18px]" strokeWidth={on ? 2.1 : 1.75} aria-hidden /><span className="truncate px-1">{s.label}</span>
+            <s.icon className="h-[18px] w-[18px]" strokeWidth={on ? 2.1 : 1.75} aria-hidden /><span className="truncate px-0.5">{s.short}</span>
           </Link>
         );
       })}
@@ -174,6 +174,7 @@ export function SubNav({ path, section }: { path: string; section: Section | nul
   useEffect(() => { chipRef.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [path]);
   if (!l) return null;
   const items = section?.items ?? l.section.items;
+  const item = items.find((i) => i.href === l.item.href) ?? l.item;  // the role-filtered copy, so a tab this person may not open is not shown
   return (
     <>
       <nav aria-label={`${l.section.label} pages (scroll)`} className="-mx-4 mb-4 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
@@ -189,10 +190,10 @@ export function SubNav({ path, section }: { path: string; section: Section | nul
           })}
         </ul>
       </nav>
-      {l.item.sub && (
-        <nav aria-label={`${l.item.label} pages`} className="mb-5">
+      {item.sub && item.sub.length > 1 && (
+        <nav aria-label={`${item.label} pages`} className="mb-5">
           <ul className="inline-flex max-w-full flex-wrap gap-1 rounded-full bg-surface p-1 shadow-pill">
-            {l.item.sub.map((x) => {
+            {item.sub.map((x) => {
               const on = l.sub?.href === x.href;
               return <li key={x.href}><Link href={x.href} aria-current={on ? "page" : undefined}
                 className={clsx("inline-flex min-h-10 items-center whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors sm:min-h-9", on ? "bg-ink-solid text-ink-on" : "text-muted hover:text-ink")}>{x.label}</Link></li>;

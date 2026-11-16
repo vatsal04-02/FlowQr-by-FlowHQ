@@ -121,7 +121,7 @@ db.commit()
       await page.waitForTimeout(500);
       await page.unroute('**/api/v1/gbp/*/info');
       await page.goto('/cards/analytics');
-      await page.waitForURL('**/overview/funnel');
+      await page.waitForURL('**/analytics/funnel');
       expect(await railCurrent('Overview', 'Customer funnel') === 'page', 'card analytics are not under Customer funnel');
       await page.goto('/ai/approvals');
       expect(await railOf('AI') === 'Reply assistant|AI assistant|Autonomy|Brand voice|Review-writing assistant|Insights|Content studio|Business brain|Usage & limits', 'ai pages: ' + await railOf('AI'));
@@ -129,13 +129,13 @@ db.commit()
       expect(await page.getByRole('navigation', { name: 'AI assistant pages', exact: true }).getByRole('link', { name: 'Waiting for approval' }).getAttribute('aria-current') === 'page', 'sub page not marked');
       // Local ranking lives under GBP Manager now (the old /overview/visibility URL redirects there).
       await page.goto('/overview/visibility');
-      await page.waitForURL('**/gbp/rank');
+      await page.waitForURL('**/seo/rank');
       expect(await railCurrent('GBP Manager', 'Local ranking') === 'page', 'local ranking is not under GBP Manager');
       // The Performance page calls Google live. With Google configured, Google rejects this suite's SEEDED fake token and the backend rightly marks the
       // connection revoked, which would change every later step. This step only checks navigation, so answer those calls locally (no real Google call).
       await page.route('**/api/v1/gbp/*/performance**', (route) => route.fulfill({ json: { from: '', to: '', totals: {}, series: {}, note: 'stub' } }));
       await page.route('**/api/v1/gbp/*/keywords**', (route) => route.fulfill({ json: { from_month: '', to_month: '', keywords: [], note: 'stub' } }));
-      await page.goto('/overview/performance');
+      await page.goto('/analytics/performance');
       expect(await railCurrent('Overview', 'Search & Maps') === 'page', 'performance is not under Search & Maps');
       await page.waitForTimeout(1500);
       await page.unroute('**/api/v1/gbp/*/performance**');
@@ -333,7 +333,7 @@ db.commit()
       await page.getByText('Publishing every reply, including 5-star ones').waitFor();
     });
     await step('ai quality: the acceptance table shows all four kinds and never a made-up rate', async () => {
-      await page.goto('/ai/usage');
+      await page.goto('/settings/ai/usage');
       await page.getByText('How much of what the AI writes you keep').waitFor({ timeout: 20000 });
       for (const k of ['Review replies', 'Google Posts', 'Profile descriptions', 'Customer review drafts']) await page.getByRole('cell', { name: k, exact: true }).waitFor();
       const rows = await page.getByRole('row').filter({ hasText: 'Google Posts' }).first().innerText();
@@ -518,7 +518,7 @@ db.commit()
       }
       expect(await page.getByText('Connected', { exact: true }).count() === await (async () => { const j = await (await ctx.request.get('/api/v1/workspace/integrations')).json(); return j.integrations.filter((i) => i.status === 'connected').length; })(), 'the page shows "Connected" for something the server did not call connected');
       await page.goto('/settings/ai');  // moved to AI › Usage & limits; the old URL redirects
-      await page.waitForURL('**/ai/usage');
+      await page.waitForURL('**/settings/ai/usage');
       await page.getByRole('heading', { name: 'Usage & limits' }).waitFor({ timeout: 20000 });
       await page.getByText('This month', { exact: true }).first().waitFor();
       await page.goto('/settings/audit');

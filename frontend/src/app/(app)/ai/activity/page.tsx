@@ -29,7 +29,7 @@ export default function ActivityPage() {
             <div className="flex justify-between"><dt className="text-ink-500">Waiting for approval</dt><dd className="num font-semibold">{a.pending_approvals}</dd></div></dl>
           {a.last_plan_run?.error && <p className="mt-2 text-[13px] text-red-700">{a.last_plan_run.error}</p>}
         </Panel>
-        <Panel title="AI usage this month" action={<a className="text-[13px] font-medium text-brand-700 hover:underline" href="/ai/usage">Details</a>}>
+        <Panel title="AI usage this month" action={<a className="text-[13px] font-medium text-brand-700 hover:underline" href="/settings/ai/usage">Details</a>}>
           <p className="num text-2xl font-bold">{fmtNum(a.ai.used_this_month)} <span className="text-base font-medium text-ink-400">/ {fmtNum(a.ai.monthly_limit)}</span></p>
           <div className="mt-2"><Meter value={a.ai.used_this_month} max={a.ai.monthly_limit} label="AI uses this month" tone={a.ai.used_this_month >= a.ai.monthly_limit ? "bad" : "info"} /></div>
         </Panel>
