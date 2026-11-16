@@ -51,7 +51,7 @@ def test_at_head_everything_is_present_and_the_plans_have_their_final_names_and_
     assert present()
     assert plans() == {"starter": ("Launch", 49900), "growth": ("Growth", 79900), "pro": ("Scale", 149900)}
     assert owner_query("SELECT count(*) FROM billing_plans WHERE code IN ('starter','growth','pro')")[0][0] == 3  # no duplicate plan was created
-    assert "card_status" not in cols("subscriptions")
+    assert "card_status" in cols("subscriptions")  # kept on purpose: the running release still reads it, so an application rollback needs no database change
     for table in ("subscriptions", "payments"):  # row-level security still forced on the tenant tables that gained columns
         assert owner_query("SELECT relforcerowsecurity FROM pg_class WHERE relname = :t", t=table)[0][0] is True
     assert owner_query("SELECT 1 FROM pg_constraint WHERE conname = 'uq_subscriptions_cashfree_subscription_id'") and owner_query("SELECT 1 FROM pg_constraint WHERE conname = 'uq_payments_cashfree_payment_id'")
@@ -91,14 +91,14 @@ def test_a_name_an_administrator_changed_is_never_overwritten_by_the_rename():
     assert plans()["pro"][0] == "Scale"
 
 
-def test_production_shape_0033_with_empty_card_status_upgrades_dropping_only_that_unused_column():
+def test_production_shape_0033_upgrades_without_touching_card_status_or_any_row():
     alembic("downgrade", "0033")
     try:
-        assert "card_status" in cols("subscriptions") and owner_query("SELECT count(*) FROM subscriptions WHERE card_status IS NOT NULL")[0][0] == 0
+        assert owner_query("SELECT count(*) FROM subscriptions WHERE card_status IS NOT NULL")[0][0] == 0
         rows = owner_query("SELECT count(*) FROM subscriptions")[0][0]
     finally:
         alembic("upgrade", "head")
-    assert "card_status" not in cols("subscriptions") and present() and owner_query("SELECT count(*) FROM subscriptions")[0][0] == rows
+    assert "card_status" in cols("subscriptions") and present() and owner_query("SELECT count(*) FROM subscriptions")[0][0] == rows
 
 
 def test_physical_qr_card_functionality_is_untouched():

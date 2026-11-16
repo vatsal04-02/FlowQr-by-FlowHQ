@@ -3,9 +3,10 @@
 Revision ID: 0034
 Revises: 0033
 
-Production is at revision 0033 (`trial_card_required`: the nullable `subscriptions.card_status` column of the Razorpay card-on-file trial), which is therefore a real, kept revision. That
-feature is withdrawn in favour of Cashfree payment authorisation, so this migration drops the column (every row in production holds NULL there; the downgrade puts the empty column back so
-the schema is exactly 0033's again).
+Production is at revision 0033 (`trial_card_required`: the nullable `subscriptions.card_status` column of the Razorpay card-on-file trial), a real, kept revision. That feature is withdrawn
+in favour of Cashfree payment authorisation, but this migration deliberately LEAVES the column in place (every production row holds NULL there): it is unused by the new code, harmless, and
+keeping it means the release that is running today still works against the migrated schema, so a rollback of the application image needs no database change. A later cleanup migration
+may drop it once the release is settled.
 
 Plan display names: the internal codes (starter, growth, pro) and the prices do not change. `billing_plans.name` becomes Launch / Growth / Scale. A row is renamed only if it
 still carries the name migration 0029 gave it, so a name an administrator has edited is never overwritten.
@@ -20,7 +21,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TABLE subscriptions DROP COLUMN IF EXISTS card_status")
     op.execute("UPDATE billing_plans SET name = 'Launch' WHERE code = 'starter' AND name = 'Starter'")
     op.execute("UPDATE billing_plans SET name = 'Scale' WHERE code = 'pro' AND name = 'Pro'")
 
@@ -65,6 +65,5 @@ def downgrade() -> None:
         op.drop_column("subscriptions", name)
     op.drop_constraint("uq_billing_plans_cashfree_plan_id", "billing_plans", type_="unique")
     op.drop_column("billing_plans", "cashfree_plan_id")
-    op.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_status varchar(12)")  # the shape revision 0033 left
     op.execute("UPDATE billing_plans SET name = 'Starter' WHERE code = 'starter' AND name = 'Launch'")
     op.execute("UPDATE billing_plans SET name = 'Pro' WHERE code = 'pro' AND name = 'Scale'")
