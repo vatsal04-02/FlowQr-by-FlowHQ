@@ -44,10 +44,9 @@ export default function CardsPage() {
 
   return (
     <>
-      <PageHeader title="Your QR and NFC cards"
-        subtitle={data ? `${data.length} ${data.length === 1 ? "card" : "cards"} · ${counts.live} live · ${fmtNum(total)} scans and taps all time` : "Change where a card goes any time, without replacing it."}
+      <PageHeader title="Cards"
+        subtitle={data && data.length ? `${data.length} · ${counts.live} live · ${fmtNum(total)} scans` : undefined}
         actions={<>
-          {isAdmin && <LinkButton href="/gbp/cards/designs" size="sm" variant="secondary" icon={<Download className="h-4 w-4" />}>Designs &amp; bulk export</LinkButton>}
           <Segmented label="Section" value={tab} onChange={setTab} options={isAdmin ? ([["inventory", "Inventory"], ["assign", "Assign cards"]] as const) : ([["inventory", "Inventory"]] as const)} />
         </>} />
       {error && <Alert tone="error">{error}</Alert>}
@@ -58,21 +57,20 @@ export default function CardsPage() {
             <div className="mb-4"><Alert tone="info" title={`${waiting} ${waiting === 1 ? "card is" : "cards are"} waiting for you`}
               action={<Button size="sm" onClick={() => setTab("assign")}>Assign cards</Button>}>FlowHQ has set these aside for your business. Scan each one to give it a location and review page, and it goes live.</Alert></div>
           )}
-          <div className="mb-4 flex flex-wrap items-center gap-2">
+          {data && data.length > 0 && <div className="mb-4 flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1 sm:max-w-xs"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
               <input aria-label="Search by serial number or label" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search serial, e.g. FQR-0012" className="min-h-11 w-full rounded-xl border border-ink-200 bg-white pl-9 pr-3 text-[16px] sm:min-h-10 sm:text-sm" /></div>
             <Segmented label="Show" value={filter} onChange={setFilter} options={FILTERS.map(([k, l]) => [k, k === "all" ? l : `${l} ${counts[k] ?? 0}`] as const)} />
             <Segmented label="View" value={view} onChange={setView} options={[["gallery", "Cards"], ["table", "Table"]] as const} />
-          </div>
+          </div>}
           {loading && !data ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-64" />)}</div> : data && data.length === 0 ? (
-            <section aria-labelledby="first-card-h" className="overflow-hidden rounded-2xl bg-brand-50">
+            <section aria-labelledby="first-card-h" className="overflow-hidden rounded-[16px] bg-surface shadow-card">
               <div className="grid items-center gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
                 <div>
-                  <h2 id="first-card-h" className="text-xl font-bold text-navy">Put your first card on the counter</h2>
-                  <p className="mt-1 text-sm text-ink-700">Customers tap or scan it and land on your review page.</p>
+                  <h2 id="first-card-h" className="text-[17px] font-semibold">Your first card</h2>
                   <ol className="mt-5 space-y-3">
-                    {[["Order cards", "Ask FlowHQ for a batch."], ["FlowHQ sets them aside for you", "They appear here, ready to place."], ["Scan one to give it a place", "Pick the location and review page."], ["Put it where people pay or wait", "It goes live straight away."]].map(([t, d], i) => (
-                      <li key={t} className="flex items-start gap-3"><span aria-hidden className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-navy text-xs font-bold text-white">{i + 1}</span><div><p className="text-sm font-semibold text-navy">{t}</p><p className="text-[13px] text-ink-700">{d}</p></div></li>))}
+                    {[["Order cards", ""], ["Scan one to place it", ""], ["Put it at the counter", ""]].map(([t, d], i) => (
+                      <li key={t} className="flex items-start gap-3"><span aria-hidden className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink-solid text-xs font-bold text-ink-on">{i + 1}</span><div><p className="text-[14px] font-semibold">{t}</p><p className="text-[13px] text-ink-700">{d}</p></div></li>))}
                   </ol>
                   <div className="mt-6"><LinkButton href="/settings/billing/payments" variant="brand" size="lg">Order cards</LinkButton></div>
                 </div>
@@ -126,7 +124,7 @@ export default function CardsPage() {
             </Panel>
           )}
           {data && data.length > 0 && shown.length === 0 && <p className="mt-4 text-sm text-ink-500">No cards match.</p>}
-          <p className="mt-6 max-w-2xl text-xs text-ink-500">The printed QR and the NFC tag open the same card. &ldquo;QR&rdquo; and &ldquo;NFC&rdquo; count how people got in; scans before this was tracked show only in the total. FlowQR can&rsquo;t tell whether a tag has been written, so NFC shows &ldquo;link ready&rdquo; whenever the card is live.</p>
+          
         </>
       )}
       {edit && <CardEditModal card={edit} locations={(locs.data ?? []).filter((l) => l.is_active)} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Card updated."); void reload(); }} />}

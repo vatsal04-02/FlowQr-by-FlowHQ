@@ -1,5 +1,5 @@
 "use client";
-import { ExternalLink, Plus, ShieldCheck, Sparkles } from "lucide-react";
+import { ExternalLink, Plus, ShieldCheck, PenLine } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSelectedCampaign } from "@/components/review-growth/shared";
 import { Button, LinkButton } from "@/components/ui/Button";
@@ -57,7 +57,7 @@ function ModelTest({ model, onDone }: { model: string | null | undefined; onDone
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run(); }}>
         <Textarea label="Sample customer words" rows={2} value={words} maxLength={1200} onChange={(e) => setWords(e.target.value)} className="min-h-[72px]" hint="Try keywords, a sentence, Hindi, or something negative." />
         <Select label="Language" value={lang} onChange={(e) => setLang(e.target.value as Lang)}><option value="en">English</option><option value="hi">हिन्दी</option></Select>
-        <Button type="submit" loading={busy} icon={<Sparkles className="h-4 w-4" />}>Run a real test</Button>
+        <Button type="submit" loading={busy} icon={<PenLine className="h-4 w-4" />}>Run a real test</Button>
         <p className="text-xs text-ink-500">Makes real calls to the provider (a draft plus its fact-check) and counts toward your monthly AI usage. A successful test also lifts any “AI paused” state. Customers never see this.</p>
       </form>
       {err && <div className="mt-3"><Alert tone="error">{err}</Alert></div>}
@@ -114,7 +114,7 @@ export default function GeneratorPage() {
       <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
           {loading && !campaigns.length ? <Skeleton className="h-72" /> : !selected ? (
-            <EmptyState icon={<Sparkles className="h-5 w-5" />} title="Create a campaign to configure its generator"
+            <EmptyState icon={<PenLine className="h-5 w-5" />} title="Create a campaign to configure its generator"
               action={<LinkButton href="/gbp/campaigns?new=1" size="sm" icon={<Plus className="h-4 w-4" />}>New campaign</LinkButton>}>Defaults are set per campaign.</EmptyState>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); void save(); }} className="space-y-4" noValidate>

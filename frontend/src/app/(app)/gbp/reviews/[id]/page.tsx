@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Send, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Send, PenLine, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -62,7 +62,7 @@ export default function ReviewDetail() {
   }
   const [tone, setTone] = useState("");
   const [lang, setLang] = useState("");
-  const generate = () => run("gen", () => api(`/reviews/${id}/drafts/generate`, { method: "POST", body: { tone: tone || null, language: lang || null } }), "AI draft ready. Review and edit it before approving.");
+  const generate = () => run("gen", () => api(`/reviews/${id}/drafts/generate`, { method: "POST", body: { tone: tone || null, language: lang || null } }), "Draft ready. Review and edit it before approving.");
   const saveManual = () => run("save", () => api(`/reviews/${id}/drafts`, { method: "POST", body: { body } }), "Draft saved.");
   const save = () => run("save", () => api(`/reply-drafts/${draft!.id}`, { method: "PATCH", body: { body } }), "Changes saved. Approval is required again.");
   const approve = () => run("approve", async () => {
@@ -122,12 +122,12 @@ export default function ReviewDetail() {
         {draft?.status === "failed" && <div className="mb-3"><Alert tone="error" title="Google did not accept this reply">{draft.failure_reason ?? "Unknown error"} Attempts: {draft.attempts}.</Alert></div>}
 
         <label htmlFor="reply" className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-ink-700">
-          Your reply {draft?.generated_by_ai && <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-800"><Sparkles className="h-3 w-3" aria-hidden />AI draft</span>}
+          Your reply {draft?.generated_by_ai && <span className="inline-flex items-center rounded-md bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-ink-700">Draft by FlowQR</span>}
         </label>
         <textarea id="reply" rows={6} value={body} onChange={(e) => setBody(e.target.value)} maxLength={4000}
-          placeholder={draft ? "" : "Write a reply, or let AI draft one for you to edit."}
+          placeholder={draft ? "" : "Write a reply, or ask FlowQR for a draft."}
           className="w-full resize-y rounded-lg border border-ink-300 bg-white p-3 text-base leading-relaxed hover:border-ink-500 focus-visible:border-brand-600 sm:text-[15px]" />
-        <p className="mt-1 text-xs text-ink-500"><span className="num">{body.length}/4000</span> · Don&rsquo;t share patient or medical details in public replies.</p>
+        <p className="mt-1 text-xs text-ink-500"><span className="num">{body.length}/4000</span> · Nothing is posted until you approve it. Don&rsquo;t share private details.</p>
 
         {needsAck && draft?.status === "draft" && isAdmin && (
           <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
@@ -142,7 +142,7 @@ export default function ReviewDetail() {
               <option value="">Brand voice tone</option><option value="warm">Warm</option><option value="professional">Professional</option><option value="brief">Brief</option><option value="apologetic">Apologetic</option></select>
             <select aria-label="Reply language" value={lang} onChange={(e) => setLang(e.target.value)} className="min-h-9 rounded-full bg-surface-2 px-3 text-[13px] font-medium">
               <option value="">Same language as the review</option><option value="en">English</option><option value="hi">Hindi</option><option value="hinglish">Hinglish</option></select>
-            <Button variant="secondary" size="sm" icon={<Sparkles className="h-3.5 w-3.5" />} loading={busy === "gen"} onClick={() => void generate()}>{draft ? "Regenerate with AI" : "Draft with AI"}</Button>
+            <Button variant="secondary" size="sm" icon={<PenLine className="h-3.5 w-3.5" />} loading={busy === "gen"} onClick={() => void generate()}>{draft ? "Redraft" : "Draft a reply"}</Button>
             {!draft && <Button variant="secondary" size="sm" loading={busy === "save"} disabled={body.trim().length < 2} onClick={() => void saveManual()}>Save my own draft</Button>}
             {draft && dirty && <Button variant="secondary" size="sm" loading={busy === "save"} onClick={() => void save()}>Save changes</Button>}
             {draft && isAdmin && <Button variant="ghost" size="sm" loading={busy === "discard"} onClick={() => void discard()} icon={<XCircle className="h-3.5 w-3.5" />}>Discard</Button>}

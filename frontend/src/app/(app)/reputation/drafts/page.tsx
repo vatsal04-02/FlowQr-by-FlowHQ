@@ -1,4 +1,5 @@
 "use client";
+import { Ring } from "@/components/charts/Bars";
 import clsx from "clsx";
 import { AlertTriangle, ArrowRight, Check, Lock, PenLine, Star, X } from "lucide-react";
 import Link from "next/link";
@@ -121,38 +122,34 @@ export default function ReplyAssistantPage() {
 
   return (
     <>
-      <PageHeader title="Draft replies" subtitle="Suggested replies to your reviews. Nothing is posted until you approve it." />
+      <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Drafts</h1>
       <div className="grid gap-5 sm:gap-6 xl:grid-cols-3">
-        <section className="hero-grad rv relative overflow-hidden rounded-card p-6 sm:p-7 xl:col-span-2" aria-label="Drafts waiting">
-          <span className="scrim">Waiting for approval</span>
-          <p className="num mt-4 text-[56px] font-semibold leading-[56px] tracking-[-.03em]">{drafts.loading && !drafts.data ? "–" : fmtNum(n)}<span className="ml-3 text-2xl font-semibold tracking-[-.01em]">{n === 1 ? "draft ready" : "drafts ready"}</span></p>
-          {o && o.new_in_range > 0 && (
-            <div className="mt-5 max-w-xl">
-              <div className="h-3 overflow-hidden rounded-full" style={{ backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,.5) 0 1.5px, transparent 1.5px 5px)" }}
-                role="progressbar" aria-label="Reviews answered in the last 30 days" aria-valuenow={replied} aria-valuemin={0} aria-valuemax={o.new_in_range}>
-                <div className="grow-x h-full rounded-full bg-pure-white" style={{ width: `${Math.min(100, (replied / o.new_in_range) * 100)}%` }} />
-              </div>
-              <p className="mt-2 flex justify-between gap-2"><span className="scrim">{fmtNum(replied)} of {fmtNum(o.new_in_range)} new reviews answered</span><span className="scrim">Last 30 days</span></p>
-            </div>
-          )}
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <a href="#drafts" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-pure-white px-5 text-sm font-semibold text-pure-ink transition-transform hover:-translate-y-px">Review drafts<ArrowRight className="h-4 w-4" aria-hidden /></a>
-            {o && o.awaiting_reply > 0 && <Link href="/gbp/reviews?state=none" className="scrim !px-3 !py-1 !text-[13px] hover:underline">{fmtNum(o.awaiting_reply)} reviews have no reply yet</Link>}
+        <section className="rounded-[16px] bg-surface p-4 shadow-card lg:p-5 xl:col-span-2" aria-label="Drafts waiting">
+          <h2 className="text-[15px] font-semibold">Waiting for you</h2>
+          <div className="mt-3 flex flex-wrap items-center gap-5">
+            <Ring value={o && o.new_in_range ? Math.min(100, (replied / o.new_in_range) * 100) : null} size={104} stroke={10} label={o ? `${replied} of ${o.new_in_range} new reviews answered` : "No new reviews"}>
+              <span><b className="num block text-[26px] font-semibold leading-none">{o ? fmtNum(replied) : "–"}</b><span className="num text-[11px] text-muted">of {o ? fmtNum(o.new_in_range) : "–"}</span></span>
+            </Ring>
+            <dl className="grid min-w-0 flex-1 grid-cols-2 gap-3 text-[14px]">
+              <div><dt className="text-muted">Drafts</dt><dd className="num text-[24px] font-semibold">{drafts.loading && !drafts.data ? "–" : fmtNum(n)}</dd></div>
+              <div><dt className="text-muted">No reply</dt><dd className="num text-[24px] font-semibold">{o ? fmtNum(o.awaiting_reply) : "–"}</dd></div>
+            </dl>
+            <a href="#drafts" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-ink-solid px-5 text-sm font-semibold text-ink-on sm:w-auto">Review drafts<ArrowRight className="h-4 w-4" aria-hidden /></a>
           </div>
         </section>
 
-        <Panel title="How drafts are made" className="rv">
+        <Panel dense title="Draft settings">
           <ul className="divide-y divide-line">
             <li className="flex items-center justify-between gap-3 pb-3">
-              <span><span className="block font-semibold">Auto-draft replies for new reviews</span><span className="block text-[13px] text-muted">Drafts only. Publishing always needs you.</span></span>
+              <span><span className="block font-semibold">Draft new reviews</span></span>
               {settings.data ? <Toggle on={settings.data.auto_draft_replies} label="Auto-draft replies for new reviews" disabled={!isAdmin || saving} onChange={(v) => void setAuto(v)} /> : <Skeleton className="h-8 w-14" />}
             </li>
             <li className="flex items-center justify-between gap-3 py-3">
-              <span><span className="block font-semibold">Flag sensitive reviews</span><span className="block text-[13px] text-muted">Medical, legal, threats, accusations, low ratings.</span></span>
+              <span><span className="block font-semibold">Flag sensitive reviews</span></span>
               <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted"><Lock className="h-3 w-3" aria-hidden />Always on</span>
             </li>
             <li className="flex items-center justify-between gap-3 pt-3">
-              <span><span className="block font-semibold">Draft in the reviewer&rsquo;s language</span><span className="block text-[13px] text-muted">English, Hindi or Hinglish, matched to the review.</span></span>
+              <span><span className="block font-semibold">Match the language</span></span>
               <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted"><Lock className="h-3 w-3" aria-hidden />Always on</span>
             </li>
           </ul>
@@ -174,18 +171,18 @@ export default function ReplyAssistantPage() {
             : waiting.length === 0 ? (
               <div className="mt-5 flex flex-wrap items-center gap-4 rounded-tile bg-surface-2 p-5">
                 <span aria-hidden className="grid h-10 w-10 place-items-center rounded-full bg-pos-tint text-pos"><Check className="h-5 w-5" strokeWidth={2.5} /></span>
-                <p className="min-w-0 flex-1 basis-60 text-sm text-muted">No drafts waiting. Open a review to have the AI write one{settings.data && !settings.data.auto_draft_replies ? ", or switch on auto-drafting" : ""}.</p>
+                <p className="min-w-0 flex-1 basis-60 text-sm text-muted">No drafts waiting.</p>
                 <LinkButton href="/gbp/reviews?state=none" variant="secondary" size="sm">Reviews without a reply</LinkButton>
               </div>
             ) : <ul className="mt-5 grid gap-3.5 md:grid-cols-2">{waiting.map((r, i) => <DraftCard key={r.id} r={r} selected={i === 0} canApprove={isAdmin} onDone={reload} />)}</ul>}
         </section>
 
-        <Panel title="History" meta="latest replies" className="rv">
+        <Panel dense title="History">
           {history.length === 0 ? <p className="text-sm text-muted">Replies you publish appear here once Google confirms them.</p> : (
             <ul className="divide-y divide-line">{history.map(({ r, ok }) => (
               <li key={r.id}><Link href={`/gbp/reviews/${r.id}`} className="flex items-center gap-3 py-3">
                 <span aria-hidden className={clsx("grid h-9 w-9 shrink-0 place-items-center rounded-full", ok ? "bg-pos-tint text-pos" : "bg-neg-tint text-neg")}>{ok ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}</span>
-                <span className="min-w-0 flex-1"><span className="block truncate font-medium">{r.reviewer_name ?? "A Google user"} · {r.rating}★</span><span className="block text-xs text-muted">{ok ? (r.google_reply_at ? `Published · Google confirmed ${timeAgo(r.google_reply_at)}` : "Published on Google") : "Didn't reach Google · open to retry"}</span></span>
+                <span className="min-w-0 flex-1"><span data-words="skip" className="block truncate font-medium">{r.reviewer_name ?? "A Google user"} · {r.rating}★</span><span className="block text-xs text-muted">{ok ? (r.google_reply_at ? "Replied" : "Published on Google") : "Didn't reach Google · open to retry"}</span></span>
               </Link></li>))}</ul>
           )}
         </Panel>

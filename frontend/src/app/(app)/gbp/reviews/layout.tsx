@@ -1,6 +1,7 @@
 "use client";
 import clsx from "clsx";
-import { AlertTriangle, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import { Sheet } from "@/components/ui/Sheet";
 import Link from "next/link";
 import { useRouter, useSearchParams, useSelectedLayoutSegment } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -17,7 +18,7 @@ import type { Location, Review } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 const PAGE = 25;
-const STATES = [["", "All"], ["none", "Needs a reply"], ["draft", "Waiting for you"], ["failed", "Didn't send"], ["published", "Replied"]] as const;
+const STATES = [["", "All"], ["none", "Needs reply"], ["draft", "Waiting"], ["failed", "Didn't send"], ["published", "Replied"]] as const;
 
 export default function ReviewsLayout({ children }: { children: ReactNode }) {
   return <Suspense><Workspace>{children}</Workspace></Suspense>;
@@ -36,6 +37,7 @@ function Workspace({ children }: { children: ReactNode }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [filters, setFilters] = useState(false);
   useEffect(() => { const t = setTimeout(() => { setF((p) => ({ ...p, search: q })); setPage(0); }, 350); return () => clearTimeout(t); }, [q]);
   const list = useFetch<{ total: number; items: Review[] }>("/reviews", { ...f, limit: PAGE, offset: page * PAGE });
   // Per-state totals for the filter tabs. Cheap: limit=1 returns only the count.
@@ -65,8 +67,9 @@ function Workspace({ children }: { children: ReactNode }) {
   return (
     <ReviewsCtx.Provider value={ctx}>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-[22px] font-semibold leading-7 sm:text-[26px] sm:leading-8">Reviews</h1><p className="text-[14px] text-muted">Read what customers wrote, and reply. Nothing is posted until you approve it.</p></div>
-        {isAdmin && connected && <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} loading={syncing} onClick={() => void sync()}>Sync now</Button>}
+        <h1 className="text-[22px] font-semibold leading-7 sm:text-[26px] sm:leading-8">Reviews</h1>
+        {isAdmin && connected && <button type="button" aria-label="Sync reviews from Google now" title="Sync reviews from Google now" disabled={syncing} onClick={() => void sync()}
+          className="grid h-11 w-11 place-items-center rounded-[12px] text-ink-600 ring-1 ring-line hover:bg-surface-2 disabled:opacity-50"><RefreshCw className={clsx("h-4 w-4", syncing && "fq-spin")} aria-hidden /></button>}
       </div>
       <div className="grid overflow-hidden rounded-panel border border-ink-100 bg-white md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">
         <section aria-label="Review list" className={clsx("flex min-h-0 flex-col border-ink-100 md:border-r", seg ? "hidden md:flex" : "flex")}>
@@ -75,22 +78,30 @@ function Workspace({ children }: { children: ReactNode }) {
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
               <input aria-label="Search reviews" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search text or name" className="min-h-11 w-full rounded-lg border border-ink-300 pl-8 pr-3 text-base sm:min-h-8 sm:text-sm" />
             </div>
-            <div className="flex flex-wrap gap-x-0.5 gap-y-1" role="tablist" aria-label="Reply status">
-              {STATES.map(([v, l]) => {
-                const n = counts[v];
-                const on = f.reply_state === v;
-                return (
-                  <button key={v} role="tab" aria-selected={on} onClick={() => { setF({ ...f, reply_state: v }); setPage(0); }}
-                    className={clsx("inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors sm:min-h-7", on ? "bg-ink text-white" : "text-ink-700 hover:bg-ink-100/70")}>
-                    {l}{n !== undefined && n > 0 && <span className={clsx("num rounded px-1 text-[11px] font-semibold", on ? "bg-white/20" : v === "failed" ? "bg-red-50 text-red-700" : v === "none" ? "bg-amber-50 text-amber-800" : "bg-ink-100 text-ink-700")}>{n}</span>}
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto no-scrollbar" role="tablist" aria-label="Reply status">
+                {STATES.filter(([v]) => v !== "failed" || (counts.failed ?? 0) > 0 || f.reply_state === "failed").map(([v, l]) => {
+                  const n = counts[v];
+                  const on = f.reply_state === v;
+                  return (
+                    <button key={v} role="tab" aria-selected={on} onClick={() => { setF({ ...f, reply_state: v }); setPage(0); }}
+                      className={clsx("inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[10px] px-2.5 text-[13px] font-medium transition-colors sm:min-h-8", on ? "bg-ink-solid text-ink-on" : "text-ink-700 hover:bg-surface-2")}>
+                      {l}{n !== undefined && n > 0 && <span className="num text-[12px] opacity-70">{n}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" onClick={() => setFilters(true)} aria-label={`Filters${f.location_id || f.rating ? ", some on" : ""}`}
+                className="relative grid h-11 w-11 shrink-0 place-items-center rounded-[10px] text-ink-700 ring-1 ring-line hover:bg-surface-2 sm:h-8 sm:w-8">
+                <SlidersHorizontal className="h-4 w-4" aria-hidden />{(f.location_id || f.rating) && <span aria-hidden className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <FilterSelect label="Location" value={f.location_id} onChange={setFilter("location_id")}><option value="">All locations</option>{locs.data?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</FilterSelect>
-              <FilterSelect label="Star rating" value={f.rating} onChange={setFilter("rating")}><option value="">Any rating</option>{[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} stars</option>)}</FilterSelect>
-            </div>
+            <Sheet open={filters} onClose={() => setFilters(false)} title="Filters" footer={<Button onClick={() => setFilters(false)}>Show reviews</Button>}>
+              <div className="grid gap-3 pb-1">
+                <FilterSelect label="Location" value={f.location_id} onChange={setFilter("location_id")}><option value="">All locations</option>{locs.data?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</FilterSelect>
+                <FilterSelect label="Star rating" value={f.rating} onChange={setFilter("rating")}><option value="">Any rating</option>{[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} stars</option>)}</FilterSelect>
+              </div>
+            </Sheet>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -114,12 +125,12 @@ function Workspace({ children }: { children: ReactNode }) {
                           className={clsx("relative grid gap-1 py-3 pl-4 pr-3 transition-colors", on ? "bg-brand-50/70" : sensitive ? "bg-red-50/40 hover:bg-red-50/70" : "hover:bg-ink-50/70")}>
                           <span aria-hidden className={clsx("absolute inset-y-0 left-0 w-[3px]", on ? "bg-brand-600" : sensitive ? "bg-red-600" : st.bar)} />
                           <div className="flex items-center justify-between gap-2">
-                            <span className="flex min-w-0 items-center gap-2"><Stars rating={r.rating} size={13} /><span className="truncate text-sm font-semibold">{r.reviewer_name ?? "Google user"}</span></span>
+                            <span className="flex min-w-0 items-center gap-2"><Stars rating={r.rating} size={13} /><span data-words="skip" className="truncate text-sm font-semibold">{r.reviewer_name ?? "Google user"}</span></span>
                             <span className="shrink-0 text-xs text-ink-500">{timeAgo(r.review_created_at)}</span>
                           </div>
-                          <p className="line-clamp-2 text-[13px] text-ink-700">{r.text || <span className="italic text-ink-400">Rating only, no written review</span>}</p>
+                          <p data-words="skip" className="line-clamp-2 text-[13px] text-ink-700">{r.text || <span className="italic text-ink-400">Rating only, no written review</span>}</p>
                           <div className="flex flex-wrap items-center justify-between gap-x-3 text-xs text-ink-500">
-                            <span className="truncate">{r.location_name}</span>
+                            <span data-words="skip" className="truncate">{r.location_name}</span>
                             <span className="flex items-center gap-2">
                               {sensitive && <span className="inline-flex items-center gap-1 font-medium text-red-700"><AlertTriangle className="h-3 w-3" aria-hidden />Handle personally</span>}
                               <Status tone={st.tone} className="!text-xs">{st.label}</Status>
