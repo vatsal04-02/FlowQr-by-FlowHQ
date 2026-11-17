@@ -1,4 +1,3 @@
-import { load } from "@cashfreepayments/cashfree-js";
 import { api } from "./api";
 
 export const rupees = (paise: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(paise / 100);
@@ -45,6 +44,8 @@ export async function openCheckout(opts: Omit<RazorpayOptions, "handler" | "them
 /** Opens Cashfree's hosted subscription checkout for a session the SERVER created. Whatever happens there, the app believes only what the server reads back from Cashfree (see the
  *  return page). The SDK is Cashfree's own package, pinned to an exact version; it loads https://sdk.cashfree.com/js/v3/cashfree.js and nothing else. */
 export async function openCashfreeCheckout(sessionId: string, environment: string): Promise<void> {
+  // Loaded only now: the package puts Cashfree's script on the page the moment it is imported, which must not happen on screens that merely show plans.
+  const { load } = await import("@cashfreepayments/cashfree-js");
   const cashfree = await load({ mode: environment === "production" ? "production" : "sandbox" });
   if (!cashfree) throw new Error("The payment window could not be loaded. Check your connection and try again.");
   const result = await cashfree.subscriptionsCheckout({ subsSessionId: sessionId, redirectTarget: "_self" });

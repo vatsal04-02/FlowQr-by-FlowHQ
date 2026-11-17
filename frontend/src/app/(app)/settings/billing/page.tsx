@@ -1,17 +1,17 @@
 "use client";
 import { AlertTriangle, CalendarClock, CreditCard } from "lucide-react";
 import { useState } from "react";
-import { PlanCards } from "@/components/PlanCards";
+import { PricingExperience } from "@/components/billing/PricingExperience";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton } from "@/components/ui/Card";
 import { Ring } from "@/components/charts/Bars";
 import { CountUp } from "@/components/charts/CountUp";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { api, ApiError, errorMessage } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { CashfreeCheckoutDialog } from "@/components/billing/CashfreeCheckout";
-import { EVENT_LABELS, openCheckout, rupees } from "@/lib/billing";
+import { EVENT_LABELS, rupees } from "@/lib/billing";
 import { fmtDate } from "@/lib/format";
 import type { Plan, PlansResponse, SubscriptionEvent, SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
@@ -86,7 +86,7 @@ function BillingTerms() {
 }
 
 export default function SubscriptionPage() {
-  const { me, role } = useAuth();
+  const { role } = useAuth();
   const toast = useToast();
   const sub = useFetch<SubscriptionInfo>("/billing/subscription");
   const plans = useFetch<PlansResponse>("/billing/plans");
@@ -94,44 +94,9 @@ export default function SubscriptionPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cfPlan, setCfPlan] = useState<Plan | null>(null);
-  const [err, setErr] = useState<{ message: string; code?: string } | null>(null);
   const isOwner = role === "owner";
   const s = sub.data;
   const isCf = plans.data?.billing.provider === "cashfree";
-  const hasCfMandate = !!s?.has_cashfree_subscription && s.authorization_status === "authorized" && ["active", "trialing"].includes(s.status);
-  const canChange = hasCfMandate || (!!s?.has_razorpay_subscription && s.status === "active");
-
-  async function choose(p: Plan) {
-    setBusy(p.code); setErr(null);
-    try {
-      if (isCf) {
-        if (hasCfMandate) {  // both directions take effect at the next successful payment: no proration, nothing extra is charged
-          const r = await api<{ effective_at: string | null }>("/billing/subscription/change-plan", { method: "POST", body: { plan: p.code } });
-          toast(r.effective_at ? `Your plan changes to ${p.name} on ${fmtDate(r.effective_at)}. Nothing extra is charged.` : "Plan change scheduled for your next payment.");
-          await sub.reload(); setBusy(null); return;
-        }
-        setCfPlan(p); setBusy(null); return;  // the disclosure comes first; Cashfree opens only after the customer agrees
-      }
-      if (s?.has_razorpay_subscription && s.status === "active") {
-        await api("/billing/subscription/change-plan", { method: "POST", body: { plan: p.code } });
-        toast("Plan change requested."); await sub.reload(); return;
-      }
-      const c = await api<{ subscription_id: string; key_id: string }>("/billing/subscription/checkout", { method: "POST", body: { plan: p.code } });
-      await openCheckout({
-        key: c.key_id, subscription_id: c.subscription_id, description: `FlowQR ${p.name}`, prefill: { name: me?.user.full_name, email: me?.user.email },
-        onDismiss: () => setBusy(null),
-        onSuccess: async (r) => {
-          try {
-            const v = await api<{ message: string }>("/billing/subscription/verify", { method: "POST", body: { razorpay_payment_id: r.razorpay_payment_id, razorpay_subscription_id: r.razorpay_subscription_id, razorpay_signature: r.razorpay_signature } });
-            toast(v.message);
-          } catch (e) { setErr({ message: errorMessage(e) }); }
-          await sub.reload(); setBusy(null);
-        },
-      });
-      return;
-    } catch (e) { setErr({ message: errorMessage(e), code: e instanceof ApiError ? e.code : undefined }); }
-    setBusy(null);
-  }
 
   const [retrying, setRetrying] = useState(false);
   async function retry() {
@@ -150,9 +115,7 @@ export default function SubscriptionPage() {
   return (
     <>
       <PageHeader eyebrow="Business" title="Billing" subtitle="Your plan, usage and billing." actions={<LinkButton href="/settings/billing/payments" size="sm" variant="secondary" icon={<CreditCard className="h-4 w-4" />}>Payment history</LinkButton>} />
-      {plans.data && !plans.data.billing.configured && <div className="mb-5"><Alert tone="warning" title="Online payments are not switched on yet">Paying online isn&rsquo;t available on this server yet, so plans can&rsquo;t be purchased here. Your trial and all features keep working meanwhile.</Alert></div>}
       {plans.data?.billing.mode === "test" && <div className="mb-5"><Alert tone="info" title="Payment test mode">Payments are simulated by the payment provider&rsquo;s test environment. No real money moves.</Alert></div>}
-      {err && <div className="mb-5"><Alert tone="error" title="Couldn't complete that">{err.message}</Alert></div>}
       {s && <CashfreeNotices s={s} isOwner={isOwner} onSetup={() => setCfPlan(plans.data?.plans.find((x) => x.code === (s.pending_plan ?? s.plan)) ?? plans.data?.plans[1] ?? null)} />}
       {s && <CashfreeOverview s={s} isOwner={isOwner} retrying={retrying} onRetry={() => void retry()} onSetup={() => setCfPlan(plans.data?.plans.find((x) => x.code === (s.pending_plan ?? s.plan)) ?? plans.data?.plans[1] ?? null)} />}
       {s && !s.active && <div className="mb-5"><Alert tone="error" title="Your subscription is not active" action={undefined}>{s.inactive_reason === "payment_failed" ? "Your last payment failed. Update your payment method or choose a plan to restore access." : s.inactive_reason === "trial_ended" ? "Your free trial has ended. Choose a plan to keep using reviews, replies and AI." : "Choose a plan to continue."} Your QR/NFC cards keep working for customers.</Alert></div>}
@@ -181,19 +144,11 @@ export default function SubscriptionPage() {
         )}
       </Card>
 
-      <h2 className="mb-3 text-[15px] font-semibold">{canChange ? "Change plan" : "Choose a plan"}</h2>
-      {!isOwner && <div className="mb-4"><Alert tone="info">Only the business owner can change the subscription.</Alert></div>}
-      {plans.data ? (
-        <PlanCards plans={plans.data.plans} current={s?.plan} action={(p) => (
-          <Button className="w-full" variant={p.code === "growth" ? "primary" : "secondary"} loading={busy === p.code} disabled={!isOwner || !plans.data!.billing.configured || s?.plan === p.code || !!busy}
-            onClick={() => void choose(p)}>{s?.plan === p.code && !s.pending_plan ? "Current plan" : s?.pending_plan === p.code ? "Scheduled" : canChange ? `Switch to ${p.name}` : `Choose ${p.name}`}</Button>
-        )} />
-      ) : <Skeleton className="h-64" />}
-      <p className="mt-4 text-xs text-ink-500">Subscriptions renew monthly through our payment provider. A plan becomes active only after the provider confirms your payment. Physical cards are billed separately under Payments.</p>
-      {isCf && <BillingTerms />}
+      <PricingExperience plans={plans.data?.plans} terms={plans.data?.terms} sub={s} isOwner={isOwner} trialDays={plans.data?.trial_days ?? null} />
+      {s?.provider === "cashfree" && <BillingTerms />}
 
       {history.data && history.data.events.length > 0 && (
-        <section className="mt-8" aria-labelledby="sub-hist"><h2 id="sub-hist" className="mb-3 text-[15px] font-semibold">Subscription history</h2>
+        <section className="mt-16" aria-labelledby="sub-hist"><h2 id="sub-hist" className="mb-3 text-[15px] font-semibold">Subscription history</h2>
           <ul className="panel divide-y divide-line text-sm">{history.data.events.slice(0, 12).map((e, i) => <li key={i} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5"><span>{EVENT_LABELS[e.kind] ?? e.kind.replace(/_/g, " ")}{e.to_plan && e.from_plan && e.from_plan !== e.to_plan ? ` (${e.from_plan} to ${e.to_plan})` : ""}</span><span className="text-xs text-muted">{fmtDate(e.at)}</span></li>)}</ul>
         </section>
       )}

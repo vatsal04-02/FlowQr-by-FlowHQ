@@ -40,6 +40,28 @@ PLANS: dict[str, dict] = {
     "growth": {"name": "Growth", "price_paise": 79900, "max_locations": 1, "max_staff": 10, "review_generations": 400, "review_replies": 400, "features": list(CORE + GROWTH_ADD), "sort_order": 2},
     "pro": {"name": "Scale", "price_paise": 149900, "max_locations": 10, "max_staff": 50, "review_generations": 800, "review_replies": 800, "features": list(ALL_FEATURES), "sort_order": 3},
 }
+
+# --------------------------------------------------------------------------------------------------------------------------------------------- prepaid terms
+# What a prepaid purchase of 1, 3, 6 or 12 months of each plan costs (INR paise, selling prices, owner decision 2026-11-17). This is the ONLY place these amounts are written down:
+# /billing/plans serves them to the pricing screen and a future one-time checkout reads its amount from here, never from the browser.
+# Reference ("MRP") prices were supplied with these but are deliberately NOT stored or served: there is no substantiation that they were ever a selling price, so nothing may present
+# them as one. A saving is always computed against the plan's own 1-month price in this table.
+# NOTE for the owner: Scale's 1-month price here (Rs 1,299) differs from the plan row's monthly subscription price (Rs 1,499, `PLANS["pro"]["price_paise"]`). The subscription
+# price is unchanged and unused by prepaid terms; the two must be reconciled before prepaid checkout opens.
+TERM_MONTHS = (1, 3, 6, 12)
+TERM_PRICES_PAISE: dict[str, dict[int, int]] = {
+    "starter": {1: 49900, 3: 139900, 6: 269900, 12: 499900},
+    "growth": {1: 79900, 3: 229900, 6: 429900, 12: 799900},
+    "pro": {1: 129900, 3: 369900, 6: 699900, 12: 1299900},
+}
+# True only when a one-time checkout really exists (Cashfree Payment Gateway orders: not built yet). The pricing screen keeps its payment button disabled until this is True.
+ONE_TIME_CHECKOUT_AVAILABLE = False
+
+
+def public_terms() -> dict:
+    """The prepaid price list in the shape the pricing screen reads (JSON keys are strings)."""
+    return {"months": list(TERM_MONTHS), "prices_paise": {code: {str(m): v for m, v in t.items()} for code, t in TERM_PRICES_PAISE.items()}, "checkout_open": ONE_TIME_CHECKOUT_AVAILABLE}
+
 # Retired codes: kept so existing subscribers and Razorpay plan ids keep resolving, never offered to anyone new.
 LEGACY = {"essential": "starter", "multi": "pro"}
 for _p in PLANS.values():
