@@ -28,6 +28,7 @@ def card_out(card: QRCard, *, stats=None, tenant_name=None, location_name=None, 
         nfc_url=card_nfc_url(card.public_token), campaign_id=card.campaign_id, campaign_name=campaign_name, batch_name=batch_name,
         public_token=card.public_token if include_token else None,
         tenant_name=tenant_name, location_name=location_name, stats=stats or {}, last_scan_at=last_scan_at,
+        destination_url=card.destination_url, nfc_programmed_at=card.nfc_programmed_at,
     )
 
 

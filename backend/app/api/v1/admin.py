@@ -7,7 +7,7 @@ import zipfile
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import timedelta
+from datetime import date, datetime, time as dtime, timedelta, timezone
 
 from sqlalchemy import func, or_, select, update
 
@@ -16,7 +16,7 @@ from app.api.v1.qr import poster_file, poster_response, require_print_domain
 from app.core.deps import AuthContext, require_platform_admin
 from app.core.rate_limit import client_ip, hit
 from app.models import (
-    CardAssignment, CardBatch, CardStatus, Location, Membership, QRCard, Review, ReviewCampaign, ScanEvent, ScanEventType, Tenant,
+    CardAssignment, CardBatch, CardDestinationHistory, CardStatus, Location, Membership, QRCard, Review, ReviewCampaign, ScanEvent, ScanEventType, Tenant,
 )
 from app.models import (
     AIGenerationLog, AuditLog, AuthSession, BillingPlan, CardOrder, Payment, Subscription, User, WebhookEvent,
@@ -30,6 +30,7 @@ from app.services import plans as plans_svc
 from app.services.ai_usage import month_start
 from app.schemas.cards import AssignIn, BatchCreateIn, BatchOut, BulkAssignIn, CardOut, ConfirmIn, LookupIn, ReserveIn, StatusIn
 from app.services import cards as svc
+from app.services import destinations as dest_svc
 from app.services import poster as poster_svc
 from app.services.audit import audit
 from app.services.qr import card_nfc_url, card_qr_url, qr_png, qr_svg
@@ -204,11 +205,29 @@ def list_cards(
     status: CardStatus | None = None,
     tenant_id: uuid.UUID | None = None,
     batch_id: uuid.UUID | None = None,
+    location_id: uuid.UUID | None = None,
+    campaign_id: uuid.UUID | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    has_destination: bool | None = None,
+    nfc: str | None = Query(None, pattern="^(programmed|not_programmed)$"),
     in_stock: bool = False,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     q = select(QRCard)
+    if location_id:
+        q = q.where(QRCard.location_id == location_id)
+    if campaign_id:
+        q = q.where(QRCard.campaign_id == campaign_id)
+    if created_from:
+        q = q.where(QRCard.created_at >= datetime.combine(created_from, dtime.min, tzinfo=timezone.utc))
+    if created_to:
+        q = q.where(QRCard.created_at < datetime.combine(created_to, dtime.min, tzinfo=timezone.utc) + timedelta(days=1))
+    if has_destination is not None:
+        q = q.where(QRCard.destination_url.is_not(None) if has_destination else QRCard.destination_url.is_(None))
+    if nfc:
+        q = q.where(QRCard.nfc_programmed_at.is_not(None) if nfc == "programmed" else QRCard.nfc_programmed_at.is_(None))
     if search:
         term = search.strip()
         q = q.where(or_(QRCard.card_code.ilike(f"%{term}%"), QRCard.public_token == term))
@@ -272,6 +291,8 @@ def card_detail(card_id: uuid.UUID, ctx: AuthContext = Depends(require_platform_
         "card": _full_card(ctx, card),
         "history": [{"tenant": t, "location": l, "campaign": c, "assigned_at": a.assigned_at, "unassigned_at": a.unassigned_at, "ended_reason": a.ended_reason}
                     for a, t, l, c in history],
+        "destination": _destination_out(ctx, card),
+        "nfc": svc.nfc_status(ctx.db, card),
     }
 
 
@@ -865,3 +886,129 @@ def release_gates(ctx: AuthContext = Depends(require_platform_admin)):
     if p.exists():
         return json.loads(p.read_text(encoding="utf-8"))
     return {"overall": "Unknown", "gates": [], "_about": "app/release_gates.json was not found in this deployment; nothing can be claimed passed."}
+
+
+
+# ================================================================================================================================ destination, NFC status and analytics for one QR/NFC asset
+class DestinationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    url: str = Field(max_length=2100)
+    reason: str | None = Field(default=None, max_length=300)
+    confirm: bool = False
+
+
+class DestinationClearIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str | None = Field(default=None, max_length=300)
+    confirm: bool = False
+
+
+class NfcIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    programmed: bool
+
+
+def _destination_out(ctx: AuthContext, card: QRCard) -> dict:
+    rows = dest_svc.history(ctx.db, card)
+    users = {u.id: u.email for u in ctx.db.scalars(select(User).where(User.id.in_([r.changed_by for r in rows if r.changed_by])))} if rows else {}
+    return {"url": card.destination_url, "set_at": card.destination_set_at, "default": "the card's review landing page" if not card.destination_url else None, "live": dest_svc.is_live(card),
+            "history": [{"action": r.action, "old_url": r.old_url, "new_url": r.new_url, "reason": r.reason, "changed_by": users.get(r.changed_by), "changed_at": r.changed_at} for r in rows]}
+
+
+def _dest_error(exc: "dest_svc.DestinationError") -> HTTPException:
+    return HTTPException(status_code=422 if exc.code != "not_found" else 404, detail={"code": exc.code, "message": exc.message})
+
+
+@router.get("/cards/{card_id}/destination")
+def get_destination(card_id: uuid.UUID, ctx: AuthContext = Depends(require_platform_admin)):
+    return _destination_out(ctx, _card_or_404(ctx, card_id))
+
+
+@router.post("/cards/{card_id}/destination/check")
+def check_destination(card_id: uuid.UUID, body: DestinationIn, ctx: AuthContext = Depends(require_platform_admin)):
+    """Validates an address WITHOUT saving or fetching it (a server that fetches admin-supplied addresses is an SSRF hole). The admin opens the cleaned address in their own browser to test it."""
+    _card_or_404(ctx, card_id)
+    try:
+        url = dest_svc.normalise(body.url)
+    except dest_svc.DestinationError as exc:
+        raise _dest_error(exc)
+    from urllib.parse import urlsplit
+    return {"ok": True, "url": url, "host": urlsplit(url).hostname}
+
+
+@router.put("/cards/{card_id}/destination")
+def set_destination(card_id: uuid.UUID, body: DestinationIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    card = _card_or_404(ctx, card_id)
+    try:
+        new = dest_svc.normalise(body.url)
+    except dest_svc.DestinationError as exc:
+        raise _dest_error(exc)
+    if dest_svc.is_live(card) and not body.confirm and (card.destination_url or None) != new:
+        raise svc.confirmation_required("This card is live. Everyone who scans or taps it from now on will be sent to the new address. The printed QR and the NFC tag do not change.",
+                                        {"destination": card.destination_url or "the review landing page"}, {"destination": new})
+    try:
+        card, changed = dest_svc.set_destination(ctx.db, card_id, new, by=ctx.user.id, reason=body.reason)
+    except dest_svc.DestinationError as exc:
+        ctx.db.rollback()
+        raise _dest_error(exc)
+    ctx.db.commit()
+    return {"changed": changed, **_destination_out(ctx, card)}
+
+
+@router.post("/cards/{card_id}/destination/clear")
+def clear_destination(card_id: uuid.UUID, body: DestinationClearIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    """Back to the card's normal review landing page. Same confirmation rule as setting one."""
+    card = _card_or_404(ctx, card_id)
+    if card.destination_url and dest_svc.is_live(card) and not body.confirm:
+        raise svc.confirmation_required("This card is live. Scans and taps will go back to its normal review page.", {"destination": card.destination_url}, {"destination": "the review landing page"})
+    try:
+        card, changed = dest_svc.clear_destination(ctx.db, card_id, by=ctx.user.id, reason=body.reason)
+    except dest_svc.DestinationError as exc:
+        ctx.db.rollback()
+        raise _dest_error(exc)
+    ctx.db.commit()
+    return {"changed": changed, **_destination_out(ctx, card)}
+
+
+@router.get("/cards/{card_id}/nfc")
+def get_nfc(card_id: uuid.UUID, ctx: AuthContext = Depends(require_platform_admin)):
+    card = _card_or_404(ctx, card_id)
+    return {"nfc_url": card_nfc_url(card.public_token), "qr_url": card_qr_url(card), **svc.nfc_status(ctx.db, card),
+            "instructions": ["Open an NFC writer app (for example NFC Tools or NFC TagWriter) on an NFC-capable phone.",
+                             "Choose Write, Add a record, then URL / URI, and paste the NFC address above exactly.",
+                             "Hold the blank tag to the phone and write it. Do not lock the tag until you have tested it.",
+                             "Tap the written tag with a second phone: the review page (or the destination) should open. That tap is recorded and confirms the tag here.",
+                             "Then press 'Mark as programmed'. FlowQR records your statement; it cannot write or read the tag itself."]}
+
+
+@router.post("/cards/{card_id}/nfc")
+def set_nfc(card_id: uuid.UUID, body: NfcIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    """An admin's statement that this card's NFC tag was (or was not) written. Audited. It never claims FlowQR wrote the tag."""
+    card = ctx.db.scalar(select(QRCard).where(QRCard.id == card_id).with_for_update())
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    if card.status in (CardStatus.retired, CardStatus.deactivated, CardStatus.lost):
+        raise HTTPException(status_code=409, detail={"code": "card_dead", "message": "This card is out of use."})
+    before = card.nfc_programmed_at
+    card.nfc_programmed_at, card.nfc_programmed_by = (utcnow(), ctx.user.id) if body.programmed else (None, None)
+    audit(ctx.db, action="admin.card_nfc_marked" if body.programmed else "admin.card_nfc_unmarked", tenant_id=card.tenant_id, user_id=ctx.user.id, entity_type="card", entity_id=card.id,
+          meta={"was_marked": before is not None}, ip=client_ip(request))
+    ctx.db.commit()
+    return svc.nfc_status(ctx.db, card)
+
+
+@router.get("/cards/{card_id}/analytics")
+def card_analytics(card_id: uuid.UUID, days: int = Query(30, ge=1, le=365), ctx: AuthContext = Depends(require_platform_admin)):
+    card = _card_or_404(ctx, card_id)
+    return {"card_code": card.card_code, **svc.card_analytics(ctx.db, card_ids=[card.id], days=days)}
+
+
+@router.get("/cards-analytics")
+def cards_analytics(days: int = Query(30, ge=1, le=365), batch_id: uuid.UUID | None = None, tenant_id: uuid.UUID | None = None, location_id: uuid.UUID | None = None,
+                    campaign_id: uuid.UUID | None = None, ctx: AuthContext = Depends(require_platform_admin)):
+    """Scans and taps across a batch, a business, a location or a campaign (or everything)."""
+    q = select(QRCard.id)
+    for col, val in ((QRCard.batch_id, batch_id), (QRCard.tenant_id, tenant_id), (QRCard.location_id, location_id), (QRCard.campaign_id, campaign_id)):
+        if val:
+            q = q.where(col == val)
+    return svc.card_analytics(ctx.db, card_filter=q, days=days)

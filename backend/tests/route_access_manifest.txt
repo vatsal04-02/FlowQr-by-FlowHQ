@@ -20,11 +20,19 @@ platform-admin	GET	/api/v1/admin/batches/{batch_id}/sheet
 platform-admin	GET	/api/v1/admin/card-orders
 platform-admin	PATCH	/api/v1/admin/card-orders/{order_id}
 platform-admin	GET	/api/v1/admin/cards
+platform-admin	GET	/api/v1/admin/cards-analytics
 platform-admin	POST	/api/v1/admin/cards/bulk-assign
 platform-admin	POST	/api/v1/admin/cards/lookup
 platform-admin	GET	/api/v1/admin/cards/{card_id}
+platform-admin	GET	/api/v1/admin/cards/{card_id}/analytics
 platform-admin	POST	/api/v1/admin/cards/{card_id}/archive
 platform-admin	POST	/api/v1/admin/cards/{card_id}/assign
+platform-admin	GET	/api/v1/admin/cards/{card_id}/destination
+platform-admin	PUT	/api/v1/admin/cards/{card_id}/destination
+platform-admin	POST	/api/v1/admin/cards/{card_id}/destination/check
+platform-admin	POST	/api/v1/admin/cards/{card_id}/destination/clear
+platform-admin	GET	/api/v1/admin/cards/{card_id}/nfc
+platform-admin	POST	/api/v1/admin/cards/{card_id}/nfc
 platform-admin	GET	/api/v1/admin/cards/{card_id}/poster.{fmt}
 platform-admin	GET	/api/v1/admin/cards/{card_id}/qr.{fmt}
 platform-admin	POST	/api/v1/admin/cards/{card_id}/reserve
@@ -189,6 +197,7 @@ role-admin	POST	/api/v1/gbp/{google_location_id}/rank/grids/{grid_id}/scan
 role-admin	POST	/api/v1/gbp/{google_location_id}/rank/keywords
 role-admin	DELETE	/api/v1/gbp/{google_location_id}/rank/keywords/{keyword_id}
 member	GET	/api/v1/gbp/{google_location_id}/rank/keywords/{keyword_id}/history
+public-bypass-db	GET	/api/v1/go/{token}
 public	GET	/api/v1/google/callback
 role-admin	POST	/api/v1/google/connect
 role-admin	DELETE	/api/v1/google/connections/{connection_id}

@@ -95,6 +95,8 @@ class CardOut(ORM):
     location_name: str | None = None
     stats: dict[str, int] = {}
     last_scan_at: datetime | None = None  # most recent human QR scan / NFC tap (bots excluded)
+    destination_url: str | None = None  # where a scan goes INSTEAD of the review landing page; None = the landing page
+    nfc_programmed_at: datetime | None = None  # an admin's statement that the tag was written (FlowQR cannot write tags)
 
 
 class TrackEventIn(BaseModel):

@@ -51,11 +51,12 @@ def _channel(value: str | None) -> str | None:
 
 
 @router.get("/{token}", dependencies=[Depends(limit_by_ip("scan", settings.rl_public_scan_per_minute, 60))])
-def resolve_card(token: str, request: Request, channel: str | None = None, db: Session = Depends(public_db)):
+def resolve_card(token: str, request: Request, channel: str | None = None, ref: str | None = None, db: Session = Depends(public_db)):
     """Resolve token -> card -> business/location, record a scan, return what the landing page needs.
     The same card answers both of its doors: the printed QR (/q/ and the older /c/) and the NFC tag (/n/). `channel` says which one
     was used, and only changes how the visit is counted."""
     channel = _channel(channel)
+    ref = ref[:200] if ref else None  # the referring HOST the landing page saw (host only is stored: see services/cards.referrer_host)
     ua = request.headers.get("user-agent")
     ip = client_ip(request)
     card = _find_card(db, token)
@@ -65,30 +66,36 @@ def resolve_card(token: str, request: Request, channel: str | None = None, db: S
         raise HTTPException(status_code=404, detail=_fallback("not_found"))
 
     if card.status in (CardStatus.generated, CardStatus.unassigned, CardStatus.reserved, CardStatus.archived) or not card.tenant_id:
-        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel)
+        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel, referrer=ref)
         db.commit()
         return _fallback("unassigned")
     if card.status not in svc.LIVE_STATUSES:
-        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel)
+        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel, referrer=ref)
         db.commit()
         return _fallback("inactive", "paused" if card.status == CardStatus.paused else None)
 
     tenant = db.get(Tenant, card.tenant_id)
     location = db.get(Location, card.location_id) if card.location_id else None
     if not tenant or not tenant.is_active or not location or not location.is_active:
-        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel)
+        svc.record_event(db, card, ScanEventType.fallback, ip=ip, ua=ua, channel=channel, referrer=ref)
         db.commit()
         return _fallback("inactive")
 
     vhash = svc.visitor_hash(ip, ua)
     recent = db.scalar(select(ScanEvent.id).where(
         ScanEvent.card_id == card.id, ScanEvent.event_type == ScanEventType.scan, ScanEvent.visitor_hash == vhash,
+        ScanEvent.channel == channel if channel else ScanEvent.channel.is_(None),  # per door: an NFC tap right after a QR scan from the same phone is a different event (it is how a tag is verified)
         ScanEvent.created_at > utcnow() - timedelta(seconds=20)).limit(1))
     if not recent:  # ignore rapid refreshes
-        svc.record_event(db, card, ScanEventType.scan, ip=ip, ua=ua, channel=channel)
+        svc.record_event(db, card, ScanEventType.scan, ip=ip, ua=ua, channel=channel, referrer=ref)
         if card.status == CardStatus.assigned and not svc.is_bot(ua):
             card.status = CardStatus.active  # first genuine scan makes the card live
         db.commit()
+
+    # A destination an admin set for this card replaces its landing page: the visitor is sent THERE. The address comes only from the database (set through services/destinations.py);
+    # nothing in this request can change it. The scan was recorded above, so it is counted whichever door was used.
+    if card.destination_url:
+        return {"state": "redirect", "url": card.destination_url, "channel": channel}
 
     # A card bound to a live review campaign opens that campaign's page (the AI review assistant). If the campaign is paused, archived or
     # points at another location, the card falls back to its plain landing page: customers can still leave a review.

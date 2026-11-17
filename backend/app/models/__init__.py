@@ -2,6 +2,7 @@ from app.models.business import (  # noqa: F401
     GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, ReplyDraft, ReplyLog, ReplyStatus, Review,
 )
 from app.models.cards import (  # noqa: F401
+    CardDestinationHistory,
     CardAssignment, CardBatch, CardStatus, QRCard, QRStyle, ScanEvent, ScanEventType,
 )
 from app.models.review_growth import RetiredCampaignId, ReviewCampaign, ReviewDraft, ReviewEvent, ReviewRequestTemplate, ReviewSession  # noqa: F401
