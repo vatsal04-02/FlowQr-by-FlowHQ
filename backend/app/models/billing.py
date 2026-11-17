@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Boolean
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Boolean, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -106,6 +106,28 @@ class PrepaidOrder(IdMixin, TimestampMixin, Base):
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    list_price_paise: Mapped[int | None] = mapped_column(Integer)  # the permanent list price at the time, recorded SEPARATELY from what was charged (`amount_paise`)
+    override_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("prepaid_price_overrides.id", ondelete="SET NULL"))  # set only when a temporary override set the amount
+
+
+class PrepaidPriceOverride(IdMixin, Base):
+    """A temporary price for ONE business, ONE plan and term, ONCE, until `expires_at`. Created only by the operator CLI (app/prepaid_cli.py); no API route creates or lists one for other businesses.
+    The permanent price list is never edited. It can only lower a price (database check), is consumed by the first PAID order that used it, and can be revoked."""
+
+    __tablename__ = "prepaid_price_overrides"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    plan_code: Mapped[str] = mapped_column(String(32))
+    months: Mapped[int] = mapped_column(Integer)
+    amount_paise: Mapped[int] = mapped_column(Integer)
+    list_price_paise: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(60), default="Test price")
+    reason: Mapped[str] = mapped_column(String(300))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("prepaid_orders.id", ondelete="SET NULL"))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class WebhookEvent(IdMixin, Base):

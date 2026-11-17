@@ -77,6 +77,8 @@ export interface SubscriptionInfo {
   usage: { locations: number; ai_generations: number; review_generations: number; review_replies: number; staff: number };
   promo: { plan: string; plan_name: string; ends_at: string; kind: string; note: string } | null;
 }
+/** A temporary price that exists for THIS business only (usually none). Informational: the server decides the amount again when the order is created. */
+export interface PrepaidOffer { plan: string; months: number; amount_paise: number; list_price_paise: number; label: string; expires_at: string }
 /** The server's answer about a prepaid order. state: paid | pending | failed | expired | mismatch | open. */
 export interface PrepaidResult { state: "paid" | "pending" | "failed" | "expired" | "mismatch" | "open"; order_id: string; plan: string; months: number; amount_paise: number; ends_at: string | null; failure_reason: string | null; unconfirmed?: boolean }
 export interface SubscriptionEvent { at: string; kind: string; from_status: string | null; to_status: string | null; from_plan: string | null; to_plan: string | null; source: string; meta: Record<string, unknown> }

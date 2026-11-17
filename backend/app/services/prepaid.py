@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import BillingPlan, Payment, PrepaidOrder, Subscription, Tenant, User, WebhookEvent
+from app.models import BillingPlan, Payment, PrepaidOrder, PrepaidPriceOverride, Subscription, Tenant, User, WebhookEvent
 from app.models.base import utcnow
 from app.services import billing as billing_svc
 from app.services import cashfree as cf
@@ -70,6 +70,25 @@ def price_for(plan_code: str, months: int) -> int:
     return paise
 
 
+def active_override(db: Session, tenant_id: uuid.UUID, plan_code: str, months: int, now: datetime, *, lock: bool = False) -> PrepaidPriceOverride | None:
+    """The temporary price this business may use for this plan and term right now, or None. It must be unexpired, unrevoked and unused. It can only ever LOWER the listed price."""
+    q = select(PrepaidPriceOverride).where(PrepaidPriceOverride.tenant_id == tenant_id, PrepaidPriceOverride.plan_code == plan_code, PrepaidPriceOverride.months == months,
+                                           PrepaidPriceOverride.revoked_at.is_(None), PrepaidPriceOverride.used_order_id.is_(None), PrepaidPriceOverride.expires_at > now).order_by(PrepaidPriceOverride.created_at.desc()).limit(1)
+    ov = db.scalar(q.with_for_update() if lock else q)
+    if ov is not None and not (0 < ov.amount_paise < price_for(plan_code, months)):
+        return None  # a stale or wrong row (the list price fell below it): never charge more than the list price
+    return ov
+
+
+def offers_for(db: Session, tenant_id: uuid.UUID, now: datetime | None = None) -> list[dict]:
+    """What the pricing screen may show THIS business as a temporary price. Informational only: the server decides the amount again when the order is created."""
+    now = now or utcnow()
+    rows = db.scalars(select(PrepaidPriceOverride).where(PrepaidPriceOverride.tenant_id == tenant_id, PrepaidPriceOverride.revoked_at.is_(None), PrepaidPriceOverride.used_order_id.is_(None),
+                                                         PrepaidPriceOverride.expires_at > now)).all()
+    return [{"plan": o.plan_code, "months": o.months, "amount_paise": o.amount_paise, "list_price_paise": o.list_price_paise, "label": o.label, "expires_at": o.expires_at}
+            for o in rows if active_override(db, tenant_id, o.plan_code, o.months, now) is not None]
+
+
 def blocked_reason(sub: Subscription | None, now: datetime) -> PrepaidError | None:
     """Why this business cannot start a prepaid purchase right now (None = it can)."""
     if sub is None:
@@ -93,12 +112,15 @@ def create_order(db: Session, client: cf.CashfreeClient, *, sub: Subscription | 
     plan = db.get(BillingPlan, plan_code)
     if plan is None or not plan.is_active:
         raise PrepaidError(404, "unknown_plan", "Unknown plan.")
-    amount = price_for(plan_code, months)
+    list_price = price_for(plan_code, months)
+    ov = active_override(db, tenant.id, plan_code, months, now)  # the SERVER decides: a temporary price exists only for the business it was created for, once, until it expires
+    amount = ov.amount_paise if ov else list_price
     blocked = blocked_reason(sub, now)
     if blocked:
         raise blocked
     digits = clean_phone(phone)
-    order = PrepaidOrder(tenant_id=tenant.id, created_by=user.id, plan_code=plan_code, months=months, amount_paise=amount, currency="INR", status="created", order_id="fqp_" + uuid.uuid4().hex[:24])
+    order = PrepaidOrder(tenant_id=tenant.id, created_by=user.id, plan_code=plan_code, months=months, amount_paise=amount, currency="INR", status="created", order_id="fqp_" + uuid.uuid4().hex[:24],
+                         list_price_paise=list_price, override_id=ov.id if ov else None)
     db.add(order)
     db.flush()
     base = settings.frontend_url.rstrip("/")
@@ -117,9 +139,9 @@ def create_order(db: Session, client: cf.CashfreeClient, *, sub: Subscription | 
         raise PrepaidError(502, "provider_error", "The payment provider could not start this payment. Nothing was charged. Please try again.")
     order.cf_order_id = res.cf_order_id
     audit(db, action="billing.prepaid_order_created", tenant_id=tenant.id, user_id=user.id, entity_type="prepaid_order", entity_id=order.id,
-          meta={"plan": plan_code, "months": months, "amount_paise": amount, "order_id": order.order_id})
+          meta={"plan": plan_code, "months": months, "amount_paise": amount, "list_price_paise": list_price, "override_id": str(ov.id) if ov else None, "order_id": order.order_id})
     return {"order_id": order.order_id, "payment_session_id": res.session_id, "environment": "production" if (settings.cashfree_env or "").lower() == "production" else "sandbox",
-            "plan": plan_code, "plan_name": plan.name, "months": months, "amount_paise": amount}
+            "plan": plan_code, "plan_name": plan.name, "months": months, "amount_paise": amount, "list_price_paise": list_price, "override": bool(ov)}
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------ the one place a term is granted
@@ -180,11 +202,21 @@ def apply_remote(db: Session, client: cf.CashfreeClient, order_id: uuid.UUID, *,
                   meta={"expected_paise": order.amount_paise, "reported_paise": remote.amount_paise, "order_id": order.order_id})
             log.error("Prepaid order %s paid with a different amount: nothing granted", order.order_id)
             return _state(order)
+        if order.override_id is not None:  # a temporary price grants ONE term: a second paid order under the same override is a payment for support to look at, not another grant
+            ov = db.scalar(select(PrepaidPriceOverride).where(PrepaidPriceOverride.id == order.override_id).with_for_update())
+            if ov is not None and ov.used_order_id not in (None, order.id):
+                order.status, order.failure_reason = "mismatch", "override_already_used"
+                audit(db, action="billing.prepaid_override_reused", tenant_id=order.tenant_id, entity_type="prepaid_order", entity_id=order.id, meta={"override_id": str(ov.id), "order_id": order.order_id})
+                log.error("Prepaid order %s was paid under an override that was already used: nothing granted", order.order_id)
+                return _state(order)
         order.status, order.failure_reason = "paid", None
         order.paid_at = (ok.paid_at if ok and ok.paid_at else None) or now
         if ok:
             order.cf_payment_id, order.payment_method = ok.cf_payment_id[:32] or None, (ok.method or None) and ok.method[:24]
-        activate(db, order, now=now, source=source)
+        if activate(db, order, now=now, source=source) and order.override_id is not None:
+            ov = db.get(PrepaidPriceOverride, order.override_id)
+            if ov is not None:
+                ov.used_order_id, ov.used_at = order.id, now  # consumed by the first PAID order that used it
         return _state(order)
     if remote.status in ("EXPIRED", "TERMINATED", "TERMINATION_REQUESTED"):
         if order.status != "paid":

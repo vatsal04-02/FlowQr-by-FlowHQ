@@ -20,7 +20,7 @@ import { fmtDate } from "@/lib/format";
 import {
   ALL_FEATURE_ROWS, LIMIT_ROWS, PLAN_ORDER, POSITIONING, RECOMMENDED, effectiveMonthlyPaise, monthsLabel, newFeatureGroups, termPrice, termSaving, termTabLabel,
 } from "@/lib/pricing";
-import type { Plan, PrepaidTerms, SubscriptionInfo } from "@/lib/types";
+import type { Plan, PrepaidOffer, PrepaidTerms, SubscriptionInfo } from "@/lib/types";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const PLAN_NAME: Record<string, string> = { starter: "Launch", growth: "Growth", pro: "Scale" };
@@ -155,10 +155,10 @@ function PlanSwitcher({ plans, value, onChange }: { plans: Plan[]; value: string
   );
 }
 
-function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, onChoose, index, active }: {
-  plan: Plan; below: Plan | null; terms: PrepaidTerms; months: number; state: CurrentState; endsOn: string | null; isOwner: boolean; locked: string | null; onChoose: (p: Plan, months: number) => void; index: number; active: boolean;
+function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, offer, onChoose, index, active }: {
+  plan: Plan; below: Plan | null; terms: PrepaidTerms; months: number; state: CurrentState; endsOn: string | null; isOwner: boolean; locked: string | null; offer: PrepaidOffer | undefined; onChoose: (p: Plan, months: number) => void; index: number; active: boolean;
 }) {
-  const total = termPrice(terms, plan.code, months);
+  const total = offer ? offer.amount_paise : termPrice(terms, plan.code, months);  // a temporary price for THIS business, if the server says there is one; otherwise the list
   const monthly = total === null ? null : effectiveMonthlyPaise(total, months);
   const saving = termSaving(terms, plan.code, months);
   const groups = useMemo(() => newFeatureGroups(plan, below), [plan, below]);
@@ -188,7 +188,8 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, 
               <p className="flex items-baseline gap-1.5 font-display text-ink"><span className="text-xl font-medium text-muted">₹</span><Glide value={total / 100} className="num text-[2.4rem] font-semibold leading-none tracking-[-0.03em] sm:text-[2.7rem]" /><span className="text-[13px] font-normal text-muted">for {monthsLabel(months)}</span></p>
               <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]">
                 <span className={`rounded-full px-2.5 py-1 text-ink-700 ${th.chip}`}><span className="num font-medium text-ink">₹<Glide value={(monthly ?? 0) / 100} /></span> a month</span>
-                {saving && <span className="rounded-full bg-pos-tint px-2.5 py-1 font-medium text-pos">Save {rupees(saving.paise)} ({saving.percent}%)</span>}
+                {saving && !offer && <span className="rounded-full bg-pos-tint px-2.5 py-1 font-medium text-pos">Save {rupees(saving.paise)} ({saving.percent}%)</span>}
+                {offer && <span className="rounded-full bg-accent-tint px-2.5 py-1 font-medium text-accent-ink">{offer.label} · normally {rupees(offer.list_price_paise)}</span>}
               </div>
             </>
           )}
@@ -342,12 +343,13 @@ function PayButton({ open, label, disabled, busy, onClick }: { open: boolean; la
   return <Button className={pill} disabled={!open || disabled} loading={busy} onClick={onClick} aria-describedby="pay-note">{open ? label : "Payment opens soon"}</Button>;
 }
 
-function OrderSummary({ plan, months, terms, onClose }: { plan: Plan | null; months: number; terms: PrepaidTerms; onClose: () => void }) {
+function OrderSummary({ plan, months, terms, offers, onClose }: { plan: Plan | null; months: number; terms: PrepaidTerms; offers: PrepaidOffer[]; onClose: () => void }) {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const phoneId = useId();
-  const total = plan ? termPrice(terms, plan.code, months) : null;
+  const offer = plan ? offers.find((o) => o.plan === plan.code && o.months === months) : undefined;
+  const total = plan ? (offer ? offer.amount_paise : termPrice(terms, plan.code, months)) : null;
   async function pay() {
     if (!plan || !phoneOk(phone)) return;
     setBusy(true); setErr(null);
@@ -357,7 +359,7 @@ function OrderSummary({ plan, months, terms, onClose }: { plan: Plan | null; mon
     } catch (e) { setErr(errorMessage(e)); setBusy(false); }
   }
   const name = plan ? (PLAN_NAME[plan.code] ?? plan.name) : "";
-  const rows: [string, string][] = plan && total !== null ? [["Plan", name], ["Term", monthsLabel(months)], ["Per month", rupees(effectiveMonthlyPaise(total, months))], ["Total, paid once", rupees(total)]] : [];
+  const rows: [string, string][] = plan && total !== null ? [["Plan", name], ["Term", monthsLabel(months)], ["Per month", rupees(effectiveMonthlyPaise(total, months))], ...(offer ? [[`${offer.label} (normally ${rupees(offer.list_price_paise)})`, "only for your business"] as [string, string]] : []), ["Total, paid once", rupees(total)]] : [];
   return (
     <Modal open={!!plan && total !== null} onClose={onClose} title="Review your plan" footer={<><Button className={pill} variant="secondary" onClick={onClose} disabled={busy}>Close</Button><PayButton open={terms.checkout_open} label={total !== null ? `Pay ${rupees(total)}` : "Pay"} disabled={!phoneOk(phone)} busy={busy} onClick={() => void pay()} /></>}>
       <dl className="overflow-hidden rounded-2xl bg-surface-2 text-sm">
@@ -381,7 +383,7 @@ function OrderSummary({ plan, months, terms, onClose }: { plan: Plan | null; mon
 
 // ------------------------------------------------------------------------------------------------------------------------------------------ the whole screen
 
-export function PricingExperience({ plans, terms, sub, isOwner, trialDays }: { plans: Plan[] | undefined; terms: PrepaidTerms | undefined; sub: SubscriptionInfo | null | undefined; isOwner: boolean; trialDays: number | null }) {
+export function PricingExperience({ plans, terms, sub, isOwner, trialDays, offers = [] }: { plans: Plan[] | undefined; terms: PrepaidTerms | undefined; sub: SubscriptionInfo | null | undefined; isOwner: boolean; trialDays: number | null; offers?: PrepaidOffer[] }) {
   const [months, setMonths] = useState(1);
   const [shown, setShown] = useState<string>(RECOMMENDED);  // the plan a phone shows; wider screens show all three
   const [picked, setPicked] = useState<{ plan: Plan; months: number } | null>(null);
@@ -408,14 +410,14 @@ export function PricingExperience({ plans, terms, sub, isOwner, trialDays }: { p
             )}
             <PlanSwitcher plans={ordered} value={shown} onChange={setShown} />
             <div className="mt-4 grid items-stretch gap-4 md:grid-cols-3">
-              {ordered.map((p, i) => <PlanCard key={p.code} plan={p} below={i ? ordered[i - 1] : null} terms={terms!} months={months} state={stateOf(p.code)} endsOn={endsOn} isOwner={isOwner} locked={locked} index={i} active={p.code === shown} onChoose={(pl, m) => setPicked({ plan: pl, months: m })} />)}
+              {ordered.map((p, i) => <PlanCard key={p.code} plan={p} below={i ? ordered[i - 1] : null} terms={terms!} months={months} state={stateOf(p.code)} endsOn={endsOn} isOwner={isOwner} locked={locked} offer={offers.find((o) => o.plan === p.code && o.months === months)} index={i} active={p.code === shown} onChoose={(pl, m) => setPicked({ plan: pl, months: m })} />)}
             </div>
             <Comparison plans={ordered} />
           </>
         )}
       <HowBillingWorks />
       <Questions />
-      {terms && <OrderSummary plan={picked?.plan ?? null} months={picked?.months ?? months} terms={terms} onClose={() => setPicked(null)} />}
+      {terms && <OrderSummary plan={picked?.plan ?? null} months={picked?.months ?? months} terms={terms} offers={offers} onClose={() => setPicked(null)} />}
     </div>
   );
 }

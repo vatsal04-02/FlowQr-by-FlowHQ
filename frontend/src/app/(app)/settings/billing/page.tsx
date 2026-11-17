@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { CashfreeCheckoutDialog } from "@/components/billing/CashfreeCheckout";
 import { EVENT_LABELS, rupees } from "@/lib/billing";
 import { fmtDate } from "@/lib/format";
-import type { Plan, PlansResponse, SubscriptionEvent, SubscriptionInfo } from "@/lib/types";
+import type { Plan, PlansResponse, PrepaidOffer, SubscriptionEvent, SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 /** One usage figure as a ring plus the exact "used / limit" (full or near-full turns amber then red). Real numbers from the subscription's usage and limits only. */
@@ -90,6 +90,7 @@ export default function SubscriptionPage() {
   const toast = useToast();
   const sub = useFetch<SubscriptionInfo>("/billing/subscription");
   const plans = useFetch<PlansResponse>("/billing/plans");
+  const offers = useFetch<{ offers: PrepaidOffer[] }>("/billing/prepaid/offers");
   const history = useFetch<{ events: SubscriptionEvent[] }>(role === "owner" || role === "admin" ? "/billing/subscription/history" : null);
   const [busy, setBusy] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -144,7 +145,7 @@ export default function SubscriptionPage() {
         )}
       </Card>
 
-      <PricingExperience plans={plans.data?.plans} terms={plans.data?.terms} sub={s} isOwner={isOwner} trialDays={plans.data?.trial_days ?? null} />
+      <PricingExperience plans={plans.data?.plans} terms={plans.data?.terms} sub={s} isOwner={isOwner} trialDays={plans.data?.trial_days ?? null} offers={offers.data?.offers ?? []} />
       {s?.provider === "cashfree" && <BillingTerms />}
 
       {history.data && history.data.events.length > 0 && (

@@ -131,6 +131,7 @@ role-owner	POST	/api/v1/billing/card-orders/verify
 member	GET	/api/v1/billing/payments
 public	GET	/api/v1/billing/plans
 role-owner	POST	/api/v1/billing/prepaid/checkout
+member	GET	/api/v1/billing/prepaid/offers
 role-owner	POST	/api/v1/billing/prepaid/verify
 public	POST	/api/v1/billing/razorpay/webhook
 member	GET	/api/v1/billing/subscription
