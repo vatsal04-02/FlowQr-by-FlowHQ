@@ -4,6 +4,7 @@ import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { GROUP_LABEL, locate, type Dest, type Group } from "@/lib/nav";
+import { badgeFor, childBadge, type Counts } from "@/lib/use-counts";
 import { LogoMark } from "../ui/Brand";
 import { ThemeToggle } from "./parts";
 
@@ -13,7 +14,7 @@ export const SIDEBAR_W = { open: 232, rail: 68 } as const;
  * The one left sidebar (tablet and desktop). Expanded it is 232px with the page names visible; collapsed it is a 68px icon rail (names move into tooltips and accessible
  * names). The page you are on is marked by an orange bar, and the pages inside the current destination fold open underneath it. Phones use the bottom bar instead.
  */
-export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: string; dests: Dest[]; collapsed: boolean; onToggle: () => void; help: ReactNode }) {
+export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null }: { path: string; dests: Dest[]; collapsed: boolean; onToggle: () => void; help: ReactNode; counts?: Counts | null }) {
   const here = locate(path);
   const [shut, setShut] = useState<Record<string, boolean>>({});  // destinations the person folded away by hand
   const groups: Group[] = ["main", "tools", "assistant", "account"];
@@ -40,6 +41,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
                   const on = here?.dest.id === d.id;
                   const kids = d.children ?? [];
                   const open = on && !collapsed && kids.length > 1 && !shut[d.id];
+                  const badge = badgeFor(d.id, counts);
                   return (
                     <li key={d.id}>
                       <div className="relative flex items-center">
@@ -50,6 +52,12 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
                           <span aria-hidden className={clsx("absolute inset-y-2 left-0 w-[3px] origin-center rounded-r-full bg-accent transition-transform duration-300 ease-spring motion-reduce:transition-none", on ? "scale-y-100" : "scale-y-0")} />
                           <d.icon className={clsx("h-[19px] w-[19px] shrink-0 transition-[transform,color] duration-200 ease-spring group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100", on ? "text-accent-ink" : "text-ink-500 group-hover:text-ink")} strokeWidth={on ? 2 : 1.75} aria-hidden />
                           {collapsed ? <span className="sr-only">{d.label}</span> : <span className="min-w-0 flex-1 truncate">{d.label}</span>}
+                          {badge !== null && (
+                            <span className={clsx("num grid min-w-[20px] place-items-center rounded-full bg-accent px-1.5 text-[11px] font-semibold leading-5 text-on-accent motion-safe:animate-[fq-badge_.45s_cubic-bezier(.3,1.35,.5,1)_both]",
+                              collapsed ? "absolute right-1.5 top-0.5 !min-w-[18px] !px-1 !leading-[18px] ring-2 ring-surface" : on && kids.length > 1 ? "mr-8" : "")}>
+                              <span aria-hidden>{badge > 99 ? "99+" : badge}</span><span className="sr-only">{badge} waiting</span>
+                            </span>
+                          )}
                         </Link>
                         {!collapsed && on && kids.length > 1 && (
                           <button type="button" aria-label={open ? `Hide ${d.label} pages` : `Show ${d.label} pages`} aria-expanded={open} onClick={() => setShut((s) => ({ ...s, [d.id]: !s[d.id] }))}
@@ -66,7 +74,8 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
                               <li key={c.href}>
                                 <Link href={c.href} aria-current={cOn ? "page" : undefined}
                                   className={clsx("group/kid relative flex min-h-9 items-center rounded-lg px-3 text-[13px] transition-colors", cOn ? "bg-accent-tint font-semibold text-accent-ink" : "text-ink-600 hover:bg-surface-2 hover:text-ink")}>
-                                  <span className="truncate transition-transform duration-200 ease-out group-hover/kid:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover/kid:translate-x-0">{c.label}</span>
+                                  <span className="min-w-0 flex-1 truncate transition-transform duration-200 ease-out group-hover/kid:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover/kid:translate-x-0">{c.label}</span>
+                                  {childBadge(c.href, counts) !== null && <span className="num ml-2 rounded-full bg-surface-3 px-1.5 text-[11px] font-semibold leading-[18px] text-ink-700"><span aria-hidden>{childBadge(c.href, counts)}</span><span className="sr-only"> waiting</span></span>}
                                 </Link>
                               </li>
                             );

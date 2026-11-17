@@ -1,9 +1,10 @@
 "use client";
 import clsx from "clsx";
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Info, Minus, QrCode, Star } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Clock, Info, MessageSquarePlus, Minus, QrCode, Reply, Star } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { Bars, Meter, Ring, type BarDatum } from "@/components/charts/Bars";
+import { CountUp } from "@/components/charts/CountUp";
 import { Skeleton } from "@/components/ui/Card";
 import type { Todo } from "@/lib/dashboard";
 import { fmtNum } from "@/lib/format";
@@ -13,10 +14,13 @@ export interface GrowthPart { key: string; label: string; weight: number; availa
 export interface GrowthScore { score: number | null; partial: boolean; covered_weight: number; parts: GrowthPart[]; weakest: string | null; note: string }
 export interface FunnelStep { key: string; label: string; count: number }
 
-export const Card = ({ children, className, label }: { children: ReactNode; className?: string; label?: string }) => <section aria-label={label} className={clsx("rounded-[16px] bg-surface p-4 shadow-card lg:p-5", className)}>{children}</section>;
+export type ToneName = "teal" | "amber" | "rose" | "sky" | "blue" | "accent" | "ok";
+/** A Home card. With a `tone` it takes that metric family's hue (corner glow, tinted edge) and, with `tilt`, leans toward the pointer. Without one it is the plain white card. */
+export const Card = ({ children, className, label, tone, tilt }: { children: ReactNode; className?: string; label?: string; tone?: ToneName; tilt?: boolean }) =>
+  <section aria-label={label} data-tilt={tilt ? "" : undefined} className={clsx("rounded-[16px] p-4 lg:p-5", tone ? `tn t-${tone}` : "bg-surface shadow-card", tilt && "tilt", className)}>{children}</section>;
 export const Title = ({ children, right }: { children: ReactNode; right?: ReactNode }) => <div className="flex items-center justify-between gap-3"><h2 className="text-[15px] font-semibold">{children}</h2>{right}</div>;
 
-function Delta({ cur, prev }: { cur: number | null | undefined; prev: number | null | undefined }) {
+export function Delta({ cur, prev }: { cur: number | null | undefined; prev: number | null | undefined }) {
   if (cur == null || prev == null || prev === 0) return null;
   const p = Math.round(((cur - prev) / prev) * 100);
   const Icon = p > 0 ? ArrowUpRight : p < 0 ? ArrowDownRight : Minus;
@@ -60,33 +64,39 @@ export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null;
 }
 
 // ------------------------------------------------------------------------------------------------ four numbers, each with its picture
-function Tile({ label, value, visual, foot, href }: { label: string; value: ReactNode; visual: ReactNode; foot?: ReactNode; href: string }) {
+function Tile({ label, icon, tone, value, visual, foot, href, aside }: { label: string; icon: ReactNode; tone: ToneName; value: ReactNode; visual: ReactNode; foot?: ReactNode; href: string; aside?: ReactNode }) {
   return (
-    <Link href={href} className="flex min-w-0 flex-col rounded-[16px] bg-surface p-3.5 shadow-card transition-transform hover:-translate-y-0.5 lg:p-4">
-      <span className="text-[13px] text-muted">{label}</span>
-      <span className="mt-0.5 flex items-baseline gap-2"><span className="num text-[24px] font-semibold leading-8 tracking-[-.02em]">{value}</span>{foot}</span>
+    <Link href={href} data-tilt className={clsx("tn tilt t-" + tone, "relative flex min-w-0 flex-col rounded-[16px] p-3.5 lg:p-4")}>
+      <span className="flex items-center gap-2 text-[13px] text-muted"><i aria-hidden className="kic !h-[26px] !w-[26px] !rounded-[8px]">{icon}</i>{label}</span>
+      {aside && <span className="absolute right-3 top-3">{aside}</span>}
+      <span className="mt-2 flex items-baseline gap-2"><span className="num text-[26px] font-semibold leading-8 tracking-[-.02em]">{value}</span>{foot}</span>
       <span className="mt-auto pt-2">{visual}</span>
     </Link>
   );
 }
 
 export function Numbers({ o, prev, weekly, loading }: { o: Overview | null; prev: Overview | null; weekly: number[]; loading: boolean }) {
-  if (loading || !o) return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((k) => <Skeleton key={k} className="h-[108px] !rounded-[16px]" />)}</div>;
+  if (loading || !o) return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((k) => <Skeleton key={k} className="h-[124px] !rounded-[16px]" />)}</div>;
   const r = o.reviews;
   const dist = r.rating_distribution ?? {};
   const peak = Math.max(1, ...Object.values(dist));
   const replied = r.total_synced ? (r.total_synced - r.awaiting_reply) / r.total_synced : null;
   const hrs = r.avg_response_hours;
   const wk = Math.max(1, ...weekly);
+  const icn = "h-[15px] w-[15px]";
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Tile label="Google rating" href="/reputation/insights" value={r.average_rating_all_time === null ? "–" : <span className="inline-flex items-center gap-1">{r.average_rating_all_time.toFixed(1)}<Star className="h-4 w-4 fill-star text-star" aria-hidden /></span>}
+      <Tile label="Google rating" tone="amber" icon={<Star className={icn} aria-hidden />} href="/reputation/insights"
+        value={r.average_rating_all_time === null ? "–" : <span className="inline-flex items-center gap-1"><CountUp value={r.average_rating_all_time} decimals={1} /><Star className="h-4 w-4 fill-star text-star" aria-hidden /></span>}
         visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{[1, 2, 3, 4, 5].map((n) => <span key={n} className={clsx("flex-1 rounded-t-[2px]", n >= 4 ? "bg-pos" : n === 3 ? "bg-caution" : "bg-neg")} style={{ height: `${Math.max(6, ((dist[String(n)] ?? 0) / peak) * 100)}%`, opacity: (dist[String(n)] ?? 0) ? 1 : 0.15 }} />)}</span>} />
-      <Tile label="New reviews" href="/growth" value={fmtNum(r.new_in_range)} foot={<Delta cur={r.new_in_range} prev={prev?.reviews.new_in_range} />}
-        visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{weekly.map((v, i) => <span key={i} className="flex-1 rounded-t-[2px] bg-chart" style={{ height: `${Math.max(6, (v / wk) * 100)}%`, opacity: v ? 1 : 0.15 }} />)}</span>} />
-      <Tile label="Replied" href="/gbp/reviews?state=none" value={replied === null ? "–" : `${Math.round(replied * 100)}%`} visual={<Meter value={replied} />} />
-      <Tile label="Reply time" href="/gbp/reviews" value={hrs === null ? "–" : hrs < 1 ? "<1 h" : hrs < 48 ? `${Math.round(hrs)} h` : `${Math.round(hrs / 24)} d`}
-        visual={<span aria-hidden className="relative block h-2 rounded-full bg-surface-3">{hrs !== null && <span className={clsx("absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface", hrs <= 24 ? "bg-pos" : hrs <= 72 ? "bg-caution" : "bg-neg")} style={{ left: `${Math.min(100, (Math.log10(Math.max(1, hrs)) / Math.log10(168)) * 100)}%` }} />}<span className="absolute -bottom-3.5 left-0 text-[10px] text-muted">1h</span><span className="absolute -bottom-3.5 right-0 text-[10px] text-muted">1wk</span></span>} />
+      <Tile label="New reviews" tone="blue" icon={<MessageSquarePlus className={icn} aria-hidden />} href="/growth" value={<CountUp value={r.new_in_range} />} foot={<Delta cur={r.new_in_range} prev={prev?.reviews.new_in_range} />}
+        visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{weekly.map((v, i) => <span key={i} className="fq-bar flex-1 rounded-t-[2px] bg-chart" style={{ height: `${Math.max(6, (v / wk) * 100)}%`, opacity: v ? 1 : 0.15, animationDelay: `${i * 40}ms` }} />)}</span>} />
+      <Tile label="Replied" tone="ok" icon={<Reply className={icn} aria-hidden />} href="/gbp/reviews?state=none" value={replied === null ? "–" : <><CountUp value={Math.round(replied * 100)} />%</>}
+        aside={replied === null ? null : <Ring value={replied * 100} size={40} stroke={5} label={`${Math.round(replied * 100)} percent of reviews replied`}><span /></Ring>}
+        visual={<Meter value={replied} />} />
+      <Tile label="Reply time" tone="teal" icon={<Clock className={icn} aria-hidden />} href="/gbp/reviews"
+        value={hrs === null ? "–" : hrs < 1 ? "<1 h" : hrs < 48 ? <><CountUp value={Math.round(hrs)} /> h</> : <><CountUp value={Math.round(hrs / 24)} /> d</>}
+        visual={<span aria-hidden className="relative block h-2 rounded-full bg-surface-3">{hrs !== null && <span className={clsx("absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface", hrs <= 24 ? "bg-pos" : hrs <= 72 ? "bg-caution" : "bg-neg")} style={{ left: `${Math.min(100, (Math.log10(Math.max(1, hrs)) / Math.log10(168)) * 100)}%` }} />}</span>} />
     </div>
   );
 }

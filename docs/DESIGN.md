@@ -37,7 +37,7 @@ There is exactly one navigation system. Source: `frontend/src/lib/nav.ts`. Compo
 | **More** | A bottom sheet in three named groups. **Business tools:** QR & NFC Cards, Campaigns, Locations. **Business assistant:** AI Assistant, Tasks & Approvals, Activity. **Account:** Settings, Billing (owner/admin), Help & Support. Closes with its button, the backdrop, Escape or choosing a page; focus stays inside and returns to the More button. |
 | **Tablet (768 to ~1100px)** | The same **sidebar**, starting collapsed as a 68px icon rail (names in tooltips and accessible names). |
 | **Desktop** | One left **sidebar**, 232px expanded, names visible, in groups: Home, Reviews, Visibility, Results / Business tools / Assistant / Account. The current page is marked by an orange bar and the pages inside the current destination fold open beneath it. It collapses to the rail with a button; the choice is remembered. |
-| **Top bar (all sizes)** | Business switcher (avatar with a green dot and "Google connected" only when the API says so, from 860px), breadcrumb (from 1480px, built from `nav.ts`), the location filter (when there is more than one location), search ("Search or jump to…" and Ctrl K from 860px, an icon below), sync chip ("Synced 13m ago" from the newest synced location; owners and admins can press it to sync now; icon only below 1000px, hidden below 860px), trial chip (last five days of a trial; in the bar from 1280px, in the page below that), notifications and the account menu (name, email, role, Plan and billing, Team, theme, log out). No second navigation. The decision logic is in `lib/shell-status.ts` and unit-tested (`npm test`). |
+| **Top bar (all sizes)** | Business switcher (avatar with a green dot and "Google connected" only when the API says so, from 860px), breadcrumb (from 1480px, built from `nav.ts`), the location filter (when there is more than one location), search ("Search or jump to…" and Ctrl K from 860px, an icon below), sync chip ("Synced 13m ago" from the newest synced location; owners and admins can press it to sync now; icon only below 1000px, hidden below 860px), trial chip (last five days of a trial; in the bar from 1280px, in the page below that), notifications and the account menu (name, email, role, Plan and billing, Team, theme, log out). No second navigation. The decision logic is in `lib/shell-status.ts` and unit-tested (`npm test`). **Sidebar badge:** Tasks & Approvals shows the count of things waiting (tasks to do + approvals), and each of its two pages its own, from `GET /agent/counts`. That endpoint is read-only (it never re-plans or writes, unlike `GET /agent/tasks`), scoped like the pages it counts, sent with `Cache-Control: private, max-age=60`, and the app asks again about once a minute. No badge when the plan or role cannot see the assistant. |
 | **Page tabs** | The pages that belong to a destination (for example Results: Google activity, Reviews, QR & NFC, Campaigns, Reports) are an underlined tab strip under the top bar, scrolling sideways on a phone. A second, lighter row appears for pages that share a theme (Your Google profile: Improve, Business info, Opening hours, Posts, Photos). |
 
 Removed: the horizontal section pill, the vertical icon rail with flyout, and the chip rows. Every old URL still works (`frontend/src/lib/legacy-routes.mjs`, 51 permanent redirects).
@@ -64,7 +64,7 @@ Technical names live in detail views and tooltips. The labels used in navigation
 
 ## 4. Home
 
-Five short blocks, in the order an owner cares about, and nothing else:
+Short blocks, in the order an owner cares about. **Home may have several charts, but each must answer a different question and be drawn from numbers the API returned. A chart is never added to fill space**; if the numbers do not exist the block is hidden or says so in one sentence. The blocks:
 
 1. **Business overview**: business name, location, date filter, and at most **four** numbers: Google rating, new reviews, reviews answered, and (only when Google has shared it) times people saw your profile. If Google has not shared it, that cell is one sentence: "Google hasn't shared these numbers with FlowQR yet." It never shows a number and that sentence together.
 2. **Review growth**: one chart (this period against the one before) and a one-line insight.
@@ -72,7 +72,13 @@ Five short blocks, in the order an owner cares about, and nothing else:
 4. **From QR scan to Google**: scans, page visits, clicks to Google. A click is never called a review. No card: one button to set one up.
 5. **What customers say**: rating distribution, often-mentioned topics and three recent reviews.
 
-Not on Home: long paragraphs, more than one chart, tables, or every feature. Detail belongs to Results, Reviews and Visibility.
+6. **Growth score** (ring and its five parts), **four numbers** (each toned, counting up, with its own small picture), **reviews by week** against the goal, **customer actions on Google** (calls, directions, website clicks, profile views; an area chart and a share ring), **rating mix** (ring) and the **latest reviews**.
+
+The question each chart answers: score = am I getting better; four numbers = how am I doing right now; reviews by week = am I on pace for my goal; customer actions = what do people do after finding me on Google; rating mix = how good are the reviews; QR funnel = do my cards work.
+
+**Daily charts use only stored daily data.** The customer-actions area chart is drawn from `GET /analytics/google-metrics` (`gbp_metric_daily`) and only when Google has shared at least three days in a row. A day Google has not reported is a gap, never a zero, and the line is never joined across it (`lib/charts.ts`: `dailyStack`, `runs`, `canDrawArea`). Fewer days: the totals are shown and the card says how many days exist. **Never generate, spread or estimate daily values from a total.** Share rings use the real counts and their percentages always add to 100.
+
+Not on Home: long paragraphs, tables, or every feature. Detail belongs to Results, Reviews and Visibility.
 
 ## 5. Components
 
@@ -88,6 +94,13 @@ Not on Home: long paragraphs, more than one chart, tables, or every feature. Det
 ## 6. Charts
 
 Trends use a line or bars, comparisons horizontal bars, progress a simple bar or ring, ratings distribution bars, the customer journey a three-step funnel. Titles are short; legends only when there is more than one series; grid lines are dotted and few. Every chart has a loading, an empty, an unavailable and an error state, a tooltip that also works from the keyboard (arrow keys), and a "View data as table" fallback. Series differ by line style as well as colour. On a phone, multi-series charts are kept to two series and axis labels are thinned; nothing scrolls the page sideways. Geo-grid maps stay off until costs and caps are approved (`docs/GEO_GRID_ENABLEMENT.md`).
+
+### Cards, tone and motion on data screens (premium pass, Phase 2)
+
+* Metric cards use a tone hue (`Card tone=…`, `.tn .t-<hue>`); the same metric keeps the same hue on every screen. Small cards also `tilt` toward a fine pointer (`data-tilt`, one global listener, off for touch and reduced motion).
+* Numbers count up once when they first appear (`CountUp`; the real value is always in the accessible text). Rings and share rings draw in; the area chart wipes in. Everything stops for reduced motion.
+* Share rings (`Donut` + `Legend`) always print every count and percentage beside the colour.
+* A review's timeline (Reviews › detail) shows only steps that have a stored timestamp: received, drafted, approved, sent, or a reply made on Google.
 
 ## 7. Data honesty
 

@@ -7,7 +7,7 @@ import logging
 import uuid
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy import desc, func, select
 
@@ -418,6 +418,26 @@ def approvals(ctx: TenantContext = Depends(get_tenant_context)):
         "posts": [{"id": str(p.id), "summary": p.summary, "ai": p.generated_by_ai, "scheduled_for": p.scheduled_for, "cta_type": p.cta_type, "violations": posts_svc.validate_content(p, kb), "created_at": p.created_at} for p in posts],
         "profile": [{**_task_out(ctx.db, t), "violations": [v.as_dict() for v in check_text((t.draft or {}).get("description", ""), kb=kb, kind="profile")]} for t in profile],
     }
+
+
+# ------------------------------------------------------------------ sidebar badges
+TODO_STATUSES = ("suggested", "drafted", "failed")
+
+
+@router.get("/counts", dependencies=[Depends(needs("growth_agent"))])
+def counts(response: Response, ctx: TenantContext = Depends(get_tenant_context)):
+    """Two numbers for the sidebar badges: tasks that need the owner (suggested, drafted, failed; snoozed ones stay quiet) and items waiting for approval (the same three kinds the
+    Approvals page lists). READ-ONLY by design: unlike GET /agent/tasks it never re-plans, writes or commits, so it is safe to ask for on every page. Scoped exactly like the pages it
+    counts (location-restricted staff only count what they may see). Browsers may keep the answer for a minute."""
+    response.headers["Cache-Control"] = "private, max-age=60"
+    response.headers["Vary"] = "Cookie"
+    tasks = ctx.db.scalar(_visible_tasks(ctx, select(func.count()).select_from(AgentTask)).where(AgentTask.status.in_(TODO_STATUSES))) or 0
+    replies = ctx.db.scalar(select(func.count()).select_from(ReplyDraft).join(Review, Review.id == ReplyDraft.review_id).where(
+        ReplyDraft.tenant_id == ctx.tenant_id, ReplyDraft.status == ReplyStatus.draft, Review.google_reply_text.is_(None), ctx.scope(Review.location_id))) or 0
+    posts = ctx.db.scalar(select(func.count()).select_from(ScheduledPost).join(GoogleLocation, GoogleLocation.id == ScheduledPost.google_location_id).where(
+        ScheduledPost.tenant_id == ctx.tenant_id, ScheduledPost.status == "awaiting_approval", ctx.scope(GoogleLocation.location_id))) or 0
+    profile = ctx.db.scalar(_visible_tasks(ctx, select(func.count()).select_from(AgentTask)).where(AgentTask.kind == "profile_fix", AgentTask.status == "awaiting_approval")) or 0
+    return {"tasks": tasks, "approvals": replies + posts + profile}
 
 
 # ------------------------------------------------------------------ activity

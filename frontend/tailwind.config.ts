@@ -4,6 +4,8 @@ import type { Config } from "tailwindcss";
 // actions, light + dark). Colours are CSS variables declared in globals.css; see the note on `colors` below.
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
+  // tone classes are built as `t-${tone}` in components/home/v2.tsx, so the scanner cannot see them
+  safelist: ["t-teal", "t-amber", "t-rose", "t-sky", "t-blue", "t-accent", "t-ok"],
   // dark: variants follow the app theme on <html data-theme="dark"> (only ever set inside the logged-in app)
   darkMode: ["selector", "[data-theme=\"dark\"]"],
   theme: {

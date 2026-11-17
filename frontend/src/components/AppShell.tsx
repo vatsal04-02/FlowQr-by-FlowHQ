@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LocationScopeProvider, useLocationScope } from "@/lib/location-scope";
 import { navFor } from "@/lib/nav";
+import { useCounts } from "@/lib/use-counts";
 import { useAppChrome } from "@/lib/theme";
 import type { SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
@@ -17,6 +18,7 @@ import { BellMenu } from "./shell/Bell";
 import { BottomNav, MoreSheet } from "./shell/BottomNav";
 import { HelpMenu, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
 import { Sidebar, SIDEBAR_W } from "./shell/Sidebar";
+import { TiltEffect } from "./shell/Tilt";
 import { StatusStrip } from "./shell/StatusStrip";
 import { Crumbs, SearchPill, StatusDot, SyncChip, TrialPill, useGoogleHeader } from "./shell/TopBar";
 import { LogoMark } from "./ui/Brand";
@@ -59,6 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
   const legal = useFetch<{ support_email: string | null }>("/legal/info").data;
   const dests = useMemo(() => navFor(role), [role]);
+  const counts = useCounts(tenant && tenant.onboarding_completed ? tenant.id : undefined);
   const google = useGoogleHeader(!!tenant && !!tenant.onboarding_completed);
   // the bar gains a soft shadow once the page has scrolled under it
   const [scrolled, setScrolled] = useState(false);
@@ -177,7 +180,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <LocationScopeProvider>
     <div className="min-h-dvh bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
       <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
-      <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} />
+      <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} counts={counts} />
+      <TiltEffect />
       <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
         <header className={clsx("top-glass sticky top-0 z-30", scrolled && "scrolled")}>
           <div className="mx-auto flex h-[68px] w-full max-w-[1240px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">

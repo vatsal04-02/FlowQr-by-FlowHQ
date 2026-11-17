@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { AlertTriangle, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MessageSquareWarning, RefreshCw, Search, SlidersHorizontal, Star } from "lucide-react";
 import { Sheet } from "@/components/ui/Sheet";
 import Link from "next/link";
 import { useRouter, useSearchParams, useSelectedLayoutSegment } from "next/navigation";
@@ -11,10 +11,11 @@ import { FilterSelect } from "@/components/ui/Form";
 import { Status } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/Toast";
 import { REPLY_STATE, ReviewsCtx } from "@/components/reviews-ctx";
+import { CountUp } from "@/components/charts/CountUp";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { timeAgo } from "@/lib/format";
-import type { Location, Review } from "@/lib/types";
+import type { Location, Overview, Review } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 const PAGE = 25;
@@ -44,6 +45,9 @@ function Workspace({ children }: { children: ReactNode }) {
   const cNone = useFetch<{ total: number }>("/reviews", { reply_state: "none", location_id: f.location_id, limit: 1 });
   const cDraft = useFetch<{ total: number }>("/reviews", { reply_state: "draft", location_id: f.location_id, limit: 1 });
   const cFail = useFetch<{ total: number }>("/reviews", { reply_state: "failed", location_id: f.location_id, limit: 1 });
+  // The numbers in the strip above the list: all-time rating and reply share come from the same overview the Home page reads (the range only matters for numbers we do not show here).
+  const range = useMemo(() => { const to = new Date(), from = new Date(); from.setDate(to.getDate() - 29); const d = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; return { from: d(from), to: d(to) }; }, []);
+  const ov = useFetch<Overview>("/analytics/overview", { ...range, location_id: f.location_id });
   const refresh = useCallback(() => { void list.reload(); void cNone.reload(); void cDraft.reload(); void cFail.reload(); }, [list, cNone, cDraft, cFail]);
   const counts: Record<string, number | undefined> = { none: cNone.data?.total, draft: cDraft.data?.total, failed: cFail.data?.total };
   const connected = google.data?.connections.some((c) => c.status === "active");
@@ -71,7 +75,15 @@ function Workspace({ children }: { children: ReactNode }) {
         {isAdmin && connected && <button type="button" aria-label="Sync reviews from Google now" title="Sync reviews from Google now" disabled={syncing} onClick={() => void sync()}
           className="grid h-11 w-11 place-items-center rounded-[12px] text-ink-600 ring-1 ring-line hover:bg-surface-2 disabled:opacity-50"><RefreshCw className={clsx("h-4 w-4", syncing && "fq-spin")} aria-hidden /></button>}
       </div>
-      <div className="grid overflow-hidden rounded-panel border border-ink-100 bg-white md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">
+      {ov.data && (
+        <ul aria-label="Review summary" className="mb-3 flex flex-wrap gap-2 text-[13.5px] text-ink-700">
+          {ov.data.reviews.average_rating_all_time !== null && <li className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3.5 shadow-pill ring-1 ring-line"><Star className="h-3.5 w-3.5 fill-star text-star" aria-hidden /><b className="num font-semibold text-ink"><CountUp value={ov.data.reviews.average_rating_all_time} decimals={1} /></b> average</li>}
+          <li className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3.5 shadow-pill ring-1 ring-line"><b className="num font-semibold text-ink"><CountUp value={ov.data.reviews.total_synced} /></b> reviews</li>
+          {ov.data.reviews.total_synced > 0 && <li className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3.5 shadow-pill ring-1 ring-line"><CheckCircle2 className="h-3.5 w-3.5 text-pos" aria-hidden /><b className="num font-semibold text-ink"><CountUp value={Math.round(((ov.data.reviews.total_synced - ov.data.reviews.awaiting_reply) / ov.data.reviews.total_synced) * 100)} />%</b> replied</li>}
+          {counts.none !== undefined && <li className={clsx("inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 shadow-pill ring-1", counts.none > 0 ? "bg-warn-tint text-warn ring-transparent" : "bg-surface ring-line")}><MessageSquareWarning className="h-3.5 w-3.5" aria-hidden /><b className="num font-semibold"><CountUp value={counts.none} /></b> {counts.none === 1 ? "needs a reply" : "need a reply"}</li>}
+        </ul>
+      )}
+      <div className="panel grid grid-cols-[minmax(0,1fr)] overflow-hidden md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">
         <section aria-label="Review list" className={clsx("flex min-h-0 flex-col border-ink-100 md:border-r", seg ? "hidden md:flex" : "flex")}>
           <div className="space-y-2 border-b border-ink-100 p-3">
             <div className="relative">
@@ -122,8 +134,8 @@ function Workspace({ children }: { children: ReactNode }) {
                     return (
                       <li key={r.id} className="border-b border-ink-100 last:border-b-0">
                         <Link href={`/gbp/reviews/${r.id}`} aria-current={on ? "true" : undefined}
-                          className={clsx("relative grid gap-1 py-3 pl-4 pr-3 transition-colors", on ? "bg-brand-50/70" : sensitive ? "bg-red-50/40 hover:bg-red-50/70" : "hover:bg-ink-50/70")}>
-                          <span aria-hidden className={clsx("absolute inset-y-0 left-0 w-[3px]", on ? "bg-brand-600" : sensitive ? "bg-red-600" : st.bar)} />
+                          className={clsx("relative grid gap-1 py-3 pl-4 pr-3 transition-colors", on ? "bg-accent-tint" : sensitive ? "bg-neg-tint/50 hover:bg-neg-tint" : "hover:bg-surface-2")}>
+                          <span aria-hidden className={clsx("absolute inset-y-0 left-0 w-[3px] origin-center transition-transform duration-300 ease-spring motion-reduce:transition-none", on ? "scale-y-100 bg-accent" : sensitive ? "scale-y-100 bg-neg" : clsx("scale-y-100", st.bar))} />
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-2"><Stars rating={r.rating} size={13} /><span data-words="skip" className="truncate text-sm font-semibold">{r.reviewer_name ?? "Google user"}</span></span>
                             <span className="shrink-0 text-xs text-ink-500">{timeAgo(r.review_created_at)}</span>
@@ -153,7 +165,7 @@ function Workspace({ children }: { children: ReactNode }) {
           )}
         </section>
 
-        <section aria-label="Review detail" className={clsx("min-h-0 min-w-0 overflow-y-auto bg-white", seg ? "block" : "hidden md:block")}>{children}</section>
+        <section aria-label="Review detail" className={clsx("min-h-0 min-w-0 overflow-y-auto bg-white", seg ? "block" : "hidden md:block")}><div key={seg ?? "none"} className="fq-slide">{children}</div></section>
       </div>
     </ReviewsCtx.Provider>
   );

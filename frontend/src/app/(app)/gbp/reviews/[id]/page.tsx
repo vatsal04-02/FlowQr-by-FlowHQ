@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import { REPLY_STATE, useReviewsList } from "@/components/reviews-ctx";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { reviewTimeline } from "@/lib/charts";
 import { fmtDate } from "@/lib/format";
 import type { Draft, Review, ReviewLog } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
@@ -36,6 +37,24 @@ function Tracker({ status }: { status: "none" | "draft" | "approved" | "publishi
           </li>
         );
       })}
+    </ol>
+  );
+}
+
+/** What has happened to this review, in order, from the timestamps the server stored (received, drafted, approved, sent, or a reply made on Google). A step that has no timestamp is not shown. */
+function Timeline({ r, drafts }: { r: Review; drafts: Draft[] }) {
+  const latest = [...drafts].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] ?? null;
+  const steps = reviewTimeline({ review_created_at: r.review_created_at, google_reply_at: r.google_reply_at, latest_draft: latest });
+  if (steps.length < 2) return null;
+  return (
+    <ol aria-label="What happened to this review" className="mt-4 grid">
+      {steps.map((st, i) => (
+        <li key={st.key} className="relative grid grid-cols-[28px_minmax(0,1fr)] gap-3 pb-4 last:pb-0">
+          {i < steps.length - 1 && <span aria-hidden className="absolute bottom-[-2px] left-[13px] top-7 w-0.5 bg-ink-200" />}
+          <span aria-hidden className="grid h-7 w-7 place-items-center rounded-full bg-pos-tint text-pos motion-safe:animate-[fq-badge_.5s_cubic-bezier(.3,1.35,.5,1)_both]" style={{ animationDelay: `${i * 120}ms` }}><Check className="h-4 w-4" /></span>
+          <span className="min-w-0"><b className="block text-[14px] font-semibold">{st.label}</b><span className="text-[13px] text-ink-500">{fmtTime(st.at)}</span></span>
+        </li>
+      ))}
     </ol>
   );
 }
@@ -110,6 +129,7 @@ export default function ReviewDetail() {
         {r.google_reply_text && (
           <div className="mt-4 rounded-lg border border-green-200 bg-green-50/70 p-3.5"><p className="flex items-center gap-1.5 text-[13px] font-semibold text-green-800"><CheckCircle2 className="h-4 w-4" aria-hidden />{r.google_reply_state === "PENDING" ? "Reply sent to Google, waiting for Google to check it" : "Reply live on Google"} · {fmtDate(r.google_reply_at)}</p><p className="mt-1 whitespace-pre-wrap text-sm text-ink-700">{r.google_reply_text}</p></div>
         )}
+        <Timeline r={r} drafts={data.drafts} />
       </div>
 
       <div className="px-5 py-4 sm:px-6">

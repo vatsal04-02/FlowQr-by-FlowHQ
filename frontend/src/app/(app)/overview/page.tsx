@@ -1,12 +1,14 @@
 "use client";
 import { useMemo, useState } from "react";
 import { DoThisWeek, FunnelStrip, Numbers, ScoreCard, WeeklyReviews, type FunnelStep, type GrowthScore } from "@/components/home/v2";
+import { GoogleActions, LatestReviews, RatingMix } from "@/components/home/v3";
 import { GettingStarted } from "@/components/overview/GettingStarted";
 import { Alert } from "@/components/ui/Card";
 import type { Activity, TasksResponse } from "@/lib/agent";
 import { useAuth } from "@/lib/auth";
 import { buildTodos, previousRange, type Days } from "@/lib/dashboard";
 import { useLocationScope } from "@/lib/location-scope";
+import type { GoogleMetrics } from "@/lib/seo";
 import type { GoogleConnection, Location, Overview, Review } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
@@ -18,8 +20,9 @@ function rangeFor(days: Days) {
 }
 
 /**
- * Home answers "am I getting better, and what do I do this week?" with pictures first: the Growth score ring and its five parts, four numbers each with its own small chart,
- * reviews by week against the goal, three moves for the week (never empty), and the four steps from card to Google. Detail lives in Reviews, GBP and Growth.
+ * Home answers "am I getting better, and what do I do this week?" with pictures first. Several charts, each answering a different question and each drawn from numbers the API returned
+ * (docs/DESIGN.md §4): the Growth score ring and its five parts; four numbers with a small picture each; reviews by week against the goal; what customers do on Google (stored daily
+ * figures, drawn only when Google has shared enough days); how ratings split; the four newest reviews; three moves for the week; the steps from card to Google.
  */
 export default function Home() {
   const { tenant } = useAuth();
@@ -37,6 +40,8 @@ export default function Home() {
   const google = useFetch<{ configured: boolean; connections: GoogleConnection[] }>("/google/status");
   const waiting = useFetch<{ total: number; items: Review[] }>("/reviews", { reply_state: "none", location_id: loc, limit: 20 });
   const failed = useFetch<{ total: number; items: Review[] }>("/reviews", { reply_state: "failed", location_id: loc, limit: 5 });
+  const latest = useFetch<{ total: number; items: Review[] }>("/reviews", { location_id: loc, limit: 4 });
+  const gm = useFetch<GoogleMetrics>("/analytics/google-metrics", { from: range.from, to: range.to, location_id: loc });
   const plan = useFetch<TasksResponse>("/agent/tasks", { scope: "today" });
   const activity = useFetch<Activity>("/agent/activity");
 
@@ -65,9 +70,12 @@ export default function Home() {
           <Numbers o={o} prev={p} weekly={weekly} loading={loading} />
           <div className="lg:hidden"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} /></div>
           <WeeklyReviews o={o} prev={p} days={days} goal={goal} loading={loading || (prevOv.loading && !p)} />
+          <GoogleActions m={gm.data} loading={gm.loading} error={gm.error} />
         </div>
         <div className="space-y-3 lg:col-span-4 lg:space-y-4">
           <div className="hidden lg:block"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} /></div>
+          <LatestReviews items={latest.data?.items ?? null} total={latest.data?.total ?? 0} loading={latest.loading && !latest.data} />
+          <RatingMix o={o} loading={loading} />
           <FunnelStrip steps={funnel.data?.funnel ?? null} hasCard={hasCard} loading={funnel.loading && !funnel.data} />
           {o && <GettingStarted />}
         </div>
