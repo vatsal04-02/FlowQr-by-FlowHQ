@@ -81,6 +81,10 @@ def _compute(sub: Subscription | None) -> Entitlements:
             trial_days_left = 0
         elif sub.trial_ends_at:
             trial_days_left = max(0, (sub.trial_ends_at - now).days)
+    elif status == "active" and sub.provider == "prepaid":
+        # A prepaid term ends BY THE CLOCK, like a trial: no job has to run for access to close, and nothing renews it but a new payment.
+        if sub.current_period_end is None or sub.current_period_end <= now:
+            active, status, reason = False, "expired", "plan_expired"
     elif status == "past_due":
         since = sub.past_due_since or now
         grace_until = since + timedelta(days=settings.past_due_grace_days)
@@ -91,7 +95,7 @@ def _compute(sub: Subscription | None) -> Entitlements:
         if status in ("canceled", "cancelled") and sub.current_period_end and sub.current_period_end > now:
             active = True
         else:
-            reason = {"halted": "payment_failed", "expired": "trial_ended"}.get(status, "canceled")
+            reason = {"halted": "payment_failed", "expired": "plan_expired" if sub.provider == "prepaid" else "trial_ended"}.get(status, "canceled")
     elif status == "pending":
         reason = "payment_pending"
     elif status == "incomplete":

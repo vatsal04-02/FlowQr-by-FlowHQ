@@ -51,7 +51,7 @@ export default function PaymentsPage() {
               <thead><tr><th>Date</th><th>Type</th><th className="!text-right">Amount</th><th>Status</th><th>Reference</th></tr></thead>
               <tbody>{pays.data?.map((p) => (
                 <tr key={p.id}>
-                  <td className="whitespace-nowrap">{fmtDate(p.paid_at ?? p.created_at)}</td><td>{p.kind === "sub_auth" ? "Authorisation (returned to you)" : p.kind === "subscription" ? "Subscription" : "Card order"}</td>
+                  <td className="whitespace-nowrap">{fmtDate(p.paid_at ?? p.created_at)}</td><td>{p.kind === "sub_auth" ? "Authorisation (returned to you)" : p.kind === "subscription" && p.payment_type === "PREPAID" ? "Prepaid plan (one payment)" : p.kind === "subscription" ? "Subscription" : "Card order"}</td>
                   <td className="n font-semibold">{rupees(p.amount_paise)}</td>
                   <td><Status tone={TONE[p.status] ?? "idle"}>{p.status}</Status>{(p.error_description ?? p.failure_reason) && <p className="text-xs text-red-700">{p.error_description ?? p.failure_reason}</p>}</td>
                   <td className="font-mono text-xs text-ink-500">{p.razorpay_payment_id ?? "–"}{p.razorpay_invoice_id && <span className="block">inv {p.razorpay_invoice_id}</span>}</td>

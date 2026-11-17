@@ -321,7 +321,12 @@ def record_event(db: Session, event_id: str, etype: str) -> WebhookEvent | None:
 def refresh_statuses(db: Session) -> dict:
     """Daily housekeeping: expire trials and lapse past-due subscriptions after the grace period."""
     now = utcnow()
-    expired = lapsed = 0
+    expired = lapsed = ended = 0
+    for sub in db.scalars(select(Subscription).where(Subscription.status == "active", Subscription.provider == "prepaid", Subscription.current_period_end < now)):
+        before = snapshot(sub)  # access already closed by the clock (entitlements.py); this only makes the stored status say so
+        sub.status = "expired"
+        record_change(db, sub, before, source="system", meta={"reason": "prepaid term ended"})
+        ended += 1
     for sub in db.scalars(select(Subscription).where(Subscription.status == "trialing", Subscription.trial_ends_at < now)):
         if not sub.razorpay_subscription_id and not ent.awaiting_first_charge(sub, now):  # a Cashfree mandate whose first charge is settling is not an expired trial
             before = snapshot(sub)
@@ -336,4 +341,4 @@ def refresh_statuses(db: Session) -> dict:
             lapsed += 1
     promos = end_expired_grants(db, now)
     db.commit()
-    return {"expired_trials": expired, "lapsed_past_due": lapsed, "promos_ended": promos}
+    return {"expired_trials": expired, "lapsed_past_due": lapsed, "promos_ended": promos, "prepaid_ended": ended}

@@ -6,6 +6,17 @@ from pydantic import BaseModel, Field
 from app.schemas.common import ORM, normalize_phone
 
 
+class PrepaidCheckoutIn(BaseModel):
+    """What the browser may say about a prepaid purchase. There is deliberately NO amount: the server prices the order."""
+    plan: str = Field(pattern="^[a-z_]{3,32}$")
+    months: int = Field(ge=1, le=12)
+    phone: str = Field(min_length=10, max_length=16)
+
+
+class PrepaidVerifyIn(BaseModel):
+    order_id: str = Field(pattern="^fqp_[0-9a-f]{24}$")
+
+
 class PlanOut(ORM):
     code: str
     name: str

@@ -52,4 +52,14 @@ export async function openCashfreeCheckout(sessionId: string, environment: strin
   if (result?.error) throw new Error(result.error.message || "The payment window reported a problem. Nothing was charged.");
 }
 
+/** Opens Cashfree's hosted page for a ONE-TIME order the SERVER created (a Payment Gateway order, not a subscription: no mandate, no authorisation). The browser is sent to Cashfree and brought back to
+ *  /settings/billing/pay-return, which asks the server what really happened. Loaded only now, so no other screen contacts Cashfree. */
+export async function openCashfreePayment(sessionId: string, environment: string): Promise<void> {
+  const { load } = await import("@cashfreepayments/cashfree-js");
+  const cashfree = await load({ mode: environment === "production" ? "production" : "sandbox" });
+  if (!cashfree) throw new Error("The payment window could not be loaded. Check your connection and try again. Nothing was charged.");
+  const result = await cashfree.checkout({ paymentSessionId: sessionId, redirectTarget: "_self" });
+  if (result?.error) throw new Error(result.error.message || "The payment window reported a problem. Nothing was charged.");
+}
+
 export { api };

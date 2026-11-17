@@ -54,13 +54,12 @@ TERM_PRICES_PAISE: dict[str, dict[int, int]] = {
     "growth": {1: 79900, 3: 229900, 6: 429900, 12: 799900},
     "pro": {1: 129900, 3: 369900, 6: 699900, 12: 1299900},
 }
-# True only when a one-time checkout really exists (Cashfree Payment Gateway orders: not built yet). The pricing screen keeps its payment button disabled until this is True.
-ONE_TIME_CHECKOUT_AVAILABLE = False
-
-
 def public_terms() -> dict:
-    """The prepaid price list in the shape the pricing screen reads (JSON keys are strings)."""
-    return {"months": list(TERM_MONTHS), "prices_paise": {code: {str(m): v for m, v in t.items()} for code, t in TERM_PRICES_PAISE.items()}, "checkout_open": ONE_TIME_CHECKOUT_AVAILABLE}
+    """The prepaid price list in the shape the pricing screen reads (JSON keys are strings). `checkout_open` is true only when the server can really take the payment
+    (PREPAID_CHECKOUT_ENABLED and Cashfree credentials); the pricing screen keeps its payment button disabled otherwise."""
+    from app.core.config import settings
+
+    return {"months": list(TERM_MONTHS), "prices_paise": {code: {str(m): v for m, v in t.items()} for code, t in TERM_PRICES_PAISE.items()}, "checkout_open": settings.prepaid_configured}
 
 # Retired codes: kept so existing subscribers and Razorpay plan ids keep resolving, never offered to anyone new.
 LEGACY = {"essential": "starter", "multi": "pro"}

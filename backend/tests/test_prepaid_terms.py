@@ -48,9 +48,16 @@ def test_the_scale_monthly_difference_is_known_and_pinned():
     assert plans.PLANS["pro"]["price_paise"] == 149900
 
 
-def test_one_time_checkout_stays_closed_until_one_exists():
-    assert plans.ONE_TIME_CHECKOUT_AVAILABLE is False
+def test_one_time_checkout_is_closed_unless_switched_on_with_credentials(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "prepaid_checkout_enabled", False)
     assert plans.public_terms()["checkout_open"] is False
+    monkeypatch.setattr(settings, "prepaid_checkout_enabled", True)
+    monkeypatch.setattr(settings, "cashfree_client_id", "")
+    assert plans.public_terms()["checkout_open"] is False  # switched on but no credentials: still closed
+    monkeypatch.setattr(settings, "cashfree_client_id", "x")
+    monkeypatch.setattr(settings, "cashfree_client_secret", "y")
+    assert plans.public_terms()["checkout_open"] is True
 
 
 def test_the_public_catalogue_serves_the_terms_and_nothing_that_looks_like_a_reference_price(client):
@@ -58,7 +65,7 @@ def test_the_public_catalogue_serves_the_terms_and_nothing_that_looks_like_a_ref
     assert r.status_code == 200
     body = r.json()
     terms = body["terms"]
-    assert terms["months"] == [1, 3, 6, 12] and terms["checkout_open"] is False
+    assert terms["months"] == [1, 3, 6, 12] and terms["checkout_open"] is False  # the test environment has the switch off
     assert {c: {int(m): p // 100 for m, p in t.items()} for c, t in terms["prices_paise"].items()} == OWNER_DECISION
     text = json.dumps(body).lower()
     for word in ("mrp", "reference_price", "list_price", "original_price", "strike", "discount"):

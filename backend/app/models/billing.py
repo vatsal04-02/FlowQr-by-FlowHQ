@@ -83,6 +83,31 @@ class Payment(IdMixin, Base):
     meta: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
 
 
+class PrepaidOrder(IdMixin, TimestampMixin, Base):
+    """One attempt to buy a prepaid term (Cashfree Payment Gateway order). The amount is fixed by the SERVER from its own price list when the row is created; nothing the browser sends changes it.
+    A row never grants access by itself: access is granted only when Cashfree reports the order PAID for exactly this amount (services/prepaid.py)."""
+
+    __tablename__ = "prepaid_orders"
+    __table_args__ = (Index("ix_prepaid_orders_tenant", "tenant_id", "created_at"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    plan_code: Mapped[str] = mapped_column(String(32))
+    months: Mapped[int] = mapped_column(Integer)
+    amount_paise: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), default="INR")
+    status: Mapped[str] = mapped_column(String(16), default="created")  # created | paid | failed | expired | mismatch
+    order_id: Mapped[str] = mapped_column(String(40), unique=True)  # OUR id, sent to Cashfree as order_id
+    cf_order_id: Mapped[str | None] = mapped_column(String(32))
+    cf_payment_id: Mapped[str | None] = mapped_column(String(32))
+    payment_method: Mapped[str | None] = mapped_column(String(24))  # only the kind (upi, card, netbanking...): never a number or an id
+    failure_reason: Mapped[str | None] = mapped_column(String(300))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class WebhookEvent(IdMixin, Base):
     """Idempotency + audit for inbound provider webhooks. Not tenant-scoped (written before tenant is known)."""
 

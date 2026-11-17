@@ -54,6 +54,22 @@ def billing_reconcile():
         db.close()
 
 
+@celery_app.task(name="flowqr.prepaid_reconcile")
+def prepaid_reconcile():
+    """Hourly: a webhook can be lost and a customer can close the tab after paying, so read every recent unsettled prepaid order from Cashfree and apply the truth."""
+    from app.core.config import settings
+
+    if not settings.prepaid_configured:
+        return {"skipped": "prepaid checkout is off"}
+    from app.services import cashfree, prepaid
+
+    db = system_session()
+    try:
+        return prepaid.reconcile(db, cashfree.get_cashfree())
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.billing_refresh")
 def billing_refresh():
     from app.services.billing import refresh_statuses
