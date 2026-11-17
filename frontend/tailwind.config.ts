@@ -38,6 +38,8 @@ const config: Config = {
         pos: { DEFAULT: "rgb(var(--c-pos) / <alpha-value>)", tint: "rgb(var(--c-pos-tint) / <alpha-value>)" },
         neg: { DEFAULT: "rgb(var(--c-neg) / <alpha-value>)", tint: "rgb(var(--c-neg-tint) / <alpha-value>)" },
         warn: { DEFAULT: "rgb(var(--c-warn) / <alpha-value>)", tint: "rgb(var(--c-warn-tint) / <alpha-value>)" },
+        // Metric-family hues (globals.css, "Tone variants"): teal calls/goals, sky and blue searches/directions, amber ratings/website, rose profile views.
+        tone: { teal: "rgb(var(--c-tone-teal) / <alpha-value>)", amber: "rgb(var(--c-tone-amber) / <alpha-value>)", rose: "rgb(var(--c-tone-rose) / <alpha-value>)", sky: "rgb(var(--c-tone-sky) / <alpha-value>)", blue: "rgb(var(--c-tone-blue) / <alpha-value>)" },
         g: { blue: "#4285F4", red: "#EA4335", yellow: "#FBBC05", green: "#34A853" },
       },
       fontFamily: {
@@ -56,6 +58,7 @@ const config: Config = {
         float: "0 30px 60px -24px rgba(23,23,25,.45), 0 10px 20px -10px rgba(23,23,25,.25)",
         card: "var(--shadow-card)", pill: "var(--shadow-pill)", hero: "var(--shadow-hero)", lift: "var(--shadow-lift)",
       },
+      transitionTimingFunction: { spring: "cubic-bezier(.3,1.35,.5,1)", out: "cubic-bezier(.2,.7,.2,1)" },
       keyframes: {
         "fade-up": { from: { opacity: "0", transform: "translateY(8px)" }, to: { opacity: "1", transform: "none" } },
       },

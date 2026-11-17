@@ -18,10 +18,12 @@ Design order: **phone first, then tablet, then desktop.** Desktop is not a stret
 | Status | `pos` green, `neg` red, `warn` amber (+ tints) | always paired with words, never colour alone |
 | Type | Inter (app), Geist (marketing), Noto Sans Devanagari fallback; numbers use tabular figures | |
 | Radius | data cards **16px** (`rounded-card`), wells and tiles **12px**, inner rows **10px**; nested radii are always smaller than their parent | |
-| Shadow | `--shadow-card`: a 1px hairline lift. No glass, no blur, no coloured glow. | |
+| Shadow (premium pass, Phase 1) | `--shadow-card`: a top highlight plus three stacked shadows (contact, soft, long); `--shadow-lift` on hover; dark mode swaps the long shadow for a deeper one. Glass is allowed **only** on the sticky top bar (`.top-glass`, with an opaque fallback for reduced transparency). | |
+| Tone hues | `--c-tone-teal / amber / rose / sky / blue` (light and dark values). One hue per metric family, the same on every screen: teal calls and goals, sky and blue searches and directions, amber ratings and website clicks, rose profile views, green done. A card carrying one metric uses `.tn .t-<hue>` (soft corner glow, tinted edge, coloured shadow); `.kic` is the small tinted icon chip. Text stays ink, so contrast is unchanged. | |
+| Easing | `--ease-spring` (`ease-spring` in Tailwind) for things that appear or press; `--ease-out` for slides and fills. | |
 | Dark mode | `html[data-theme="dark"]`, every token has a dark value; both themes are part of QA | |
 
-Avoid: purple or indigo gradients, glassmorphism, big orange hero panels, decorative charts, oversized empty cards, icon tiles on every row, pill-shaped containers for everything (pills are for status and the date filter only), huge page titles on a phone.
+Avoid: purple or indigo gradients, glass on cards, big orange hero panels, decorative charts, oversized empty cards, icon tiles on every row, pill-shaped containers for everything (pills are for status and the date filter only), huge page titles on a phone.
 
 Page titles are 22px on a phone, 26px tablet, 30px desktop; subtitles are one or two short lines.
 
@@ -35,7 +37,7 @@ There is exactly one navigation system. Source: `frontend/src/lib/nav.ts`. Compo
 | **More** | A bottom sheet in three named groups. **Business tools:** QR & NFC Cards, Campaigns, Locations. **Business assistant:** AI Assistant, Tasks & Approvals, Activity. **Account:** Settings, Billing (owner/admin), Help & Support. Closes with its button, the backdrop, Escape or choosing a page; focus stays inside and returns to the More button. |
 | **Tablet (768 to ~1100px)** | The same **sidebar**, starting collapsed as a 68px icon rail (names in tooltips and accessible names). |
 | **Desktop** | One left **sidebar**, 232px expanded, names visible, in groups: Home, Reviews, Visibility, Results / Business tools / Assistant / Account. The current page is marked by an orange bar and the pages inside the current destination fold open beneath it. It collapses to the rail with a button; the choice is remembered. |
-| **Top bar (all sizes)** | Only: the business selector, the location filter (when there is more than one location), search (Ctrl K), notifications and the account menu. No second navigation. |
+| **Top bar (all sizes)** | Business switcher (avatar with a green dot and "Google connected" only when the API says so, from 860px), breadcrumb (from 1480px, built from `nav.ts`), the location filter (when there is more than one location), search ("Search or jump to…" and Ctrl K from 860px, an icon below), sync chip ("Synced 13m ago" from the newest synced location; owners and admins can press it to sync now; icon only below 1000px, hidden below 860px), trial chip (last five days of a trial; in the bar from 1280px, in the page below that), notifications and the account menu (name, email, role, Plan and billing, Team, theme, log out). No second navigation. The decision logic is in `lib/shell-status.ts` and unit-tested (`npm test`). |
 | **Page tabs** | The pages that belong to a destination (for example Results: Google activity, Reviews, QR & NFC, Campaigns, Reports) are an underlined tab strip under the top bar, scrolling sideways on a phone. A second, lighter row appears for pages that share a theme (Your Google profile: Improve, Business info, Opening hours, Posts, Photos). |
 
 Removed: the horizontal section pill, the vertical icon rail with flyout, and the chip rows. Every old URL still works (`frontend/src/lib/legacy-routes.mjs`, 51 permanent redirects).

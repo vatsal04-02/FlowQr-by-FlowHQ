@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Check, ChevronDown, LogOut, Search, ShieldCheck } from "lucide-react";
+import { Check, ChevronDown, CreditCard, LogOut, ShieldCheck, Users } from "lucide-react";
 import { MotionConfig } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,23 +15,12 @@ import { useFetch } from "@/lib/use-api";
 import { CommandPalette } from "./shell/CommandPalette";
 import { BellMenu } from "./shell/Bell";
 import { BottomNav, MoreSheet } from "./shell/BottomNav";
-import { HelpMenu, iconBtn, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
+import { HelpMenu, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
 import { Sidebar, SIDEBAR_W } from "./shell/Sidebar";
 import { StatusStrip } from "./shell/StatusStrip";
+import { Crumbs, SearchPill, StatusDot, SyncChip, TrialPill, useGoogleHeader } from "./shell/TopBar";
 import { LogoMark } from "./ui/Brand";
 import { Spinner } from "./ui/Card";
-
-/** The free trial, once and small: days left plus the one action. Only shown when the trial is nearly over. */
-function TrialChip({ s }: { s: SubscriptionInfo | null }) {
-  const path = usePathname();
-  if (!s || s.status !== "trialing" || (s.trial_days_left ?? 99) > 5 || path.startsWith("/settings/billing") || path.startsWith("/settings/billing/payments")) return null;
-  const d = s.trial_days_left ?? 0;
-  return (
-    <Link href="/settings/billing" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-accent-tint px-4 text-[13px] font-semibold text-accent-ink transition-colors hover:bg-brand-100">
-      <span aria-hidden className="h-2 w-2 rounded-full bg-accent" />{d === 0 ? "Trial ends today" : `${d} ${d === 1 ? "day" : "days"} left in trial`}<span className="underline underline-offset-2">Choose a plan</span>
-    </Link>
-  );
-}
 
 /** Which location the page shows. Hidden with one location (nothing to choose). It is a convenience filter: the API enforces access. */
 function LocationPicker({ className }: { className?: string }) {
@@ -70,6 +59,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
   const legal = useFetch<{ support_email: string | null }>("/legal/info").data;
   const dests = useMemo(() => navFor(role), [role]);
+  const google = useGoogleHeader(!!tenant && !!tenant.onboarding_completed);
+  // the bar gains a soft shadow once the page has scrolled under it
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 6);
+    on(); window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
 
   // The sidebar remembers how the person left it; with no saved choice it starts open on a desktop and as an icon rail on a tablet.
   useEffect(() => {
@@ -119,9 +116,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
 
   const business = (
-    <PopoverButton label="Business menu" align="left" buttonClass="flex min-h-11 max-w-[calc(100vw-206px)] items-center gap-2 rounded-xl px-2 text-left hover:bg-surface-2 sm:max-w-[320px]"
-      icon={<><span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-accent-tint text-[13px] font-semibold text-accent-ink">{tenant.name.slice(0, 1).toUpperCase()}</span>
-        <span className="min-w-0"><span className="block truncate text-[15px] font-semibold leading-5">{tenant.name}</span></span><ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden /></>}>
+    <PopoverButton label="Business menu" align="left" className="min-w-0" buttonClass="group flex min-h-11 min-w-0 max-w-[calc(100vw-232px)] items-center gap-2.5 rounded-[14px] bg-surface py-1 pl-1.5 pr-2.5 text-left shadow-pill ring-1 ring-line transition-[transform,box-shadow] duration-200 ease-spring hover:-translate-y-px hover:shadow-lift active:scale-[.98] motion-reduce:transition-none motion-reduce:hover:transform-none sm:max-w-[340px]"
+      icon={<>
+        <span className="relative shrink-0">
+          <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full bg-accent text-[14px] font-semibold text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,.3)]">{tenant.name.slice(0, 1).toUpperCase()}</span>
+          {google.line?.tone === "ok" && <span aria-hidden className="absolute -bottom-px -right-px h-[11px] w-[11px] rounded-full bg-pos ring-2 ring-surface" />}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-[14.5px] font-semibold leading-[1.2]">{tenant.name}</span>
+          {google.line && <span className="hidden items-center gap-1.5 text-xs leading-[1.3] text-muted min-[860px]:flex"><StatusDot tone={google.line.tone} /><span className="truncate">{google.line.label}</span></span>}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden /></>}>
       {(close) => (
         <div className="p-1">
           <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted">{me.memberships.length > 1 ? "Your businesses" : "Your business"}</p>
@@ -131,21 +136,34 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="truncate">{m.tenant.name}</span>{m.tenant.id === tenant.id && <Check className="h-4 w-4 shrink-0 text-accent-ink" aria-label="Current" />}
             </button>
           ))}
-          <div className="mt-1 border-t border-ink-100 pt-1"><Link href="/settings" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Business settings</Link></div>
+          <div className="mt-1 border-t border-ink-100 pt-1">
+            {google.line && <Link href={google.line.href} onClick={close} className="flex min-h-11 items-center gap-2 rounded-xl px-3 font-medium hover:bg-surface-2"><StatusDot tone={google.line.tone} className="!h-2 !w-2" />{google.line.label}</Link>}
+            <Link href="/settings" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Business settings</Link>
+          </div>
         </div>
       )}
     </PopoverButton>
   );
 
+  const canBill = role === "owner" || role === "admin";
+  const rowCls = "flex min-h-11 items-center gap-2.5 rounded-xl px-3 font-medium hover:bg-surface-2";
   const account = (
-    <PopoverButton label="Account menu" buttonClass="grid h-11 w-11 place-items-center rounded-full hover:bg-surface-2" icon={avatar}>
+    <PopoverButton label="Account menu" align="right"
+      buttonClass="grid h-11 w-11 place-items-center rounded-full transition-transform duration-300 ease-spring hover:scale-105 hover:-rotate-3 motion-reduce:transition-none motion-reduce:hover:transform-none"
+      icon={<span className="grid h-11 w-11 place-items-center rounded-full bg-[conic-gradient(from_200deg,rgb(var(--c-accent)),rgb(var(--c-tone-amber)),rgb(var(--c-tone-teal)),rgb(var(--c-tone-sky)),rgb(var(--c-accent)))] shadow-pill"><span className="rounded-full ring-2 ring-canvas">{avatar}</span></span>}>
       {(close) => (
         <div className="p-1">
-          <div className="px-3 pb-2 pt-2"><p className="truncate font-semibold">{name}</p><p className="truncate text-[13px] text-muted">{me.user.email}</p></div>
+          <div className="flex items-center gap-3 px-3 pb-3 pt-2">
+            {avatar}
+            <div className="min-w-0 flex-1"><p className="truncate font-semibold">{name}</p><p className="truncate text-[13px] text-muted">{me.user.email}</p></div>
+            {role && <span className="shrink-0 rounded-full bg-accent-tint px-2.5 py-0.5 text-xs font-semibold capitalize text-accent-ink">{role}</span>}
+          </div>
           <div className="border-t border-ink-100 py-1">
-            <Link href="/settings/account" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Your account</Link>
-            <Link href="/settings/appearance" onClick={close} className="flex min-h-11 items-center rounded-xl px-3 font-medium hover:bg-surface-2">Appearance</Link>
-            {me.user.is_platform_admin && <Link href="/admin" onClick={close} className="flex min-h-11 items-center gap-2 rounded-xl px-3 font-medium hover:bg-surface-2"><ShieldCheck className="h-4 w-4" aria-hidden />Platform admin</Link>}
+            <Link href="/settings/account" onClick={close} className={rowCls}>Your account</Link>
+            {canBill && <Link href="/settings/billing" onClick={close} className={rowCls}><CreditCard className="h-4 w-4 text-ink-500" aria-hidden />Plan and billing</Link>}
+            <Link href="/settings/team" onClick={close} className={rowCls}><Users className="h-4 w-4 text-ink-500" aria-hidden />Team</Link>
+            <Link href="/settings/appearance" onClick={close} className={rowCls}>Appearance</Link>
+            {me.user.is_platform_admin && <Link href="/admin" onClick={close} className={rowCls}><ShieldCheck className="h-4 w-4" aria-hidden />Platform admin</Link>}
             <div className="flex min-h-11 items-center justify-between gap-2 px-3"><span className="font-medium">Theme</span><ThemeToggle small /></div>
             <button type="button" onClick={() => { close(); void logout(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left font-medium text-neg hover:bg-neg-tint"><LogOut className="h-4 w-4" aria-hidden />Log out</button>
           </div>
@@ -161,15 +179,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
       <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} />
       <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
-        <header className="sticky top-0 z-30 border-b border-ink-100 bg-canvas">
-          <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
+        <header className={clsx("top-glass sticky top-0 z-30", scrolled && "scrolled")}>
+          <div className="mx-auto flex h-[68px] w-full max-w-[1240px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-1.5">
               <Link href="/overview" aria-label="FlowQR home" className="hero-grad grid h-9 w-9 shrink-0 place-items-center rounded-[10px] !shadow-none md:hidden"><LogoMark size={19} variant="onAccent" /></Link>
               {business}
+              <Crumbs path={path} />
             </div>
-            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <LocationPicker className="hidden md:flex" />
-              <button type="button" aria-label="Search (Ctrl K)" onClick={() => setPalette(true)} className={iconBtn}><Search className="h-[19px] w-[19px]" strokeWidth={1.75} aria-hidden /></button>
+              <SearchPill onOpen={() => setPalette(true)} />
+              <SyncChip chip={google.chip} canSync={canBill} reload={google.reload} />
+              {!notices.length && <TrialPill s={s ?? null} path={path} className="max-[1279px]:hidden" />}
               <BellMenu notices={notices} />
               {account}
             </div>
@@ -178,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1240px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
           <StatusStrip notices={path.startsWith("/settings/billing") ? notices.filter((n) => !n.href.startsWith("/settings/billing")) : notices} />
-          <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialChip s={s ?? null} />}<LocationPicker className="md:hidden" /></div>
+          <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialPill s={s ?? null} path={path} className="min-[1280px]:hidden" />}<LocationPicker className="md:hidden" /></div>
           {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}
           <SubNav path={path} dests={dests} hidePrimaryOnWide={!collapsed} />
           {children}

@@ -46,8 +46,9 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
                         <Link href={d.href} title={collapsed ? d.label : undefined} aria-current={on && (kids.length < 2 || collapsed || shut[d.id]) ? "page" : undefined}
                           className={clsx("group relative flex min-h-11 flex-1 items-center gap-3 rounded-[10px] text-[14px] transition-colors md:min-h-10",
                             collapsed ? "justify-center px-0" : "pl-3 pr-2", on ? "bg-surface-2 font-semibold text-ink" : "font-medium text-ink-700 hover:bg-surface-2 hover:text-ink")}>
-                          {on && <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-accent" />}
-                          <d.icon className={clsx("h-[19px] w-[19px] shrink-0", on ? "text-accent-ink" : "text-ink-500 group-hover:text-ink")} strokeWidth={on ? 2 : 1.75} aria-hidden />
+                          {/* the active marker springs in and out rather than appearing (the bar is always there, scaled to nothing when inactive) */}
+                          <span aria-hidden className={clsx("absolute inset-y-2 left-0 w-[3px] origin-center rounded-r-full bg-accent transition-transform duration-300 ease-spring motion-reduce:transition-none", on ? "scale-y-100" : "scale-y-0")} />
+                          <d.icon className={clsx("h-[19px] w-[19px] shrink-0 transition-[transform,color] duration-200 ease-spring group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100", on ? "text-accent-ink" : "text-ink-500 group-hover:text-ink")} strokeWidth={on ? 2 : 1.75} aria-hidden />
                           {collapsed ? <span className="sr-only">{d.label}</span> : <span className="min-w-0 flex-1 truncate">{d.label}</span>}
                         </Link>
                         {!collapsed && on && kids.length > 1 && (
@@ -64,8 +65,8 @@ export function Sidebar({ path, dests, collapsed, onToggle, help }: { path: stri
                             return (
                               <li key={c.href}>
                                 <Link href={c.href} aria-current={cOn ? "page" : undefined}
-                                  className={clsx("flex min-h-9 items-center rounded-lg px-3 text-[13px] transition-colors", cOn ? "bg-accent-tint font-semibold text-accent-ink" : "text-ink-600 hover:bg-surface-2 hover:text-ink")}>
-                                  <span className="truncate">{c.label}</span>
+                                  className={clsx("group/kid relative flex min-h-9 items-center rounded-lg px-3 text-[13px] transition-colors", cOn ? "bg-accent-tint font-semibold text-accent-ink" : "text-ink-600 hover:bg-surface-2 hover:text-ink")}>
+                                  <span className="truncate transition-transform duration-200 ease-out group-hover/kid:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover/kid:translate-x-0">{c.label}</span>
                                 </Link>
                               </li>
                             );

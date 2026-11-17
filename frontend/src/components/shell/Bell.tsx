@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
-import { iconBtn, useDismiss, type Notice } from "./parts";
+import { useDismiss, type Notice } from "./parts";
+import { tbBtn } from "./TopBar";
 
 interface Item { id: string; kind: string; tone: "info" | "warn" | "bad"; title: string; body: string; href: string; at: string; unread: boolean }
 interface Feed { items: Item[]; unread: number }
@@ -41,9 +42,9 @@ export function BellMenu({ notices }: { notices: Notice[] }) {
 
   return (
     <div ref={wrap} className="relative">
-      <button ref={btn} type="button" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} className={iconBtn}>
+      <button ref={btn} type="button" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} className={tbBtn}>
         <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
-        {unread > 0 && <span aria-hidden className="absolute right-[11px] top-[10px] h-2 w-2 rounded-full bg-accent ring-2 ring-surface" />}
+        {unread > 0 && <span aria-hidden className="absolute right-[9px] top-[8px] h-2 w-2 rounded-full bg-accent ring-2 ring-surface"><span className="absolute -inset-1 rounded-full border-[1.5px] border-accent opacity-0 motion-safe:animate-[fq-ping_1.6s_ease-out_3]" /></span>}
       </button>
       {open && (
         <div role="dialog" aria-label="Notifications" className="fq-enter absolute right-0 top-[calc(100%+10px)] z-50 w-[min(92vw,380px)] rounded-card bg-surface p-2 text-sm shadow-lift">
