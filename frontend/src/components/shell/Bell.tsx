@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Bell } from "lucide-react";
+import { BellGlyph } from "@/components/icons/Nav";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -43,17 +43,17 @@ export function BellMenu({ notices }: { notices: Notice[] }) {
   return (
     <div ref={wrap} className="relative">
       <button ref={btn} type="button" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} className={tbBtn}>
-        <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
+        <BellGlyph className="h-5 w-5" strokeWidth={1.6} />
         {unread > 0 && <span aria-hidden className="absolute right-[9px] top-[8px] h-2 w-2 rounded-full bg-accent ring-2 ring-surface"><span className="absolute -inset-1 rounded-full border-[1.5px] border-accent opacity-0 motion-safe:animate-[fq-ping_1.6s_ease-out_3]" /></span>}
       </button>
       {open && (
-        <div role="dialog" aria-label="Notifications" className="fq-enter absolute right-0 top-[calc(100%+10px)] z-50 w-[min(92vw,380px)] rounded-card bg-surface p-2 text-sm shadow-lift">
+        <div role="dialog" aria-label="Notifications" className="fq-enter fixed inset-x-3 top-[68px] z-50 rounded-card bg-surface p-2 text-sm shadow-lift ring-1 ring-line sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+10px)] sm:w-[380px]">
           <div className="flex items-center justify-between px-3 pb-1 pt-2.5"><p className="text-xs font-medium text-muted">Notifications</p>
             <Link href="/settings/notifications" onClick={() => setOpen(false)} className="text-xs font-semibold text-accent-ink hover:underline">Email settings</Link></div>
           {notices.length === 0 && items.length === 0 ? (
             <p className="px-3 pb-3 pt-1 text-muted">You&rsquo;re all caught up. New reviews, flagged reviews and sync problems show up here.</p>
           ) : (
-            <ul className="max-h-[60vh] overflow-y-auto">
+            <ul className="max-h-[calc(100dvh-200px)] overflow-y-auto overscroll-contain sm:max-h-[60vh]">
               {notices.map((n) => (
                 <li key={n.id}><Link href={n.href} onClick={() => setOpen(false)} className="flex gap-3 rounded-tile p-3 transition-colors hover:bg-surface-2">
                   <Dot tone={n.tone} />

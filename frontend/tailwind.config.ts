@@ -49,6 +49,8 @@ const config: Config = {
         sans: ["Geist", "system-ui", "-apple-system", "'Segoe UI'", "'Noto Sans Devanagari'", "Roboto", "sans-serif"],
         display: ["Geist", "system-ui", "-apple-system", "'Segoe UI'", "'Noto Sans Devanagari'", "sans-serif"],
         app: ["Inter", "system-ui", "-apple-system", "'Segoe UI'", "'Noto Sans Devanagari'", "Roboto", "sans-serif"],
+        // The FlowQR wordmark only (the "flowqr" in the logo lockup).
+        brand: ["'Plus Jakarta Sans'", "Geist", "system-ui", "sans-serif"],
         mono: ["'Geist Mono'", "ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       fontWeight: { semibold: "600", bold: "650", extrabold: "700" },

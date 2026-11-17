@@ -18,6 +18,7 @@ export function AuthPage({ title, subtitle, children, footer, pitch, points, mob
   /** A short numbered list under the pitch (what happens next). */ points?: ReactNode[];
   /** One line shown above the title on phones, where the map panel is hidden. */ mobileNote?: ReactNode;
 }) {
+  useEffect(() => { try { sessionStorage.removeItem("fq-splash"); } catch { /* private mode */ } }, []);   // the next sign-in replays the full start-up screen
   return (
     <MotionConfig reducedMotion="user">
       <div className="mkt relative flex min-h-dvh w-full flex-col items-center justify-center bg-gradient-to-br from-m-tint via-m-bg to-m-tint2 px-3 py-6 sm:p-6">

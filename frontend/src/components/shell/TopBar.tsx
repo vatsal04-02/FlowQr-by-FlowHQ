@@ -1,6 +1,7 @@
 "use client";
 import clsx from "clsx";
-import { ChevronRight, Clock, RefreshCw, Search } from "lucide-react";
+import { ChevronRight, Clock, RefreshCw } from "lucide-react";
+import { SearchGlyph } from "@/components/icons/Nav";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
@@ -11,7 +12,7 @@ import type { GoogleConnection, GoogleLocation, SubscriptionInfo } from "@/lib/t
 import { useFetch } from "@/lib/use-api";
 
 /** A raised square button for the top bar (bell, search on phones). Springs up on hover, presses down on tap. */
-export const tbBtn = "relative grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-surface text-ink shadow-pill ring-1 ring-line transition-[transform,box-shadow] duration-200 ease-spring hover:-translate-y-px hover:shadow-lift active:scale-95 motion-reduce:transition-none motion-reduce:hover:transform-none";
+export const tbBtn = "relative grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-transparent text-ink-700 transition-[transform,box-shadow,background-color] duration-200 ease-spring hover:bg-surface-2 active:scale-95 motion-reduce:transition-none sm:h-10 sm:w-10 sm:bg-surface sm:text-ink sm:shadow-pill sm:ring-1 sm:ring-line sm:hover:-translate-y-px sm:hover:bg-surface sm:hover:shadow-lift motion-reduce:sm:hover:transform-none";
 
 const DOT: Record<Tone, string> = { ok: "bg-pos", warn: "bg-warn", bad: "bg-neg", idle: "bg-ink-300" };
 
@@ -99,7 +100,7 @@ export function SearchPill({ onOpen }: { onOpen: () => void }) {
   return (
     <button type="button" aria-label="Search (Ctrl K)" onClick={onOpen}
       className={clsx(tbBtn, "min-[860px]:ml-1 min-[860px]:flex min-[860px]:h-10 min-[860px]:w-auto min-[860px]:min-w-[150px] min-[860px]:max-w-[300px] min-[860px]:flex-[0_1_300px] min-[860px]:items-center min-[860px]:justify-start min-[860px]:gap-2.5 min-[860px]:pl-3 min-[860px]:pr-2 min-[860px]:text-muted")}>
-      <Search className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
+      <SearchGlyph className="h-5 w-5 shrink-0" strokeWidth={1.6} />
       <span className="hidden min-w-0 flex-1 truncate text-left text-[13.5px] min-[860px]:block">Search or jump to…</span>
       <kbd className="hidden rounded-md bg-surface-2 px-1.5 py-0.5 font-sans text-[11.5px] text-muted ring-1 ring-line min-[860px]:block">{mac ? "⌘K" : "Ctrl K"}</kbd>
     </button>

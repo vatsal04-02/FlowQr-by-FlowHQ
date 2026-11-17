@@ -1,39 +1,58 @@
 "use client";
 import clsx from "clsx";
-import { ChevronRight, LayoutGrid, X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { MoreGlyph } from "@/components/icons/Nav";
 import { BOTTOM_IDS, bottomActive, moreFor, type Dest } from "@/lib/nav";
 import type { Role } from "@/lib/types";
 
 /**
- * Phone navigation: five fixed destinations with an icon and a visible name each (Home, Reviews, Visibility, Results, More). Every target is at least 56px tall, the bar sits
- * above the home indicator (safe-area inset) and the page keeps a matching bottom padding so nothing hides behind it. Hidden from tablet width up, where the sidebar takes over.
+ * Phone navigation: a floating glass dock with five fixed destinations (Home, Reviews, GBP, Growth, More), an icon and a visible name each, every target at least 56px tall, above the
+ * home indicator, with matching bottom padding on the page so nothing hides behind it. Hidden from tablet width up, where the sidebar takes over.
+ * It answers the tap before the page does: the highlight starts gliding to the pressed item at once (not when the next page has loaded), the glyph lifts and fills in, and the press gives
+ * a small squeeze. Reduced motion skips the glide and the squeeze (MotionConfig in the app shell).
  */
 export function BottomNav({ path, dests, moreOpen, onMore }: { path: string; dests: Dest[]; moreOpen: boolean; onMore: (open: boolean) => void }) {
-  const active = bottomActive(path);
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => { setPending(null); }, [path]);               // the page arrived: the real route takes over
+  const active = pending ?? bottomActive(path);
   const four = BOTTOM_IDS.map((id) => dests.find((d) => d.id === id)).filter((d): d is Dest => !!d);
-  const base = "relative flex !min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-semibold leading-[14px] transition-colors";
+  const item = "relative flex !min-h-[56px] w-full flex-col items-center justify-center gap-[3px] rounded-[18px] px-1 text-[11px] font-semibold leading-[14px] transition-colors duration-300";
+  const pill = <motion.span layoutId="dock-on" aria-hidden className="absolute inset-0.5 rounded-[18px] bg-accent-tint shadow-[inset_0_1px_0_rgb(255_255_255/.6)]" transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.9 }} />;
+  const glyph = (Icon: Dest["icon"], on: boolean) => (
+    <motion.span aria-hidden className="relative grid place-items-center" animate={{ y: on ? -1.5 : 0, scale: on ? 1.08 : 1 }} transition={{ type: "spring", stiffness: 420, damping: 26 }}>
+      <Icon className="h-[23px] w-[23px]" strokeWidth={on ? 1.9 : 1.7} />
+    </motion.span>
+  );
+  const tap = { scale: 0.9 };
   return (
-    <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-100 bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-      <ul className="grid grid-cols-5">
+    <nav aria-label="Primary" className="fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-40 md:hidden">
+      <ul className="dock grid grid-cols-5 rounded-[24px] p-1">
         {four.map((d) => {
           const on = active === d.id && !moreOpen;
           return (
             <li key={d.id}>
-              <Link href={d.href} aria-current={on ? "page" : undefined} className={clsx(base, "w-full", on ? "text-accent-ink" : "text-ink-500 active:text-ink")}>
-                {on && <span aria-hidden className="absolute inset-x-5 top-0 h-[3px] rounded-b-full bg-accent" />}
-                <d.icon className="h-[22px] w-[22px]" strokeWidth={on ? 2.1 : 1.75} aria-hidden />{d.short ? <><span aria-hidden>{d.short}</span><span className="sr-only">{d.label}</span></> : <span>{d.label}</span>}
+              <Link href={d.href} aria-current={bottomActive(path) === d.id && !moreOpen ? "page" : undefined} data-on={on ? "" : undefined} onClick={() => setPending(d.id)}
+                className={clsx(item, on ? "text-accent-ink" : "text-ink-500 active:text-ink")}>
+                {on && pill}
+                <motion.span className="relative flex flex-col items-center gap-[3px]" whileTap={tap} transition={{ type: "spring", stiffness: 500, damping: 30 }}>
+                  {glyph(d.icon, on)}
+                  {d.short ? <><span aria-hidden>{d.short}</span><span className="sr-only">{d.label}</span></> : <span>{d.label}</span>}
+                </motion.span>
               </Link>
             </li>
           );
         })}
         <li>
-          <button type="button" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => onMore(!moreOpen)}
-            className={clsx(base, "w-full", active === "more" || moreOpen ? "text-accent-ink" : "text-ink-500 active:text-ink")}>
-            {(active === "more" || moreOpen) && <span aria-hidden className="absolute inset-x-5 top-0 h-[3px] rounded-b-full bg-accent" />}
-            <LayoutGrid className="h-[22px] w-[22px]" strokeWidth={active === "more" || moreOpen ? 2.1 : 1.75} aria-hidden /><span>More</span>
+          <button type="button" aria-haspopup="dialog" aria-expanded={moreOpen} data-on={active === "more" || moreOpen ? "" : undefined} onClick={() => onMore(!moreOpen)}
+            className={clsx(item, active === "more" || moreOpen ? "text-accent-ink" : "text-ink-500 active:text-ink")}>
+            {(active === "more" || moreOpen) && pill}
+            <motion.span className="relative flex flex-col items-center gap-[3px]" whileTap={tap} transition={{ type: "spring", stiffness: 500, damping: 30 }}>
+              {glyph(MoreGlyph, active === "more" || moreOpen)}
+              <span>More</span>
+            </motion.span>
           </button>
         </li>
       </ul>

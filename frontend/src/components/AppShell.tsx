@@ -1,7 +1,7 @@
 "use client";
 import clsx from "clsx";
 import { Check, ChevronDown, CreditCard, LogOut, ShieldCheck, Users } from "lucide-react";
-import { MotionConfig } from "motion/react";
+import { AnimatePresence, MotionConfig } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -22,8 +22,8 @@ import { TiltEffect } from "./shell/Tilt";
 import { Tour, TourIcon } from "./shell/Tour";
 import { StatusStrip } from "./shell/StatusStrip";
 import { Crumbs, SearchPill, StatusDot, SyncChip, TrialPill, useGoogleHeader } from "./shell/TopBar";
-import { LogoMark } from "./ui/Brand";
-import { Spinner } from "./ui/Card";
+import { Logo, LogoMark } from "./ui/Brand";
+import { Splash } from "./shell/Splash";
 
 /** Which location the page shows. Hidden with one location (nothing to choose). It is a convenience filter: the API enforces access. */
 function LocationPicker({ className }: { className?: string }) {
@@ -51,6 +51,26 @@ const initials = (name: string | undefined, email: string) => {
  * business, the location filter, search, notifications and the account. Every page keeps its own URL; this only decides how it is reached.
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  const { me, tenant, loading } = useAuth();
+  // The start-up screen (components/shell/Splash.tsx) covers the app from the first paint until it is signed in and loaded, and never for less than about a second so its animation always
+  // finishes (a reload inside the same tab replays it faster). It lifts away when both are true. The app itself mounts underneath at once, so its data is already loading.
+  const [quick] = useState(() => { try { return sessionStorage.getItem("fq-splash") === "1"; } catch { return false; } });
+  const [minDone, setMinDone] = useState(false);
+  useEffect(() => {
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const t = window.setTimeout(() => { setMinDone(true); try { sessionStorage.setItem("fq-splash", "1"); } catch { /* private mode */ } }, calm ? 350 : quick ? 650 : 1150);
+    return () => window.clearTimeout(t);
+  }, [quick]);
+  const ready = !loading && !!me && !!tenant && tenant.onboarding_completed;
+  return (
+    <MotionConfig reducedMotion="user">
+      <AppShellInner>{children}</AppShellInner>
+      <AnimatePresence>{(!ready || !minDone) && <Splash key="splash" quick={quick} />}</AnimatePresence>
+    </MotionConfig>
+  );
+}
+
+function AppShellInner({ children }: { children: ReactNode }) {
   const { me, tenant, role, loading, logout, refresh } = useAuth();
   const path = usePathname();
   const router = useRouter();
@@ -106,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return out;
   }, [s, me, deletion]);
 
-  if (loading || !me || !tenant || !tenant.onboarding_completed) return <div className="grid min-h-dvh place-items-center"><Spinner /></div>;
+  if (loading || !me || !tenant || !tenant.onboarding_completed) return null;   // the start-up screen is covering this
 
   if (tenant.suspended_at) {
     return (
@@ -125,14 +145,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
 
   const business = (
-    <PopoverButton label="Business menu" align="left" className="min-w-0" buttonClass="group flex min-h-11 min-w-0 max-w-[calc(100vw-232px)] items-center gap-2.5 rounded-[14px] bg-surface py-1 pl-1.5 pr-2.5 text-left shadow-pill ring-1 ring-line transition-[transform,box-shadow] duration-200 ease-spring hover:-translate-y-px hover:shadow-lift active:scale-[.98] motion-reduce:transition-none motion-reduce:hover:transform-none sm:max-w-[340px]"
+    <PopoverButton label="Business menu" align="left" className="min-w-0 flex-1 md:flex-none" buttonClass="group flex min-h-11 w-full min-w-0 items-center gap-2 sm:gap-2.5 md:w-auto md:max-w-[calc(100vw-232px)] rounded-[14px] bg-transparent py-1 pl-0 pr-1 text-left transition-[transform,box-shadow] duration-200 ease-spring sm:bg-surface sm:pl-1.5 sm:pr-2.5 sm:shadow-pill sm:ring-1 sm:ring-line sm:hover:-translate-y-px sm:hover:shadow-lift active:scale-[.98] motion-reduce:transition-none motion-reduce:hover:transform-none sm:max-w-[340px]"
       icon={<>
         <span className="relative shrink-0">
-          <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full bg-accent text-[14px] font-semibold text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,.3)]">{tenant.name.slice(0, 1).toUpperCase()}</span>
+          <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-accent text-[13px] font-semibold text-on-accent sm:h-9 sm:w-9 sm:text-[14px]">{tenant.name.slice(0, 1).toUpperCase()}</span>
           {google.line?.tone === "ok" && <span aria-hidden className="absolute -bottom-px -right-px h-[11px] w-[11px] rounded-full bg-pos ring-2 ring-surface" />}
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-[14.5px] font-semibold leading-[1.2]">{tenant.name}</span>
+          <span className="line-clamp-2 break-words text-[14px] font-semibold leading-[1.2] md:block md:truncate md:text-[14.5px]">{tenant.name}</span>
           {google.line && <span className="hidden items-center gap-1.5 text-xs leading-[1.3] text-muted min-[860px]:flex"><StatusDot tone={google.line.tone} /><span className="truncate">{google.line.label}</span></span>}
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden /></>}>
@@ -158,8 +178,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const rowCls = "flex min-h-11 items-center gap-2.5 rounded-xl px-3 font-medium hover:bg-surface-2";
   const account = (
     <PopoverButton label="Account menu" align="right"
-      buttonClass="grid h-11 w-11 place-items-center rounded-full transition-transform duration-300 ease-spring hover:scale-105 hover:-rotate-3 motion-reduce:transition-none motion-reduce:hover:transform-none"
-      icon={<span className="grid h-11 w-11 place-items-center rounded-full bg-[conic-gradient(from_200deg,rgb(var(--c-accent)),rgb(var(--c-tone-amber)),rgb(var(--c-tone-teal)),rgb(var(--c-tone-sky)),rgb(var(--c-accent)))] shadow-pill"><span className="rounded-full ring-2 ring-canvas">{avatar}</span></span>}>
+      buttonClass="grid h-11 w-11 place-items-center rounded-full transition-transform duration-300 ease-spring hover:scale-105 motion-reduce:transition-none motion-reduce:hover:transform-none"
+      icon={<span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-ink-solid text-[12px] font-semibold text-ink-on ring-1 ring-line sm:h-9 sm:w-9 sm:text-[13px]">{initials(me.user.full_name, me.user.email)}</span>}>
       {(close) => (
         <div className="p-1">
           <div className="flex items-center gap-3 px-3 pb-3 pt-2">
@@ -185,16 +205,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <MotionConfig reducedMotion="user">
     <LocationScopeProvider>
-    <div className="min-h-dvh bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
+    <div className="isolate min-h-dvh bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
       <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
+      <div aria-hidden className="fq-ambient"><i /><i /><i /></div>
       <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} counts={counts} />
       <TiltEffect />
       <Tour open={tour} onClose={() => setTour(false)} />
       <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
         <header className={clsx("top-glass sticky top-0 z-30", scrolled && "scrolled")}>
-          <div className="mx-auto flex h-[68px] w-full max-w-[1240px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <Link href="/overview" aria-label="FlowQR home" className="hero-grad grid h-9 w-9 shrink-0 place-items-center rounded-[10px] !shadow-none md:hidden"><LogoMark size={19} variant="onAccent" /></Link>
+          <div className="mx-auto flex h-[60px] w-full max-w-[1240px] sm:h-[68px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none md:gap-1.5">
+              <Logo href="/overview" auto markOnly size={30} label="FlowQR home" className="h-11 shrink-0 justify-center px-1.5 sm:hidden" />
+              <Logo href="/overview" auto tagline={false} size={28} label="FlowQR home" className="hidden h-11 shrink-0 px-1.5 sm:inline-flex md:hidden" />
               {business}
               <Crumbs path={path} />
             </div>

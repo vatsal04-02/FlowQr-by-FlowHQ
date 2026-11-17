@@ -24,11 +24,18 @@ function Shapes({ squares, leaf }: { squares: string; leaf: string }) {
   );
 }
 
-export function LogoMark({ size = 32, variant = "mark", className }: { size?: number; variant?: "mark" | "onDark" | "orange" | "navy" | "light" | "onAccent"; className?: string }) {
+export function LogoMark({ size = 32, variant = "mark", className }: { size?: number; variant?: "mark" | "onDark" | "orange" | "navy" | "light" | "onAccent" | "auto"; className?: string }) {
   if (variant === "onAccent") {
     return (
       <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="FlowQR" className={clsx("shrink-0", className)}>
         <Shapes squares="#FFFFFF" leaf="#131014" />
+      </svg>
+    );
+  }
+  if (variant === "auto") {   // squares follow the app theme (--logo-ink), the leaf stays orange
+    return (
+      <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="FlowQR" className={clsx("shrink-0", className)}>
+        <Shapes squares="var(--logo-ink, #11173F)" leaf={ORANGE} />
       </svg>
     );
   }
@@ -50,15 +57,21 @@ export function LogoMark({ size = 32, variant = "mark", className }: { size?: nu
   );
 }
 
-/** The lockup: mark + "flowqr" ("qr" in orange), with "by FlowHQ" under it at 160px wide and above. */
-export function Logo({ href = "/", className, tagline = true, dark = false, size = 30 }: { href?: string; className?: string; tagline?: boolean; dark?: boolean; size?: number }) {
+/**
+ * The lockup: the mark + "flowqr" ("qr" in orange) in the logo's own face, with "by FlowHQ" under "flow" (as in the brand sheet). `auto` follows the app theme (navy on light, white on dark);
+ * `dark` is for fixed navy grounds; `markOnly` is the mark alone (a phone's top bar, a collapsed rail).
+ */
+export function Logo({ href = "/", className, tagline = true, dark = false, auto = false, markOnly = false, size = 30, label = "FlowQR by FlowHQ home" }: { href?: string; className?: string; tagline?: boolean; dark?: boolean; auto?: boolean; markOnly?: boolean; size?: number; label?: string }) {
+  const ink = dark ? "#FFFFFF" : auto ? "var(--logo-ink, #11173F)" : "#11173F";
   return (
-    <Link href={href} className={clsx("inline-flex items-center gap-2.5 rounded-lg", className)} aria-label="FlowQR by FlowHQ home">
-      <LogoMark size={size} variant={dark ? "onDark" : "mark"} />
-      <span className="leading-none">
-        <span className={clsx("block font-bold lowercase tracking-[-.04em]", dark ? "text-white" : "text-[#11173F]")} style={{ fontSize: size * 0.8 }}>flow<span className="text-[#FE6A05]">qr</span></span>
-        {tagline && <span className={clsx("mt-1 block text-[11px] font-medium", dark ? "text-white/60" : "text-[#6B6F82]")}>by FlowHQ</span>}
-      </span>
+    <Link href={href} className={clsx("inline-flex items-center gap-[.32em] rounded-lg", className)} style={{ fontSize: size }} aria-label={label}>
+      <LogoMark size={size} variant={dark ? "onDark" : auto ? "auto" : "mark"} />
+      {!markOnly && (
+        <span aria-hidden className="leading-none">
+          <span className="block font-brand font-bold lowercase tracking-[-.035em]" style={{ fontSize: size * 0.92, color: ink, lineHeight: 0.95 }}>flow<span style={{ color: ORANGE }}>qr</span></span>
+          {tagline && <span className="mt-[.12em] block font-brand font-semibold" style={{ fontSize: Math.max(10, size * 0.3), color: dark ? "rgba(255,255,255,.62)" : "#6B6F82" }}>by FlowHQ</span>}
+        </span>
+      )}
     </Link>
   );
 }

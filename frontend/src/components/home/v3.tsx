@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Eye, MapPin, MousePointerClick, Phone } from "lucide-react";
+import { MapPin, MousePointerClick, Phone } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AreaChart } from "@/components/charts/AreaChart";
@@ -8,6 +8,7 @@ import { CountUp } from "@/components/charts/CountUp";
 import { Donut, Legend, type Slice } from "@/components/charts/Donut";
 import { SourceTag } from "@/components/seo/parts";
 import { Skeleton, Stars } from "@/components/ui/Card";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { canDrawArea, dailyStack, ratingMix } from "@/lib/charts";
 import { timeAgo } from "@/lib/format";
 import type { GoogleMetrics } from "@/lib/seo";
@@ -91,7 +92,7 @@ export function GoogleActions({ m, loading, error }: { m: GoogleMetrics | null; 
   const v = views(cur);
   return (
     <Card label="Customer actions" tone="blue">
-      <Title right={<SourceTag source="google" />}>Customer actions</Title>
+      <Title right={<span className="flex items-center gap-1"><SourceTag source="google" /><InfoTip label="About these numbers">Reported by Google a few days late. Days Google has not reported are left out, not counted as zero.</InfoTip></span>}>Customer actions</Title>
       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         {[...ACTIONS.map((a) => ({ label: a.label, value: cur[a.key], before: prev ? prev[a.key] : null })), { label: "Profile views", value: v, before: views(prev) }].map((x) => (
           <div key={x.label}><p className="text-[13px] text-muted">{x.label}</p>
@@ -111,7 +112,6 @@ export function GoogleActions({ m, loading, error }: { m: GoogleMetrics | null; 
           </div>
         )}
       </div>
-      <p className="mt-3 flex items-start gap-1.5 text-[12px] text-muted"><Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />Reported by Google a few days late. Days Google has not reported are left out, not counted as zero.</p>
     </Card>
   );
 }

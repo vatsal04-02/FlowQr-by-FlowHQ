@@ -32,7 +32,7 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
 }
 
 @layer base {
-  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 84px; }
   body { @apply bg-ink-50 text-ink font-sans antialiased; font-size: 15px; line-height: 1.5; font-feature-settings: "ss01", "cv11"; }
   /* Headings inherit colour so they work on both warm-white and graphite bands. */
   h1, h2, h3, h4 { @apply font-display; letter-spacing: -0.022em; text-wrap: balance; }
@@ -53,6 +53,15 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   html.fq-app ::selection { background: rgb(var(--c-accent) / .22); }
   html.fq-app input[type="checkbox"], html.fq-app input[type="radio"] { accent-color: rgb(var(--c-accent)); }
   html.fq-app .num, html.fq-app .tnum { font-variant-numeric: tabular-nums; }
+}
+
+@layer base {
+  /* The FlowQr logo on the app's own grounds: navy squares and wordmark on light, white on dark (the orange never changes). */
+  html.fq-app { --logo-ink: #11173F; } html.fq-app[data-theme="dark"] { --logo-ink: #FFFFFF; }
+  /* Smooth by default: anything that changes colour, border, shadow or opacity eases there instead of snapping. Zero specificity (:where), so a component's own transition always wins. */
+  :where(html.fq-app) :where(a, button, summary, input, select, textarea, label, [role="tab"], [role="radio"], [role="switch"], tbody tr) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, text-decoration-color; transition-duration: .18s; transition-timing-function: cubic-bezier(.2, .7, .2, 1);
+  }
 }
 
 @layer components {
@@ -123,7 +132,7 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   .t-teal { --tc: var(--c-tone-teal); } .t-amber { --tc: var(--c-tone-amber); } .t-rose { --tc: var(--c-tone-rose); }
   .t-sky { --tc: var(--c-tone-sky); } .t-blue { --tc: var(--c-tone-blue); } .t-accent { --tc: var(--c-accent); } .t-ok { --tc: var(--c-pos); }
   .tn { border: 1px solid rgb(var(--tc) / .22);
-    background: radial-gradient(120% 95% at 100% 0%, rgb(var(--tc) / .14), transparent 64%), linear-gradient(180deg, rgb(var(--tc) / .045), transparent 70%), rgb(var(--c-surface));
+    background: radial-gradient(120% 95% at 100% 0%, rgb(var(--tc) / .14), transparent 64%), linear-gradient(180deg, rgb(var(--tc) / .045), transparent 70%), rgb(var(--c-surface) / .82); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
     box-shadow: inset 0 1px 0 rgb(var(--hi)), 0 1px 2px rgba(22,19,15,.04), 0 20px 34px -22px rgb(var(--tc) / .6); }
   html.fq-app[data-theme="dark"] .tn { box-shadow: inset 0 1px 0 rgb(var(--hi)), 0 20px 34px -20px rgb(var(--tc) / .4); }
   /* The small tinted icon chip that sits in a toned card's header. */
@@ -131,14 +140,59 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
     background: linear-gradient(145deg, rgb(var(--tc, var(--c-ink)) / .22), rgb(var(--tc, var(--c-ink)) / .08)); box-shadow: inset 0 1px 0 rgb(var(--hi)); }
   /* The sticky top bar: frosted canvas, a hairline in the brand hues, and a soft shadow that appears only once the page has scrolled. */
   .top-glass { position: relative; background: rgb(var(--c-canvas) / .82); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); box-shadow: inset 0 1px 0 rgb(var(--hi)); transition: box-shadow .3s; }
-  .top-glass::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; opacity: .45;
-    background: linear-gradient(90deg, transparent, rgb(var(--c-accent)), rgb(var(--c-tone-amber)), rgb(var(--c-tone-teal)), transparent); }
+  .top-glass::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; pointer-events: none; background: rgb(var(--c-line)); }
   .top-glass.scrolled { box-shadow: inset 0 1px 0 rgb(var(--hi)), 0 14px 28px -18px rgba(22,19,15,.35); }
   /* Top bar controls (chips and icon buttons share one raised look). */
   .tb-chip { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 13px; border-radius: 12px; font-size: 13px; font-weight: 550; white-space: nowrap;
     background: rgb(var(--c-surface)); box-shadow: var(--shadow-pill), 0 0 0 1px rgb(var(--c-line)); transition: transform .25s var(--ease-spring), box-shadow .25s, background-color .2s; }
   .tb-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-lift), 0 0 0 1px rgb(var(--c-ink-200)); }
   .tb-chip:active { transform: scale(.97); }
+
+  /* ---- Premium surfaces and controls (Phase 5) ---- */
+  /* Glass: a translucent card over the page's soft ambient glow, a bright hairline on top, a deep soft shadow underneath. */
+  .glass { background: linear-gradient(180deg, rgb(var(--c-surface) / .88), rgb(var(--c-surface) / .7)); -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
+    border: 1px solid rgb(255 255 255 / .6); box-shadow: inset 0 1px 0 rgb(255 255 255 / .85), 0 1px 2px rgba(22,19,15,.04), 0 22px 44px -26px rgba(22,19,15,.3); }
+  html.fq-app[data-theme="dark"] .glass { border-color: rgb(255 255 255 / .07); background: linear-gradient(180deg, rgb(var(--c-surface) / .8), rgb(var(--c-surface) / .58));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .06), 0 24px 46px -26px rgba(0,0,0,.85); }
+  /* The glow behind the app: three huge soft colour pools that drift very slowly. It is only there so glass has something to frost; transform-only, stopped by reduced motion. */
+  .fq-ambient { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .fq-ambient i { position: absolute; display: block; border-radius: 50%; will-change: transform; }
+  .fq-ambient i:nth-child(1) { width: 62vmax; height: 62vmax; left: -18vmax; top: -26vmax; background: radial-gradient(closest-side, rgb(var(--c-accent) / .2), transparent); animation: fq-drift-a 42s ease-in-out infinite alternate; }
+  .fq-ambient i:nth-child(2) { width: 56vmax; height: 56vmax; right: -20vmax; top: 6vmax; background: radial-gradient(closest-side, rgb(var(--c-tone-blue) / .17), transparent); animation: fq-drift-b 50s ease-in-out infinite alternate; }
+  .fq-ambient i:nth-child(3) { width: 52vmax; height: 52vmax; left: 22%; bottom: -30vmax; background: radial-gradient(closest-side, rgb(var(--c-tone-teal) / .14), transparent); animation: fq-drift-c 58s ease-in-out infinite alternate; }
+  html.fq-app[data-theme="dark"] .fq-ambient i { opacity: .8; }
+  @keyframes fq-drift-a { to { transform: translate3d(9vmax, 7vmax, 0) scale(1.1); } }
+  @keyframes fq-drift-b { to { transform: translate3d(-8vmax, 9vmax, 0) scale(1.08); } }
+  @keyframes fq-drift-c { to { transform: translate3d(7vmax, -8vmax, 0) scale(1.12); } }
+  /* Buttons: a light sweep across on hover, a pressed-in feel on tap. The fills keep their contrast (white on the dark orange, dark on the light orange in dark mode). */
+  .btn-sheen { position: relative; overflow: hidden; isolation: isolate; }
+  .btn-sheen::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; transform: translateX(-130%); transition: transform .75s cubic-bezier(.2,.7,.2,1);
+    background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / .34) 50%, transparent 62%); }
+  @media (hover: hover) { .btn-sheen:hover::after { transform: translateX(130%); } }
+  .btn-ink { background: linear-gradient(180deg, rgb(var(--c-ink-700)), rgb(var(--c-ink-solid))); color: rgb(var(--c-on-ink));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .2), inset 0 -1px 0 rgb(0 0 0 / .22), 0 1px 2px rgba(22,19,15,.3), 0 12px 22px -12px rgba(22,19,15,.6); }
+  html.fq-app[data-theme="dark"] .btn-ink { box-shadow: inset 0 1px 0 rgb(255 255 255 / .55), 0 12px 26px -12px rgba(0,0,0,.8); }
+  .btn-ink:hover, .btn-brand:hover { box-shadow: inset 0 1px 0 rgb(255 255 255 / .24), 0 16px 28px -12px rgba(22,19,15,.65); }
+  .btn-brand { background: linear-gradient(180deg, rgb(var(--c-accent-ink)), rgb(var(--c-accent-lo))); color: rgb(var(--c-on-accent, 255 255 255));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .28), inset 0 -1px 0 rgb(0 0 0 / .18), 0 1px 2px rgba(120,40,0,.35), 0 14px 26px -12px rgb(var(--c-accent) / .75); }
+  html.fq-app[data-theme="dark"] .btn-brand { background: linear-gradient(180deg, rgb(var(--c-accent-ink)), rgb(var(--c-accent))); box-shadow: inset 0 1px 0 rgb(255 255 255 / .4), 0 14px 26px -12px rgb(var(--c-accent) / .6); }
+  .btn-glass { background: rgb(var(--c-surface) / .72); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: var(--shadow-pill), 0 0 0 1px rgb(var(--c-line)); }
+  .btn-glass:hover { background: rgb(var(--c-surface) / .95); box-shadow: var(--shadow-lift), 0 0 0 1px rgb(var(--c-ink-200)); }
+  /* A bright arc that travels once around a card's edge: used on the one hero card of a page. */
+  @property --beam { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  .beam { position: relative; }
+  .beam::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 1;
+    background: conic-gradient(from var(--beam), transparent 0 68%, rgb(var(--c-accent) / .9) 82%, rgb(var(--c-tone-amber)) 92%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask-composite: exclude;
+    animation: fq-beam 9s linear infinite; opacity: .75; }
+  @keyframes fq-beam { to { --beam: 360deg; } }
+  /* The second (filled) state of FlowQr's own nav glyphs: a link or button marked data-on tints the shape inside its icon. */
+  .gl-fill { transition: fill-opacity .35s ease; }
+  [data-on] .gl-fill { fill-opacity: .2; }
+  /* Floating phone dock. */
+  .dock { background: linear-gradient(180deg, rgb(var(--c-surface) / .86), rgb(var(--c-surface) / .72)); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+    border: 1px solid rgb(255 255 255 / .55); box-shadow: inset 0 1px 0 rgb(255 255 255 / .8), 0 18px 40px -12px rgba(22,19,15,.35), 0 2px 6px rgba(22,19,15,.08); }
+  html.fq-app[data-theme="dark"] .dock { border-color: rgb(255 255 255 / .09); box-shadow: inset 0 1px 0 rgb(255 255 255 / .07), 0 18px 40px -10px rgba(0,0,0,.8); }
   /* Tilt (Phase 2): a card marked data-tilt leans toward the pointer (TiltEffect sets --rx/--ry/--mx/--my) and catches a sheen. Fine pointers only; reduced motion keeps a plain lift. */
   .tilt { position: relative; transition: transform .28s var(--ease-out, cubic-bezier(.2,.7,.2,1)), box-shadow .3s var(--ease-out, cubic-bezier(.2,.7,.2,1)); }
   .tilt::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s;
@@ -201,7 +255,7 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
 .reveal.in { opacity: 1; transform: none; }
 
 /* Short entrance for panels that appear on demand (modal, toast, suggestion box). */
-@keyframes fq-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes fq-fade-up { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
 .fq-enter { animation: fq-fade-up .2s cubic-bezier(.22,1,.36,1) both; }
 
 /* Customer review widget: a star "pops" when chosen; the primary button lifts a little. */
@@ -211,8 +265,13 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
 .fq-rise { animation: fq-rise .5s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d, 0ms); }
 @keyframes fq-slide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 .fq-slide { animation: fq-slide .45s cubic-bezier(.2,.7,.2,1) both; }
-@keyframes fq-page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.fq-page { animation: fq-page-in .35s cubic-bezier(.2,.7,.2,1) both; }
+/* A page change (fill mode is `backwards` on purpose: once an entrance ends the element returns to its natural style, so no leftover transform traps fixed overlays inside the page): the page fades in, and its top-level blocks rise in reading order (45ms apart, the first eight). A block marked data-flat does its own entrance (Home). */
+@keyframes fq-page-in { from { opacity: 0; } to { opacity: 1; } }
+.fq-page { animation: fq-page-in .25s ease backwards; }
+@keyframes fq-stagger { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.fq-page > *:not([data-flat]) { animation: fq-stagger .5s cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+.fq-page > :nth-child(2) { --i: 1; } .fq-page > :nth-child(3) { --i: 2; } .fq-page > :nth-child(4) { --i: 3; } .fq-page > :nth-child(5) { --i: 4; }
+.fq-page > :nth-child(6) { --i: 5; } .fq-page > :nth-child(7) { --i: 6; } .fq-page > :nth-child(8) { --i: 7; } .fq-page > :nth-child(n+9) { --i: 8; }
 @keyframes fq-badge { 0% { transform: scale(.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 @keyframes fq-ping { 0% { opacity: .7; transform: scale(.6); } 80%, 100% { opacity: 0; transform: scale(1.8); } }
 @keyframes fq-spin { to { transform: rotate(360deg); } }
@@ -241,6 +300,8 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   .lift:hover { transform: none; }
   .tb-chip:hover, .tb-chip:active { transform: none; }
   .tilt:hover { transform: none !important; }
+  .fq-ambient i, .beam::before { animation: none !important; }
+  .btn-sheen::after { display: none; }
 }
 
 /* Charts draw once on first view (300-500ms, ease-out); reduced motion shows the final state at once (the global rule above stops animations). */
