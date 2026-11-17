@@ -10,7 +10,8 @@ import { api, ApiError, errorMessage } from "@/lib/api";
 export type Channel = "qr" | "nfc" | null;
 
 interface Landing {
-  state: "ok" | "unassigned" | "inactive" | "not_found";
+  state: "ok" | "unassigned" | "inactive" | "not_found" | "redirect";
+  url?: string;
   message?: string;
   reason?: "paused";
   campaign?: { id: string } | null;
@@ -48,9 +49,17 @@ export default function CardLanding({ token, channel }: { token: string; channel
   const viewed = useRef(false);
 
   useEffect(() => {
-    api<Landing>(`/public/c/${token}`, { params: channel ? { channel } : undefined })
+    // The referring HOST only (never the path or query): it says which app or site the visitor came from, nothing about who they are.
+    let ref: string | undefined;
+    try { ref = document.referrer ? new URL(document.referrer).hostname || undefined : undefined; } catch { ref = undefined; }
+    api<Landing>(`/public/c/${token}`, { params: { ...(channel ? { channel } : {}), ...(ref ? { ref } : {}) } })
       .then((d) => {
         setData(d);
+        if (d.state === "redirect") {
+          // The address was chosen by FlowQR staff and stored on the server. Defence in depth: only ever follow a secure https address.
+          try { const u = new URL(d.url ?? ""); if (u.protocol === "https:") window.location.replace(u.toString()); } catch { /* shown below as a plain link */ }
+          return;
+        }
         if (d.state === "ok" && !d.campaign && !viewed.current) { viewed.current = true; void track(token, "landing_view", channel); }
       })
       .catch((e) => {
@@ -83,6 +92,12 @@ export default function CardLanding({ token, channel }: { token: string; channel
 
   if (loadError) return <Shell><Fallback title="Something went wrong" body={loadError} /></Shell>;
   if (!data) return <Shell><div className="space-y-4" aria-busy="true" aria-label="Loading"><div className="fq-skeleton h-14 w-3/4" /><div className="fq-skeleton h-8 w-1/2" /><div className="fq-skeleton h-40 w-full" /></div></Shell>;
+  if (data.state === "redirect") {
+    let safe: string | null = null;
+    try { const u = new URL(data.url ?? ""); if (u.protocol === "https:") safe = u.toString(); } catch { safe = null; }
+    return <Shell><div className="flex items-center gap-3 text-sm text-ink-700" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Taking you there&hellip;</div>
+      {safe && <p className="mt-3 text-sm text-ink-500">Not moving? <a href={safe} rel="noopener noreferrer" className="font-medium text-ink underline underline-offset-2">Continue</a></p>}</Shell>;
+  }
   if (data.state !== "ok") {
     const title = data.state === "unassigned" ? "This card isn't set up yet" : data.reason === "paused" ? "This card is switched off for now" : data.state === "inactive" ? "This card is no longer active" : "Card not found";
     return <Shell><Fallback title={title} body={(data.message ?? "") + " If you're the business owner, log in to FlowQR to manage your cards."} /></Shell>;

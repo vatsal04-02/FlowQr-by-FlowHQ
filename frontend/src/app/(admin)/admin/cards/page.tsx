@@ -3,6 +3,8 @@ import { API_V1 } from "@/lib/config";
 import { Archive, Download, FileStack, FileText, Image as ImageIcon, Link2Off, PackageCheck, Plus, QrCode, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AssignCards } from "@/components/cards/AssignCards";
+import { BulkAssignModal } from "@/components/cards/BulkAssignModal";
+import { CardDetail } from "@/components/cards/CardDetail";
 import { PosterDownload } from "@/components/cards/PosterDownload";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
@@ -18,7 +20,7 @@ import type { Batch, Card as CardT } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 const PAGE = 25;
-const SIZES = [50, 100, 250, 500];
+const SIZES = [10, 25, 50, 100, 500];
 interface Inventory { counts: Record<string, number>; available: number; in_use: number; batches: (Batch & { counts: Record<string, number> })[] }
 interface TenantRow { id: string; name: string }
 interface Opt { id: string; name: string; city?: string | null; location_id?: string | null; status?: string }
@@ -26,12 +28,17 @@ interface Opt { id: string; name: string; city?: string | null; location_id?: st
 export default function AdminCards() {
   const toast = useToast();
   const [tab, setTab] = useState<"inventory" | "assign">("inventory");
-  const [f, setF] = useState({ search: "", status: "", batch_id: "" });
+  const [f, setF] = useState({ search: "", status: "", batch_id: "", tenant_id: "", location_id: "", campaign_id: "", created_from: "", created_to: "", has_destination: "", nfc: "" });
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
   useEffect(() => { const t = setTimeout(() => { setF((p) => ({ ...p, search: q })); setPage(0); }, 300); return () => clearTimeout(t); }, [q]);
-  const cards = useFetch<{ total: number; items: CardT[] }>("/admin/cards", { ...f, limit: PAGE, offset: page * PAGE });
+  const cards = useFetch<{ total: number; items: CardT[] }>("/admin/cards", { ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== "")), limit: PAGE, offset: page * PAGE });
   const inv = useFetch<Inventory>("/admin/inventory");
+  const tenantList = useFetch<{ items: TenantRow[] }>("/admin/tenants");
+  const locList = useFetch<Opt[]>(f.tenant_id ? `/admin/tenants/${f.tenant_id}/locations` : null);
+  const campList = useFetch<Opt[]>(f.tenant_id ? `/admin/tenants/${f.tenant_id}/campaigns` : null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [newBatch, setNewBatch] = useState(false);
   const [assign, setAssign] = useState<CardT | null>(null);
   const [reserve, setReserve] = useState<CardT | null>(null);
@@ -39,7 +46,9 @@ export default function AdminCards() {
   const [printProblem, setPrintProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const refresh = () => { void cards.reload(); void inv.reload(); };
+  const refresh = () => { void cards.reload(); void inv.reload(); setPicked(new Set()); };
+  const setFilter = (k: keyof typeof f, v: string) => { setF((p) => ({ ...p, [k]: v, ...(k === "tenant_id" ? { location_id: "", campaign_id: "" } : {}) })); setPage(0); setPicked(new Set()); };
+  const activeFilters = Object.entries(f).filter(([k, v]) => v && k !== "search").length;
 
   /** Run a card action. A 409 "confirmation_required" is explained and, if confirmed in the browser, repeated with confirm: true. */
   async function act(c: CardT, path: string, body: Record<string, unknown>, msg: string, ask?: string) {
@@ -104,26 +113,52 @@ export default function AdminCards() {
           <Card pad={false} className="mb-4 p-3 sm:p-4"><div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
               <input aria-label="Search by serial number" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search serial, e.g. FQR-0012" className="min-h-11 w-full rounded-xl border border-ink-200 pl-9 pr-3 text-sm sm:min-h-10" /></div>
-            <FilterSelect label="Status" value={f.status} onChange={(e) => { setF({ ...f, status: e.target.value }); setPage(0); }}>
+            <FilterSelect label="Status" value={f.status} onChange={(e) => setFilter("status", e.target.value)}>
               <option value="">All statuses</option>{[...CARD_LIFECYCLE, "deactivated", "lost"].map((s) => <option key={s} value={s}>{s}</option>)}</FilterSelect>
-            {f.batch_id && <Button variant="secondary" size="sm" onClick={() => setF({ ...f, batch_id: "" })}>Clear batch filter</Button>}
+            <FilterSelect label="Business" value={f.tenant_id} onChange={(e) => setFilter("tenant_id", e.target.value)}>
+              <option value="">All businesses</option>{(tenantList.data?.items ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</FilterSelect>
+            <FilterSelect label="Location" value={f.location_id} disabled={!f.tenant_id} onChange={(e) => setFilter("location_id", e.target.value)}>
+              <option value="">All locations</option>{(locList.data ?? []).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</FilterSelect>
+            <FilterSelect label="Campaign" value={f.campaign_id} disabled={!f.tenant_id} onChange={(e) => setFilter("campaign_id", e.target.value)}>
+              <option value="">All campaigns</option>{(campList.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</FilterSelect>
+            <FilterSelect label="Destination" value={f.has_destination} onChange={(e) => setFilter("has_destination", e.target.value)}>
+              <option value="">Any destination</option><option value="true">Custom destination</option><option value="false">Review page</option></FilterSelect>
+            <FilterSelect label="NFC" value={f.nfc} onChange={(e) => setFilter("nfc", e.target.value)}>
+              <option value="">Any NFC state</option><option value="programmed">NFC marked programmed</option><option value="not_programmed">NFC not programmed</option></FilterSelect>
+            <label className="flex items-center gap-1.5 text-xs text-ink-500">From<input type="date" aria-label="Created from" value={f.created_from} onChange={(e) => setFilter("created_from", e.target.value)} className="min-h-11 rounded-full border border-ink-200 px-3 text-sm sm:min-h-10" /></label>
+            <label className="flex items-center gap-1.5 text-xs text-ink-500">To<input type="date" aria-label="Created to" value={f.created_to} onChange={(e) => setFilter("created_to", e.target.value)} className="min-h-11 rounded-full border border-ink-200 px-3 text-sm sm:min-h-10" /></label>
+            {(activeFilters > 0 || f.batch_id) && <Button variant="secondary" size="sm" className="!rounded-full" onClick={() => { setF((p) => ({ ...p, status: "", batch_id: "", tenant_id: "", location_id: "", campaign_id: "", created_from: "", created_to: "", has_destination: "", nfc: "" })); setPage(0); }}>Clear filters</Button>}
           </div></Card>
+
+          {picked.size > 0 && (
+            <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-ink-solid px-4 py-3 text-ink-on shadow-lift" role="region" aria-label="Selected cards">
+              <span className="text-sm font-medium">{picked.size} selected</span>
+              <span className="flex gap-2"><Button size="sm" variant="inverse" className="!rounded-full" onClick={() => setBulkOpen(true)}>Assign selected</Button>
+                <Button size="sm" variant="inverse" className="!rounded-full" onClick={() => setPicked(new Set())}>Clear</Button></span>
+            </div>)}
 
           {cards.error && <Alert tone="error">{cards.error}</Alert>}
           {cards.loading && !cards.data ? <Skeleton className="h-64" /> : cards.data && cards.data.items.length === 0 ? (
             <EmptyState icon={<FileStack className="h-6 w-6" />} title="No cards found" action={<Button onClick={() => setNewBatch(true)}>Create a batch</Button>}>Generate a batch of unique cards to get started.</EmptyState>
           ) : (
-            <Card pad={false}><div className="overflow-x-auto"><table className="dt min-w-[980px]">
-              <thead><tr>{["Card", "Status", "Business / location", "Review page", "QR", "NFC", "Visits", ""].map((h, i) => <th key={i} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
+            <Card pad={false}><div className="overflow-x-auto"><table className="dt min-w-[1100px]">
+              <thead><tr><th className="w-10 px-4 py-2.5"><input type="checkbox" aria-label="Select all cards on this page" checked={!!cards.data && cards.data.items.length > 0 && cards.data.items.filter((c) => c.status !== "retired").every((c) => picked.has(c.id))}
+                onChange={(e) => setPicked(e.target.checked ? new Set((cards.data?.items ?? []).filter((c) => c.status !== "retired").map((c) => c.id)) : new Set())} className="h-4 w-4" /></th>
+                {["Card", "Status", "Business / location", "Campaign / destination", "NFC", "QR scans", "NFC taps", "Last scan", ""].map((h, i) => <th key={i} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
               <tbody>{cards.data?.items.map((c) => (
                 <tr key={c.id} className="border-b border-ink-100 last:border-0" data-testid="card-row">
+                  <td className="px-4"><input type="checkbox" aria-label={`Select ${c.card_code}`} disabled={c.status === "retired"} checked={picked.has(c.id)}
+                    onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n; })} className="h-4 w-4" /></td>
                   <td className="whitespace-nowrap px-4 py-3 font-semibold">{c.card_code}{c.batch_name && <span className="block text-xs font-normal text-ink-500">{c.batch_name}</span>}</td>
                   <td className="px-4"><Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge></td>
                   <td className="px-4">{c.tenant_name ? <>{c.tenant_name}<span className="block text-xs text-ink-500">{c.location_name ?? "no location yet"}</span></> : <span className="text-ink-400">In stock</span>}</td>
-                  <td className="px-4 text-sm">{c.campaign_name ?? (c.tenant_id ? <span className="text-ink-500">Plain page</span> : "")}</td>
-                  <td className="px-4 tabular-nums">{c.stats.qr_scan ?? 0}</td><td className="px-4 tabular-nums">{c.stats.nfc_scan ?? 0}</td><td className="px-4 tabular-nums">{c.stats.landing_view ?? 0}</td>
-                  <td className="px-4"><div className="flex flex-wrap justify-end gap-1">
-                    <Button size="sm" variant="ghost" aria-label={`QR for ${c.card_code}`} icon={<QrCode className="h-4 w-4" />} onClick={() => setView(c)} />
+                  <td className="px-4 text-sm">{c.campaign_name ?? (c.tenant_id ? <span className="text-ink-500">Plain page</span> : "")}
+                    {c.destination_url && <span className="block max-w-[200px] truncate text-xs text-accent-ink" title={c.destination_url}>→ {c.destination_url.replace(/^https:\/\//, "")}</span>}</td>
+                  <td className="px-4 text-xs text-ink-500">{c.nfc_programmed_at ? "Marked programmed" : "Not programmed"}</td>
+                  <td className="px-4 tabular-nums">{c.stats.qr_scan ?? 0}</td><td className="px-4 tabular-nums">{c.stats.nfc_scan ?? 0}</td>
+                  <td className="whitespace-nowrap px-4 text-xs text-ink-500">{c.last_scan_at ? fmtDate(c.last_scan_at) : "Never"}</td>
+                  <td className="min-w-[250px] px-4 py-2"><div className="flex flex-wrap justify-end gap-1">
+                    <Button size="sm" variant="secondary" className="!rounded-full" icon={<QrCode className="h-4 w-4" />} onClick={() => setView(c)}>Details</Button>
                     {c.status !== "retired" && <PosterDownload path={`/admin/cards/${c.id}/poster`} filename={c.card_code} label="Poster" variant="ghost" />}
                     {(c.status === "generated" || c.status === "unassigned") && <Button size="sm" variant="secondary" onClick={() => setReserve(c)}>Reserve</Button>}
                     {c.status !== "retired" && c.status !== "archived" && <Button size="sm" variant="secondary" icon={<UserPlus className="h-4 w-4" />} onClick={() => setAssign(c)}>{c.location_id ? "Change" : "Assign"}</Button>}
@@ -146,12 +181,8 @@ export default function AdminCards() {
       {newBatch && <BatchModal onClose={() => setNewBatch(false)} onCreated={(n) => { setNewBatch(false); toast(`Created ${n} cards. Print them, then mark the batch printed.`); refresh(); }} />}
       {assign && <AssignModal card={assign} onClose={() => setAssign(null)} onDone={() => { setAssign(null); toast("Card assigned."); refresh(); }} />}
       {reserve && <ReserveModal card={reserve} onClose={() => setReserve(null)} onDone={() => { setReserve(null); toast("Card reserved. The business can now give it a location."); refresh(); }} />}
-      {view && <Modal open onClose={() => setView(null)} title={`${view.card_code}`} footer={<Button variant="secondary" onClick={() => setView(null)}>Done</Button>}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <div className="grid place-items-center"><img src={`${API_V1}/admin/cards/${view.id}/qr.svg`} alt={`QR for ${view.card_code}`} className="h-56 w-56 rounded-xl border border-ink-100 p-2" /></div>
-        <dl className="mt-4 space-y-2 text-xs"><div><dt className="font-semibold text-ink-700">Printed QR address</dt><dd className="break-all rounded-xl bg-ink-50 p-3 font-mono">{view.url}</dd></div>
-          <div><dt className="font-semibold text-ink-700">NFC tag address (write as a URL record)</dt><dd className="break-all rounded-xl bg-ink-50 p-3 font-mono">{view.nfc_url}</dd></div></dl>
-      </Modal>}
+      {view && <CardDetail card={view} onClose={() => setView(null)} onChanged={() => void cards.reload()} />}
+      {bulkOpen && <BulkAssignModal cards={(cards.data?.items ?? []).filter((c) => picked.has(c.id))} onClose={() => setBulkOpen(false)} onDone={(n) => { setBulkOpen(false); toast(`Assigned ${n} card${n === 1 ? "" : "s"}.`); refresh(); }} />}
     </>
   );
 }

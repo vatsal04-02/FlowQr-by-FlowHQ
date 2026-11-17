@@ -84,6 +84,7 @@ def resolve_card(token: str, request: Request, channel: str | None = None, ref: 
     vhash = svc.visitor_hash(ip, ua)
     recent = db.scalar(select(ScanEvent.id).where(
         ScanEvent.card_id == card.id, ScanEvent.event_type == ScanEventType.scan, ScanEvent.visitor_hash == vhash,
+        ScanEvent.channel == channel if channel else ScanEvent.channel.is_(None),  # per door: an NFC tap right after a QR scan from the same phone is a different event (it is how a tag is verified)
         ScanEvent.created_at > utcnow() - timedelta(seconds=20)).limit(1))
     if not recent:  # ignore rapid refreshes
         svc.record_event(db, card, ScanEventType.scan, ip=ip, ua=ua, channel=channel, referrer=ref)

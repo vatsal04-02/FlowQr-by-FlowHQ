@@ -361,3 +361,13 @@ def test_the_old_c_address_and_the_new_q_address_still_resolve_the_same_card(adm
     put(admin, card, confirm=True)
     owner_exec("UPDATE qr_cards SET qr_path = 'c' WHERE id = :c", c=card["id"])
     assert client.get(f"/api/v1/public/c/{card['public_token']}", headers=UA).json()["url"] == DEST  # the printed /c/ address of an older card follows the same destination
+
+
+def test_a_qr_scan_and_an_nfc_tap_from_the_same_phone_back_to_back_are_both_recorded_but_a_refresh_is_not(admin, biz_a, client):
+    b, card = live_card(admin, biz_a)
+    scan(client, card, "qr", UA)
+    scan(client, card, "nfc", UA)  # same phone, seconds later: verifying a tag right after scanning the QR must still register
+    scan(client, card, "nfc", UA)  # a rapid refresh of the same door is still ignored
+    scan(client, card, "qr", UA)
+    t = admin.get(f"/admin/cards/{card['id']}/analytics").json()["totals"]
+    assert (t["qr_scans"], t["nfc_taps"], t["total"]) == (1, 1, 2)

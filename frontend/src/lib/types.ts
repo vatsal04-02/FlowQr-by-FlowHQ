@@ -24,6 +24,8 @@ export interface Card {
   location_name: string | null; stats: Record<string, number>; last_scan_at?: string | null;
   /** what the printed QR encodes, and what is written on the NFC tag: both resolve to this one card */
   nfc_url?: string | null; campaign_id?: string | null; campaign_name?: string | null; batch_name?: string | null;
+  /** where a scan goes INSTEAD of the review page (null = the review page), and an admin's statement that the NFC tag was written */
+  destination_url?: string | null; nfc_programmed_at?: string | null;
 }
 export interface Batch { id: string; name: string; prefix: string; quantity: number; created_at: string; notes: string | null; released_at?: string | null }
 export interface GoogleConnection { id: string; google_email: string | null; status: string; last_error: string | null; connected_at: string | null; api_access?: "unknown" | "approved" | "awaiting_approval" | "api_disabled"; api_access_checked_at?: string | null; locations_found?: number; no_locations?: boolean }
