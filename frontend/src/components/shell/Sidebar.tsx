@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { GROUP_LABEL, locate, type Dest, type Group } from "@/lib/nav";
 import { badgeFor, childBadge, type Counts } from "@/lib/use-counts";
-import { LogoMark } from "../ui/Brand";
+import { Logo } from "../ui/Brand";
 import { ThemeToggle } from "./parts";
 
 export const SIDEBAR_W = { open: 232, rail: 68 } as const;
@@ -22,10 +22,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null 
     <aside aria-label="Main navigation" style={{ width: collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open }}
       className="fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-ink-100 bg-surface transition-[width] duration-200 ease-out motion-reduce:transition-none md:flex">
       <div className={clsx("flex h-16 shrink-0 items-center gap-2.5", collapsed ? "justify-center" : "px-4")}>
-        <Link href="/overview" aria-label="FlowQR home" className="flex items-center gap-2.5 rounded-lg">
-          <span className="hero-grad grid h-9 w-9 shrink-0 place-items-center rounded-[10px] !shadow-none"><LogoMark size={19} variant="onAccent" /></span>
-          {!collapsed && <span className="text-[16px] font-semibold tracking-[-.01em]">FlowQR</span>}
-        </Link>
+        <Logo href="/overview" auto markOnly={collapsed} tagline={false} size={collapsed ? 32 : 30} label="FlowQR home" className="px-1" />
       </div>
 
       <nav aria-label="Pages" className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 pt-1">
@@ -45,7 +42,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null 
                   return (
                     <li key={d.id}>
                       <div className="relative flex items-center">
-                        <Link href={d.href} title={collapsed ? d.label : undefined} aria-current={on && (kids.length < 2 || collapsed || shut[d.id]) ? "page" : undefined}
+                        <Link href={d.href} data-on={on ? "" : undefined} title={collapsed ? d.label : undefined} aria-current={on && (kids.length < 2 || collapsed || shut[d.id]) ? "page" : undefined}
                           className={clsx("group relative flex min-h-11 flex-1 items-center gap-3 rounded-[10px] text-[14px] transition-colors md:min-h-10",
                             collapsed ? "justify-center px-0" : "pl-3 pr-2", on ? "bg-surface-2 font-semibold text-ink" : "font-medium text-ink-700 hover:bg-surface-2 hover:text-ink")}>
                           {/* the active marker springs in and out rather than appearing (the bar is always there, scaled to nothing when inactive) */}

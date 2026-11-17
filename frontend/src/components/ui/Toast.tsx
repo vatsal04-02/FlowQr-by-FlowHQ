@@ -1,6 +1,7 @@
 "use client";
 import clsx from "clsx";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
 type Toast = { id: number; tone: "success" | "error"; message: string };
@@ -17,11 +18,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{ push }}>
       {children}
       <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6" aria-live="polite">
+        <AnimatePresence initial={false}>
         {items.map((t) => (
-          <div key={t.id} role="status" className={clsx("fq-enter pointer-events-auto flex max-w-md items-center gap-2.5 rounded-full px-5 py-3 text-sm font-medium shadow-lift", t.tone === "success" ? "bg-ink-solid text-ink-on" : "bg-neg text-pure-white dark:text-pure-ink")}>
+          <motion.div key={t.id} layout role="status" initial={{ opacity: 0, y: 18, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.96 }} transition={{ type: "spring", stiffness: 460, damping: 34 }}
+            className={clsx("pointer-events-auto flex max-w-md items-center gap-2.5 rounded-full px-5 py-3 text-sm font-medium shadow-lift", t.tone === "success" ? "bg-ink-solid text-ink-on" : "bg-neg text-pure-white dark:text-pure-ink")}>
             {t.tone === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" aria-hidden /> : <XCircle className="h-4 w-4 shrink-0" aria-hidden />}{t.message}
-          </div>
+          </motion.div>
         ))}
+        </AnimatePresence>
       </div>
     </Ctx.Provider>
   );

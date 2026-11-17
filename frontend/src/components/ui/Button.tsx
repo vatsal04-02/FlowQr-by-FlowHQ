@@ -10,16 +10,16 @@ type Variant = "primary" | "ink" | "secondary" | "ghost" | "danger" | "inverse" 
 type Size = "md" | "sm" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[12px] font-semibold transition-[transform,background-color,color,box-shadow] duration-150 select-none disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap hover:-translate-y-px active:translate-y-0";
-const solid = "bg-ink-solid text-ink-on hover:opacity-90";
+  "inline-flex items-center justify-center gap-2 rounded-[12px] font-semibold transition-[transform,background-color,color,box-shadow] duration-200 ease-spring select-none disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap hover:-translate-y-px active:translate-y-0 active:scale-[.97] motion-reduce:transition-none";
+const solid = "btn-ink btn-sheen";
 const variants: Record<Variant, string> = {
   primary: solid,
   ink: solid,
-  secondary: "bg-surface-2 text-ink hover:bg-surface-3",
+  secondary: "btn-glass text-ink",
   ghost: "font-medium text-ink-700 hover:bg-surface-2 hover:translate-y-0",
   danger: "bg-neg-tint text-neg hover:bg-red-100",
   inverse: "bg-white text-ink hover:bg-ink-50",
-  brand: "bg-accent-ink text-on-accent hover:bg-accent-lo",
+  brand: "btn-brand btn-sheen",
 };
 // 44px touch targets on small screens; a little denser on pointer devices.
 const sizes: Record<Size, string> = {

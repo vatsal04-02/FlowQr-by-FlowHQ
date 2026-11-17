@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { useAppChrome } from "@/lib/theme";
-import { LogoMark } from "./ui/Brand";
+import { Logo } from "./ui/Brand";
 import { Alert, Spinner } from "./ui/Card";
 
 const NAV = [
@@ -31,10 +31,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (!me.user.is_platform_admin) return <div className="mx-auto max-w-md p-8"><Alert tone="error" title="Platform admins only">You don&rsquo;t have access to this area.</Alert></div>;
   const active = (h: string) => (h === "/admin" ? path === h : path.startsWith(h));
   const brand = (
-    <Link href="/admin" className="flex items-center gap-2.5 rounded-lg" aria-label="Platform admin home">
-      <span className="hero-grad grid h-9 w-9 shrink-0 place-items-center rounded-[10px] !shadow-none"><LogoMark size={19} variant="onAccent" /></span>
-      <span className="text-[15px] font-semibold leading-4">FlowQR <span className="font-medium text-muted">Admin</span></span>
-    </Link>
+    <span className="flex items-center gap-2.5">
+      <Logo href="/admin" auto tagline={false} size={26} label="Platform admin home" />
+      <span className="text-[13px] font-medium text-muted">Admin</span>
+    </span>
   );
   return (
     <div className="min-h-dvh bg-canvas">

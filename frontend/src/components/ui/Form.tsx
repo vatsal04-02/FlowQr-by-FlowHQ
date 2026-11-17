@@ -5,7 +5,7 @@ import { forwardRef, useId, useState, type InputHTMLAttributes, type ReactNode, 
 
 // DESIGN.md "Input": grey well, 16px radius, no visible border until hover; focus = accent ring (globals.css).
 export const controlClass =
-  "w-full min-h-12 rounded-inner border border-transparent bg-surface-2 px-4 py-2.5 text-base text-ink placeholder:text-muted-soft transition-colors sm:min-h-11 sm:text-sm " +
+  "w-full min-h-12 rounded-inner border border-transparent bg-surface-2 px-4 py-2.5 text-base text-ink placeholder:text-muted-soft transition-[border-color,box-shadow,background-color] duration-200 sm:min-h-11 sm:text-sm " +
   "hover:border-ink-200 focus-visible:border-accent disabled:opacity-60";
 export const invalidClass = "border-neg hover:border-neg";
 const control = controlClass;
