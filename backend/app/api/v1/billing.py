@@ -13,13 +13,14 @@ from app.core.rate_limit import client_ip, limit_by_ip
 from app.models import BillingPlan, CardOrder, Payment, PromotionalGrant, Role, Subscription, SubscriptionEvent, Tenant
 from app.models.base import utcnow
 from app.schemas.billing import (
-    CancelIn, CardOrderIn, CardOrderOut, ChangePlanIn, CheckoutIn, PaymentOut, PlanOut, VerifyOrderIn, VerifySubscriptionIn,
+    CancelIn, CardOrderIn, CardOrderOut, ChangePlanIn, CheckoutIn, PaymentOut, PlanOut, PrepaidCheckoutIn, PrepaidVerifyIn, VerifyOrderIn, VerifySubscriptionIn,
 )
 from app.services import billing as svc
 from app.services import billing_cashfree as cfb
 from app.services import cashfree as cashfree_svc
 from app.services import entitlements as ent
 from app.services import plans as plans_svc
+from app.services import prepaid
 from app.services import razorpay as rz
 from app.services.ai_usage import usage_this_month
 from app.services.audit import audit
@@ -212,6 +213,45 @@ def verify(body: VerifySubscriptionIn, ctx: TenantContext = Depends(require_role
     ctx.db.commit()
     return {"status": sub.status, "razorpay_status": remote.get("status"),
             "message": "Payment confirmed." if sub.status == "active" else "Payment authorised. Your plan activates when the first charge is confirmed."}
+
+
+# ---------------- Prepaid plans: ONE Cashfree Payment Gateway payment for 1, 3, 6 or 12 months (no subscription, no mandate, nothing recurring) ----------------
+def _prepaid_client():
+    if not settings.prepaid_configured:
+        raise HTTPException(status_code=503, detail={"code": "checkout_closed", "message": "Online payment for prepaid plans is not open yet."})
+    try:
+        return cashfree_svc.get_cashfree()
+    except cashfree_svc.CashfreeNotConfigured:
+        raise HTTPException(status_code=503, detail={"code": "checkout_closed", "message": "Online payment for prepaid plans is not open yet."})
+
+
+@router.post("/prepaid/checkout", dependencies=[Depends(limit_by_ip("prepaid-checkout", 12, 300))])
+def prepaid_checkout(body: PrepaidCheckoutIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
+    """Creates a Cashfree order for a plan and a number of months and returns what the browser needs to open Cashfree's payment page. The amount is the SERVER's (services/plans.py); the
+    request carries none. Nothing is granted here: access starts only when Cashfree reports the order paid (see /prepaid/verify and the webhook)."""
+    ensure_verified(ctx.user)
+    client = _prepaid_client()
+    sub = _locked_sub(ctx)
+    tenant = ctx.db.get(Tenant, ctx.tenant_id)
+    try:
+        out = prepaid.create_order(ctx.db, client, sub=sub, tenant=tenant, user=ctx.user, plan_code=body.plan, months=body.months, phone=body.phone)
+    except prepaid.PrepaidError as exc:
+        raise HTTPException(status_code=exc.status, detail={"code": exc.code, "message": exc.message})
+    ctx.db.commit()
+    return out
+
+
+@router.post("/prepaid/verify", dependencies=[Depends(limit_by_ip("prepaid-verify", 60, 300))])
+def prepaid_verify(body: PrepaidVerifyIn, ctx: TenantContext = Depends(require_role(Role.owner))):
+    """The return page's question: what really happened to this order? Answered by asking Cashfree from the server; nothing the browser says about the payment is used."""
+    client = _prepaid_client()
+    try:
+        out = prepaid.verify(ctx.db, client, tenant_id=ctx.tenant_id, order_id=body.order_id)
+    except prepaid.PrepaidError as exc:
+        ctx.db.rollback()
+        raise HTTPException(status_code=exc.status, detail={"code": exc.code, "message": exc.message})
+    ctx.db.commit()
+    return out
 
 
 @router.post("/subscription/cancel")

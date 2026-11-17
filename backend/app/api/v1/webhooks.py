@@ -17,6 +17,7 @@ from app.core.db import get_db, set_rls_context
 from app.core.rate_limit import limit_by_ip
 from app.services import billing_cashfree as cfb
 from app.services import cashfree as cf
+from app.services import prepaid
 
 log = logging.getLogger("flowqr.webhooks")
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -62,5 +63,47 @@ async def cashfree_webhook(request: Request, x_webhook_signature: str | None = H
     except Exception:
         db.rollback()
         log.exception("Cashfree webhook processing failed (%s)", env.type)
+        raise HTTPException(status_code=500, detail="Processing failed")
+    return {"status": result}
+
+
+@router.post("/cashfree-pg", dependencies=[Depends(limit_by_ip("cf-pg-webhook", 300, 60))])
+async def cashfree_pg_webhook(request: Request, x_webhook_signature: str | None = Header(default=None), x_webhook_timestamp: str | None = Header(default=None),
+                              db: Session = Depends(get_db)):
+    """Cashfree PAYMENT GATEWAY webhooks (one-time prepaid orders). Separate from /cashfree, which stays the Subscriptions endpoint. Same discipline: 404 unless prepaid checkout is on, the
+    signature over the RAW bytes, the event stored before it is processed, and the payload used only as a hint: the order is looked up by OUR order id and the truth is read from Cashfree."""
+    if not settings.prepaid_configured:
+        raise HTTPException(status_code=404, detail="Not found")
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > MAX_BODY:
+        raise HTTPException(status_code=413, detail="Payload too large")
+    raw = await request.body()
+    if len(raw) > MAX_BODY:
+        raise HTTPException(status_code=413, detail="Payload too large")
+    try:
+        cf.verify_webhook(raw, x_webhook_signature, x_webhook_timestamp)
+        env = cf.parse_pg_webhook(raw)
+    except cf.WebhookError as exc:
+        log.warning("Cashfree PG webhook refused: %s", exc.reason)
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    set_rls_context(db, bypass=True)
+    row, is_new = prepaid.record_pg_event(db, env)
+    if row is None or (not is_new and row.status in ("processed", "ignored")):
+        db.commit()
+        return {"status": "duplicate"}
+    try:
+        client = cf.get_cashfree()
+    except cf.CashfreeNotConfigured:
+        db.commit()
+        raise HTTPException(status_code=503, detail="Billing is not configured")
+    try:
+        result = prepaid.process_pg_event(db, client, row, env)
+        db.commit()
+    except cf.CashfreeError:
+        db.commit()  # keep the stored event and its failure note so it can be processed again
+        raise HTTPException(status_code=500, detail="Processing failed")
+    except Exception:
+        db.rollback()
+        log.exception("Cashfree PG webhook processing failed (%s)", env.type)
         raise HTTPException(status_code=500, detail="Processing failed")
     return {"status": result}

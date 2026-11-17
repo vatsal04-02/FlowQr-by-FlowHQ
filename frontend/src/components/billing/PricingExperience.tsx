@@ -14,7 +14,8 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Alert, Skeleton } from "@/components/ui/Card";
-import { rupees } from "@/lib/billing";
+import { api, errorMessage } from "@/lib/api";
+import { openCashfreePayment, rupees } from "@/lib/billing";
 import { fmtDate } from "@/lib/format";
 import {
   ALL_FEATURE_ROWS, LIMIT_ROWS, PLAN_ORDER, POSITIONING, RECOMMENDED, effectiveMonthlyPaise, monthsLabel, newFeatureGroups, termPrice, termSaving, termTabLabel,
@@ -154,8 +155,8 @@ function PlanSwitcher({ plans, value, onChange }: { plans: Plan[]; value: string
   );
 }
 
-function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, onChoose, index, active }: {
-  plan: Plan; below: Plan | null; terms: PrepaidTerms; months: number; state: CurrentState; endsOn: string | null; isOwner: boolean; onChoose: (p: Plan, months: number) => void; index: number; active: boolean;
+function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, onChoose, index, active }: {
+  plan: Plan; below: Plan | null; terms: PrepaidTerms; months: number; state: CurrentState; endsOn: string | null; isOwner: boolean; locked: string | null; onChoose: (p: Plan, months: number) => void; index: number; active: boolean;
 }) {
   const total = termPrice(terms, plan.code, months);
   const monthly = total === null ? null : effectiveMonthlyPaise(total, months);
@@ -164,7 +165,7 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, onChoose
   const recommended = plan.code === RECOMMENDED;
   const th = THEME[plan.code] ?? THEME.starter;
   const name = PLAN_NAME[plan.code] ?? plan.name;
-  const disabled = total === null || !isOwner || state === "current";
+  const disabled = total === null || !isOwner || state === "current" || !!locked;
   return (
     <div className={`${active ? "block" : "hidden"} md:block`}>
       <motion.article key={active ? "on" : "off"} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -2 }} transition={{ duration: 0.4, delay: 0.07 * index, ease: EASE }} aria-labelledby={`plan-${plan.code}`}
@@ -199,6 +200,7 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, onChoose
         </Button>
         {state === "current" && endsOn && <p className="mt-2 text-center text-xs text-muted">Active until {endsOn}</p>}
         {!isOwner && state !== "current" && <p className="mt-2 text-center text-xs text-muted">Only the business owner can buy a plan.</p>}
+        {isOwner && locked && state !== "current" && <p className="mt-2 text-center text-xs text-muted">{locked}</p>}
 
         <dl className="mt-5 grid grid-cols-2 gap-2">
           {LIMIT_ROWS.map((r) => (
@@ -332,22 +334,46 @@ function Questions() {
 
 // ------------------------------------------------------------------------------------------------------------------------------------------ order summary + the one seam for real checkout
 
-/** THE SEAM. When a one-time Cashfree Payment Gateway order exists on the server, this is the only place that changes: ask the server to create the order for (plan, months), then open the
- *  hosted page with the session it returns. The amount is read by the server from its own list; this component never sends a price. Until then it cannot be pressed and says why. */
-function PayButton({ open, label }: { open: boolean; label: string }) {
-  return <Button className={pill} disabled={!open} aria-describedby="pay-note">{open ? label : "Payment opens soon"}</Button>;
+const phoneOk = (v: string) => /^[6-9]\d{9}$/.test(v.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, ""));
+
+/** The pay button. It asks the SERVER to create a one-time Cashfree order for (plan, months, phone): the request carries NO amount, the server prices it. It then sends the browser to Cashfree's
+ *  payment page. Nothing is granted here: the plan starts only after the server has asked Cashfree and been told the order is paid (the return page, the webhook and the hourly check all do that). */
+function PayButton({ open, label, disabled, busy, onClick }: { open: boolean; label: string; disabled: boolean; busy: boolean; onClick: () => void }) {
+  return <Button className={pill} disabled={!open || disabled} loading={busy} onClick={onClick} aria-describedby="pay-note">{open ? label : "Payment opens soon"}</Button>;
 }
 
 function OrderSummary({ plan, months, terms, onClose }: { plan: Plan | null; months: number; terms: PrepaidTerms; onClose: () => void }) {
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const phoneId = useId();
   const total = plan ? termPrice(terms, plan.code, months) : null;
+  async function pay() {
+    if (!plan || !phoneOk(phone)) return;
+    setBusy(true); setErr(null);
+    try {
+      const c = await api<{ payment_session_id: string; environment: string }>("/billing/prepaid/checkout", { method: "POST", body: { plan: plan.code, months, phone } });
+      await openCashfreePayment(c.payment_session_id, c.environment);  // the browser leaves for Cashfree here; it comes back to the payment return page
+    } catch (e) { setErr(errorMessage(e)); setBusy(false); }
+  }
   const name = plan ? (PLAN_NAME[plan.code] ?? plan.name) : "";
   const rows: [string, string][] = plan && total !== null ? [["Plan", name], ["Term", monthsLabel(months)], ["Per month", rupees(effectiveMonthlyPaise(total, months))], ["Total, paid once", rupees(total)]] : [];
   return (
-    <Modal open={!!plan && total !== null} onClose={onClose} title="Review your plan" footer={<><Button className={pill} variant="secondary" onClick={onClose}>Close</Button><PayButton open={terms.checkout_open} label={total !== null ? `Pay ${rupees(total)}` : "Pay"} /></>}>
+    <Modal open={!!plan && total !== null} onClose={onClose} title="Review your plan" footer={<><Button className={pill} variant="secondary" onClick={onClose} disabled={busy}>Close</Button><PayButton open={terms.checkout_open} label={total !== null ? `Pay ${rupees(total)}` : "Pay"} disabled={!phoneOk(phone)} busy={busy} onClick={() => void pay()} /></>}>
       <dl className="overflow-hidden rounded-2xl bg-surface-2 text-sm">
         {rows.map(([k, v], i) => <div key={k} className={`flex justify-between gap-4 px-4 py-3 ${i ? "border-t border-line" : ""} ${i === rows.length - 1 ? "font-semibold text-ink" : "text-ink-700"}`}><dt>{k}</dt><dd className="num">{v}</dd></div>)}
       </dl>
+      {terms.checkout_open && (
+        <div className="mt-4">
+          <label htmlFor={phoneId} className="text-[13px] font-medium text-ink">Mobile number</label>
+          <input id={phoneId} type="tel" inputMode="numeric" autoComplete="tel" placeholder="98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={16}
+            aria-invalid={phone.length > 0 && !phoneOk(phone)} aria-describedby={`${phoneId}-h`}
+            className="mt-1.5 min-h-11 w-full rounded-full border border-transparent bg-surface-2 px-4 text-base text-ink outline-none placeholder:text-muted-soft hover:border-ink-200 focus-visible:border-accent sm:text-sm" />
+          <p id={`${phoneId}-h`} className={`mt-1.5 text-xs ${phone.length > 0 && !phoneOk(phone) ? "text-neg" : "text-muted"}`}>{phone.length > 0 && !phoneOk(phone) ? "Enter a 10-digit Indian mobile number." : "The payment provider needs it for this payment. We do not keep it."}</p>
+        </div>
+      )}
       <p className="mt-4 text-sm text-muted">One payment. Your plan runs for {monthsLabel(months)} from the day the payment is confirmed, and does not renew by itself.</p>
+      {err && <div className="mt-4"><Alert tone="error" title="Couldn't start the payment">{err}{/charged/i.test(err) ? "" : " Nothing was charged."}</Alert></div>}
       {!terms.checkout_open && <div id="pay-note" className="mt-4"><Alert tone="info" title="Online payment is not open yet">Nothing has been charged and your account has not changed. We will switch prepaid plans on soon; until then everything you have today keeps working.</Alert></div>}
     </Modal>
   );
@@ -365,6 +391,8 @@ export function PricingExperience({ plans, terms, sub, isOwner, trialDays }: { p
   const choose = (m: number) => { setMonths(m); setAnnounce(`Prices shown for ${monthsLabel(m)}`); };
   const stateOf = (code: string): CurrentState => (sub?.status === "active" && sub.plan === code ? "current" : sub?.status === "trialing" && sub.trial_entitlement === code ? "trial" : "none");
   const endsOn = sub?.current_period_end ? fmtDate(sub.current_period_end) : null;
+  // A running prepaid term blocks a second purchase (the server enforces it too): say why instead of letting the person hit an error.
+  const locked = sub?.source === "prepaid" && sub.active && endsOn ? `Your plan is active until ${endsOn}. You can buy another term then.` : sub?.has_cashfree_subscription || sub?.has_razorpay_subscription ? "You already have a monthly payment set up. Contact support to move to a prepaid plan." : null;
 
   return (
     <div className="mt-8 sm:mt-12">
@@ -380,7 +408,7 @@ export function PricingExperience({ plans, terms, sub, isOwner, trialDays }: { p
             )}
             <PlanSwitcher plans={ordered} value={shown} onChange={setShown} />
             <div className="mt-4 grid items-stretch gap-4 md:grid-cols-3">
-              {ordered.map((p, i) => <PlanCard key={p.code} plan={p} below={i ? ordered[i - 1] : null} terms={terms!} months={months} state={stateOf(p.code)} endsOn={endsOn} isOwner={isOwner} index={i} active={p.code === shown} onChoose={(pl, m) => setPicked({ plan: pl, months: m })} />)}
+              {ordered.map((p, i) => <PlanCard key={p.code} plan={p} below={i ? ordered[i - 1] : null} terms={terms!} months={months} state={stateOf(p.code)} endsOn={endsOn} isOwner={isOwner} locked={locked} index={i} active={p.code === shown} onChoose={(pl, m) => setPicked({ plan: pl, months: m })} />)}
             </div>
             <Comparison plans={ordered} />
           </>

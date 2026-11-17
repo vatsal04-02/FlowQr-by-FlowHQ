@@ -164,6 +164,12 @@ class Settings(BaseSettings):
     cashfree_charge_settlement_hours: int = 48  # access continues this long after a first charge is due while the payment settles
     cashfree_retry_max: int = 3  # Cashfree allows at most 3 retries of a failed charge per cycle
     cashfree_webhook_tolerance_seconds: int = 300
+    # One-time prepaid plans through Cashfree PAYMENT GATEWAY orders (not Subscriptions: no mandate, no authorisation, no recurring charge). OFF unless PREPAID_CHECKOUT_ENABLED=true AND the
+    # Cashfree credentials are present. It does NOT depend on BILLING_PROVIDER: that setting only governs the dormant subscription integration.
+    prepaid_checkout_enabled: bool = False  # PREPAID_CHECKOUT_ENABLED
+    cashfree_pg_api_version: str = "2025-01-01"  # x-api-version for the Orders API (Subscriptions keep CASHFREE_API_VERSION)
+    prepaid_notify_url: str = ""  # PREPAID_NOTIFY_URL: https URL of POST /api/v1/webhooks/cashfree-pg, sent with each order so no dashboard setting is needed. Empty = rely on the return page and the hourly check
+    prepaid_order_minutes: int = 30  # how long a payment page stays payable
     trial_requires_mandate: bool = True  # TRIAL_REQUIRES_MANDATE: with Cashfree configured, a NEW business gets its free trial only after Cashfree confirms a payment authorisation
 
     past_due_grace_days: int = 7
@@ -250,6 +256,11 @@ class Settings(BaseSettings):
     @property
     def cashfree_configured(self) -> bool:
         return bool(self.cashfree_enabled and self.cashfree_client_id and self.cashfree_client_secret)
+
+    @property
+    def prepaid_configured(self) -> bool:
+        """True only when a one-time prepaid purchase can really be taken: switched on explicitly AND credentials present."""
+        return bool(self.prepaid_checkout_enabled and self.cashfree_client_id and self.cashfree_client_secret)
 
     @property
     def mandate_required(self) -> bool:
@@ -406,6 +417,8 @@ def config_problems(s: Settings) -> list[str]:
     # Cashfree: both credentials together; sandbox and production never mixed; eNACH deferred; Razorpay is never the provider while this is set
     if (s.billing_provider or "").strip().lower() not in ("", "cashfree"):
         p.append(f"BILLING_PROVIDER '{s.billing_provider}' is not one of: (empty), cashfree")
+    if s.prepaid_checkout_enabled and not (s.cashfree_client_id and s.cashfree_client_secret):
+        p.append("PREPAID_CHECKOUT_ENABLED needs CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET")
     if s.cashfree_enabled or s.cashfree_client_id or s.cashfree_client_secret:
         if not (s.cashfree_client_id and s.cashfree_client_secret):
             p.append("CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET must both be set")

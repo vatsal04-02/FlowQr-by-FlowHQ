@@ -127,6 +127,29 @@ class PaymentResult:
 
 
 @dataclass(frozen=True)
+class OrderResult:
+    """A Cashfree Payment Gateway ORDER (one-time payment). `status` is normalised: ACTIVE (payable), PAID, EXPIRED, TERMINATED."""
+    order_id: str
+    cf_order_id: str | None
+    status: str
+    amount_paise: int | None = None
+    currency: str | None = None
+    session_id: str | None = None  # payment_session_id: returned when the order is created and handed to the browser once; it is never stored or logged
+
+
+@dataclass(frozen=True)
+class OrderPayment:
+    """One attempt to pay an order. `status` is normalised: SUCCESS, FAILED, PENDING, NOT_ATTEMPTED, USER_DROPPED, CANCELLED, VOID."""
+    cf_payment_id: str
+    status: str
+    amount_paise: int
+    currency: str | None = None
+    method: str | None = None  # only the kind: upi, card, netbanking, app, ...
+    failure_reason: str | None = None
+    paid_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class WebhookEnvelope:
     type: str
     event_time: datetime | None
@@ -148,6 +171,11 @@ class CashfreeClient(Protocol):
     def cancel_subscription(self, subscription_id: str) -> None: ...
     def change_plan(self, subscription_id: str, plan_id: str) -> None: ...
     def retry_payment(self, subscription_id: str, payment_id: str, next_attempt_on: date) -> None: ...
+    # --- one-time Payment Gateway orders (prepaid plans)
+    def create_order(self, *, order_id: str, amount_paise: int, customer_id: str, customer: Customer, return_url: str, notify_url: str | None, expires_at: datetime,
+                     note: str, idempotency_key: str) -> OrderResult: ...
+    def fetch_order(self, order_id: str) -> OrderResult: ...
+    def list_order_payments(self, order_id: str) -> list[OrderPayment]: ...
 
 
 # ------------------------------------------------------------------------------------------------------------------------------ parsing
@@ -176,6 +204,20 @@ def _pay_from(d: dict) -> PaymentResult:
         amount_paise=to_paise(d.get("payment_amount") or 0), scheduled_for=parse_time(d.get("payment_schedule_date")),
         initiated_at=parse_time(d.get("payment_initiated_date")), failure_reason=(fail.get("failure_reason") if isinstance(fail, dict) else None),
         method=_method_name(auth.get("payment_method")) if isinstance(auth, dict) else None, retry_attempts=int(d.get("retry_attempts") or 0))
+
+
+def _order_from(d: dict) -> OrderResult:
+    amt = d.get("order_amount")
+    return OrderResult(order_id=str(d.get("order_id") or ""), cf_order_id=(str(d["cf_order_id"]) if d.get("cf_order_id") is not None else None), status=norm_status(d.get("order_status")),
+                       amount_paise=to_paise(amt) if amt is not None else None, currency=(str(d["order_currency"]).upper() if d.get("order_currency") else None),
+                       session_id=d.get("payment_session_id"))
+
+
+def _order_payment_from(d: dict) -> OrderPayment:
+    err = d.get("error_details") or {}
+    return OrderPayment(cf_payment_id=str(d.get("cf_payment_id") or ""), status=norm_status(d.get("payment_status")), amount_paise=to_paise(d.get("payment_amount") or 0),
+                        currency=(str(d["payment_currency"]).upper() if d.get("payment_currency") else None), method=_method_name(d.get("payment_method")),
+                        failure_reason=((err.get("error_description") or err.get("error_reason")) if isinstance(err, dict) else None) or None, paid_at=parse_time(d.get("payment_time")))
 
 
 # ------------------------------------------------------------------------------------------------------------------------------ webhooks
@@ -239,17 +281,52 @@ def parse_envelope(raw_body: bytes) -> WebhookEnvelope:
         payload_hash=hashlib.sha256(raw_body).hexdigest())
 
 
+@dataclass(frozen=True)
+class PgWebhook:
+    """A Payment Gateway webhook (PAYMENT_SUCCESS_WEBHOOK, PAYMENT_FAILED_WEBHOOK, PAYMENT_USER_DROPPED_WEBHOOK, ...). Only used as a HINT that an order changed: the order id is read from it,
+    and the truth is then fetched from Cashfree. Nothing in the payload grants access."""
+    type: str
+    order_id: str | None
+    cf_payment_id: str | None
+    payment_status: str | None
+    event_time: str | None
+    dedupe_key: str
+    payload_hash: str
+
+
+def parse_pg_webhook(raw_body: bytes) -> PgWebhook:
+    try:
+        doc = json.loads(raw_body)
+    except ValueError as exc:
+        raise WebhookError("bad_payload") from exc
+    if not isinstance(doc, dict) or not isinstance(doc.get("type"), str):
+        raise WebhookError("bad_payload")
+    data = doc.get("data") if isinstance(doc.get("data"), dict) else {}
+    order = data.get("order") if isinstance(data.get("order"), dict) else {}
+    pay = data.get("payment") if isinstance(data.get("payment"), dict) else {}
+    oid = order.get("order_id")
+    cfp = pay.get("cf_payment_id")
+    status = norm_status(pay.get("payment_status")) or None
+    etime = doc.get("event_time") if isinstance(doc.get("event_time"), str) else None
+    key = hashlib.sha256("|".join(["pg", doc["type"], str(oid or ""), str(cfp or ""), status or "", etime or ""]).encode("utf-8")).hexdigest()
+    return PgWebhook(type=doc["type"], order_id=str(oid) if oid else None, cf_payment_id=str(cfp) if cfp else None, payment_status=status, event_time=etime, dedupe_key=key,
+                     payload_hash=hashlib.sha256(raw_body).hexdigest())
+
+
 # ------------------------------------------------------------------------------------------------------------------------------ the real client
 class HttpCashfreeClient:
     def __init__(self) -> None:
-        if not settings.cashfree_configured:
+        if not (settings.cashfree_configured or settings.prepaid_configured):
             raise CashfreeNotConfigured("Cashfree is not configured")
         self._http = httpx.Client(base_url=settings.cashfree_base_url, timeout=20, headers={
             "x-client-id": settings.cashfree_client_id, "x-client-secret": settings.cashfree_client_secret,
             "x-api-version": settings.cashfree_api_version, "accept": "application/json", "content-type": "application/json"})
 
-    def _call(self, method: str, path: str, body: dict | None = None, *, idempotency_key: str | None = None, retries: int = 0) -> Any:
-        headers = {"x-idempotency-key": idempotency_key} if idempotency_key else None
+    def _call(self, method: str, path: str, body: dict | None = None, *, idempotency_key: str | None = None, retries: int = 0, api_version: str | None = None) -> Any:
+        headers = {"x-idempotency-key": idempotency_key} if idempotency_key else {}
+        if api_version:
+            headers["x-api-version"] = api_version
+        headers = headers or None
         last: Exception | None = None
         for _ in range(retries + 1):
             try:
@@ -323,6 +400,25 @@ class HttpCashfreeClient:
         when = datetime(next_attempt_on.year, next_attempt_on.month, next_attempt_on.day, 10, 0, tzinfo=IST)
         self._call("POST", f"/subscriptions/{subscription_id}/payments/{payment_id}/manage",
                    {"subscription_id": subscription_id, "payment_id": payment_id, "action": "RETRY", "action_details": {"next_scheduled_time": ist_iso(when)}})
+
+
+    # ------------------------------------------------------------------------------------------------------------------------ one-time orders (Payment Gateway, not Subscriptions)
+    def create_order(self, *, order_id, amount_paise, customer_id, customer, return_url, notify_url, expires_at, note, idempotency_key) -> OrderResult:
+        meta = {"return_url": return_url}
+        if notify_url:
+            meta["notify_url"] = notify_url
+        body = {"order_id": order_id, "order_amount": to_rupees(amount_paise), "order_currency": "INR",
+                "customer_details": {"customer_id": customer_id, "customer_name": customer.name[:100], "customer_email": customer.email, "customer_phone": customer.phone},
+                "order_meta": meta, "order_expiry_time": expires_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "order_note": note[:200]}
+        return _order_from(self._call("POST", "/orders", body, idempotency_key=idempotency_key, api_version=settings.cashfree_pg_api_version))
+
+    def fetch_order(self, order_id: str) -> OrderResult:
+        return _order_from(self._call("GET", f"/orders/{order_id}", retries=2, api_version=settings.cashfree_pg_api_version))
+
+    def list_order_payments(self, order_id: str) -> list[OrderPayment]:
+        j = self._call("GET", f"/orders/{order_id}/payments", retries=2, api_version=settings.cashfree_pg_api_version)
+        rows = j if isinstance(j, list) else (j.get("data", []) if isinstance(j, dict) else [])
+        return [_order_payment_from(x) for x in (rows or []) if isinstance(x, dict)]
 
 
 def get_cashfree() -> CashfreeClient:

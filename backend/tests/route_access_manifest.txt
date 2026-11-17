@@ -130,6 +130,8 @@ role-owner	POST	/api/v1/billing/card-orders
 role-owner	POST	/api/v1/billing/card-orders/verify
 member	GET	/api/v1/billing/payments
 public	GET	/api/v1/billing/plans
+role-owner	POST	/api/v1/billing/prepaid/checkout
+role-owner	POST	/api/v1/billing/prepaid/verify
 public	POST	/api/v1/billing/razorpay/webhook
 member	GET	/api/v1/billing/subscription
 role-owner	POST	/api/v1/billing/subscription/cancel
@@ -290,6 +292,7 @@ role-admin	POST	/api/v1/tenant/complete-onboarding
 role-admin	POST	/api/v1/tenant/voice-preview
 signed-in	POST	/api/v1/tenants
 public	POST	/api/v1/webhooks/cashfree
+public	POST	/api/v1/webhooks/cashfree-pg
 member	GET	/api/v1/workspace/ai-usage
 role-admin	GET	/api/v1/workspace/audit-log
 member	GET	/api/v1/workspace/getting-started
