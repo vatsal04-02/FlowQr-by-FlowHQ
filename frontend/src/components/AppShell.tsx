@@ -205,15 +205,14 @@ function AppShellInner({ children }: { children: ReactNode }) {
   return (
     <MotionConfig reducedMotion="user">
     <LocationScopeProvider>
-    <div className="isolate min-h-dvh bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
+    <div className="fq-root isolate bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
       <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
       <div aria-hidden className="fq-ambient"><i /><i /><i /></div>
       <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} counts={counts} />
       <TiltEffect />
-      <Tour open={tour} onClose={() => setTour(false)} />
       <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
         <header className={clsx("top-glass sticky top-0 z-30", scrolled && "scrolled")}>
-          <div className="mx-auto flex h-[60px] w-full max-w-[1240px] sm:h-[68px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
+          <div className="mx-auto flex h-[60px] w-full max-w-[1320px] sm:h-[68px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none md:gap-1.5">
               <Logo href="/overview" auto markOnly size={30} label="FlowQR home" className="h-11 shrink-0 justify-center px-1.5 sm:hidden" />
               <Logo href="/overview" auto tagline={false} size={28} label="FlowQR home" className="hidden h-11 shrink-0 px-1.5 sm:inline-flex md:hidden" />
@@ -231,7 +230,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1240px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
+        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1320px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
           <StatusStrip notices={path.startsWith("/settings/billing") ? notices.filter((n) => !n.href.startsWith("/settings/billing")) : notices} />
           <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialPill s={s ?? null} path={path} className="min-[1280px]:hidden" />}<LocationPicker className="md:hidden" /></div>
           {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}
@@ -243,6 +242,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
       <MoreSheet open={more} onClose={() => setMore(false)} role={role} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
       <CommandPalette open={palette} onClose={() => setPalette(false)} dests={dests} />
     </div>
+    <Tour open={tour} onClose={() => setTour(false)} />
     </LocationScopeProvider>
     </MotionConfig>
   );

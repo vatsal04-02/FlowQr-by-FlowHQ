@@ -56,6 +56,15 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
 }
 
 @layer base {
+  /* Desktop density. A laptop is read from further away than a phone and the app's type is set for a phone, so from 1024px the whole app frame (sidebar, top bar, pages) is drawn at 92% of its size,
+     and at 86% on a scaled display (Windows 125%/150%, most laptops), where the same CSS pixels are physically larger. One lever for every page. The frame keeps filling the screen (the min-height
+     is divided by the zoom) and the guided tour sits outside it because it reads real screen positions. Phones and tablets under 1024px are untouched. */
+  .fq-root { min-height: 100dvh; }
+  @media (min-width: 1024px) {
+    :root { --fq-zoom: .92; }
+    .fq-root { zoom: var(--fq-zoom); min-height: calc(100dvh / var(--fq-zoom)); }
+  }
+  @media (min-width: 1024px) and (min-resolution: 1.2dppx) { :root { --fq-zoom: .86; } }
   /* The FlowQr logo on the app's own grounds: navy squares and wordmark on light, white on dark (the orange never changes). */
   html.fq-app { --logo-ink: #11173F; } html.fq-app[data-theme="dark"] { --logo-ink: #FFFFFF; }
   /* Smooth by default: anything that changes colour, border, shadow or opacity eases there instead of snapping. Zero specificity (:where), so a component's own transition always wins. */
