@@ -59,7 +59,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [tour, setTour] = useState(false);
   useAppChrome();
-  const sub = useFetch<SubscriptionInfo>(tenant ? "/billing/subscription" : null);
+  // The plan status belongs to the selected business: keyed by its id, so switching business fetches again and never shows the previous business's status meanwhile.
+  const sub = useFetch<SubscriptionInfo>(tenant ? "/billing/subscription" : null, undefined, { scope: tenant?.id ?? null });
   const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
   const legal = useFetch<{ support_email: string | null }>("/legal/info").data;
   const dests = useMemo(() => navFor(role), [role]);

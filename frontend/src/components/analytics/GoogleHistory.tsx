@@ -8,11 +8,13 @@ import { CountUp } from "@/components/charts/CountUp";
 import { Donut, Legend, type Slice } from "@/components/charts/Donut";
 import type { Range } from "@/components/DateRange";
 import { SourceTag } from "@/components/seo/parts";
-import { Card, Dashes, Title } from "@/components/seo/visuals";
-import { Button, LinkButton } from "@/components/ui/Button";
+import { EmptyGoogle, SyncedLine, useGoogleSync } from "@/components/analytics/GoogleSync";
+import { Card, Title } from "@/components/seo/visuals";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
 import { canDrawArea, dailyStack } from "@/lib/charts";
+import { useAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
 import type { GoogleMetrics, GoogleMetricSummary } from "@/lib/seo";
@@ -40,15 +42,11 @@ export function GoogleHistory({ range, extra }: { range: Range; extra?: ReactNod
   const { locationId } = useLocationScope();
   const q = useFetch<GoogleMetrics>("/analytics/google-metrics", { from: range.from, to: range.to, location_id: locationId ?? "" });
   const d = q.data;
+  const { isAdmin } = useAuth();
+  const sync = useGoogleSync(q.reload);
   const ok = !!d && d.availability.state === "ok" && !!d.current;
   if (q.loading && !d) return <Skeleton className="h-64" />;
-  if (!ok) return (
-    <Card label="Google performance">
-      <Title right={<SourceTag source="google" />}>From Google</Title>
-      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">{CARDS.map(([k, l]) => <div key={k}><p className="text-[13px] text-muted">{l}</p><p className="text-[20px] font-semibold">–</p><Dashes className="mt-1" /></div>)}</div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-[14px] text-muted">{q.error ? "Couldn't load." : "Waiting for Google. History starts the first day Google shares."}</p><LinkButton href="/gbp/locations" variant="secondary" size="sm">Check connection</LinkButton></div>
-    </Card>
-  );
+  if (!ok) return <EmptyGoogle d={d} loadError={q.error} reload={() => void q.reload()} isAdmin={isAdmin} sync={sync} rangeEmpty={!!d && d.availability.state === "ok"} />;
   const sum = (metrics: string[]) => {
     const m = new Map<string, number>();
     for (const k of metrics) for (const p of d!.series[k] ?? []) m.set(p.date, (m.get(p.date) ?? 0) + p.value);
@@ -65,6 +63,7 @@ export function GoogleHistory({ range, extra }: { range: Range; extra?: ReactNod
   }
   return (
     <div className="space-y-3 lg:space-y-4">
+      <SyncedLine at={d!.availability.last_fetched_at} isAdmin={isAdmin} sync={sync} />
       {(() => {
         const actions = CARDS.slice(0, 3);
         const days = dailyStack(d!.series, actions.map(([, , m]) => m));
