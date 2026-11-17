@@ -59,6 +59,28 @@ class QRCard(IdMixin, TimestampMixin, Base):
     retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
+    # Where a scan or tap goes INSTEAD of the card's review landing page. NULL = the landing page (how every card behaved before this existed). Set only through
+    # services/destinations.py, which validates it, records the change in card_destination_history and audits it.
+    destination_url: Mapped[str | None] = mapped_column(String(2000))
+    destination_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # An admin's statement that the NFC tag was written with this card's NFC address. FlowQR cannot write tags: only a real NFC tap (a scan event with channel 'nfc') confirms it.
+    nfc_programmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    nfc_programmed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class CardDestinationHistory(IdMixin, Base):
+    """Append-only: every time a card's destination was set or cleared (old URL, new URL, who, why, when)."""
+
+    __tablename__ = "card_destination_history"
+
+    card_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("qr_cards.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenants.id", ondelete="SET NULL"))
+    action: Mapped[str] = mapped_column(String(8))  # set | cleared
+    old_url: Mapped[str | None] = mapped_column(String(2000))
+    new_url: Mapped[str | None] = mapped_column(String(2000))
+    reason: Mapped[str | None] = mapped_column(String(300))
+    changed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class CardAssignment(IdMixin, Base):
@@ -101,6 +123,10 @@ class ScanEvent(IdMixin, Base):
     visitor_hash: Mapped[str | None] = mapped_column(String(64))  # salted daily hash of ip+ua, not reversible
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False)
     channel: Mapped[str | None] = mapped_column(String(8))  # 'qr' | 'nfc'; NULL for events recorded before the channel was tracked
+    referrer_host: Mapped[str | None] = mapped_column(String(120))  # host only (never a path or query); NULL when unknown or opened directly
+    device: Mapped[str | None] = mapped_column(String(8))  # mobile | tablet | desktop | other
+    placement: Mapped[str | None] = mapped_column(String(120))  # the card's label (e.g. "Reception desk") when the event happened
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("review_campaigns.id", ondelete="SET NULL"))  # the card's campaign when the event happened
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

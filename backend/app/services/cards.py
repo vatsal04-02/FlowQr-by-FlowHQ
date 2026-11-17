@@ -2,7 +2,7 @@ import hashlib
 import re
 import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import func, select, text
@@ -246,8 +246,41 @@ def status_counts(db: Session, batch_id: uuid.UUID | None = None) -> dict[str, i
     return out
 
 
-def record_event(db: Session, card: QRCard | None, event_type: ScanEventType, *, ip: str, ua: str | None, channel: str | None = None) -> ScanEvent:
+_HOST_ONLY = re.compile(r"^(?=.{1,120}$)[a-z0-9]([a-z0-9.-]*[a-z0-9])?$")
+
+
+def referrer_host(value: str | None) -> str | None:
+    """The host of a referring page, or None. Host ONLY: a path or query could carry personal data, so it is never kept. Accepts a bare host or a full URL."""
+    v = (value or "").strip().lower()
+    if not v:
+        return None
+    if "://" in v:
+        from urllib.parse import urlsplit
+        try:
+            v = (urlsplit(v).hostname or "")
+        except ValueError:
+            return None
+    v = v.rstrip(".")
+    return v if _HOST_ONLY.match(v) and "." in v else None
+
+
+def device_category(ua: str | None) -> str:
+    """mobile | tablet | desktop | other, from the user agent (coarse on purpose: no model, no version)."""
+    u = (ua or "").lower()
+    if not u or is_bot(ua):
+        return "other"
+    if "ipad" in u or "tablet" in u or ("android" in u and "mobile" not in u):
+        return "tablet"
+    if "mobile" in u or "iphone" in u or "android" in u:
+        return "mobile"
+    if any(k in u for k in ("windows", "macintosh", "x11", "linux", "cros")):
+        return "desktop"
+    return "other"
+
+
+def record_event(db: Session, card: QRCard | None, event_type: ScanEventType, *, ip: str, ua: str | None, channel: str | None = None, referrer: str | None = None) -> ScanEvent:
     ev = ScanEvent(
+        referrer_host=referrer_host(referrer), device=device_category(ua), placement=(card.label[:120] if card and card.label else None), campaign_id=card.campaign_id if card else None,
         channel=channel if channel in CHANNELS else None,
         card_id=card.id if card else None,
         tenant_id=card.tenant_id if card else None,
@@ -259,6 +292,47 @@ def record_event(db: Session, card: QRCard | None, event_type: ScanEventType, *,
     )
     db.add(ev)
     return ev
+
+
+NFC_NOTE = ("FlowQR cannot write NFC tags. 'Marked programmed' is an administrator's statement; only a real tap on the tag (an NFC visit recorded after it was marked) confirms it works.")
+
+
+def nfc_status(db: Session, card: QRCard) -> dict:
+    """not_programmed | marked_programmed (an admin said so) | tap_seen (a real NFC tap has opened this card since). Never claims more than the evidence."""
+    q = select(func.max(ScanEvent.created_at)).where(ScanEvent.card_id == card.id, ScanEvent.channel == "nfc", ScanEvent.event_type == ScanEventType.scan, ScanEvent.is_bot.is_(False))
+    if card.nfc_programmed_at:
+        q = q.where(ScanEvent.created_at >= card.nfc_programmed_at)
+    last_tap = db.scalar(q)
+    status = "tap_seen" if last_tap else "marked_programmed" if card.nfc_programmed_at else "not_programmed"
+    return {"status": status, "programmed_at": card.nfc_programmed_at, "last_tap_at": last_tap, "pairing": "QR and NFC resolve to the same card and the same destination", "note": NFC_NOTE}
+
+
+def card_analytics(db: Session, card_ids=None, *, card_filter=None, days: int = 30) -> dict:
+    """Scans and taps for one card, several cards, or a filtered set. Humans and automated traffic are counted SEPARATELY; a scan is never a completed Google review."""
+    since = utcnow() - timedelta(days=days)
+    where = [ScanEvent.event_type == ScanEventType.scan, ScanEvent.created_at >= since]
+    if card_ids is not None:
+        where.append(ScanEvent.card_id.in_(card_ids))
+    if card_filter is not None:
+        where.append(ScanEvent.card_id.in_(card_filter))
+    human = where + [ScanEvent.is_bot.is_(False)]
+    by_ch = {ch or "untracked": n for ch, n in db.execute(select(ScanEvent.channel, func.count()).where(*human).group_by(ScanEvent.channel))}
+    uniq = db.scalar(select(func.count(func.distinct(ScanEvent.visitor_hash))).where(*human)) or 0
+    bots = db.scalar(select(func.count()).where(*where, ScanEvent.is_bot.is_(True)).select_from(ScanEvent)) or 0
+    qr, nfc, other = by_ch.get("qr", 0), by_ch.get("nfc", 0), by_ch.get("untracked", 0)
+    devices = {d or "unknown": n for d, n in db.execute(select(ScanEvent.device, func.count()).where(*human).group_by(ScanEvent.device))}
+    refs = [{"host": h, "scans": n} for h, n in db.execute(select(ScanEvent.referrer_host, func.count()).where(*human, ScanEvent.referrer_host.is_not(None)).group_by(ScanEvent.referrer_host).order_by(func.count().desc()).limit(10))]
+    places = [{"placement": p, "scans": n} for p, n in db.execute(select(ScanEvent.placement, func.count()).where(*human, ScanEvent.placement.is_not(None)).group_by(ScanEvent.placement).order_by(func.count().desc()).limit(10))]
+    day = func.date(ScanEvent.created_at)
+    daily: dict = {}
+    for d, ch, n in db.execute(select(day, ScanEvent.channel, func.count()).where(*human).group_by(day, ScanEvent.channel).order_by(day)):
+        row = daily.setdefault(str(d), {"date": str(d), "qr": 0, "nfc": 0, "untracked": 0})
+        row[ch if ch in ("qr", "nfc") else "untracked"] += n
+    last = db.scalar(select(func.max(ScanEvent.created_at)).where(*human))
+    last_tap = db.scalar(select(func.max(ScanEvent.created_at)).where(*human, ScanEvent.channel == "nfc"))
+    return {"days": days, "since": since, "totals": {"qr_scans": qr, "nfc_taps": nfc, "untracked": other, "total": qr + nfc + other, "unique_visitors": uniq},
+            "automated_visits": bots, "devices": devices, "referrers": refs, "placements": places, "by_day": list(daily.values()), "last_scan_at": last, "last_nfc_tap_at": last_tap,
+            "note": "A scan or tap is a visit, not a completed Google review. Automated traffic (bots, link previews) is counted separately and excluded from the totals."}
 
 
 def card_last_scans(db: Session, card_ids: list[uuid.UUID]) -> dict[uuid.UUID, datetime]:
