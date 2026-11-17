@@ -225,6 +225,12 @@ def _prepaid_client():
         raise HTTPException(status_code=503, detail={"code": "checkout_closed", "message": "Online payment for prepaid plans is not open yet."})
 
 
+@router.get("/prepaid/offers")
+def prepaid_offers(ctx: TenantContext = Depends(get_tenant_context)):
+    """Temporary prices that exist for THIS business only (usually none). Informational: the amount is decided by the server again when an order is created."""
+    return {"offers": prepaid.offers_for(ctx.db, ctx.tenant_id)}
+
+
 @router.post("/prepaid/checkout", dependencies=[Depends(limit_by_ip("prepaid-checkout", 12, 300))])
 def prepaid_checkout(body: PrepaidCheckoutIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
     """Creates a Cashfree order for a plan and a number of months and returns what the browser needs to open Cashfree's payment page. The amount is the SERVER's (services/plans.py); the

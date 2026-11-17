@@ -6,7 +6,7 @@ from app.models.cards import (  # noqa: F401
 )
 from app.models.review_growth import RetiredCampaignId, ReviewCampaign, ReviewDraft, ReviewEvent, ReviewRequestTemplate, ReviewSession  # noqa: F401
 from app.models.platform import ApiUsage  # noqa: F401,E402
-from app.models.billing import BillingPlan, CardOrder, Payment, PrepaidOrder, PromotionalGrant, SubscriptionEvent, WebhookEvent  # noqa: F401
+from app.models.billing import BillingPlan, CardOrder, Payment, PrepaidOrder, PrepaidPriceOverride, PromotionalGrant, SubscriptionEvent, WebhookEvent  # noqa: F401
 from app.models.leads import Lead  # noqa: F401
 from app.models.registration import RegistrationAllowlist  # noqa: F401
 from app.models.platform import AICallLedger, AIGenerationLog, AuditLog, Subscription  # noqa: F401
