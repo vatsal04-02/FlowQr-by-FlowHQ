@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { MapPin, MousePointerClick, Phone } from "lucide-react";
+import { MapPin, MousePointerClick, Phone, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AreaChart } from "@/components/charts/AreaChart";
@@ -19,23 +19,32 @@ import { Card, Delta, Title } from "./v2";
 export function LatestReviews({ items, total, loading }: { items: Review[] | null; total: number; loading: boolean }) {
   return (
     <Card label="Latest reviews">
-      <Title right={<Link href="/gbp/reviews" className="inline-flex min-h-11 items-center text-[13px] font-semibold text-accent-ink hover:underline md:min-h-8">Inbox</Link>}>Latest reviews</Title>
+      <Title right={<Link href="/gbp/reviews" className="inline-flex min-h-11 items-center text-[13px] font-semibold text-ink-700 underline-offset-2 hover:text-ink hover:underline md:min-h-8">Inbox</Link>}>Latest reviews</Title>
       {loading || !items ? <Skeleton className="mt-3 h-[180px]" /> : items.length === 0 ? (
         <p className="mt-3 text-[14px] text-muted">No reviews have been synced yet. New ones appear here.</p>
       ) : (
         <ul className="mt-1 divide-y divide-line">
           {items.map((r) => {
             const replied = !!r.google_reply_text || r.reply_state === "published";
+            const personal = !replied && r.sensitive_reasons.length > 0;  // the AI will not answer these without a person: say so instead of offering it
             return (
-              <li key={r.id}>
-                <Link href={`/gbp/reviews/${r.id}`} className="group grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 py-2.5">
+              <li key={r.id} className="py-2.5">
+                <div className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3">
                   <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-[13px] font-semibold text-ink-700">{(r.reviewer_name ?? "G").trim().slice(0, 1).toUpperCase()}</span>
-                  <span className="min-w-0">
-                    <span data-words="skip" className="block truncate text-[14px] font-semibold group-hover:text-accent-ink">{r.reviewer_name ?? "Google user"}</span>
+                  <Link href={`/gbp/reviews/${r.id}`} className="group min-w-0">
+                    <span data-words="skip" className="block truncate text-[14px] font-semibold group-hover:underline">{r.reviewer_name ?? "Google user"}</span>
                     <span data-words="skip" className="block truncate text-[13px] text-muted">{r.text || "Rating only, no written review"}</span>
-                  </span>
-                  <span className="flex flex-col items-end gap-0.5"><Stars rating={r.rating} size={12} /><span className={clsx("text-[12px]", replied ? "text-muted" : "font-semibold text-warn")}>{replied ? timeAgo(r.review_created_at) : "Needs reply"}</span></span>
-                </Link>
+                  </Link>
+                  <span className="flex flex-col items-end gap-0.5"><Stars rating={r.rating} size={12} /><span className="text-[12px] text-muted">{timeAgo(r.review_created_at)}</span></span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-12">
+                  <span className={clsx("rounded-full px-2 py-0.5 text-[11px] font-semibold leading-4", replied ? "bg-pos-tint text-pos" : "bg-warn-tint text-warn")}>{replied ? "Replied" : "Needs reply"}</span>
+                  {!replied && (
+                    <Link href={`/gbp/reviews/${r.id}`} className="btn-glass inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold md:min-h-7">
+                      {!personal && <Sparkles className="h-3 w-3" aria-hidden />}{personal ? "Open to handle" : "Reply with AI"}
+                    </Link>
+                  )}
+                </div>
               </li>
             );
           })}

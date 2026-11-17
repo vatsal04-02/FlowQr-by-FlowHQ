@@ -8,13 +8,14 @@ export interface BarDatum { key: string; label: string; cur: number; prev?: numb
  * Counts as bars, never a smoothed line. This period is solid chart blue; the period before is a grey outline beside it; an optional goal is one dashed line. Every bar can be reached
  * with the keyboard (Tab, then the value shows) and tapped on a phone; "View as table" gives the same numbers as text.
  */
-export function Bars({ data, goal, goalLabel, height = 168, label, unit = "reviews", color }: { data: BarDatum[]; goal?: number | null; goalLabel?: string; height?: number; label: string; unit?: string; color?: string }) {
+export function Bars({ data, goal, goalLabel, height = 168, label, unit = "reviews", color, prevAsLine = false }: { data: BarDatum[]; goal?: number | null; goalLabel?: string; height?: number; label: string; unit?: string; color?: string; prevAsLine?: boolean }) {
   const [on, setOn] = useState<number | null>(null);
   const [table, setTable] = useState(false);
   const id = useId();
   const max = Math.max(1, goal ?? 0, ...data.map((d) => Math.max(d.cur, d.prev ?? 0)));
   const top = max <= 4 ? 4 : Math.ceil(max / 2) * 2;
   const hasPrev = data.some((d) => d.prev !== undefined && d.prev !== null);
+  const asLine = prevAsLine && hasPrev && data.length >= 2;  // the period before drawn as a dashed line through its own values, not as outlined bars
   const pct = (v: number) => `${(v / top) * 100}%`;
   return (
     <div>
@@ -34,11 +35,20 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
             <button key={d.key} type="button" aria-describedby={on === i ? `${id}-tip` : undefined} onFocus={() => setOn(i)} onBlur={() => setOn(null)} onMouseEnter={() => setOn(i)} onMouseLeave={() => setOn(null)} onClick={() => setOn(on === i ? null : i)}
               aria-label={`${d.label}: ${d.cur} ${unit}${hasPrev && d.prev !== null && d.prev !== undefined ? `, ${d.prev} before` : ""}`}
               className={clsx("relative flex h-full !min-h-0 !min-w-0 flex-1 items-end justify-center gap-[3px] rounded-[6px] outline-offset-2", on === i && "bg-surface-2")}>
-              {hasPrev && <span aria-hidden className="w-[38%] max-w-[16px] rounded-t-[3px] border border-ink-400 bg-surface" style={{ height: d.prev ? pct(d.prev) : 0 }} />}
-              <span aria-hidden className="fq-bar w-[38%] max-w-[16px] rounded-t-[3px] bg-chart" style={{ height: d.cur ? pct(d.cur) : "2px", opacity: d.cur ? 1 : 0.25, ...(color ? { background: color } : {}) }} />
+              {hasPrev && !asLine && <span aria-hidden className="w-[38%] max-w-[16px] rounded-t-[3px] border border-ink-400 bg-surface" style={{ height: d.prev ? pct(d.prev) : 0 }} />}
+              <span aria-hidden className={clsx("fq-bar rounded-t-[3px] bg-chart", asLine ? "w-[46%] max-w-[22px]" : "w-[38%] max-w-[16px]")} style={{ height: d.cur ? pct(d.cur) : "2px", opacity: d.cur ? 1 : 0.25, ...(color ? { background: color } : {}) }} />
             </button>
           ))}
         </div>
+        {asLine && (
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-7 right-0">
+            <svg className="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <polyline fill="none" stroke="rgb(var(--c-ink-500))" strokeWidth="1.75" strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+                points={data.map((d, i) => `${((i + 0.5) / data.length) * 100},${100 - ((d.prev ?? 0) / top) * 100}`).join(" ")} />
+            </svg>
+            {data.map((d, i) => <span key={d.key} className="absolute h-2 w-2 -translate-x-1/2 translate-y-1/2 rounded-full border-[1.5px] border-ink-500 bg-surface" style={{ left: `${((i + 0.5) / data.length) * 100}%`, bottom: `${((d.prev ?? 0) / top) * 100}%` }} />)}
+          </div>
+        )}
         {on !== null && data[on] && (
           <div id={`${id}-tip`} role="tooltip" className="pointer-events-none absolute -top-2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[10px] bg-ink-solid px-2.5 py-1.5 text-[12px] text-ink-on"
             style={{ left: `calc(1.75rem + (100% - 1.75rem) * ${(on + 0.5) / data.length})` }}>
@@ -48,7 +58,7 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
       </div>
       <div aria-hidden className="ml-7 mt-1.5 flex justify-around gap-1 overflow-hidden">{data.map((d, i) => <span key={d.key} className="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center text-[11px] text-muted">{i % Math.max(1, Math.ceil(data.length / 5)) ? "" : d.label}</span>)}</div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        {hasPrev ? <p className="flex items-center gap-3 text-[12px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] bg-chart" />This period</span><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] border border-ink-400" />Before</span></p> : <span />}
+        {hasPrev ? <p className="flex items-center gap-3 text-[12px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] bg-chart" />This period</span><span className="flex items-center gap-1.5">{asLine ? <i aria-hidden className="h-0 w-4 border-t-[1.75px] border-dashed border-ink-500" /> : <i aria-hidden className="h-2.5 w-2.5 rounded-[2px] border border-ink-400" />}{asLine ? "Period before" : "Before"}</span></p> : <span />}
         <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 text-[12px] font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
       </div>
       {table && (

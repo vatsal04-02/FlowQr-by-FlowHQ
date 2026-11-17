@@ -41,6 +41,8 @@ function LocationPicker({ className }: { className?: string }) {
   );
 }
 
+/** "geeta krishna physio" -> "Geeta Krishna Physio": the first letter of each word, nothing else touched (display only, the saved name is unchanged). */
+const titleName = (n: string) => n.replace(/(^|[\s(\-/])(\p{Ll})/gu, (_, a: string, b: string) => a + b.toUpperCase());
 const initials = (name: string | undefined, email: string) => {
   const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
   return (parts.length ? parts.slice(0, 2).map((p) => p[0]) : [email[0]]).join("").toUpperCase();
@@ -148,11 +150,11 @@ function AppShellInner({ children }: { children: ReactNode }) {
     <PopoverButton label="Business menu" align="left" className="min-w-0 flex-1 md:flex-none" buttonClass="group flex min-h-11 w-full min-w-0 items-center gap-2 sm:gap-2.5 md:w-auto md:max-w-[calc(100vw-232px)] rounded-[14px] bg-transparent py-1 pl-0 pr-1 text-left transition-[transform,box-shadow] duration-200 ease-spring sm:bg-surface sm:pl-1.5 sm:pr-2.5 sm:shadow-pill sm:ring-1 sm:ring-line sm:hover:-translate-y-px sm:hover:shadow-lift active:scale-[.98] motion-reduce:transition-none motion-reduce:hover:transform-none sm:max-w-[340px]"
       icon={<>
         <span className="relative shrink-0">
-          <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-accent text-[13px] font-semibold text-on-accent sm:h-9 sm:w-9 sm:text-[14px]">{tenant.name.slice(0, 1).toUpperCase()}</span>
+          <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-ink-solid text-[13px] font-semibold text-ink-on sm:h-9 sm:w-9 sm:text-[14px]">{tenant.name.trim().slice(0, 1).toUpperCase()}</span>
           {google.line?.tone === "ok" && <span aria-hidden className="absolute -bottom-px -right-px h-[11px] w-[11px] rounded-full bg-pos ring-2 ring-surface" />}
         </span>
         <span className="min-w-0">
-          <span className="line-clamp-2 break-words text-[14px] font-semibold leading-[1.2] md:block md:truncate md:text-[14.5px]">{tenant.name}</span>
+          <span className="line-clamp-2 break-words text-[14px] font-semibold leading-[1.2] md:block md:truncate md:text-[14.5px]">{titleName(tenant.name)}</span>
           {google.line && <span className="hidden items-center gap-1.5 text-xs leading-[1.3] text-muted min-[860px]:flex"><StatusDot tone={google.line.tone} /><span className="truncate">{google.line.label}</span></span>}
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden /></>}>
@@ -208,11 +210,11 @@ function AppShellInner({ children }: { children: ReactNode }) {
     <div className="fq-root isolate bg-canvas" style={{ ["--sb" as string]: `${collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open}px` }}>
       <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
       <div aria-hidden className="fq-ambient"><i /><i /><i /></div>
-      <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} counts={counts} />
+      <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} counts={counts} sub={s ?? null} />
       <TiltEffect />
       <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
         <header className={clsx("top-glass sticky top-0 z-30", scrolled && "scrolled")}>
-          <div className="mx-auto flex h-[60px] w-full max-w-[1320px] sm:h-[68px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
+          <div className="mx-auto flex h-[60px] w-full max-w-[1320px] min-[1024px]:max-w-[1360px] sm:h-[68px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none md:gap-1.5">
               <Logo href="/overview" auto markOnly size={30} label="FlowQR home" className="h-11 shrink-0 justify-center px-1.5 sm:hidden" />
               <Logo href="/overview" auto tagline={false} size={28} label="FlowQR home" className="hidden h-11 shrink-0 px-1.5 sm:inline-flex md:hidden" />
@@ -230,7 +232,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1320px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
+        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1320px] min-[1024px]:max-w-[1360px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
           <StatusStrip notices={path.startsWith("/settings/billing") ? notices.filter((n) => !n.href.startsWith("/settings/billing")) : notices} />
           <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialPill s={s ?? null} path={path} className="min-[1280px]:hidden" />}<LocationPicker className="md:hidden" /></div>
           {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}

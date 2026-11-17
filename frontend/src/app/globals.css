@@ -65,6 +65,13 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
     .fq-root { zoom: var(--fq-zoom); min-height: calc(100dvh / var(--fq-zoom)); }
   }
   @media (min-width: 1024px) and (min-resolution: 1.2dppx) { :root { --fq-zoom: .86; } }
+  /* The navy sidebar. Inside it the colour tokens are remapped to a navy scale (white text, lighter-navy wells, white where the app uses its orange), so every control that already reads
+     text-ink / bg-surface-2 / text-muted (theme toggle, help menu, badges) works there without being restyled. Orange stays reserved for call-to-action buttons. */
+  html.fq-app .fq-navy { color-scheme: dark; color: #fff; --logo-ink: #FFFFFF;
+    --c-ink: 255 255 255; --c-ink-800: 240 242 250; --c-ink-700: 214 219 238; --c-ink-600: 190 197 224; --c-ink-500: 165 173 205; --c-ink-400: 138 147 184; --c-ink-300: 98 107 152; --c-ink-200: 64 73 122; --c-ink-100: 46 55 106; --c-ink-50: 36 44 92;
+    --c-surface: 26 33 78; --c-surface-2: 38 47 102; --c-surface-3: 52 62 122; --c-muted: 165 173 205; --c-line: 46 55 106;
+    --c-white: 255 255 255; --c-accent: 255 255 255; --c-accent-ink: 255 255 255; --c-accent-tint: 38 47 102; --c-accent-edge: 70 80 140; --c-on-accent: 17 23 63; --c-pos: 94 200 138; }
+  html.fq-app[data-theme="dark"] .fq-navy { --logo-ink: #FFFFFF; }
   /* The FlowQr logo on the app's own grounds: navy squares and wordmark on light, white on dark (the orange never changes). */
   html.fq-app { --logo-ink: #11173F; } html.fq-app[data-theme="dark"] { --logo-ink: #FFFFFF; }
   /* Smooth by default: anything that changes colour, border, shadow or opacity eases there instead of snapping. Zero specificity (:where), so a component's own transition always wins. */
@@ -166,7 +173,7 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   /* The glow behind the app: three huge soft colour pools that drift very slowly. It is only there so glass has something to frost; transform-only, stopped by reduced motion. */
   .fq-ambient { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
   .fq-ambient i { position: absolute; display: block; border-radius: 50%; will-change: transform; }
-  .fq-ambient i:nth-child(1) { width: 62vmax; height: 62vmax; left: -18vmax; top: -26vmax; background: radial-gradient(closest-side, rgb(var(--c-accent) / .2), transparent); animation: fq-drift-a 42s ease-in-out infinite alternate; }
+  .fq-ambient i:nth-child(1) { width: 62vmax; height: 62vmax; left: -18vmax; top: -26vmax; background: radial-gradient(closest-side, rgb(var(--c-tone-blue) / .16), transparent); animation: fq-drift-a 42s ease-in-out infinite alternate; }
   .fq-ambient i:nth-child(2) { width: 56vmax; height: 56vmax; right: -20vmax; top: 6vmax; background: radial-gradient(closest-side, rgb(var(--c-tone-blue) / .17), transparent); animation: fq-drift-b 50s ease-in-out infinite alternate; }
   .fq-ambient i:nth-child(3) { width: 52vmax; height: 52vmax; left: 22%; bottom: -30vmax; background: radial-gradient(closest-side, rgb(var(--c-tone-teal) / .14), transparent); animation: fq-drift-c 58s ease-in-out infinite alternate; }
   html.fq-app[data-theme="dark"] .fq-ambient i { opacity: .8; }
@@ -191,7 +198,7 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   @property --beam { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
   .beam { position: relative; }
   .beam::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 1;
-    background: conic-gradient(from var(--beam), transparent 0 68%, rgb(var(--c-accent) / .9) 82%, rgb(var(--c-tone-amber)) 92%, transparent 100%);
+    background: conic-gradient(from var(--beam), transparent 0 68%, rgb(var(--c-tone-blue) / .85) 84%, rgb(var(--c-tone-sky)) 93%, transparent 100%);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask-composite: exclude;
     animation: fq-beam 9s linear infinite; opacity: .75; }
   @keyframes fq-beam { to { --beam: 360deg; } }
