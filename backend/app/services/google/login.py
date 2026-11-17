@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 import jwt
@@ -48,6 +48,22 @@ class GoogleIdentity:
     email: str | None
     email_verified: bool
     name: str | None
+    picture: str | None = None
+
+
+def safe_picture(url) -> str | None:
+    """The profile photo link from the ID token, kept only if it is an https URL on Google's own image host (lh3.googleusercontent.com and its siblings) and short enough to store.
+    Anything else (another host, http, a data: URL, credentials in the URL, a very long string) is dropped, so a forged or odd claim can never make the app load an arbitrary address."""
+    if not isinstance(url, str) or not url or len(url) > 500:
+        return None
+    try:
+        p = urlsplit(url.strip())
+    except ValueError:
+        return None
+    host = (p.hostname or "").lower()
+    if p.scheme != "https" or p.username or p.password or p.port not in (None, 443) or not (host == "googleusercontent.com" or host.endswith(".googleusercontent.com")):
+        return None
+    return url.strip()
 
 
 def pkce_challenge(verifier: str) -> str:
@@ -155,6 +171,7 @@ class HttpGoogleLoginProvider:
             email=email.strip().lower() if isinstance(email, str) and email.strip() else None,
             email_verified=_truthy(claims.get("email_verified")),
             name=claims.get("name") if isinstance(claims.get("name"), str) else None,
+            picture=safe_picture(claims.get("picture")),
         )
 
 

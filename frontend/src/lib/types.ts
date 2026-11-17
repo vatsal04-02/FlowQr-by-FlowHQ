@@ -8,7 +8,7 @@ export interface Tenant {
   /** reviews per calendar month the owner aims for; null = not set (the Overview suggests one) */
   review_goal?: number | null;
 }
-export interface User { id: string; email: string; full_name: string; phone: string | null; is_platform_admin: boolean; email_verified_at: string | null; has_local_login: boolean; google_linked: boolean }
+export interface User { id: string; email: string; full_name: string; phone: string | null; picture_url?: string | null; is_platform_admin: boolean; email_verified_at: string | null; has_local_login: boolean; google_linked: boolean }
 export interface Me {
   user: User; memberships: { tenant: Tenant; role: Role }[]; active_tenant_id: string | null; csrf_token: string;
   integrations: { google_configured: boolean; ai_configured: boolean; public_card_base_url: string };

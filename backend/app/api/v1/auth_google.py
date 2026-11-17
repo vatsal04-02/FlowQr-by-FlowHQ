@@ -168,6 +168,7 @@ def _link_existing(db: Session, request: Request, session_token, flow: _Flow, id
     if (owner and owner.id != user.id) or (user.google_sub and user.google_sub != identity.sub):
         return fail("already_linked")
     user.google_sub = identity.sub
+    user.picture_url = identity.picture
     audit(db, action="auth.google_linked", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request))
     db.commit()
     return _done(_redirect("/settings/account", google="linked"))
@@ -209,6 +210,7 @@ def _sign_in(db: Session, request: Request, identity, fail) -> RedirectResponse:
     elif not user.is_active:
         return fail("account_disabled")
 
+    user.picture_url = identity.picture  # follows the photo Google has now (None when it has none or the link is not Google's)
     user.last_login_at = utcnow()
     response = _redirect("/onboarding" if created else "/overview")
     _start_session(db, user, request, response)

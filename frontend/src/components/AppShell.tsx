@@ -22,6 +22,7 @@ import { TiltEffect } from "./shell/Tilt";
 import { Tour, TourIcon } from "./shell/Tour";
 import { StatusStrip } from "./shell/StatusStrip";
 import { Crumbs, SearchPill, StatusDot, SyncChip, TrialPill, useGoogleHeader } from "./shell/TopBar";
+import { Avatar } from "./ui/Avatar";
 import { Logo, LogoMark } from "./ui/Brand";
 import { Splash } from "./shell/Splash";
 
@@ -143,7 +144,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
 
   const switchTenant = async (id: string) => { await api("/auth/select-tenant", { method: "POST", params: { tenant_id: id } }); await refresh(); router.refresh(); };
   const name = me.user.full_name?.trim() || me.user.email;
-  const avatar = <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-solid text-[13px] font-semibold text-ink-on">{initials(me.user.full_name, me.user.email)}</span>;
+  const avatar = <Avatar src={me.user.picture_url} initials={initials(me.user.full_name, me.user.email)} className="h-9 w-9" />;
   const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
 
   const business = (
@@ -181,7 +182,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const account = (
     <PopoverButton label="Account menu" align="right"
       buttonClass="grid h-11 w-11 place-items-center rounded-full transition-transform duration-300 ease-spring hover:scale-105 motion-reduce:transition-none motion-reduce:hover:transform-none"
-      icon={<span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-ink-solid text-[12px] font-semibold text-ink-on ring-1 ring-line sm:h-9 sm:w-9 sm:text-[13px]">{initials(me.user.full_name, me.user.email)}</span>}>
+      icon={<Avatar src={me.user.picture_url} initials={initials(me.user.full_name, me.user.email)} className="h-8 w-8 ring-1 ring-line sm:h-9 sm:w-9" textClass="text-[12px] sm:text-[13px]" />}>
       {(close) => (
         <div className="p-1">
           <div className="flex items-center gap-3 px-3 pb-3 pt-2">

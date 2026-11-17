@@ -63,6 +63,8 @@ class User(IdMixin, TimestampMixin, Base):
     # Google's stable account id (the ID token `sub`). Never derived from, or matched by, email alone.
     google_sub: Mapped[str | None] = mapped_column(String(255), unique=True)
     full_name: Mapped[str] = mapped_column(String(200))
+    # The Google account photo (an https link on Google's own image host, refreshed at each Google sign-in). Never the image itself; NULL for everyone who has not signed in with Google.
+    picture_url: Mapped[str | None] = mapped_column(String(500))
     phone: Mapped[str | None] = mapped_column(String(32))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False)

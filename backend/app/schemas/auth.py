@@ -69,6 +69,7 @@ class UserOut(ORM):
     email: str
     full_name: str
     phone: str | None
+    picture_url: str | None = None  # the Google account photo, when the person has signed in with Google
     is_platform_admin: bool
     email_verified_at: datetime | None = None
     has_local_login: bool = True  # False for Google-only accounts
