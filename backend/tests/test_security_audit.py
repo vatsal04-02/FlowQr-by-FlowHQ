@@ -27,7 +27,8 @@ from tests.test_location_permissions import invite
 # discloses a revision, a host or an error message).
 PUBLIC_PREFIXES = (
     "/api/health", "/api/ready", "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/password-reset", "/api/v1/auth/verify-email", "/api/v1/auth/google",
-    "/api/v1/invitations/accept", "/api/v1/public/", "/api/v1/r/", "/api/v1/review-public", "/api/v1/billing/razorpay/webhook", "/api/v1/google/callback",
+    "/api/v1/invitations/accept", "/api/v1/public/", "/api/v1/go/",  # go: the QR/NFC redirect door, public like /public/c (rate limited, 404 for unknown codes, destination only from the database)
+     "/api/v1/r/", "/api/v1/review-public", "/api/v1/billing/razorpay/webhook", "/api/v1/google/callback",
     "/api/v1/legal", "/api/v1/leads", "/api/v1/billing/plans",
     "/api/v1/auth/registration",  # GET: only the registration MODE (closed/allowlist/open), nothing about any address
     "/api/v1/auth/providers",  # GET: one boolean, whether Google sign-in is configured
