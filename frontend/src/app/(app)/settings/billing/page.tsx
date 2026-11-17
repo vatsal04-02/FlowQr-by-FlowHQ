@@ -4,7 +4,8 @@ import { useState } from "react";
 import { PlanCards } from "@/components/PlanCards";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton } from "@/components/ui/Card";
-import { Meter } from "@/components/ui/kit";
+import { Ring } from "@/components/charts/Bars";
+import { CountUp } from "@/components/charts/CountUp";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -15,12 +16,14 @@ import { fmtDate } from "@/lib/format";
 import type { Plan, PlansResponse, SubscriptionEvent, SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
+/** One usage figure as a ring plus the exact "used / limit" (full or near-full turns amber then red). Real numbers from the subscription's usage and limits only. */
 function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number }) {
-  const pct = limit ? (used / limit) * 100 : 0;
+  const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
+  const tone = pct >= 90 ? "bad" : pct >= 70 ? "watch" : "good";
   return (
-    <div>
-      <div className="mb-1.5 flex justify-between text-[13px]"><span className="font-medium text-ink-700">{label}</span><span className="num text-ink-500">{used.toLocaleString("en-IN")} / {limit.toLocaleString("en-IN")}</span></div>
-      <Meter label={label} value={used} max={limit} tone={pct >= 90 ? "bad" : pct >= 70 ? "warn" : "info"} />
+    <div className="flex items-center gap-3.5 rounded-[14px] bg-surface-2 p-3">
+      <Ring value={limit ? pct : null} size={64} stroke={8} tone={tone} label={`${label}: ${used} of ${limit}`}><b className="num text-[15px] font-semibold"><CountUp value={used} /></b></Ring>
+      <div className="min-w-0"><p className="text-[13.5px] font-medium leading-5 text-ink">{label}</p><p className="num text-[13px] text-muted">{used.toLocaleString("en-IN")} / {limit.toLocaleString("en-IN")}{limit > 0 && used >= limit ? " · full" : ""}</p></div>
     </div>
   );
 }
@@ -168,7 +171,7 @@ export default function SubscriptionPage() {
               {s.pending_plan && s.status !== "trialing" && <p className="mt-2 text-sm text-ink-500">Switching to <b>{s.pending_plan_name ?? s.pending_plan}</b> {s.pending_plan_effective_at ? <>on <b>{fmtDate(s.pending_plan_effective_at)}</b></> : "at the next renewal"}. Nothing extra is charged.</p>}
               {isOwner && !s.cancel_at_period_end && ((s.has_razorpay_subscription && ["active", "past_due"].includes(s.status)) || (isCf && s.has_cashfree_subscription && ["trialing", "active", "past_due"].includes(s.status) && ["authorized", "bank_pending", "initialized", "paused"].includes(s.authorization_status ?? ""))) && <Button className="mt-4" variant="danger" size="sm" onClick={() => setCancelOpen(true)}>Cancel subscription</Button>}
             </div>
-            <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               <UsageMeter label="Locations" used={s.usage.locations} limit={s.limits.locations} />
               <UsageMeter label="AI review generations this month" used={s.usage.review_generations} limit={s.limits.review_generations} />
               <UsageMeter label="AI review replies this month" used={s.usage.review_replies} limit={s.limits.review_replies} />

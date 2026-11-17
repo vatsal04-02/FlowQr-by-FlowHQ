@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LocationScopeProvider, useLocationScope } from "@/lib/location-scope";
-import { navFor } from "@/lib/nav";
+import { locate, navFor } from "@/lib/nav";
 import { useCounts } from "@/lib/use-counts";
 import { useAppChrome } from "@/lib/theme";
 import type { SubscriptionInfo } from "@/lib/types";
@@ -19,6 +19,7 @@ import { BottomNav, MoreSheet } from "./shell/BottomNav";
 import { HelpMenu, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
 import { Sidebar, SIDEBAR_W } from "./shell/Sidebar";
 import { TiltEffect } from "./shell/Tilt";
+import { Tour, TourIcon } from "./shell/Tour";
 import { StatusStrip } from "./shell/StatusStrip";
 import { Crumbs, SearchPill, StatusDot, SyncChip, TrialPill, useGoogleHeader } from "./shell/TopBar";
 import { LogoMark } from "./ui/Brand";
@@ -56,6 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [palette, setPalette] = useState(false);
   const [more, setMore] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [tour, setTour] = useState(false);
   useAppChrome();
   const sub = useFetch<SubscriptionInfo>(tenant ? "/billing/subscription" : null);
   const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
@@ -90,6 +92,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setPalette(false); setMore(false); }, [path]);
 
   const s = sub.data;
+  // Each page eases in when you move between pages. Keyed by the page (not the full path), so choosing another review or tab on the same page does not remount its list.
+  const at = locate(path);
+  const routeKey = at ? `${at.dest.id}:${at.child?.href ?? ""}` : path;
   const notices = useMemo<Notice[]>(() => {
     const out: Notice[] = [];
     if (s && !s.active) out.push({ id: "inactive", tone: "bad", title: "Plan inactive", body: "Your data is safe and your cards keep working. Editing, AI and sync are paused until you choose a plan.", href: "/settings/billing", cta: "Choose a plan" });
@@ -166,6 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {canBill && <Link href="/settings/billing" onClick={close} className={rowCls}><CreditCard className="h-4 w-4 text-ink-500" aria-hidden />Plan and billing</Link>}
             <Link href="/settings/team" onClick={close} className={rowCls}><Users className="h-4 w-4 text-ink-500" aria-hidden />Team</Link>
             <Link href="/settings/appearance" onClick={close} className={rowCls}>Appearance</Link>
+            <button type="button" onClick={() => { close(); setTour(true); }} className={clsx(rowCls, "hidden w-full text-left md:flex")}><TourIcon className="h-4 w-4 text-ink-500" aria-hidden />Take a quick tour</button>
             {me.user.is_platform_admin && <Link href="/admin" onClick={close} className={rowCls}><ShieldCheck className="h-4 w-4" aria-hidden />Platform admin</Link>}
             <div className="flex min-h-11 items-center justify-between gap-2 px-3"><span className="font-medium">Theme</span><ThemeToggle small /></div>
             <button type="button" onClick={() => { close(); void logout(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left font-medium text-neg hover:bg-neg-tint"><LogOut className="h-4 w-4" aria-hidden />Log out</button>
@@ -182,6 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a href="#app-main" className="sr-only z-[60] rounded-lg bg-surface px-4 py-2 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Skip to content</a>
       <Sidebar path={path} dests={dests} collapsed={collapsed} onToggle={toggleSidebar} help={help(true)} counts={counts} />
       <TiltEffect />
+      <Tour open={tour} onClose={() => setTour(false)} />
       <div className="transition-[padding] duration-200 ease-out motion-reduce:transition-none md:pl-[var(--sb)]">
         <header className={clsx("top-glass sticky top-0 z-30", scrolled && "scrolled")}>
           <div className="mx-auto flex h-[68px] w-full max-w-[1240px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
@@ -206,7 +213,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialPill s={s ?? null} path={path} className="min-[1280px]:hidden" />}<LocationPicker className="md:hidden" /></div>
           {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}
           <SubNav path={path} dests={dests} hidePrimaryOnWide={!collapsed} />
-          {children}
+          <div key={routeKey} className="fq-page">{children}</div>
         </main>
       </div>
       <BottomNav path={path} dests={dests} moreOpen={more} onMore={setMore} />

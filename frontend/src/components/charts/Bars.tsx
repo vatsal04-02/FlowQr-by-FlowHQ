@@ -8,7 +8,7 @@ export interface BarDatum { key: string; label: string; cur: number; prev?: numb
  * Counts as bars, never a smoothed line. This period is solid chart blue; the period before is a grey outline beside it; an optional goal is one dashed line. Every bar can be reached
  * with the keyboard (Tab, then the value shows) and tapped on a phone; "View as table" gives the same numbers as text.
  */
-export function Bars({ data, goal, goalLabel, height = 168, label, unit = "reviews" }: { data: BarDatum[]; goal?: number | null; goalLabel?: string; height?: number; label: string; unit?: string }) {
+export function Bars({ data, goal, goalLabel, height = 168, label, unit = "reviews", color }: { data: BarDatum[]; goal?: number | null; goalLabel?: string; height?: number; label: string; unit?: string; color?: string }) {
   const [on, setOn] = useState<number | null>(null);
   const [table, setTable] = useState(false);
   const id = useId();
@@ -35,7 +35,7 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
               aria-label={`${d.label}: ${d.cur} ${unit}${hasPrev && d.prev !== null && d.prev !== undefined ? `, ${d.prev} before` : ""}`}
               className={clsx("relative flex h-full !min-h-0 !min-w-0 flex-1 items-end justify-center gap-[3px] rounded-[6px] outline-offset-2", on === i && "bg-surface-2")}>
               {hasPrev && <span aria-hidden className="w-[38%] max-w-[16px] rounded-t-[3px] border border-ink-400 bg-surface" style={{ height: d.prev ? pct(d.prev) : 0 }} />}
-              <span aria-hidden className="fq-bar w-[38%] max-w-[16px] rounded-t-[3px] bg-chart" style={{ height: d.cur ? pct(d.cur) : "2px", opacity: d.cur ? 1 : 0.25 }} />
+              <span aria-hidden className="fq-bar w-[38%] max-w-[16px] rounded-t-[3px] bg-chart" style={{ height: d.cur ? pct(d.cur) : "2px", opacity: d.cur ? 1 : 0.25, ...(color ? { background: color } : {}) }} />
             </button>
           ))}
         </div>

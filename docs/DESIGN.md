@@ -102,6 +102,17 @@ Trends use a line or bars, comparisons horizontal bars, progress a simple bar or
 * Share rings (`Donut` + `Legend`) always print every count and percentage beside the colour.
 * A review's timeline (Reviews › detail) shows only steps that have a stored timestamp: received, drafted, approved, sent, or a reply made on Google.
 
+### Data screens and motion, Phases 3 and 4 (premium pass)
+
+* **Rankings:** "What people search" is a stacked share bar plus coloured rows from Google's stored search terms. A term Google reports only as "fewer than 15" has no number and is left out of the shares. With no tracked words the card says so and shows the real terms people already use.
+* **Performance:** an all-actions area chart and share ring from stored daily figures (same rules as Home), then one toned card per metric with its own coloured daily bars and change against the period before.
+* **Profile:** the shared score ring with count-up; "Why this matters" is the real `reason` the API returns for each check, in an accordion that opens by growing (`ui/Accordion`).
+* **Goals:** pace row: cells filled by the real count, a marker at goal x share of the month gone. Funnel steps keep one hue each.
+* **Tasks / Approvals:** a kind icon per task; snoozed and dismissed tasks slide out (380 ms) before the list reloads; Approvals shows a count strip of what is waiting.
+* **Plan:** usage as rings with the exact "used / limit"; plan columns are tinted per tier.
+* **Every page** eases in when you move between pages (`.fq-page`, keyed by destination and page so a list's state survives choosing another item). All other screens (Drafts, Reports, Campaigns, Cards, Locations, Helpers, Write a post, Activity, Settings, Payments) take the new card depth and tone tokens through the shared `.panel` and tokens with no content change.
+* **Guided tour** (Account menu, tablet and desktop): a pointer opens Home, Reviews, Profile, Rankings and Goals with the person's own data. It only navigates; it never clicks anything that changes data. Any click or Escape stops it.
+
 ## 7. Data honesty
 
 * No sample data in production, ever. An unavailable number says so; there are no fake zeros and no history is back-filled.

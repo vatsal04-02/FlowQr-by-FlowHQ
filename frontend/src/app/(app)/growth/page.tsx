@@ -1,7 +1,9 @@
 "use client";
+import clsx from "clsx";
 import { Download, Image as ImageIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Ring, toneOf } from "@/components/charts/Bars";
+import { CountUp } from "@/components/charts/CountUp";
 import { SendLink } from "@/components/growth/SendLink";
 import { DoThisWeek, type GrowthScore } from "@/components/home/v2";
 import { Card, SeeAll, Title } from "@/components/seo/visuals";
@@ -19,6 +21,7 @@ import { useFetch } from "@/lib/use-api";
 interface Campaign { id: string; name: string; status: string; url: string; location_name: string | null }
 interface Funnel { funnel: { key: string; label: string; count: number }[] }
 const STEPS: [string, string][] = [["scans", "Scans"], ["feedback_submitted", "Feedback"], ["drafts_approved", "Approved"], ["google_redirects", "To Google"]];
+const STEP_HUE = ["rgb(var(--c-tone-blue))", "rgb(var(--c-tone-teal))", "rgb(var(--c-tone-amber))", "rgb(var(--c-pos))"];
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 function saveBlob(blob: Blob, name: string) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
@@ -83,32 +86,33 @@ export default function GoalsPage() {
     <>
       <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Goals</h1>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <Card label="This month" className="lg:col-span-7">
+        <Card label="This month" tone="teal" className="lg:col-span-7">
           <Title>This month</Title>
           {score.loading && !rv ? <Skeleton className="mt-3 h-36" /> : (
             <div className="mt-3 flex flex-wrap items-center gap-5">
               <Ring value={rv && rv.goal ? Math.min(100, ((rv.count ?? 0) / rv.goal) * 100) : null} tone={paceTone(rv)} size={120} stroke={11} label={`${rv?.count ?? 0} of ${rv?.goal ?? "–"} reviews this month`}>
-                <span><b className="num block text-[30px] font-semibold leading-none">{rv?.count ?? "–"}</b><span className="num text-[12px] text-muted">of {rv?.goal ?? "–"}</span></span>
+                <span><b className="num block text-[30px] font-semibold leading-none">{rv?.count == null ? "–" : <CountUp value={rv.count} />}</b><span className="num text-[12px] text-muted">of {rv?.goal ?? "–"}</span></span>
               </Ring>
               <div className="min-w-0 flex-1 space-y-1 text-[14px]">
-                <p><b className="num text-[20px] font-semibold">{rv?.to_go ?? "–"}</b> <span className="text-muted">to go</span></p>
+                <p><b className="num text-[20px] font-semibold">{rv?.to_go == null ? "–" : <CountUp value={rv.to_go} />}</b> <span className="text-muted">to go</span></p>
                 <p><b className="num text-[20px] font-semibold">{rv?.days_left ?? "–"}</b> <span className="text-muted">days left</span></p>
                 {isAdmin && <button type="button" onClick={() => { setGoalVal(String(rv?.goal ?? 10)); setGoalOpen(true); }} className="!min-h-0 text-[13px] text-muted underline underline-offset-2">{rv?.goal_set ? "Edit goal" : "Set goal"}</button>}
               </div>
+              {rv && rv.goal ? <Pace count={rv.count ?? 0} goal={rv.goal} daysLeft={rv.days_left ?? 0} /> : null}
               <div className="w-full sm:w-auto">{pick ? <SendLink url={pick.url} name={tenant?.name ?? pick.name} label="Send review link" variant="brand" size="md" className="w-full sm:w-auto" /> : <LinkButton href="/gbp/campaigns" variant="brand" className="w-full sm:w-auto">Create a campaign</LinkButton>}</div>
             </div>
           )}
         </Card>
 
-        <Card label="From card to Google" className="lg:col-span-5">
+        <Card label="From card to Google" tone="blue" className="lg:col-span-5">
           <Title right={<SeeAll href="/growth/funnel">By card</SeeAll>}>Card to Google<span className="sr-only">. A tap on To Google is not a review.</span></Title>
           {funnel.loading && !funnel.data ? <Skeleton className="mt-3 h-36" /> : (
             <ol className="mt-3 space-y-2.5">
               {vals.map(([l, v], i) => (
                 <li key={l} className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-[14px]">
                   <span className="text-ink-700">{l}</span>
-                  <span aria-hidden className="h-3 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full bg-chart" style={{ width: `${v ? Math.max(3, (v / top) * 100) : 0}%`, opacity: 1 - i * 0.15 }} /></span>
-                  <b className="num text-right font-semibold">{fmtNum(v)}</b>
+                  <span aria-hidden className="h-3 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full" style={{ background: STEP_HUE[i], width: `${v ? Math.max(3, (v / top) * 100) : 0}%`, animationDelay: `${i * 90}ms` }} /></span>
+                  <b className="num text-right font-semibold"><CountUp value={v} /></b>
                 </li>
               ))}
             </ol>
@@ -116,7 +120,7 @@ export default function GoalsPage() {
         </Card>
 
 
-        <Card label="Share your wins" className="lg:col-span-5">
+        <Card label="Share your wins" tone="amber" className="lg:col-span-5">
           <Title>Share your wins</Title>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button variant="secondary" loading={busy === "img"} disabled={!r || r.average_rating_all_time === null} onClick={() => void shareRating()} icon={<ImageIcon className="h-4 w-4" aria-hidden />}>Rating image</Button>
@@ -140,4 +144,21 @@ function paceTone(rv: { count?: number | null; goal?: number | null; days_left?:
   const now = new Date(), days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const gone = Math.max(1, days - (rv.days_left ?? 0)) / days;
   return toneOf((rv.count ?? 0) / Math.max(1, rv.goal * gone));
+}
+
+/** Ten-or-fewer cells for the month's goal, filled as far as the count, with a marker where the month says you should be by today (goal x share of the month gone). Only counts and the calendar are used. */
+function Pace({ count, goal, daysLeft }: { count: number; goal: number; daysLeft: number }) {
+  const now = new Date(), days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const gone = Math.max(1, days - daysLeft) / days, expected = goal * gone, cells = Math.min(goal, 20);
+  const filled = Math.min(cells, Math.round((count / goal) * cells)), mark = (expected / goal) * 100;
+  const diff = count - expected;
+  return (
+    <div className="mt-1 w-full">
+      <div className="mb-2 flex justify-between text-[13px] text-muted"><span>Pace for today <b className="num text-ink">{expected.toFixed(1)}</b></span><span>You <b className="num text-ink">{count}</b> · {diff >= 0 ? `${diff.toFixed(1)} ahead` : `${Math.abs(diff).toFixed(1)} behind`}</span></div>
+      <div className="relative flex gap-[5px]" role="img" aria-label={`${count} of ${goal} reviews; the pace for today is ${expected.toFixed(1)}`}>
+        {Array.from({ length: cells }, (_, i) => <i key={i} className={clsx("fq-bar-x h-4 flex-1 rounded-[6px]", i < filled ? "bg-[rgb(var(--c-tone-teal))]" : "bg-surface-3")} style={{ animationDelay: `${i * 50}ms` }} />)}
+        <span aria-hidden className="absolute -bottom-1.5 -top-1.5 w-0.5 rounded bg-ink-solid" style={{ left: `${Math.min(100, mark)}%` }} />
+      </div>
+    </div>
+  );
 }

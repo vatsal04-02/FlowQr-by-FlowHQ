@@ -2,18 +2,24 @@
 import clsx from "clsx";
 import { ArrowDownRight, ArrowUpRight, Download, Minus } from "lucide-react";
 import type { ReactNode } from "react";
+import { AreaChart } from "@/components/charts/AreaChart";
 import { Bars } from "@/components/charts/Bars";
+import { CountUp } from "@/components/charts/CountUp";
+import { Donut, Legend, type Slice } from "@/components/charts/Donut";
 import type { Range } from "@/components/DateRange";
 import { SourceTag } from "@/components/seo/parts";
 import { Card, Dashes, Title } from "@/components/seo/visuals";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
+import { canDrawArea, dailyStack } from "@/lib/charts";
 import { fmtNum } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
 import type { GoogleMetrics, GoogleMetricSummary } from "@/lib/seo";
 import { useFetch } from "@/lib/use-api";
 
+const TONES: Record<string, "teal" | "blue" | "amber" | "rose"> = { calls: "teal", directions: "blue", website: "amber", search_views: "rose" };
+const HUE: Record<string, string> = { calls: "rgb(var(--c-tone-teal))", directions: "rgb(var(--c-tone-blue))", website: "rgb(var(--c-tone-amber))" };
 const CARDS: [keyof GoogleMetricSummary, string, string[]][] = [
   ["calls", "Calls", ["CALL_CLICKS"]], ["directions", "Directions", ["BUSINESS_DIRECTION_REQUESTS"]], ["website", "Website clicks", ["WEBSITE_CLICKS"]],
   ["search_views", "Profile views", ["BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS"]],
@@ -59,14 +65,32 @@ export function GoogleHistory({ range, extra }: { range: Range; extra?: ReactNod
   }
   return (
     <div className="space-y-3 lg:space-y-4">
+      {(() => {
+        const actions = CARDS.slice(0, 3);
+        const days = dailyStack(d!.series, actions.map(([, , m]) => m));
+        const slices: Slice[] = actions.filter(([k]) => val(d!.current, k) !== null).map(([k, l]) => ({ key: k, label: l, value: val(d!.current, k) as number, color: HUE[k] }));
+        const sum = slices.reduce((a, x) => a + x.value, 0);
+        return (
+          <Card label="All customer actions" tone="blue">
+            <Title right={<SourceTag source="google" />}>All customer actions</Title>
+            <div className="mt-3 grid gap-5 md:grid-cols-[minmax(0,1fr)_210px]">
+              <div className="min-w-0">{canDrawArea(days)
+                ? <AreaChart days={days} names={actions.map(([, l]) => l)} colors={actions.map(([k]) => HUE[k])} ariaLabel="Calls, directions and website clicks per day, as reported by Google" />
+                : <p className="rounded-[12px] bg-surface-2 p-3 text-[13px] text-muted">The daily chart appears once Google has shared three days in a row ({d!.days_with_data} so far). The totals are on the cards below.</p>}</div>
+              {sum > 0 && <div className="flex flex-col items-center gap-3 md:items-stretch"><div className="flex justify-center"><Donut slices={slices} size={140} stroke={19} label="Share of calls, directions and website clicks" centre={<CountUp value={sum} />} sub="actions" /></div><Legend slices={slices} /></div>}
+            </div>
+            <p className="mt-3 text-[12px] text-muted">Days Google has not reported are left out, never counted as zero.</p>
+          </Card>
+        );
+      })()}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
         {CARDS.map(([k, label, metrics]) => {
           const cur = val(d!.current, k), prev = d!.previous ? val(d!.previous, k) : null;
           return (
-            <Card key={k} label={label}>
+            <Card key={k} label={label} tone={TONES[k]} tilt>
               <Title>{label}</Title>
-              <p className="mt-1 flex items-baseline gap-2"><span className="num text-[28px] font-semibold leading-9 tracking-[-.02em]">{cur === null ? "–" : fmtNum(cur)}</span><Change cur={cur} prev={prev} /></p>
-              <div className="mt-3"><Bars data={sum(metrics)} height={110} label={`${label} per day`} unit={label.toLowerCase()} /></div>
+              <p className="mt-1 flex items-baseline gap-2"><span className="num text-[28px] font-semibold leading-9 tracking-[-.02em]">{cur === null ? "–" : <CountUp value={cur} />}</span><Change cur={cur} prev={prev} /></p>
+              <div className="mt-3"><Bars data={sum(metrics)} height={110} color={HUE[k] ?? "rgb(var(--c-tone-rose))"} label={`${label} per day`} unit={label.toLowerCase()} /></div>
             </Card>
           );
         })}

@@ -17,7 +17,7 @@ export default function Recommendations() {
       <PageHeader title="Tasks" subtitle="Things that would help your business, with the reason for each."
         actions={<Segmented label="Show" value={scope} onChange={setScope} options={[["open", "Open"], ["history", "History"]] as const} />} />
       <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Filter by kind">
-        {KINDS.map(([k, l]) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`min-h-9 rounded-full border px-3 text-[13px] font-medium ${kind === k ? "border-brand-600 bg-brand-50 text-brand-700" : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50"}`}>{l}</button>)}
+        {KINDS.map(([k, l]) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`min-h-9 rounded-full px-3.5 text-[13px] font-medium transition-[background-color,color,transform] duration-200 ease-spring active:scale-95 ${kind === k ? "bg-ink-solid text-ink-on" : "bg-surface text-ink-700 ring-1 ring-line hover:bg-surface-2"}`}>{l}</button>)}
       </div>
       {error && <Alert tone="error">{error}</Alert>}
       {loading && !data ? <Skeleton className="h-48" /> : (data?.tasks.length ?? 0) === 0 ? <EmptyState title={scope === "open" ? "Nothing open" : "No history yet"}>{scope === "open" ? "No open recommendations in this view." : "Finished tasks appear here."}</EmptyState>

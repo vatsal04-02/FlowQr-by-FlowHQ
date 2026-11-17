@@ -1,5 +1,6 @@
 "use client";
-import { Check, Clock, ExternalLink, PenLine, X } from "lucide-react";
+import clsx from "clsx";
+import { BookOpen, Check, Clock, ExternalLink, ImageIcon, Megaphone, MessageSquare, PenLine, Plug, Store, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
@@ -15,6 +16,9 @@ import { timeAgo } from "@/lib/format";
 const OPEN_LINK: Partial<Record<Task["kind"], [string, string]>> = {
   connect_google: ["/gbp/locations", "Open Google connection"], complete_knowledge: ["/settings/ai/brain", "Open Knowledge Base"], add_photo: ["/gbp/photos", "Open Photos & Media"],
   profile_fix: ["/gbp/info", "Open Profile Manager"],
+};
+const KIND_ICON: Record<string, [LucideIcon, string]> = {
+  reply_review: [MessageSquare, "t-amber"], create_post: [Megaphone, "t-accent"], profile_fix: [Store, "t-blue"], add_photo: [ImageIcon, "t-rose"], connect_google: [Plug, "t-sky"], complete_knowledge: [BookOpen, "t-teal"],
 };
 const AI_KINDS = new Set(["reply_review", "create_post"]);
 
@@ -32,11 +36,17 @@ export function TaskCard({ t, onChange }: { t: Task; onChange: () => void }) {
   const [viol, setViol] = useState<Violation[]>([]);
   const [text, setText] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const st = TASK_LABEL[t.status];
 
   async function run(key: string, fn: () => Promise<unknown>, ok?: string) {
     setBusy(key); setError(null);
-    try { await fn(); if (ok) toast(ok); onChange(); }
+    try {
+      await fn(); if (ok) toast(ok);
+      // snoozed and dismissed tasks leave the list: slide out first (380 ms; instant for reduced motion), then reload
+      if ((key === "snooze" || key === "dismiss") && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setLeaving(true); await new Promise((r) => setTimeout(r, 380)); }
+      onChange();
+    }
     catch (e) {
       if (e instanceof ApiError && e.code === "safety_violation") setViol(((e.detail as { violations?: Violation[] }).violations) ?? []);
       setError(errorMessage(e)); onChange();
@@ -48,8 +58,9 @@ export function TaskCard({ t, onChange }: { t: Task; onChange: () => void }) {
   const editing = text !== null;
 
   return (
-    <li className="rounded-xl border border-ink-100 bg-white p-4" aria-label={t.title}>
+    <li className={clsx("panel p-4 transition-[opacity,transform] duration-[380ms] ease-out", leaving && "translate-x-6 opacity-0")} aria-label={t.title}>
       <div className="flex flex-wrap items-start justify-between gap-2">
+        {(() => { const [Icon, tone] = KIND_ICON[t.kind] ?? [PenLine, "t-blue"]; return <span aria-hidden className={clsx("kic !h-10 !w-10 !rounded-[12px]", tone)}><Icon className="h-5 w-5" /></span>; })()}
         <div className="min-w-0 flex-1"><p className="text-[15px] font-semibold">{t.title}</p><p className="mt-0.5 text-sm text-ink-500">{t.why}</p></div>
         <Status tone={st.tone}>{st.label}</Status>
       </div>

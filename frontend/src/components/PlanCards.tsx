@@ -21,11 +21,11 @@ export function PlanCards({ plans, current, action }: { plans: Plan[]; current?:
     ["QR/NFC scans", () => <span className="font-medium">Unlimited</span>],
     ...features.map((k): [string, (p: Plan) => ReactNode] => [FEATURE_LABELS[k] ?? k, (p) => p.features.includes(k) ? <Check className="h-4 w-4 text-ok" aria-label="Included" /> : <Minus className="h-4 w-4 text-ink-300" aria-label="Not included" />]),
   ];
-  const tint = (p: Plan) => (p.code === "growth" ? "bg-brand-50/50" : "");
+  const tint = (p: Plan) => (p.code === "growth" ? "bg-accent-tint/60" : p.code === "launch" ? "bg-[rgb(var(--c-tone-teal)/.07)]" : p.code === "scale" ? "bg-[rgb(var(--c-tone-blue)/.07)]" : "");
   const one = plans.find((p) => p.code === sel) ?? plans[0];
   return (
     <>
-      <div className="panel sm:hidden">
+      <div className="panel sm:hidden motion-safe:animate-[fq-slide_.4s_cubic-bezier(.2,.7,.2,1)_both]">
         <div className="border-b border-ink-100 p-3"><Segmented label="Choose a plan" value={sel} onChange={setSel} options={plans.map((p) => [p.code, p.name] as const)} className="w-full [&>button]:flex-1" /></div>
         {one && (
           <div className="p-4">

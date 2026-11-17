@@ -34,6 +34,12 @@ export default function ApprovalsPage() {
       <PageHeader title="Waiting for your approval" subtitle="Only the exact text you approve here is sent to Google." />
       {!isAdmin && <div className="mb-4"><Alert tone="info">You can see what is waiting; an owner or admin approves it.</Alert></div>}
       {error && <Alert tone="error">{error}</Alert>}
+      {data && total > 0 && (
+        <ul aria-label="What is waiting" className="mb-4 flex flex-wrap gap-2 text-[13.5px] text-ink-700">
+          {([["Review replies", data.replies.length], ["Google posts", data.posts.length], ["Profile changes", data.profile.length]] as const).filter(([, n]) => n > 0).map(([l, n]) => (
+            <li key={l} className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3.5 shadow-pill ring-1 ring-line"><b className="num font-semibold text-ink">{n}</b> {l.toLowerCase()}</li>))}
+        </ul>
+      )}
       {loading && !data ? <Skeleton className="h-48" /> : total === 0 ? <EmptyState title="Nothing is waiting for approval">New AI drafts and scheduled posts show up here before anything goes live.</EmptyState> : (
         <div className="space-y-6">
           {data!.replies.length > 0 && <Panel title={`Review replies (${data!.replies.length})`}><ul className="space-y-5">{data!.replies.map((r) => (

@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { Check, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Ring } from "@/components/charts/Bars";
+import { CountUp } from "@/components/charts/CountUp";
 import { SourceTag } from "@/components/seo/parts";
 import { Card, Dashes, Title } from "@/components/seo/visuals";
 import { Alert, Skeleton } from "@/components/ui/Card";
@@ -32,14 +33,14 @@ export default function ProfilePage() {
             const checks = [...l.checks].sort((a, b) => (a.status === "ok" ? 1 : 0) - (b.status === "ok" ? 1 : 0) || EFFORT.indexOf(a.key) - EFFORT.indexOf(b.key));
             const done = l.checks.filter((c) => c.status === "ok").length;
             return (
-              <Card key={l.id} label={l.title ?? "Location"}>
+              <Card key={l.id} label={l.title ?? "Location"} tone="accent">
                 <Title right={<SourceTag source="google" />}><span data-words="skip">{l.title ?? "Location"}</span></Title>
                 {l.state === "unavailable" ? (
                   <div className="mt-4 flex items-center gap-4"><Ring value={null} size={88} stroke={9} label="Not shared yet"><span className="text-muted">–</span></Ring><div className="min-w-0 flex-1"><Dashes bars={8} className="!h-4" /><p className="mt-2 text-[13px] text-muted">Waiting for Google.</p></div></div>
                 ) : (
                   <>
                     <div className="mt-4 flex items-center gap-4">
-                      <Ring value={l.completeness} size={88} stroke={9} label={`Profile ${l.completeness}% complete`}><b className="num text-[20px] font-semibold">{l.completeness}%</b></Ring>
+                      <Ring value={l.completeness} size={88} stroke={9} label={`Profile ${l.completeness}% complete`}><b className="num text-[20px] font-semibold">{l.completeness === null ? "–" : <><CountUp value={l.completeness} />%</>}</b></Ring>
                       <div className="text-[14px]"><b className="num text-[17px] font-semibold">{done}/{l.checks.length}</b><span className="text-muted"> done</span></div>
                     </div>
                     <ul className="mt-4 divide-y divide-line">{checks.map((c) => <Row key={c.key} c={c} />)}</ul>

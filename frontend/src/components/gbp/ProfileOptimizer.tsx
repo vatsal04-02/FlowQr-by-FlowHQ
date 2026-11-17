@@ -2,6 +2,9 @@
 import clsx from "clsx";
 import { AlertCircle, ArrowRight, Check, CircleHelp, PenLine } from "lucide-react";
 import Link from "next/link";
+import { Ring } from "@/components/charts/Bars";
+import { CountUp } from "@/components/charts/CountUp";
+import { Accordion } from "@/components/ui/Accordion";
 import { Skeleton } from "@/components/ui/Card";
 import { Panel } from "@/components/ui/kit";
 import { fmtNum, timeAgo } from "@/lib/format";
@@ -20,17 +23,6 @@ interface Opt {
 const ICON = { ok: Check, improve: AlertCircle, missing: AlertCircle, unknown: CircleHelp } as const;
 const TONE = { ok: "bg-pos-tint text-pos", improve: "bg-warn-tint text-warn", missing: "bg-neg-tint text-neg", unknown: "bg-surface-2 text-muted" } as const;
 
-function Ring({ value }: { value: number }) {
-  const r = 34, c = 2 * Math.PI * r;
-  return (
-    <svg width="88" height="88" viewBox="0 0 88 88" role="img" aria-label={`Profile score ${value} out of 100`} className="shrink-0">
-      <circle cx="44" cy="44" r={r} fill="none" stroke="rgb(var(--c-surface-3))" strokeWidth="10" />
-      <circle cx="44" cy="44" r={r} fill="none" stroke="rgb(var(--c-accent))" strokeWidth="10" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - value / 100)} transform="rotate(-90 44 44)" />
-      <text x="44" y="50" textAnchor="middle" fontSize="20" fontWeight="600" fill="rgb(var(--c-ink))">{value}</text>
-    </svg>
-  );
-}
-
 /**
  * AI Profile Optimizer (read-only overview): checks from what Google last returned, before/after for a pending AI description, the search
  * terms Google reported, and what happened to past suggestions. Approving and publishing stays in the description card below, where the
@@ -46,7 +38,7 @@ export function ProfileOptimizer({ gid }: { gid: string }) {
     <div className="space-y-6">
       <Panel title="Profile optimizer" meta={o.fetched_at ? `as Google reported ${timeAgo(o.fetched_at)}` : "Google hasn't been checked yet"}>
         <div className="flex flex-wrap items-center gap-5">
-          {o.score !== null && <Ring value={o.score} />}
+          {o.score !== null && <Ring value={o.score} size={92} stroke={9} label={`Profile score ${o.score} out of 100`}><b className="num text-[24px] font-semibold"><CountUp value={o.score} /></b></Ring>}
           <div className="min-w-0 flex-1 basis-60">
             <p className="text-lg font-semibold">{todo.length === 0 ? "Your profile looks complete" : `${todo.length} ${todo.length === 1 ? "thing" : "things"} to improve`}</p>
             <p className="mt-1 text-[13px] text-muted">{o.rules}</p>
@@ -56,19 +48,17 @@ export function ProfileOptimizer({ gid }: { gid: string }) {
           {o.checks.map((c) => {
             const Icon = ICON[c.state];
             return (
-              <li key={c.key} className="flex gap-3 rounded-tile bg-surface-2 p-3.5">
+              <li key={c.key} className="flex gap-3 rounded-tile bg-surface-2 p-3.5 transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-card motion-reduce:transform-none">
                 <span aria-hidden className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-full", TONE[c.state])}><Icon className="h-4 w-4" strokeWidth={2.25} /></span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{c.title}<span className="sr-only"> ({c.state})</span></p>
                   <p className="text-[13px] text-muted">{c.detail}</p>
                   {c.reason && (
-                    <details className="mt-1 text-[13px]">
-                      <summary className="cursor-pointer font-semibold text-accent-ink">Why this matters</summary>
-                      <p className="mt-1 text-muted">{c.reason}</p>
+<Accordion className="mt-1" summary="Why this matters"><div className="text-[13px]"><p className="text-muted">{c.reason}</p>
                       {c.current && <p className="mt-1"><span className="font-semibold">Now: </span><span className="text-muted">{c.current}</span></p>}
                       {c.evidence && Object.entries(c.evidence).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)).length > 0 && (
                         <p className="mt-1 text-muted"><span className="font-semibold text-ink">What we read: </span>{Object.entries(c.evidence).filter(([k, v]) => k !== "read_from_google_at" && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)).map(([k, v]) => `${k.replaceAll("_", " ")}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`).join("; ")}</p>)}
-                    </details>)}
+                    </div></Accordion>)}
                   {c.action && (c.href ? (c.href.startsWith("#") ? <a href={c.href} className="mt-1 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">{c.action}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></a>
                     : <Link href={c.href} className="mt-1 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">{c.action}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>) : null)}
                 </div>

@@ -6,7 +6,10 @@ import type { ReactNode } from "react";
 import { fmtNum } from "@/lib/format";
 import type { Competitors, SeoKeyword } from "@/lib/seo";
 
-export const Card = ({ children, className, label }: { children: ReactNode; className?: string; label?: string }) => <section aria-label={label} className={clsx("rounded-[16px] bg-surface p-4 shadow-card lg:p-5", className)}>{children}</section>;
+export type CardTone = "teal" | "amber" | "rose" | "sky" | "blue" | "accent" | "ok";
+/** A page card. With a `tone` it takes that metric family's hue (corner glow, tinted edge); with `tilt` it also leans toward a fine pointer. Plain white without either. */
+export const Card = ({ children, className, label, tone, tilt }: { children: ReactNode; className?: string; label?: string; tone?: CardTone; tilt?: boolean }) =>
+  <section aria-label={label} data-tilt={tilt ? "" : undefined} className={clsx("rounded-[16px] p-4 lg:p-5", tone ? `tn t-${tone}` : "bg-surface shadow-card", tilt && "tilt", className)}>{children}</section>;
 export const Title = ({ children, right }: { children: ReactNode; right?: ReactNode }) => <div className="flex items-center justify-between gap-3"><h2 className="text-[15px] font-semibold">{children}</h2>{right}</div>;
 export const SeeAll = ({ href, children = "See all" }: { href: string; children?: ReactNode }) => <Link href={href} className="inline-flex min-h-11 items-center text-[13px] font-medium text-ink-600 underline underline-offset-2 md:min-h-8">{children}</Link>;
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "");
