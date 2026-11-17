@@ -66,7 +66,8 @@ export function googleStored(rep: ReportSummary | null, error: string | null, co
 
 // ------------------------------------------------------------------------------------------ things to do
 
-export interface Todo { id: string; tone: "bad" | "warn" | "info"; title: string; detail: string; href: string; cta: string }
+/** `state`: only "In progress" is ever set, and only from a real record (a drafted task, a draft waiting for approval); every other item is simply still to do. */
+export interface Todo { id: string; tone: "bad" | "warn" | "info"; title: string; detail: string; href: string; cta: string; state?: "In progress" }
 const n = (v: number, one: string, many: string) => `${v} ${plural(v, one, many)}`;
 
 const TASK_ACTION: Partial<Record<Task["kind"], [string, string]>> = {
@@ -91,13 +92,13 @@ export function buildTodos(a: {
   }
   const broken = a.connections.find((c) => c.status === "revoked" || c.status === "error");
   if (broken) out.push({ id: "google-broken", tone: "bad", title: "Reconnect Google", detail: broken.last_error ?? "Access was removed or expired. Reconnect to keep reviews coming in.", href: "/gbp/locations", cta: "Reconnect" });
-  if (a.pendingApprovals > 0) out.push({ id: "approvals", tone: "warn", title: `Approve ${n(a.pendingApprovals, "draft", "drafts")}`, detail: "Your AI assistant wrote them. Nothing goes live until you say yes.", href: "/ai/approvals", cta: "Review and approve" });
+  if (a.pendingApprovals > 0) out.push({ id: "approvals", tone: "warn", title: `Approve ${n(a.pendingApprovals, "draft", "drafts")}`, detail: "Your AI assistant wrote them. Nothing goes live until you say yes.", href: "/ai/approvals", state: "In progress", cta: "Review and approve" });
   const needReply = o?.reviews.awaiting_reply ?? 0;
   if (needReply > 0) out.push({ id: "need-reply", tone: "warn", title: `Reply to ${n(needReply, "review", "reviews")}`, detail: o && o.reviews.drafts_pending_approval ? `${o.reviews.drafts_pending_approval} already have a draft ready for you.` : "Let the AI write a reply, then you check it and send.", href: "/gbp/reviews?state=none", cta: "Reply to reviews" });
   for (const t of a.tasks) {
     const act = TASK_ACTION[t.kind];
     if (!act || ["published", "done", "dismissed", "snoozed", "awaiting_approval"].includes(t.status)) continue;
-    out.push({ id: `task-${t.id}`, tone: "info", title: t.title, detail: t.why, href: act[0], cta: act[1] });
+    out.push({ id: `task-${t.id}`, tone: "info", title: t.title, detail: t.why, href: act[0], cta: act[1], ...(t.status === "drafted" ? { state: "In progress" as const } : {}) });
   }
   const noLink = a.locations.filter((l) => l.is_active && !l.review_url);
   if (noLink.length) out.push({ id: "no-link", tone: "warn", title: `${noLink.map((l) => l.name).join(", ")} can't send customers to Google yet`, detail: "Add your Google review link so customers who scan a card can leave a review.", href: "/gbp/locations", cta: "Add the link" });

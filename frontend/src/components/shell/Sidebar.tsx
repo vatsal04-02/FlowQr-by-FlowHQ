@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { GROUP_LABEL, locate, type Dest, type Group } from "@/lib/nav";
 import { badgeFor, childBadge, type Counts } from "@/lib/use-counts";
+import type { SubscriptionInfo } from "@/lib/types";
 import { Logo } from "../ui/Brand";
 import { ThemeToggle } from "./parts";
 
@@ -14,13 +15,13 @@ export const SIDEBAR_W = { open: 232, rail: 68 } as const;
  * The one left sidebar (tablet and desktop). Expanded it is 232px with the page names visible; collapsed it is a 68px icon rail (names move into tooltips and accessible
  * names). The page you are on is marked by an orange bar, and the pages inside the current destination fold open underneath it. Phones use the bottom bar instead.
  */
-export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null }: { path: string; dests: Dest[]; collapsed: boolean; onToggle: () => void; help: ReactNode; counts?: Counts | null }) {
+export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null, sub = null }: { path: string; dests: Dest[]; collapsed: boolean; onToggle: () => void; help: ReactNode; counts?: Counts | null; sub?: SubscriptionInfo | null }) {
   const here = locate(path);
   const [shut, setShut] = useState<Record<string, boolean>>({});  // destinations the person folded away by hand
   const groups: Group[] = ["main", "tools", "assistant", "account"];
   return (
     <aside aria-label="Main navigation" style={{ width: collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open }}
-      className="fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-ink-100 bg-surface transition-[width] duration-200 ease-out motion-reduce:transition-none md:flex">
+      className="fq-navy fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-white/5 bg-[#11173F] transition-[width] duration-200 ease-out motion-reduce:transition-none md:flex">
       <div className={clsx("flex h-16 shrink-0 items-center gap-2.5", collapsed ? "justify-center" : "px-4")}>
         <Logo href="/overview" auto markOnly={collapsed} tagline={false} size={collapsed ? 32 : 30} label="FlowQR home" className="px-1" />
       </div>
@@ -44,7 +45,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null 
                       <div className="relative flex items-center">
                         <Link href={d.href} data-on={on ? "" : undefined} title={collapsed ? d.label : undefined} aria-current={on && (kids.length < 2 || collapsed || shut[d.id]) ? "page" : undefined}
                           className={clsx("group relative flex min-h-11 flex-1 items-center gap-3 rounded-[10px] text-[14px] transition-colors md:min-h-10",
-                            collapsed ? "justify-center px-0" : "pl-3 pr-2", on ? "bg-surface-2 font-semibold text-ink" : "font-medium text-ink-700 hover:bg-surface-2 hover:text-ink")}>
+                            collapsed ? "justify-center px-0" : "pl-3 pr-2", on ? "bg-white/[.12] font-semibold text-white" : "font-medium text-ink-700 hover:bg-white/[.07] hover:text-white")}>
                           {/* the active marker springs in and out rather than appearing (the bar is always there, scaled to nothing when inactive) */}
                           <span aria-hidden className={clsx("absolute inset-y-2 left-0 w-[3px] origin-center rounded-r-full bg-accent transition-transform duration-300 ease-spring motion-reduce:transition-none", on ? "scale-y-100" : "scale-y-0")} />
                           <d.icon className={clsx("h-[19px] w-[19px] shrink-0 transition-[transform,color] duration-200 ease-spring group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100", on ? "text-accent-ink" : "text-ink-500 group-hover:text-ink")} strokeWidth={on ? 2 : 1.75} aria-hidden />
@@ -88,6 +89,11 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null 
         })}
       </nav>
 
+      {!collapsed && sub && (
+        <div className="hidden shrink-0 space-y-2 px-3 pb-3 [@media(min-height:700px)]:block">
+          <PlanCard s={sub} />
+        </div>
+      )}
       <div className={clsx("flex shrink-0 items-center gap-1 border-t border-ink-100 p-2.5", collapsed ? "flex-col" : "justify-between")}>
         <div className={clsx("flex items-center gap-1", collapsed && "flex-col")}>
           {help}
@@ -99,5 +105,22 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null 
         </button>
       </div>
     </aside>
+  );
+}
+
+/** The plan in the sidebar, from the subscription the shell already loaded. White button, never orange: orange is for the page's one call to action. */
+function PlanCard({ s }: { s: SubscriptionInfo }) {
+  const trial = s.status === "trialing" && s.active;
+  const days = s.trial_days_left;
+  const end = s.current_period_end ? new Date(s.current_period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : null;
+  const title = !s.active ? "Plan inactive" : trial ? "Free trial" : (s.plan_name ?? "Your plan");
+  const line = !s.active ? "Choose a plan to keep everything on" : trial ? (days === null ? "Trial running" : days === 0 ? "Ends today" : `${days} ${days === 1 ? "day" : "days"} left`) : end ? `${s.provider === "prepaid" || s.cancel_at_period_end ? "Active until" : "Renews"} ${end}` : "Active";
+  const cta = !s.active || trial ? "Choose a plan" : "Manage plan";
+  return (
+    <div className="rounded-[14px] bg-white/[.06] p-3 ring-1 ring-white/10">
+      <p className="text-[13px] font-semibold leading-tight">{title}</p>
+      <p className="mt-0.5 text-[12px] text-muted">{line}</p>
+      <Link href="/settings/billing" className="mt-2.5 flex min-h-9 items-center justify-center rounded-[10px] bg-white text-[13px] font-semibold text-[#11173F] transition-transform duration-200 ease-spring hover:-translate-y-px active:scale-[.98]">{cta}</Link>
+    </div>
   );
 }

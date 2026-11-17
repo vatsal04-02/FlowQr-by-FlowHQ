@@ -44,7 +44,7 @@ export function BellMenu({ notices }: { notices: Notice[] }) {
     <div ref={wrap} className="relative">
       <button ref={btn} type="button" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={open} aria-haspopup="dialog" onClick={toggle} className={tbBtn}>
         <BellGlyph className="h-5 w-5" strokeWidth={1.6} />
-        {unread > 0 && <span aria-hidden className="absolute right-[9px] top-[8px] h-2 w-2 rounded-full bg-accent ring-2 ring-surface"><span className="absolute -inset-1 rounded-full border-[1.5px] border-accent opacity-0 motion-safe:animate-[fq-ping_1.6s_ease-out_3]" /></span>}
+        {unread > 0 && <span aria-hidden className="absolute right-[9px] top-[8px] h-2 w-2 rounded-full bg-neg ring-2 ring-surface"><span className="absolute -inset-1 rounded-full border-[1.5px] border-neg opacity-0 motion-safe:animate-[fq-ping_1.6s_ease-out_3]" /></span>}
       </button>
       {open && (
         <div role="dialog" aria-label="Notifications" className="fq-enter fixed inset-x-3 top-[68px] z-50 rounded-card bg-surface p-2 text-sm shadow-lift ring-1 ring-line sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+10px)] sm:w-[380px]">

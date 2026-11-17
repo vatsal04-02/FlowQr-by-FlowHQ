@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dailyStack, runs, canDrawArea, shares, ratingMix, pctChange, reviewTimeline, dayGap } from "../src/lib/charts.ts";
+import { dailyStack, runs, canDrawArea, shares, ratingMix, pctChange, reviewTimeline, dayGap, scoreIf, scoreVerdict, liftOf, reviewInsight, newReviewsVerdict, ratingVerdict } from "../src/lib/charts.ts";
 
 const p = (date, value) => ({ date, value });
 
@@ -63,4 +63,51 @@ test("reviewTimeline uses only timestamps the API returned, in time order", () =
   assert.deepEqual(reviewTimeline({ ...base, google_reply_at: "2026-11-11T08:00:00Z" }).map((s) => s.key), ["received", "replied"]);
   // a draft that was never approved has no approved/sent steps
   assert.deepEqual(reviewTimeline({ ...base, latest_draft: { created_at: "2026-11-10T09:00:00Z", approved_at: null, published_at: null, status: "draft" } }).map((s) => s.key), ["received", "drafted"]);
+});
+
+const W = { rating: 20, reviews: 25, replies: 15, profile: 15, rank: 25 };
+const mk = (vals) => Object.keys(W).map((k) => ({ key: k, weight: W[k], available: vals[k] !== undefined, value: vals[k] ?? null }));
+test("scoreIf reproduces the backend formula (re-weighted over measured parts)", () => {
+  const parts = mk({ rating: 1, reviews: 0.7, replies: 0.5, profile: 1 });          // rank not measured: covered 75
+  assert.equal(scoreIf(parts), Math.round((100 * (20 * 1 + 25 * 0.7 + 15 * 0.5 + 15 * 1)) / 75));
+});
+test("scoreIf: under the coverage floor there is no score", () => {
+  assert.equal(scoreIf(mk({ rating: 1 })), null);                                    // 20 covered < 30
+  assert.notEqual(scoreIf(mk({ rating: 1, profile: 0.5 })), null);                   // 35 covered
+});
+test("scoreVerdict names the fixes and what full marks on them would give; never claims more", () => {
+  const parts = mk({ rating: 1, reviews: 0.7, replies: 0.5, profile: 1 });
+  const score = scoreIf(parts);
+  const v = scoreVerdict(score, parts);
+  assert.deepEqual(v.fixes.sort(), ["replies", "reviews"]);
+  assert.equal(v.reach, scoreIf(parts, ["replies", "reviews"]));
+  assert.ok(v.reach > score);
+  assert.equal(v.word, score >= 75 ? "Good" : score >= 50 ? "Fair" : "Needs work");
+  const clean = scoreVerdict(100, mk({ rating: 1, reviews: 1, replies: 1, profile: 1 }));
+  assert.deepEqual([clean.fixes, clean.reach], [[], null]);
+  assert.equal(scoreVerdict(null, parts), null);
+});
+test("liftOf is an upper bound and zero for unmeasured or full parts", () => {
+  const parts = mk({ rating: 1, reviews: 0.7, replies: 0.5, profile: 1 }), score = scoreIf(parts);
+  assert.equal(liftOf(score, parts, "rating"), 0);
+  assert.equal(liftOf(score, parts, "rank"), 0);
+  assert.ok(liftOf(score, parts, "replies") > 0);
+});
+test("reviewInsight is built from the two counts only", () => {
+  assert.equal(reviewInsight(0, 0, 30), null);
+  assert.equal(reviewInsight(24, 12, 30), "24 new reviews in the last 30 days, 2× as many as the 30 before.");
+  assert.equal(reviewInsight(24, 18, 30), "24 new reviews in the last 30 days, 1.3× as many as the 30 before.");
+  assert.equal(reviewInsight(20, 18, 30), "20 new reviews in the last 30 days, about the same as the 30 before.");
+  assert.equal(reviewInsight(10, 20, 7), "10 new reviews in the last 7 days, down 50% from the 7 before.");
+  assert.equal(reviewInsight(5, 0, 30), "5 new reviews in the last 30 days, none in the 30 before.");
+  assert.equal(reviewInsight(1, null, 30), "1 new review in the last 30 days.");
+});
+test("verdict chips: no number, no chip", () => {
+  assert.equal(ratingVerdict(null), null);
+  assert.equal(ratingVerdict(4.6), "good");
+  assert.equal(ratingVerdict(4.3), "attention");   // the Growth score also treats 4.3 as something to improve
+  assert.equal(newReviewsVerdict(10, null), null);
+  assert.equal(newReviewsVerdict(10, 10), "good");
+  assert.equal(newReviewsVerdict(9, 10), "attention");
+  assert.equal(newReviewsVerdict(0, 0), "attention");
 });
