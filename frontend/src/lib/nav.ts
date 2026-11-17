@@ -1,10 +1,11 @@
-import { Activity, Bot, Building2, CircleHelp, CreditCard, Home, ListChecks, MessageSquare, Settings2, TrendingUp, type LucideIcon } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import type { ComponentType } from "react";
 import { GbpIcon } from "@/components/icons/Gbp";
+import { ActivityGlyph, BillingGlyph, GrowthGlyph, HomeGlyph, LocationsGlyph, ReviewsGlyph, SettingsGlyph, TasksGlyph, TodayGlyph } from "@/components/icons/Nav";
 import type { Role } from "./types";
 
-/** A lucide icon, or a brand mark (GBP) that takes the same props. */
-export type NavIcon = LucideIcon | ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean | "true" | "false" }>;
+/** One of FlowQR's own glyphs (components/icons/Nav.tsx), a brand mark (GBP), or a lucide icon: all take the same props. */
+export type NavIcon = ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean | "true" | "false" }>;
 
 /**
  * One navigation system for the whole app (docs/DESIGN.md). Phones: a bottom bar with Home, Reviews, GBP (Google Business Profile), Growth and More. Tablet and desktop: one left sidebar.
@@ -27,8 +28,8 @@ export type Dest = { id: string; href: string; label: string; short?: string; de
 export const GROUP_LABEL: Record<Group, string | null> = { main: null, tools: "Business", assistant: "Assistant", account: "Account" };
 
 export const DESTS: Dest[] = [
-  { id: "home", href: "/overview", label: "Home", desc: "Growth score and this week's moves", icon: Home, group: "main" },
-  { id: "reviews", href: "/gbp/reviews", label: "Reviews", desc: "Read, reply, approve", icon: MessageSquare, group: "main", children: [
+  { id: "home", href: "/overview", label: "Home", desc: "Growth score and this week's moves", icon: HomeGlyph, group: "main" },
+  { id: "reviews", href: "/gbp/reviews", label: "Reviews", desc: "Read, reply, approve", icon: ReviewsGlyph, group: "main", children: [
     { href: "/gbp/reviews", label: "Inbox" },
     { href: "/reputation/drafts", label: "Drafts" },
     { href: "/reputation/insights", label: "Insights" },
@@ -41,7 +42,7 @@ export const DESTS: Dest[] = [
       { href: "/seo/profile", label: "Checklist" }, { href: "/gbp/info", label: "Info", also: ["/gbp/hours"] }, { href: "/gbp/posts", label: "Posts" }, { href: "/gbp/photos", label: "Photos" },
     ] },
   ] },
-  { id: "growth", href: "/growth", label: "Growth", desc: "More reviews, every week", icon: TrendingUp, group: "main", children: [
+  { id: "growth", href: "/growth", label: "Growth", desc: "More reviews, every week", icon: GrowthGlyph, group: "main", children: [
     { href: "/growth", label: "Goals", also: ["/growth/funnel"] },
     { href: "/gbp/cards", label: "Cards", tabs: [
       { href: "/gbp/cards", label: "Cards" }, { href: "/gbp/cards/designs", label: "Designs" }, { href: "/reputation/assistant", label: "Customer page", also: ["/reputation/assistant/settings"] },
@@ -51,21 +52,21 @@ export const DESTS: Dest[] = [
     ] },
     { href: "/growth/reports", label: "Reports" },
   ] },
-  { id: "locations", href: "/gbp/locations", label: "Locations", desc: "Branches and Google connection", icon: Building2, group: "tools", children: [
+  { id: "locations", href: "/gbp/locations", label: "Locations", desc: "Branches and Google connection", icon: LocationsGlyph, group: "tools", children: [
     { href: "/gbp/locations", label: "Locations" },
     { href: "/overview/locations", label: "Compare" },
   ] },
-  { id: "assistant", href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: Bot, group: "assistant", children: [
+  { id: "assistant", href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph, group: "assistant", children: [
     { href: "/ai/today", label: "Today" },
     { href: "/ai/automations", label: "Helpers" },
     { href: "/ai/studio", label: "Write a post" },
   ] },
-  { id: "tasks", href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: ListChecks, group: "assistant", children: [
+  { id: "tasks", href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph, group: "assistant", children: [
     { href: "/ai/tasks", label: "Tasks" },
     { href: "/ai/approvals", label: "Approvals" },
   ] },
-  { id: "activity", href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: Activity, group: "assistant" },
-  { id: "settings", href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: Settings2, group: "account", children: [
+  { id: "activity", href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph, group: "assistant" },
+  { id: "settings", href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph, group: "account", children: [
     { href: "/settings", label: "Business" },
     { href: "/settings/account", label: "Account" },
     { href: "/settings/team", label: "Team" },
@@ -77,7 +78,7 @@ export const DESTS: Dest[] = [
     { href: "/settings/appearance", label: "Appearance" },
     { href: "/settings/audit", label: "Audit", only: ["owner", "admin"] },
   ] },
-  { id: "billing", href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: CreditCard, group: "account", only: ["owner", "admin"], children: [
+  { id: "billing", href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, group: "account", only: ["owner", "admin"], children: [
     { href: "/settings/billing", label: "Plan" },
     { href: "/settings/billing/payments", label: "Payments" },
   ] },
@@ -86,17 +87,17 @@ export const DESTS: Dest[] = [
 /** The four destinations on the phone's bottom bar, in order. The fifth, More, opens the sheet below. */
 export const BOTTOM_IDS = ["home", "reviews", "seo", "growth"] as const;
 
-export type MoreItem = { href: string; label: string; desc: string; icon: LucideIcon; only?: Role[]; help?: boolean };
+export type MoreItem = { href: string; label: string; desc: string; icon: NavIcon; only?: Role[]; help?: boolean };
 export const MORE_GROUPS: { label: string; items: MoreItem[] }[] = [
-  { label: "Business", items: [{ href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: Building2 }] },
+  { label: "Business", items: [{ href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: LocationsGlyph }] },
   { label: "Assistant", items: [
-    { href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: Bot },
-    { href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: ListChecks },
-    { href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: Activity },
+    { href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph },
+    { href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph },
+    { href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph },
   ] },
   { label: "Account", items: [
-    { href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: Settings2 },
-    { href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: CreditCard, only: ["owner", "admin"] },
+    { href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph },
+    { href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, only: ["owner", "admin"] },
     { href: "/help", label: "Help & Support", desc: "Search, or email us", icon: CircleHelp, help: true },
   ] },
 ];

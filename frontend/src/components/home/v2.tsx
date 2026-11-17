@@ -1,10 +1,12 @@
 "use client";
 import clsx from "clsx";
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Clock, Info, MessageSquarePlus, Minus, QrCode, Reply, Star } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, Clock, Info, MessageSquarePlus, Minus, QrCode, Reply, Sparkles, Star } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { Bars, Meter, Ring, type BarDatum } from "@/components/charts/Bars";
 import { CountUp } from "@/components/charts/CountUp";
+import { buttonClass } from "@/components/ui/Button";
+import { Segmented } from "@/components/ui/Segmented";
 import { Skeleton } from "@/components/ui/Card";
 import type { Todo } from "@/lib/dashboard";
 import { fmtNum } from "@/lib/format";
@@ -15,9 +17,9 @@ export interface GrowthScore { score: number | null; partial: boolean; covered_w
 export interface FunnelStep { key: string; label: string; count: number }
 
 export type ToneName = "teal" | "amber" | "rose" | "sky" | "blue" | "accent" | "ok";
-/** A Home card. With a `tone` it takes that metric family's hue (corner glow, tinted edge) and, with `tilt`, leans toward the pointer. Without one it is the plain white card. */
-export const Card = ({ children, className, label, tone, tilt }: { children: ReactNode; className?: string; label?: string; tone?: ToneName; tilt?: boolean }) =>
-  <section aria-label={label} data-tilt={tilt ? "" : undefined} className={clsx("rounded-[16px] p-4 lg:p-5", tone ? `tn t-${tone}` : "bg-surface shadow-card", tilt && "tilt", className)}>{children}</section>;
+/** A Home card: frosted glass over the page's glow. With a `tone` it takes that metric family's hue (corner glow, tinted edge) and, with `tilt`, leans toward the pointer. `hero` adds the travelling edge light (one per page). */
+export const Card = ({ children, className, label, tone, tilt, hero }: { children: ReactNode; className?: string; label?: string; tone?: ToneName; tilt?: boolean; hero?: boolean }) =>
+  <section aria-label={label} data-tilt={tilt ? "" : undefined} className={clsx("relative rounded-[20px] p-4 lg:p-5", tone ? `tn t-${tone}` : "glass", tilt && "tilt", hero && "beam", className)}>{children}</section>;
 export const Title = ({ children, right }: { children: ReactNode; right?: ReactNode }) => <div className="flex items-center justify-between gap-3"><h2 className="text-[15px] font-semibold">{children}</h2>{right}</div>;
 
 export function Delta({ cur, prev }: { cur: number | null | undefined; prev: number | null | undefined }) {
@@ -29,30 +31,33 @@ export function Delta({ cur, prev }: { cur: number | null | undefined; prev: num
 
 const PERIODS = [[7, "7d"], [30, "30d"], [90, "90d"]] as const;
 
-// ------------------------------------------------------------------------------------------------ score
+// ------------------------------------------------------------------------------------------------ score: one big ring, five small ones
+const partValue = (p: GrowthPart) => !p.available ? "–" : p.key === "rating" ? (p.number?.toFixed(1) ?? "–") : p.key === "reviews" ? `${p.count}/${p.goal}` : p.key === "replies" ? `${Math.round((p.rate ?? 0) * 100)}%` : p.key === "profile" ? `${p.percent}%` : `${p.top10}/${p.measured}`;
+
 export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null; loading: boolean; days: number; onDays: (d: 7 | 30 | 90) => void }) {
   const weak = g?.parts.find((p) => p.key === g.weakest);
   return (
-    <Card label="Growth score">
-      <Title right={
-        <div role="radiogroup" aria-label="Period" className="flex rounded-[10px] bg-surface-2 p-0.5">
-          {PERIODS.map(([d, l]) => <button key={d} role="radio" aria-checked={days === d} onClick={() => onDays(d)} className={clsx("min-w-11 rounded-[8px] px-2 text-[13px] font-medium md:!min-h-8", days === d ? "bg-surface text-ink shadow-card" : "text-muted")}>{l}</button>)}
-        </div>}>Growth score</Title>
-      {loading || !g ? <Skeleton className="mt-3 h-[150px]" /> : (
-        <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 md:gap-6">
-          <div className="flex flex-col items-center gap-1">
-            <Ring value={g.score} size={96} label={g.score === null ? "No score yet" : `Growth score ${g.score} out of 100`}>
-              <span><b className="num block text-[32px] font-semibold leading-none tracking-[-.02em]">{g.score ?? "–"}</b>{g.partial && g.score !== null && <span className="text-[11px] text-muted">partial</span>}</span>
+    <Card label="Growth score" hero className="!p-5 lg:!p-6">
+      <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"><span className="absolute -left-14 -top-20 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,rgb(var(--c-accent)/.2),transparent)]" /></span>
+      <div className="relative flex items-center justify-between gap-3">
+        <h2 className="text-[15px] font-semibold">Growth score</h2>
+        <Segmented options={PERIODS} value={days as 7 | 30 | 90} onChange={onDays} label="Period" />
+      </div>
+      {loading || !g ? <Skeleton className="relative mt-4 h-[170px]" /> : (
+        <div className="relative mt-4 grid items-center gap-5 md:grid-cols-[auto_minmax(0,1fr)] md:gap-10">
+          <div className="flex items-center justify-center gap-4 md:flex-col md:gap-3">
+            <Ring value={g.score} size={124} stroke={11} label={g.score === null ? "No score yet" : `Growth score ${g.score} out of 100`}>
+              <span><b className="num block text-[46px] font-semibold leading-none tracking-[-.03em]">{g.score === null ? "–" : <CountUp value={g.score} />}</b>{g.partial && g.score !== null && <span className="text-[11px] text-muted">partial</span>}</span>
             </Ring>
-            {weak && <p className="max-w-[110px] text-center text-[12px] leading-4 text-muted">{weak.label} is lowest</p>}
+            {weak && <Link href={weak.href} className="btn-glass inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold md:min-h-9"><Sparkles className="h-3.5 w-3.5 text-accent-ink" aria-hidden />Improve {weak.label.toLowerCase()}</Link>}
           </div>
-          <ul className="min-w-0 space-y-1.5">
+          <ul className="grid grid-cols-5 gap-1 md:gap-3">
             {g.parts.map((p) => (
-              <li key={p.key}>
-                <Link href={p.href} className="group grid grid-cols-[3.9rem_minmax(0,1fr)_auto] items-center gap-2 rounded-[8px] py-0.5 text-[13px] hover:bg-surface-2 md:grid-cols-[4.5rem_minmax(0,1fr)_7rem]" aria-label={`${p.label}: ${p.available ? p.detail : "no data yet"}`}>
-                  <span className={clsx(p.key === g.weakest ? "font-semibold" : "text-ink-700")}>{p.label}</span>
-                  <Meter value={p.available ? p.value : null} />
-                  <span className="num truncate text-right text-[12px] text-muted md:text-[13px]">{!p.available ? "–" : p.key === "rating" ? p.number?.toFixed(1) : p.key === "reviews" ? `${p.count}/${p.goal}` : p.key === "replies" ? `${Math.round((p.rate ?? 0) * 100)}%` : p.key === "profile" ? `${p.percent}%` : `${p.top10}/${p.measured}`}</span>
+              <li key={p.key} className="min-w-0">
+                <Link href={p.href} aria-label={`${p.label}: ${p.available ? p.detail : "no data yet"}`} className="group flex flex-col items-center gap-1.5 rounded-[16px] px-0.5 py-2.5 transition-[background-color,transform] duration-200 ease-spring hover:-translate-y-0.5 hover:bg-surface-2/70">
+                  <Ring value={p.available && p.value !== null ? p.value * 100 : null} size={46} stroke={5} label=""><span /></Ring>
+                  <span className="num text-[14px] font-semibold leading-none">{partValue(p)}</span>
+                  <span className={clsx("w-full truncate text-center text-[11.5px] leading-none", p.key === g.weakest ? "font-semibold text-ink" : "text-muted")}>{p.label}</span>
                 </Link>
               </li>
             ))}
@@ -66,17 +71,17 @@ export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null;
 // ------------------------------------------------------------------------------------------------ four numbers, each with its picture
 function Tile({ label, icon, tone, value, visual, foot, href, aside }: { label: string; icon: ReactNode; tone: ToneName; value: ReactNode; visual: ReactNode; foot?: ReactNode; href: string; aside?: ReactNode }) {
   return (
-    <Link href={href} data-tilt className={clsx("tn tilt t-" + tone, "relative flex min-w-0 flex-col rounded-[16px] p-3.5 lg:p-4")}>
+    <Link href={href} data-tilt className={clsx("tn tilt t-" + tone, "relative flex min-w-0 flex-col rounded-[20px] p-3.5 lg:p-4")}>
       <span className="flex items-center gap-2 text-[13px] text-muted"><i aria-hidden className="kic !h-[26px] !w-[26px] !rounded-[8px]">{icon}</i>{label}</span>
       {aside && <span className="absolute right-3 top-3">{aside}</span>}
-      <span className="mt-2 flex items-baseline gap-2"><span className="num text-[26px] font-semibold leading-8 tracking-[-.02em]">{value}</span>{foot}</span>
+      <span className="mt-2 flex items-baseline gap-2"><span className="num text-[28px] font-semibold leading-9 tracking-[-.025em]">{value}</span>{foot}</span>
       <span className="mt-auto pt-2">{visual}</span>
     </Link>
   );
 }
 
 export function Numbers({ o, prev, weekly, loading }: { o: Overview | null; prev: Overview | null; weekly: number[]; loading: boolean }) {
-  if (loading || !o) return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((k) => <Skeleton key={k} className="h-[124px] !rounded-[16px]" />)}</div>;
+  if (loading || !o) return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0, 1, 2, 3].map((k) => <Skeleton key={k} className="h-[124px] !rounded-[20px]" />)}</div>;
   const r = o.reviews;
   const dist = r.rating_distribution ?? {};
   const peak = Math.max(1, ...Object.values(dist));
@@ -92,7 +97,6 @@ export function Numbers({ o, prev, weekly, loading }: { o: Overview | null; prev
       <Tile label="New reviews" tone="blue" icon={<MessageSquarePlus className={icn} aria-hidden />} href="/growth" value={<CountUp value={r.new_in_range} />} foot={<Delta cur={r.new_in_range} prev={prev?.reviews.new_in_range} />}
         visual={<span aria-hidden className="flex h-6 items-end gap-[3px]">{weekly.map((v, i) => <span key={i} className="fq-bar flex-1 rounded-t-[2px] bg-chart" style={{ height: `${Math.max(6, (v / wk) * 100)}%`, opacity: v ? 1 : 0.15, animationDelay: `${i * 40}ms` }} />)}</span>} />
       <Tile label="Replied" tone="ok" icon={<Reply className={icn} aria-hidden />} href="/gbp/reviews?state=none" value={replied === null ? "–" : <><CountUp value={Math.round(replied * 100)} />%</>}
-        aside={replied === null ? null : <Ring value={replied * 100} size={40} stroke={5} label={`${Math.round(replied * 100)} percent of reviews replied`}><span /></Ring>}
         visual={<Meter value={replied} />} />
       <Tile label="Reply time" tone="teal" icon={<Clock className={icn} aria-hidden />} href="/gbp/reviews"
         value={hrs === null ? "–" : hrs < 1 ? "<1 h" : hrs < 48 ? <><CountUp value={Math.round(hrs)} /> h</> : <><CountUp value={Math.round(hrs / 24)} /> d</>}
@@ -138,12 +142,14 @@ export function DoThisWeek({ todos, hasCard, loading }: { todos: Todo[]; hasCard
     <Card label="Do this week">
       <Title>Do this week</Title>
       {loading ? <Skeleton className="mt-3 h-[150px]" /> : (
-        <ol className="mt-2 divide-y divide-line">
+        <ol className="mt-3 space-y-2">
           {list.map((t, i) => (
-            <li key={t.id} className="flex items-center gap-3 py-2.5">
-              <span aria-hidden className={clsx("num grid h-7 w-7 shrink-0 place-items-center rounded-full text-[13px] font-semibold", i === 0 ? "bg-accent-ink text-on-accent" : "bg-surface-2 text-ink-700")}>{i + 1}</span>
-              <span className="min-w-0 flex-1 text-[14px] font-medium leading-5">{t.title}{t.tone === "bad" && <span className="sr-only"> (urgent)</span>}</span>
-              <Link href={t.href} className={clsx("inline-flex min-h-11 shrink-0 items-center rounded-[10px] px-3 text-[13px] font-semibold md:min-h-9", i === 0 ? "bg-ink-solid text-ink-on" : "ring-1 ring-line hover:bg-surface-2")}>{t.cta}</Link>
+            <li key={t.id} className={clsx("flex items-center gap-3 rounded-[16px] p-2.5 pl-3 transition-colors", i === 0 ? "bg-accent-tint/70 ring-1 ring-accent-edge/40" : "bg-surface-2/60 hover:bg-surface-2")}>
+              <span aria-hidden className={clsx("num grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold", i === 0 ? "bg-accent-ink text-on-accent" : "bg-surface text-ink-700 shadow-pill")}>{i + 1}</span>
+              <span className="min-w-0 flex-1 line-clamp-2 text-[14px] font-medium leading-5">{t.title}{t.tone === "bad" && <span className="sr-only"> (urgent)</span>}</span>
+              {i === 0
+                ? <Link href={t.href} className={buttonClass("brand", "sm", "shrink-0")}>{t.cta}</Link>
+                : <Link href={t.href} aria-label={t.cta} title={t.cta} className="btn-glass group grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform duration-200 ease-spring hover:translate-x-0.5 md:h-9 md:w-9"><ArrowRight className="h-4 w-4" aria-hidden /></Link>}
             </li>
           ))}
         </ol>
