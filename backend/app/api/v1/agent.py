@@ -440,6 +440,24 @@ def counts(response: Response, ctx: TenantContext = Depends(get_tenant_context))
     return {"tasks": tasks, "approvals": replies + posts + profile}
 
 
+@router.get("/business-photo")
+def business_photo(response: Response, ctx: TenantContext = Depends(get_tenant_context)):
+    """The profile (logo) photo of the connected Google Business Profile, for the business avatar in the app. READ-ONLY and free of any call to Google: it reads what the last refresh saved.
+    Scoped like every other page (location-restricted staff only see their own locations'), the oldest connected location first. `url` is null when no location has a profile photo yet (or
+    the last refresh predates this field, which the next refresh fills in); only a link on Google's own image host is ever returned. Browsers may keep the answer for five minutes."""
+    from app.services.google.login import safe_picture
+    response.headers["Cache-Control"] = "private, max-age=300"
+    response.headers["Vary"] = "Cookie"
+    rows = ctx.db.execute(select(GbpSnapshot.media).join(GoogleLocation, GoogleLocation.id == GbpSnapshot.google_location_id).where(
+        GbpSnapshot.tenant_id == ctx.tenant_id, GoogleLocation.selected.is_(True), ctx.scope(GoogleLocation.location_id)).order_by(GoogleLocation.created_at)).all()
+    for (media,) in rows:
+        for m in media or []:
+            url = safe_picture(m.get("url")) if m.get("category") in ("PROFILE", "LOGO") else None
+            if url:
+                return {"url": url, "source": "google_business_profile"}
+    return {"url": None, "source": None}
+
+
 # ------------------------------------------------------------------ activity
 @router.get("/activity", dependencies=[Depends(needs("growth_agent"))])
 def activity(ctx: TenantContext = Depends(get_tenant_context)):

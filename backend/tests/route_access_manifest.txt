@@ -90,6 +90,7 @@ member	GET	/api/v1/agent/autonomy-settings
 role-owner	PUT	/api/v1/agent/autonomy-settings
 role-owner	POST	/api/v1/agent/autonomy-settings/resume
 role-owner	POST	/api/v1/agent/autonomy-settings/stop
+member	GET	/api/v1/agent/business-photo
 member	GET	/api/v1/agent/control-centre
 member	GET	/api/v1/agent/counts
 role-admin	POST	/api/v1/agent/google/refresh

@@ -89,6 +89,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const dests = useMemo(() => navFor(role), [role]);
   const counts = useCounts(tenant && tenant.onboarding_completed ? tenant.id : undefined);
   const google = useGoogleHeader(!!tenant && !!tenant.onboarding_completed);
+  // the connected Google Business Profile's profile (logo) photo, from the last refresh; null (initials) until the profile has one
+  const bizPhoto = useFetch<{ url: string | null }>(tenant && tenant.onboarding_completed ? "/agent/business-photo" : null).data?.url ?? null;
   // the bar gains a soft shadow once the page has scrolled under it
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -151,7 +153,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
     <PopoverButton label="Business menu" align="left" className="min-w-0 flex-1 md:flex-none" buttonClass="group flex min-h-11 w-full min-w-0 items-center gap-2 sm:gap-2.5 md:w-auto md:max-w-[calc(100vw-232px)] rounded-[14px] bg-transparent py-1 pl-0 pr-1 text-left transition-[transform,box-shadow] duration-200 ease-spring sm:bg-surface sm:pl-1.5 sm:pr-2.5 sm:shadow-pill sm:ring-1 sm:ring-line sm:hover:-translate-y-px sm:hover:shadow-lift active:scale-[.98] motion-reduce:transition-none motion-reduce:hover:transform-none sm:max-w-[340px]"
       icon={<>
         <span className="relative shrink-0">
-          <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-ink-solid text-[13px] font-semibold text-ink-on sm:h-9 sm:w-9 sm:text-[14px]">{tenant.name.trim().slice(0, 1).toUpperCase()}</span>
+          <Avatar src={bizPhoto} initials={tenant.name.trim().slice(0, 1).toUpperCase()} className="h-8 w-8 sm:h-9 sm:w-9" textClass="text-[13px] sm:text-[14px]" />
           {google.line?.tone === "ok" && <span aria-hidden className="absolute -bottom-px -right-px h-[11px] w-[11px] rounded-full bg-pos ring-2 ring-surface" />}
         </span>
         <span className="min-w-0">
