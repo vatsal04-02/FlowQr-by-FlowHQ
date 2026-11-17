@@ -8,7 +8,7 @@
 //  * show a crossed-out "MRP" or a percentage that was typed in: a saving is the difference to the plan's own 1-month price on the server's list;
 //  * pretend a payment worked. Until the server says `terms.checkout_open`, the pay button is disabled and says so. The seam for the real one-time checkout is `PayButton`.
 import { animate, AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
-import { BadgeCheck, CalendarClock, Check, ChevronDown, Hourglass, Info, Minus, ShieldCheck, Wallet, type LucideIcon } from "lucide-react";
+import { BadgeCheck, Building2, CalendarClock, Check, ChevronDown, Hourglass, Info, Minus, Rocket, ShieldCheck, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +24,12 @@ import type { Plan, PrepaidTerms, SubscriptionInfo } from "@/lib/types";
 const EASE = [0.22, 1, 0.36, 1] as const;
 const PLAN_NAME: Record<string, string> = { starter: "Launch", growth: "Growth", pro: "Scale" };
 const pill = "!rounded-full";
+/** Each plan has its own flat colour (brand tokens only: sky, orange, teal). Used for the header band, the icon, the limit tiles and the monthly chip; never for text that must be read on it. */
+const THEME: Record<string, { icon: LucideIcon; band: string; chipIcon: string; tile: string; chip: string; dot: string }> = {
+  starter: { icon: Rocket, band: "bg-tone-sky/15", chipIcon: "bg-tone-sky text-white", tile: "bg-tone-sky/10", chip: "bg-tone-sky/15", dot: "bg-tone-sky" },
+  growth: { icon: TrendingUp, band: "bg-accent-tint", chipIcon: "bg-accent-ink text-on-accent", tile: "bg-accent-tint", chip: "bg-accent-tint", dot: "bg-accent" },
+  pro: { icon: Building2, band: "bg-tone-teal/15", chipIcon: "bg-tone-teal text-white", tile: "bg-tone-teal/10", chip: "bg-tone-teal/15", dot: "bg-tone-teal" },
+};
 const ring = "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas";
 
 /** A number that glides to its new value (0.45 s) and shows it at once for anyone who asked for reduced motion. The real value is always the accessible text. */
@@ -58,7 +64,7 @@ function Fold({ label, children, className = "" }: { label: string; children: Re
 // ------------------------------------------------------------------------------------------------------------------------------------------ A. hero
 
 function Hero({ trialDays }: { trialDays: number | null }) {
-  const facts = ["One payment per term", "No auto-renewal", "Prices in rupees", ...(trialDays ? [`${trialDays}-day free trial`] : [])];
+  const facts: [string, string][] = [["One payment per term", "bg-tone-sky/15"], ["No auto-renewal", "bg-tone-teal/15"], ["Prices in rupees", "bg-tone-amber/20"], ...(trialDays ? [[`${trialDays}-day free trial`, "bg-accent-tint"] as [string, string]] : [])];
   return (
     <header className="pb-6 pt-2 sm:pb-9 sm:pt-4">
       <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }} className="inline-flex rounded-full bg-accent-tint px-3 py-1 text-[11px] font-medium text-accent-ink">Plans</motion.p>
@@ -70,7 +76,7 @@ function Hero({ trialDays }: { trialDays: number | null }) {
         Collect more Google reviews, answer them quickly and keep your business profile active from one place. Pick the plan that fits your business and the term that fits your budget.
       </motion.p>
       <motion.ul initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.22 }} className="mt-4 flex flex-wrap gap-2">
-        {facts.map((f) => <li key={f} className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[12px] text-ink-700 shadow-pill"><Check className="h-3.5 w-3.5 shrink-0 text-pos" aria-hidden />{f}</li>)}
+        {facts.map(([f, tint]) => <li key={f} className="flex items-center gap-2 rounded-full bg-surface py-1.5 pl-1.5 pr-3 text-[12px] text-ink-700 shadow-pill"><span className={`grid h-5 w-5 place-items-center rounded-full ${tint}`}><Check className="h-3 w-3 text-ink" aria-hidden /></span>{f}</li>)}
       </motion.ul>
     </header>
   );
@@ -101,8 +107,8 @@ function TermSelector({ terms, plans, value, onChange }: { terms: PrepaidTerms; 
                 const on = m === value;
                 return (
                   <button key={m} ref={(el) => { refs.current[i] = el; }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(m)} onKeyDown={(e) => move(e, i)}
-                    className={`relative min-h-10 rounded-full px-1 text-center text-[12.5px] font-medium transition-colors sm:text-[13px] ${ring} ${on ? "text-ink" : "text-muted hover:text-ink"}`}>
-                    {on && <motion.span layoutId="term-pill" className="absolute inset-0 rounded-full bg-surface shadow-pill" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
+                    className={`relative min-h-10 rounded-full px-1 text-center text-[12.5px] font-medium transition-colors sm:text-[13px] ${ring} ${on ? "text-on-accent" : "text-muted hover:text-ink"}`}>
+                    {on && <motion.span layoutId="term-pill" className="absolute inset-0 rounded-full bg-accent-ink shadow-pill" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
                     <span className="relative">{termTabLabel(m)}</span>
                   </button>
                 );
@@ -111,7 +117,7 @@ function TermSelector({ terms, plans, value, onChange }: { terms: PrepaidTerms; 
           </LayoutGroup>
         </div>
       </div>
-      <p className="mt-1 min-h-4 px-1 text-[12px] text-muted sm:text-right" aria-hidden>{best > 0 ? `${monthsLabel(value)}: up to ${best}% less than paying month by month` : "Pay one month at a time"}</p>
+      <p className="mt-1.5 flex min-h-6 items-center gap-2 px-1 text-[12px] text-muted sm:justify-end" aria-hidden>{best > 0 ? <><span className="rounded-full bg-pos-tint px-2 py-0.5 font-medium text-pos">Up to {best}% less</span>than paying month by month</> : "Pay one month at a time"}</p>
     </>
   );
 }
@@ -139,7 +145,7 @@ function PlanSwitcher({ plans, value, onChange }: { plans: Plan[]; value: string
             <button key={p.code} ref={(el) => { refs.current[i] = el; }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(p.code)} onKeyDown={(e) => move(e, i)}
               className={`relative min-h-11 rounded-full border px-2 text-[13px] font-semibold transition-colors ${ring} ${on ? "border-transparent text-ink-on" : "border-line bg-surface text-ink hover:bg-surface-2"}`}>
               {on && <motion.span layoutId="plan-pill" className="absolute inset-0 rounded-full bg-ink-solid" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
-              <span className="relative">{PLAN_NAME[p.code] ?? p.name}</span>
+              <span className="relative inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${THEME[p.code]?.dot ?? "bg-muted"}`} aria-hidden />{PLAN_NAME[p.code] ?? p.name}</span>
             </button>
           );
         })}
@@ -156,33 +162,38 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, onChoose
   const saving = termSaving(terms, plan.code, months);
   const groups = useMemo(() => newFeatureGroups(plan, below), [plan, below]);
   const recommended = plan.code === RECOMMENDED;
+  const th = THEME[plan.code] ?? THEME.starter;
   const name = PLAN_NAME[plan.code] ?? plan.name;
   const disabled = total === null || !isOwner || state === "current";
   return (
     <div className={`${active ? "block" : "hidden"} md:block`}>
       <motion.article key={active ? "on" : "off"} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -2 }} transition={{ duration: 0.4, delay: 0.07 * index, ease: EASE }} aria-labelledby={`plan-${plan.code}`}
-        className={`flex h-full flex-col rounded-[22px] bg-surface p-5 shadow-card sm:p-6 ${recommended ? "ring-2 ring-accent/70" : "ring-1 ring-line"}`}>
-        <div className="flex min-h-7 items-center justify-between gap-2">
-          <h3 id={`plan-${plan.code}`} className="font-display text-[17px] font-semibold tracking-tight text-ink">{name}</h3>
+        className={`flex h-full flex-col overflow-hidden rounded-[22px] bg-surface shadow-card ${recommended ? "ring-2 ring-accent/70" : "ring-1 ring-line"}`}>
+        <div className={`px-5 pb-4 pt-5 sm:px-6 ${th.band}`}>
+        <div className="flex min-h-8 items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5"><span className={`grid h-8 w-8 place-items-center rounded-xl ${th.chipIcon}`}><th.icon className="h-4 w-4" aria-hidden /></span>
+          <h3 id={`plan-${plan.code}`} className="font-display text-[17px] font-semibold tracking-tight text-ink">{name}</h3></div>
           {state === "current" ? <span className="rounded-full bg-pos-tint px-2.5 py-1 text-[11px] font-medium text-pos">Current plan</span>
-            : state === "trial" ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-muted">In your free trial</span>
-            : recommended ? <span className="rounded-full bg-accent-tint px-2.5 py-1 text-[11px] font-medium text-accent-ink">Recommended</span> : null}
+            : state === "trial" ? <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-medium text-muted shadow-pill">In your free trial</span>
+            : recommended ? <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-medium text-accent-ink shadow-pill">Recommended</span> : null}
         </div>
-        <p className="mt-0.5 text-[13px] text-muted">{POSITIONING[plan.code]}</p>
+        <p className="mt-2 text-[13px] text-ink-700">{POSITIONING[plan.code]}</p>
+        </div>
+        <div className="flex flex-1 flex-col p-5 sm:p-6">
 
-        <div className="mt-5">
+        <div>
           {total === null ? <p className="font-display text-2xl font-semibold text-muted">Unavailable</p> : (
             <>
               <p className="flex items-baseline gap-1.5 font-display text-ink"><span className="text-xl font-medium text-muted">₹</span><Glide value={total / 100} className="num text-[2.4rem] font-semibold leading-none tracking-[-0.03em] sm:text-[2.7rem]" /><span className="text-[13px] font-normal text-muted">for {monthsLabel(months)}</span></p>
               <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]">
-                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-ink-700"><span className="num font-medium text-ink">₹<Glide value={(monthly ?? 0) / 100} /></span> a month</span>
+                <span className={`rounded-full px-2.5 py-1 text-ink-700 ${th.chip}`}><span className="num font-medium text-ink">₹<Glide value={(monthly ?? 0) / 100} /></span> a month</span>
                 {saving && <span className="rounded-full bg-pos-tint px-2.5 py-1 font-medium text-pos">Save {rupees(saving.paise)} ({saving.percent}%)</span>}
               </div>
             </>
           )}
         </div>
 
-        <Button className={`mt-5 w-full ${pill}`} variant={recommended ? "primary" : "secondary"} disabled={disabled} onClick={() => onChoose(plan, months)}
+        <Button className={`mt-5 w-full ${pill}`} variant={recommended ? "brand" : "primary"} disabled={disabled} onClick={() => onChoose(plan, months)}
           aria-label={state === "current" ? `${name} is your current plan` : `Choose ${name} for ${monthsLabel(months)}`}>
           {state === "current" ? "Current plan" : `Choose ${name}`}
         </Button>
@@ -191,7 +202,7 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, onChoose
 
         <dl className="mt-5 grid grid-cols-2 gap-2">
           {LIMIT_ROWS.map((r) => (
-            <div key={r.id} className="rounded-2xl bg-surface-2 px-3 py-2.5"><dd className="num font-display text-lg font-semibold leading-6 text-ink">{r.value(plan).toLocaleString("en-IN")}</dd><dt className="mt-0.5 text-[11.5px] leading-4 text-muted">{r.label}</dt></div>
+            <div key={r.id} className={`rounded-2xl px-3 py-2.5 ${th.tile}`}><dd className="num font-display text-lg font-semibold leading-6 text-ink">{r.value(plan).toLocaleString("en-IN")}</dd><dt className="mt-0.5 text-[11.5px] leading-4 text-muted">{r.label}</dt></div>
           ))}
         </dl>
 
@@ -206,6 +217,7 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, onChoose
             ))}
           </div>
         </Fold>
+        </div>
       </motion.article>
     </div>
   );
@@ -252,13 +264,13 @@ function Comparison({ plans }: { plans: Plan[] }) {
 
 // ------------------------------------------------------------------------------------------------------------------------------------------ E. billing, F. questions
 
-const HOW_IT_WORKS: readonly [LucideIcon, string, string][] = [
-  [Wallet, "Prepaid", "You pay up front for the term you choose: 1, 3, 6 or 12 months."],
-  [ShieldCheck, "One payment, nothing recurring", "No AutoPay and no standing instruction, so nothing renews on its own."],
-  [CalendarClock, "The term sets the end date", "Your plan runs for the months you paid for, counted from the day payment is confirmed."],
-  [BadgeCheck, "Confirmed payment starts the plan", "Your plan switches on only after the payment is confirmed."],
-  [Info, "Failed or pending changes nothing", "If a payment fails or is still pending, your account stays exactly as it was."],
-  [Hourglass, "You decide about the next term", "When your plan ends nothing is charged. Buy another term when you are ready."],
+const HOW_IT_WORKS: readonly [LucideIcon, string, string, string][] = [
+  [Wallet, "Prepaid", "You pay up front for the term you choose: 1, 3, 6 or 12 months.", "bg-tone-sky text-white"],
+  [ShieldCheck, "One payment, nothing recurring", "No AutoPay and no standing instruction, so nothing renews on its own.", "bg-tone-teal text-white"],
+  [CalendarClock, "The term sets the end date", "Your plan runs for the months you paid for, counted from the day payment is confirmed.", "bg-accent-ink text-on-accent"],
+  [BadgeCheck, "Confirmed payment starts the plan", "Your plan switches on only after the payment is confirmed.", "bg-tone-teal text-white"],
+  [Info, "Failed or pending changes nothing", "If a payment fails or is still pending, your account stays exactly as it was.", "bg-tone-rose text-white"],
+  [Hourglass, "You decide about the next term", "When your plan ends nothing is charged. Buy another term when you are ready.", "bg-tone-amber text-ink"],
 ];
 
 function HowBillingWorks() {
@@ -267,10 +279,10 @@ function HowBillingWorks() {
       <h2 id="how-h" className="font-display text-xl font-semibold tracking-tight sm:text-2xl">How billing works</h2>
       <p className="mt-1 max-w-sm text-[13px] text-muted sm:text-sm">Simple on purpose. No subscription to cancel, no surprise charge.</p>
       <ol className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        {HOW_IT_WORKS.map(([Icon, t, d], i) => (
+        {HOW_IT_WORKS.map(([Icon, t, d, tone], i) => (
           <motion.li key={t} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-30px" }} transition={{ duration: 0.4, delay: 0.04 * (i % 3), ease: EASE }} whileHover={{ y: -2 }}
             className="flex gap-3 rounded-[18px] bg-surface p-4 shadow-card ring-1 ring-line">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-tint text-accent-ink"><Icon className="h-4 w-4" aria-hidden /></span>
+            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-4 w-4" aria-hidden /></span>
             <div className="min-w-0"><p className="text-[13.5px] font-semibold text-ink">{t}</p><p className="mt-0.5 text-[12.5px] leading-5 text-muted">{d}</p></div>
           </motion.li>
         ))}
