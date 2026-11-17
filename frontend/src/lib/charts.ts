@@ -75,3 +75,51 @@ export function reviewTimeline(r: { review_created_at: string; google_reply_at?:
   if (r.google_reply_at && !out.some((s) => s.key === "published")) out.push({ key: "replied", label: "Reply on Google", at: r.google_reply_at });
   return out.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
+
+// ------------------------------------------------------------------------------------------------ Growth score: verdict and what would lift it
+export type ScorePart = { key: string; weight: number; available: boolean; value: number | null };
+/** A part at or above this is "fine"; below it is something to fix. */
+export const GOOD_PART = 0.75;
+const MIN_COVERAGE = 30;  // same floor as the backend (services/growth_score.py): below it there is no score at all
+
+/** The backend's formula, with the named parts at full marks: round(100 * sum(weight * value) / covered weight). Null when too little of the score is measured. */
+export function scoreIf(parts: ScorePart[], full: string[] = []): number | null {
+  const on = parts.filter((p) => p.available && p.value !== null);
+  const covered = on.reduce((a, p) => a + p.weight, 0);
+  if (covered < MIN_COVERAGE) return null;
+  return Math.round((100 * on.reduce((a, p) => a + p.weight * (full.includes(p.key) ? 1 : (p.value as number)), 0)) / covered);
+}
+export type ScoreVerdict = { word: "Good" | "Fair" | "Needs work"; tone: "good" | "fair" | "bad"; fixes: string[]; reach: number | null };
+/** One honest line about the score: the verdict word, which measured parts are below "fine", and what the score would be if exactly those reached full marks (arithmetic, not a promise). */
+export function scoreVerdict(score: number | null, parts: ScorePart[]): ScoreVerdict | null {
+  if (score === null) return null;
+  const fixes = parts.filter((p) => p.available && p.value !== null && p.value < GOOD_PART).sort((a, b) => (scoreIf(parts, [b.key]) ?? 0) - (scoreIf(parts, [a.key]) ?? 0)).map((p) => p.key);
+  const reach = fixes.length ? scoreIf(parts, fixes) : null;
+  const word = score >= 75 ? "Good" : score >= 50 ? "Fair" : "Needs work";
+  return { word, tone: score >= 75 ? "good" : score >= 50 ? "fair" : "bad", fixes, reach: reach !== null && reach > score ? reach : null };
+}
+/** Points the score could gain if this one part reached full marks (an upper bound); 0 when it cannot, or the part is not measured. */
+export function liftOf(score: number | null, parts: ScorePart[], key: string): number {
+  const after = scoreIf(parts, [key]);
+  return score === null || after === null ? 0 : Math.max(0, after - score);
+}
+
+// ------------------------------------------------------------------------------------------------ verdict chips and the chart's one-line insight
+export type Verdict = "good" | "attention" | null;
+/** The thresholds are rules, shown nowhere as data: rating 4.6+ (the same scale as the Growth score, where 4.0 scores nothing and 4.8 everything, so 4.6 is "fine"), replied 80%+, replies within a day, reviews not below the period before. No number, no chip. */
+export const ratingVerdict = (avg: number | null | undefined): Verdict => (avg == null ? null : avg >= 4.6 ? "good" : "attention");
+export const repliedVerdict = (share: number | null | undefined): Verdict => (share == null ? null : share >= 0.8 ? "good" : "attention");
+export const replyTimeVerdict = (hours: number | null | undefined): Verdict => (hours == null ? null : hours <= 24 ? "good" : "attention");
+export const newReviewsVerdict = (cur: number, prev: number | null | undefined): Verdict => (prev == null ? null : cur === 0 ? "attention" : cur >= prev ? "good" : "attention");
+
+/** "24 new reviews in the last 30 days, 1.4× as many as the 30 before." Built only from the two counts; null when there is nothing to say. */
+export function reviewInsight(cur: number, prev: number | null | undefined, days: number): string | null {
+  if (cur === 0 && !prev) return null;
+  const head = `${cur} new ${cur === 1 ? "review" : "reviews"} in the last ${days} days`;
+  if (prev == null) return `${head}.`;
+  if (prev === 0) return `${head}, none in the ${days} before.`;
+  const r = cur / prev, f = (Math.round(r * 10) / 10).toString().replace(/\.0$/, "");
+  if (r >= 1.25) return `${head}, ${f}× as many as the ${days} before.`;
+  if (r <= 0.8) return `${head}, down ${Math.round((1 - r) * 100)}% from the ${days} before.`;
+  return `${head}, about the same as the ${days} before.`;
+}

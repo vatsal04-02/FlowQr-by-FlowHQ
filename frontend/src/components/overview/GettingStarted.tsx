@@ -33,7 +33,7 @@ export function GettingStarted() {
           <LinkButton href={next.href} size="md" variant="secondary">{next.cta}</LinkButton>
         </div>
       )}
-      <button type="button" aria-expanded={all} onClick={() => setAll((v) => !v)} className="mt-2 inline-flex min-h-11 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline sm:min-h-9">
+      <button type="button" aria-expanded={all} onClick={() => setAll((v) => !v)} className="mt-2 inline-flex min-h-11 items-center gap-1 text-[13px] font-semibold text-ink-700 hover:text-ink hover:underline sm:min-h-9">
         {all ? "Hide steps" : "All steps"}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${all ? "rotate-180" : ""}`} aria-hidden />
       </button>
       {all && (

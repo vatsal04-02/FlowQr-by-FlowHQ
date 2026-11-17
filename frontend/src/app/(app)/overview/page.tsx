@@ -13,7 +13,7 @@ import type { GoogleConnection, Location, Overview, Review } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 /** One block of the page, revealed blur-to-sharp in reading order (the delay is in ms). */
-const Rv = ({ d, className, children }: { d: number; className?: string; children: ReactNode }) => <div className={`rv ${className ?? ""}`} style={{ ["--d" as string]: `${d}ms` }}>{children}</div>;
+const Rv = ({ d, className, children }: { d: number; className?: string; children: ReactNode }) => <div className={`rv lg:[&>*]:h-full ${className ?? ""}`} style={{ ["--d" as string]: `${d}ms` }}>{children}</div>;
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 function rangeFor(days: Days) {
   const to = new Date(), from = new Date();
@@ -66,21 +66,15 @@ export default function Home() {
     <>
       <h1 className="sr-only">Home, {tenant?.name}</h1>
       {ov.error && <div className="mb-4"><Alert tone="error" title="We couldn't load your numbers" action={<button type="button" onClick={() => { void ov.reload(); void prevOv.reload(); }} className="inline-flex min-h-11 items-center rounded-[10px] bg-surface px-4 text-sm font-semibold text-ink">Try again</button>}>{ov.error}</Alert></div>}
-      <div data-flat className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <div className="space-y-3 lg:col-span-8 lg:space-y-4">
-          <Rv d={0}><ScoreCard g={score.data} loading={score.loading && !score.data} days={days} onDays={setDays} /></Rv>
-          <Rv d={70}><Numbers o={o} prev={p} weekly={weekly} loading={loading} /></Rv>
-          <Rv d={120} className="lg:hidden"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} /></Rv>
-          <Rv d={150}><WeeklyReviews o={o} prev={p} days={days} goal={goal} loading={loading || (prevOv.loading && !p)} /></Rv>
-          <Rv d={200}><GoogleActions m={gm.data} loading={gm.loading} error={gm.error} /></Rv>
-        </div>
-        <div className="space-y-3 lg:col-span-4 lg:space-y-4">
-          <Rv d={60} className="hidden lg:block"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} /></Rv>
-          <Rv d={130}><LatestReviews items={latest.data?.items ?? null} total={latest.data?.total ?? 0} loading={latest.loading && !latest.data} /></Rv>
-          <Rv d={190}><RatingMix o={o} loading={loading} /></Rv>
-          <Rv d={240}><FunnelStrip steps={funnel.data?.funnel ?? null} hasCard={hasCard} loading={funnel.loading && !funnel.data} /></Rv>
-          {o && <GettingStarted />}
-        </div>
+      <div data-flat className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-stretch lg:gap-3">
+        <Rv d={0} className="lg:order-1 lg:col-span-8"><ScoreCard g={score.data} loading={score.loading && !score.data} days={days} onDays={setDays} /></Rv>
+        <Rv d={70} className="lg:order-3 lg:col-span-12"><Numbers o={o} prev={p} weekly={weekly} loading={loading} days={days} /></Rv>
+        <Rv d={120} className="lg:order-2 lg:col-span-4"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} g={score.data} /></Rv>
+        {/* two columns on a laptop (chart and Google actions | latest reviews and rating mix), balanced so neither card is stretched; on a phone they are simply the same four cards in the same order */}
+        <div className="space-y-3 lg:order-4 lg:col-span-7"><Rv d={150}><WeeklyReviews o={o} prev={p} days={days} goal={goal} loading={loading || (prevOv.loading && !p)} /></Rv><Rv d={200}><GoogleActions m={gm.data} loading={gm.loading} error={gm.error} /></Rv></div>
+        <div className="space-y-3 lg:order-5 lg:col-span-5"><Rv d={130}><LatestReviews items={latest.data?.items ?? null} total={latest.data?.total ?? 0} loading={latest.loading && !latest.data} /></Rv><Rv d={190}><RatingMix o={o} loading={loading} /></Rv></div>
+        <Rv d={240} className="lg:order-6 lg:col-span-6"><FunnelStrip steps={funnel.data?.funnel ?? null} hasCard={hasCard} loading={funnel.loading && !funnel.data} /></Rv>
+        {o && <Rv d={260} className="lg:order-7 lg:col-span-6"><GettingStarted /></Rv>}
       </div>
     </>
   );

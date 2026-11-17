@@ -57,7 +57,7 @@ export function SyncChip({ chip, canSync, reload }: { chip: ReturnType<typeof sy
       setBusy(false); setNote(errorMessage(e)); window.setTimeout(() => setNote(null), 5000);
     }
   };
-  const inner = <><RefreshCw className={clsx("h-4 w-4 shrink-0", busy && "fq-spin")} strokeWidth={1.75} aria-hidden /><span className="hidden min-[1000px]:inline">{text}</span></>;
+  const inner = <><RefreshCw className={clsx("h-4 w-4 shrink-0", busy && "fq-spin")} strokeWidth={1.75} aria-hidden /><span className="hidden items-center gap-2 min-[1000px]:inline-flex">{chip.kind === "ok" && !busy && !note && <span aria-hidden className="relative flex h-2 w-2 shrink-0"><span className="absolute inset-0 rounded-full bg-pos opacity-60 motion-safe:animate-[fq-ping_2s_ease-out_infinite]" /><span className="relative h-2 w-2 rounded-full bg-pos" /></span>}{text}</span></>;
   const cls = clsx("tb-chip max-[859px]:hidden max-[999px]:w-10 max-[999px]:justify-center max-[999px]:px-0", tone, !canSync && "pointer-events-none");
   return canSync
     ? <button type="button" onClick={() => void run()} aria-label={`${text}. Sync with Google now`} title={detail} aria-busy={busy} className={cls}>{inner}</button>
@@ -69,8 +69,8 @@ export function TrialPill({ s, path, className }: { s: SubscriptionInfo | null |
   if (!showTrialChip(s, path)) return null;
   const d = s?.trial_days_left ?? 0;
   return (
-    <Link href="/settings/billing" className={clsx("tb-chip !text-accent-ink bg-accent-tint !shadow-none ring-1 ring-accent-edge/40", className)}>
-      <Clock className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden />
+    <Link href="/settings/billing" className={clsx("tb-chip", className)}>
+      <Clock className="h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
       <span>{d === 0 ? "Trial ends today" : `${d} ${d === 1 ? "day" : "days"} left`}</span>
       <span className="-mr-1.5 rounded-lg bg-ink-solid px-2.5 py-1 text-xs font-semibold text-ink-on">Choose a plan</span>
     </Link>
