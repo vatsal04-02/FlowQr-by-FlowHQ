@@ -19,6 +19,7 @@ from app.services import billing as svc
 from app.services import billing_cashfree as cfb
 from app.services import cashfree as cashfree_svc
 from app.services import entitlements as ent
+from app.services import plans as plans_svc
 from app.services import razorpay as rz
 from app.services.ai_usage import usage_this_month
 from app.services.audit import audit
@@ -57,7 +58,7 @@ def plans(db: Session = Depends(get_db)):
     set_rls_context(db, bypass=True)
     rows = db.scalars(select(BillingPlan).where(BillingPlan.is_active.is_(True)).order_by(BillingPlan.sort_order)).all()
     offers = [{"code": o["code"], "quantity": o["quantity"], "price_paise": o["price_paise"], "includes": f"{settings.promo_card_days} days of {settings.promo_card_plan.title()}"} for o in (settings.card_offers or [])]
-    return {"plans": [PlanOut.model_validate(p) for p in rows], "trial_days": settings.trial_days,
+    return {"plans": [PlanOut.model_validate(p) for p in rows], "terms": plans_svc.public_terms(), "trial_days": settings.trial_days,
             "billing": _config(), "card_price_paise": settings.card_price_paise,
             "card_ordering_enabled": (bool(settings.card_price_paise) or bool(offers)) and settings.razorpay_configured, "card_offers": offers,
             "card_offer_note": "Card prices are one-time purchases, separate from any subscription. The included month is free access, not a subscription: nothing is charged when it ends."}
