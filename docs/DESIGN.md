@@ -113,6 +113,10 @@ Trends use a line or bars, comparisons horizontal bars, progress a simple bar or
 * **Every page** eases in when you move between pages (`.fq-page`, keyed by destination and page so a list's state survives choosing another item). All other screens (Drafts, Reports, Campaigns, Cards, Locations, Helpers, Write a post, Activity, Settings, Payments) take the new card depth and tone tokens through the shared `.panel` and tokens with no content change.
 * **Guided tour** (Account menu, tablet and desktop): a pointer opens Home, Reviews, Profile, Rankings and Goals with the person's own data. It only navigates; it never clicks anything that changes data. Any click or Escape stops it.
 
+### Sign-in and sign-up frame
+
+`components/ui/auth-page.tsx` (exported to every auth page as `AuthShell`): one rounded card on a soft orange gradient; on the left an animated dot map with routes (decorative, shows no data), the FlowQR mark and the page's real pitch; on the right the page's own form. Log in, sign up, forgot and reset password, verify email and accept invite all share it. Phones show the form only, with the logo above it. The controls inside come from each page, so validation, server errors, the cookie check and the Google button (only when the server offers it) are unchanged. Reduced motion draws the map still. No invented testimonials, user counts or sign-in methods that do not exist.
+
 ## 7. Data honesty
 
 * No sample data in production, ever. An unavailable number says so; there are no fake zeros and no history is back-filled.
