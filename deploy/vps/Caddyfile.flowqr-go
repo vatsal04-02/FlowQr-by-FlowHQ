@@ -1,0 +1,54 @@
+# FlowQR permanent card redirect domain for the EXISTING Caddy on the shared VPS. APPEND to the END of that Caddyfile in place (deploy/vps/apply-caddy-go.sh does it, validates and reloads);
+# do not replace the file and do not start a second Caddy.
+#
+# The printed QR is https://go.flowqr.site/q/<code> and the NFC tag is https://go.flowqr.site/n/<code> (the older door /c/ also works). Only those three exact shapes reach the API, and only the one
+# redirect handler: nothing else on the API (admin, billing, auth, analytics) is reachable through this host. The door is fixed by the PATH (q = QR, n = NFC), and the rewrite REPLACES the query string,
+# so ?channel=, ?url=, ?ref= on a printed address can neither change the destination nor falsify QR/NFC attribution. The API answers a 302 with no-store: to the admin-set destination if there is one,
+# otherwise to the app's landing page (FRONTEND_URL) for the same door, never back to this host (no loop). Anything else is sent to the website.
+# Independent of the website host: this block never touches Vercel. It depends only on the VPS, this Caddy and the FlowQR API (upstream 172.17.0.1:18000, as for api.flowqr.site).
+# Tested locally with the real caddy:2 image against the local API (docs/QR_NFC_PRODUCTION_ACCEPTANCE.md section 11).
+go.flowqr.site {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Cache-Control "no-store"
+		-Server
+	}
+	@q path_regexp q ^/q/([A-Za-z0-9_-]{16,64})$
+	@n path_regexp n ^/n/([A-Za-z0-9_-]{16,64})$
+	@c path_regexp c ^/c/([A-Za-z0-9_-]{16,64})$
+	handle @q {
+		rewrite * /api/v1/go/{re.q.1}?channel=qr
+		reverse_proxy 172.17.0.1:18000 {
+			header_up X-Forwarded-For {remote_host}
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+	handle @n {
+		rewrite * /api/v1/go/{re.n.1}?channel=nfc
+		reverse_proxy 172.17.0.1:18000 {
+			header_up X-Forwarded-For {remote_host}
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+	handle @c {
+		rewrite * /api/v1/go/{re.c.1}
+		reverse_proxy 172.17.0.1:18000 {
+			header_up X-Forwarded-For {remote_host}
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+	handle {
+		redir https://www.flowqr.site 302
+	}
+}

@@ -108,6 +108,19 @@ def _change(db: Session, card_id: uuid.UUID, new_url: str | None, *, by: uuid.UU
     return card, True
 
 
+def drop_on_reassign(db: Session, card: QRCard, *, by: uuid.UUID | None, why: str) -> bool:
+    """A destination belongs to the card's CURRENT business and placement. When the card moves to another business, location or campaign, is reserved, or goes back to stock, the old destination
+    is removed (and recorded in the history and the audit log) so it can never send the NEW owner's customers to the OLD owner's address. The admin sets a new one after the move.
+    Caller commits; the card row is already loaded in this transaction."""
+    if not card.destination_url:
+        return False
+    now = utcnow()
+    db.add(CardDestinationHistory(card_id=card.id, tenant_id=card.tenant_id, action="cleared", old_url=card.destination_url, new_url=None, reason=why[:300], changed_by=by, changed_at=now))
+    audit(db, action="admin.card_destination_cleared", tenant_id=card.tenant_id, user_id=by, entity_type="card", entity_id=card.id, meta={"old": card.destination_url, "new": None, "reason": why[:300]})
+    card.destination_url, card.destination_set_at = None, None
+    return True
+
+
 def set_destination(db: Session, card_id: uuid.UUID, url: str, *, by: uuid.UUID | None, reason: str | None = None, now: datetime | None = None) -> tuple[QRCard, bool]:
     return _change(db, card_id, normalise(url), by=by, reason=reason, now=now)
 

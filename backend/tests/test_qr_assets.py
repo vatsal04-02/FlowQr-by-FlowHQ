@@ -149,8 +149,8 @@ def test_a_destination_change_applies_instantly_with_no_new_qr_and_no_cache(admi
     r = go(client, card, UA2)
     assert r.headers["location"] == "https://example.org/second" and r.status_code == 302  # 302, never a cacheable 301/308
     admin.post(f"/admin/cards/{card['id']}/destination/clear", json={"confirm": True})
-    r = go(client, card, UA)
-    assert r.status_code == 302 and r.headers["location"].endswith(f"/{card['url'].rsplit('/', 2)[-2]}/{card['public_token']}")  # back to its own landing page
+    r = go(client, card, UA, channel="qr")
+    assert r.status_code == 302 and r.headers["location"] == f"{settings.frontend_url.rstrip('/')}/q/{card['public_token']}"  # back to its own landing page on the app, same door
     assert scan(client, card, "qr", UA2)["state"] == "ok"  # and the normal review page answers again
 
 
@@ -352,8 +352,8 @@ def test_a_card_without_a_destination_behaves_exactly_as_before(admin, biz_a, cl
     b, card = live_card(admin, biz_a)
     body = scan(client, card, "qr", UA)
     assert body["state"] == "ok" and body["review_url"] == "https://g.page/r/ABC123/review" and body["card_code"] == card["card_code"] and "url" not in body
-    r = go(client, card, UA2)  # the redirect door on a plain card simply opens the card's own landing page
-    assert r.status_code == 302 and r.headers["location"] == f"{settings.public_card_base_url.rstrip('/')}/{card['url'].rsplit('/', 2)[-2]}/{card['public_token']}"
+    r = go(client, card, UA2)  # the redirect door on a plain card simply opens the card's own landing page on the app (the door letter follows the channel; none given = the old /c/ door)
+    assert r.status_code == 302 and r.headers["location"] == f"{settings.frontend_url.rstrip('/')}/c/{card['public_token']}"
 
 
 def test_the_old_c_address_and_the_new_q_address_still_resolve_the_same_card(admin, biz_a, client):

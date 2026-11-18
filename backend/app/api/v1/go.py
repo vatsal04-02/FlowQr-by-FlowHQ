@@ -12,7 +12,6 @@ from app.api.v1 import public as pub
 from app.core.config import settings
 from app.core.deps import public_db
 from app.core.rate_limit import limit_by_ip
-from app.services.qr import card_url
 
 router = APIRouter(prefix="/go", tags=["public"])
 NO_STORE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
@@ -23,5 +22,9 @@ def go(token: str, request: Request, channel: str | None = None, ref: str | None
     out = pub.resolve_card(token, request, channel, ref, db)  # same rules, same recording, same 404 for unknown tokens
     if out.get("state") == "redirect":
         return RedirectResponse(out["url"], status_code=302, headers=NO_STORE)
+    # No destination (or the card is not live): the card's own landing page on the APP (FRONTEND_URL), never on the print domain, so a print domain that fronts /q and /n cannot redirect to itself
+    # forever. The same door letter is kept (q or n) so the landing page's own check counts this visit once, as the same channel.
     card = pub._find_card(db, token)
-    return RedirectResponse(card_url(token, card.qr_path or "c") if card else settings.frontend_url, status_code=302, headers=NO_STORE)
+    ch = pub._channel(channel)  # the validated door (the fallback answers carry no channel of their own)
+    door = "n" if ch == "nfc" else "q" if ch == "qr" else "c"
+    return RedirectResponse(f"{settings.frontend_url.rstrip('/')}/{door}/{token}" if card else settings.frontend_url, status_code=302, headers=NO_STORE)

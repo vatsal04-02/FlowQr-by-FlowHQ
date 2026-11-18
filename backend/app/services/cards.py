@@ -14,6 +14,7 @@ from app.models import (
     CardAssignment, CardBatch, CardStatus, Location, QRCard, ReviewCampaign, ScanEvent, ScanEventType, Tenant,
 )
 from app.models.base import utcnow
+from app.services import destinations
 
 BOT_PATTERN = re.compile(
     r"bot|crawl|spider|slurp|preview|fetch|monitor|headless|curl|wget|python|httpclient|okhttp|java/|go-http|"
@@ -122,6 +123,8 @@ def assign_card(db: Session, card: QRCard, *, tenant: Tenant, location: Location
             _target(tenant.name, location.name, campaign.name if campaign else None))
     now = utcnow()
     was = card.status
+    if not same:
+        destinations.drop_on_reassign(db, card, by=by, why="The card was assigned to a different business, location or campaign.")
     if card.tenant_id and not same:
         close_open_assignment(db, card, "reassigned" if in_use else "assigned")
     card.tenant_id = tenant.id
@@ -148,6 +151,7 @@ def unassign_card(db: Session, card: QRCard, reason: str = "unassigned") -> QRCa
     if card.status == CardStatus.retired:
         raise HTTPException(status_code=409, detail="This card has been retired and cannot be returned to stock.")
     close_open_assignment(db, card, reason)
+    destinations.drop_on_reassign(db, card, by=None, why="The card was returned to stock.")
     card.tenant_id = None
     card.location_id = None
     card.campaign_id = None
@@ -161,6 +165,7 @@ def reserve_card(db: Session, card: QRCard, tenant: Tenant, by: uuid.UUID | None
     """Set a card aside for one business. It belongs to them (they can see it and give it a location) but is not live."""
     if card.status not in (CardStatus.generated, CardStatus.unassigned):
         raise HTTPException(status_code=409, detail=f"Only cards in stock can be reserved (this one is {card.status.value}).")
+    destinations.drop_on_reassign(db, card, by=by, why="The card was reserved for a business.")
     card.tenant_id, card.location_id, card.campaign_id, card.status = tenant.id, None, None, CardStatus.reserved
     db.add(CardAssignment(card_id=card.id, tenant_id=tenant.id, location_id=None, assigned_by=by, assigned_at=utcnow()))
     return card
