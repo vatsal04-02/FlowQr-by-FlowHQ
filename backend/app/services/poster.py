@@ -44,6 +44,20 @@ MIN_MODULE_PX = 8  # at the approved 300 dpi this is 0.68 mm
 # are lightly rounded (0.4) and the orange is 12% deeper; the orange block keeps its rounded shape. Nothing outside the QR area changes.
 EYE_R_OUTER, EYE_R_INNER, EYE_R_CENTER = 0.4, 0.2, 0.8
 SS = 4  # supersampling for the rounded finder eyes
+# The card's own serial (e.g. FQR-0001), printed small on the poster so a printed card can be told apart and tracked. Bottom right, on the plain white under the footer line,
+# nowhere near the QR code. Only drawn when a serial is given: a poster with no serial (a campaign poster) is the approved artwork, unchanged.
+SERIAL_RIGHT, SERIAL_BASELINE, SERIAL_PX, SERIAL_RGB = W - 125, 1456, 24, (118, 118, 118)
+_HELV = {**{c: 556 for c in "0123456789_"}, "-": 333, ".": 278, " ": 278, **dict(zip("ABCDEFGHIJKLMNOPQRSTUVWXYZ", (667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611)))}
+
+
+def serial_text(serial: str | None) -> str | None:
+    """The serial as it will be drawn: letters, digits and . _ - only, at most 24 characters, otherwise nothing (it goes into SVG and PDF text, so it is never passed through raw)."""
+    s = (serial or "").strip()
+    if not s or len(s) > 24 or not all(c.isascii() and (c.isalnum() or c in "-_. ") for c in s):
+        return None
+    return s
+
+
 A_SIZES_MM = {"a6": (105, 148.5), "a5": (148, 210), "a4": (210, 297)}  # same proportions as the approved poster (0.7076 vs 0.7071)
 
 # Finder-eye centre. Scanners binarise by brightness and the approved orange sits near the middle of the scale (luma 139 to 115),
@@ -184,12 +198,17 @@ def resolve(url: str) -> Layout:
 
 
 # ------------------------------------------------------------------------------------------------------------------ PNG
-def poster_png(url: str, *, scale: int = 1) -> bytes:
+def poster_png(url: str, *, scale: int = 1, serial: str | None = None) -> bytes:
     """scale 1 = the approved 1055 x 1491 px; 2 and 3 give 2110 x 2982 and 3165 x 4473 for large prints."""
     if scale not in (1, 2, 3):
         raise ValueError("scale must be 1, 2 or 3")
     lay = resolve(url)
     img = _render(lay, scale)
+    text = serial_text(serial)
+    if text:
+        from PIL import ImageFont
+
+        ImageDraw.Draw(img).text((SERIAL_RIGHT * scale, SERIAL_BASELINE * scale), text, fill=SERIAL_RGB, font=ImageFont.load_default(SERIAL_PX * scale), anchor="rs")
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=scale == 1, dpi=(300 * scale, 300 * scale))
     return buf.getvalue()
@@ -227,7 +246,7 @@ def _tile_b64() -> str:
     return base64.b64encode((ASSETS / "poster_logo_tile.png").read_bytes()).decode()
 
 
-def poster_svg(url: str) -> bytes:
+def poster_svg(url: str, *, serial: str | None = None) -> bytes:
     """Self-contained SVG: the approved artwork as an embedded image, the QR code as vector shapes on top."""
     lay = resolve(url)
     m = lay.m
@@ -243,6 +262,9 @@ def poster_svg(url: str) -> bytes:
         parts.append(f'<path fill="url(#eye)" d="{_rr(x + 2 * m, y + 2 * m, 3 * m, 3 * m, EYE_R_CENTER * m)}"/>')
     tx, ty = CX - TILE_SIZE / 2, CY - TILE_SIZE / 2
     parts.append(f'<image x="{tx:.2f}" y="{ty:.2f}" width="{TILE_SIZE}" height="{TILE_SIZE}" href="data:image/png;base64,{_tile_b64()}"/>')
+    text = serial_text(serial)
+    if text:
+        parts.append(f'<text x="{SERIAL_RIGHT}" y="{SERIAL_BASELINE}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="{SERIAL_PX}" fill="#%02X%02X%02X">{text}</text>' % SERIAL_RGB)
     parts.append("</svg>")
     return "".join(parts).encode()
 
@@ -316,7 +338,7 @@ def _pdf_rr(x: float, y: float, w: float, h: float, r: float) -> str:
             f"{x:.3f} {y + r:.3f} l {x:.3f} {y + r - k:.3f} {x + r - k:.3f} {y:.3f} {x + r:.3f} {y:.3f} c h")
 
 
-def _draw_poster(pdf: _PosterPdf, ops: list[str], images: set[int], shades: set[int], lay: Layout, x: float, top: float, width: float) -> None:
+def _draw_poster(pdf: _PosterPdf, ops: list[str], images: set[int], shades: set[int], lay: Layout, x: float, top: float, width: float, serial: str | None = None) -> None:
     """Draw one poster with its top-left corner at (x, top) and `width` points wide. Height follows the approved proportions."""
     f = width / W
     height = H * f
@@ -354,9 +376,15 @@ def _draw_poster(pdf: _PosterPdf, ops: list[str], images: set[int], shades: set[
     images.add(num)
     ts = TILE_SIZE * f
     ops.append(f"q {ts:.3f} 0 0 {ts:.3f} {X(CX - TILE_SIZE / 2):.3f} {Y(CY + TILE_SIZE / 2):.3f} cm /Im{num} Do Q")
+    text = serial_text(serial)
+    if text:
+        size = SERIAL_PX * f
+        tw = sum(_HELV.get(c, 556) for c in text) / 1000 * size  # Helvetica advance widths, so the text ends at the same right edge as in the PNG and SVG
+        gr = [c / 255 for c in SERIAL_RGB]
+        ops.append(f"q {gr[0]:.3f} {gr[1]:.3f} {gr[2]:.3f} rg BT /F1 {size:.2f} Tf {X(SERIAL_RIGHT) - tw:.2f} {Y(SERIAL_BASELINE):.2f} Td ({qs._pdf_text(text).decode('latin-1')}) Tj ET Q")
 
 
-def poster_pdf(url: str, *, size: str = "ref") -> bytes:
+def poster_pdf(url: str, *, size: str = "ref", serial: str | None = None) -> bytes:
     """One page, exactly the poster. size: 'ref' = the approved PDF page (89 x 126 mm), or 'a6', 'a5', 'a4' (same proportions)."""
     lay = resolve(url)
     if size == "ref":
@@ -367,14 +395,14 @@ def poster_pdf(url: str, *, size: str = "ref") -> bytes:
         raise ValueError("size must be ref, a6, a5 or a4")
     height = width * H / W
     pdf, ops, images, shades = _PosterPdf(), [], set(), set()
-    _draw_poster(pdf, ops, images, shades, lay, 0, height, width)
+    _draw_poster(pdf, ops, images, shades, lay, 0, height, width, serial)
     pdf.page(width, height, ops, images, shades)
     return pdf.build()
 
 
-def poster_sheet_pdf(items: list[tuple[str, str]]) -> bytes:
+def poster_sheet_pdf(items: list[tuple]) -> bytes:
     """A4 sheets, four posters per page at the approved size, each with crop marks and its serial in the margin.
-    items: (label, url). The template image is embedded once for the whole file."""
+    items: (label, url) or (label, url, serial); the serial is also printed small ON each poster. The template image is embedded once for the whole file."""
     pw, ph = 595.28, 841.89
     width = PAGE_PT[0]
     height = width * H / W
@@ -382,11 +410,11 @@ def poster_sheet_pdf(items: list[tuple[str, str]]) -> bytes:
     pdf, per_page = _PosterPdf(), 4
     for start in range(0, max(len(items), 1), per_page):
         ops, images, shades = [], set(), set()
-        for slot, (label, url) in enumerate(items[start:start + per_page]):
+        for slot, (label, url, *rest) in enumerate(items[start:start + per_page]):
             col, row = slot % 2, slot // 2
             x = gx + col * (width + gx)
             top = ph - gy - row * (height + gy)
-            _draw_poster(pdf, ops, images, shades, resolve(url), x, top, width)
+            _draw_poster(pdf, ops, images, shades, resolve(url), x, top, width, rest[0] if rest else None)
             ops.append("0.4 g")
             ops.append(f"BT /F1 6 Tf {x:.2f} {top - height - 8:.2f} Td ({qs._pdf_text(label).decode('latin-1')}) Tj ET")
             ops.append("0 G 0.25 w")

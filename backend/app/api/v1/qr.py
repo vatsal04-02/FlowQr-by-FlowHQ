@@ -76,29 +76,29 @@ def require_print_domain() -> None:
 POSTER_MIME = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}
 
 
-def poster_file(url: str, fmt: str, *, scale: int = 1, size: str = "ref") -> bytes:
+def poster_file(url: str, fmt: str, *, scale: int = 1, size: str = "ref", serial: str | None = None) -> bytes:
     """The approved poster with `url` as its QR code, in `fmt`. Raises 404 for an unknown format and 500 if the code could not be proven scannable."""
     if fmt not in POSTER_MIME:
         raise HTTPException(status_code=404, detail="Unsupported format")
     try:
         if fmt == "png":
-            return poster_svc.poster_png(url, scale=scale)
+            return poster_svc.poster_png(url, scale=scale, serial=serial)
         if fmt == "svg":
-            return poster_svc.poster_svg(url)
-        return poster_svc.poster_pdf(url, size=size)
+            return poster_svc.poster_svg(url, serial=serial)
+        return poster_svc.poster_pdf(url, size=size, serial=serial)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except poster_svc.PosterError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-def poster_response(url: str, fmt: str, filename: str, *, scale: int = 1, size: str = "ref") -> Response:
+def poster_response(url: str, fmt: str, filename: str, *, scale: int = 1, size: str = "ref", serial: str | None = None) -> Response:
     """Download of one poster. In staging/production a non-permanent public address blocks it; elsewhere it is allowed (so the owner can
     try it out) and flagged with a header and a note the UI shows."""
     problem = permanent_url_problem(url)  # judged on the address this poster actually encodes (a card's, or a campaign's), not only on the card base
     if problem and settings.hardened:
         raise HTTPException(status_code=409, detail={"code": "print_domain_not_permanent", "message": problem})
-    body = poster_file(url, fmt, scale=scale, size=size)
+    body = poster_file(url, fmt, scale=scale, size=size, serial=serial)
     headers = {"Content-Disposition": f'attachment; filename="{filename}-poster.{fmt}"', "X-FlowQR-Verified": "decoded", "Cache-Control": "private, no-store"}
     if problem:
         headers["X-FlowQR-Not-For-Print"] = "public address is not permanent"
@@ -292,13 +292,13 @@ def bulk(body: BulkIn, request: Request, ctx: TenantContext = Depends(require_ro
 def _bulk_posters(ctx: TenantContext, body: BulkIn, cards: list, campaigns: list, request: Request) -> Response:
     """ZIP of posters: each file is the approved artwork with that code in it, plus one A4 print sheet (4 per page) of all of them."""
     db = ctx.db
-    items = [(c.card_code, card_qr_url(c), c.card_code, c.status.value) for c in cards]
+    items = [(c.card_code, card_qr_url(c), c.card_code, c.status.value, c.card_code) for c in cards]
     seen: set[str] = set()
     for c in campaigns:
         base = f"campaign-{slug(c.name, 'campaign')}"
         name = base if base not in seen else f"{base}-{c.public_id[:6]}"
         seen.add(name)
-        items.append((name, campaign_url(c.public_id), c.name, c.status))
+        items.append((name, campaign_url(c.public_id), c.name, c.status, None))
     formats = list(dict.fromkeys(body.formats))
     if formats and len(items) > MAX_BULK_POSTER_FILES:
         raise HTTPException(status_code=422, detail=f"Poster files are large. Select up to {MAX_BULK_POSTER_FILES} for individual files, or choose only the print sheet for more.")
@@ -307,12 +307,12 @@ def _bulk_posters(ctx: TenantContext, body: BulkIn, cards: list, campaigns: list
     w.writerow(["name", "permanent_url", "status", "verified_by_decoding"])
     try:
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for file, url, _label, status in items:
+            for file, url, _label, status, serial in items:
                 for fmt in formats:
-                    z.writestr(f"{fmt}/{file}-poster.{fmt}", poster_file(url, fmt))
+                    z.writestr(f"{fmt}/{file}-poster.{fmt}", poster_file(url, fmt, serial=serial))
                 w.writerow([file, url, status, "yes"])
             if body.sheet:
-                z.writestr("print-sheet-A4-posters.pdf", poster_svc.poster_sheet_pdf([(label, url) for _f, url, label, _s in items]))
+                z.writestr("print-sheet-A4-posters.pdf", poster_svc.poster_sheet_pdf([(label, url, serial) for _f, url, label, _s, serial in items]))
             z.writestr("manifest.csv", manifest.getvalue())
     except poster_svc.PosterError as exc:
         raise HTTPException(status_code=500, detail=str(exc))

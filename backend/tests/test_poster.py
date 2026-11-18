@@ -38,10 +38,14 @@ def make_urls(count, seed=11, kind="q"):
     return [f"{BASE}/{kind}/" + "".join(rng.choice(ALPHABET) for _ in range(24)) for _ in range(count)]
 
 
-def outside_qr(img: Image.Image, scale: int = 1) -> bytes:
+def outside_qr(img: Image.Image, scale: int = 1, serial_area: bool = False) -> bytes:
+    """The poster's pixels with the QR area blacked out. serial_area=True also blanks the small corner where a card's serial is printed (see SERIAL_RIGHT)."""
     im = img.convert("RGB").copy()
     e = G["erase"]
-    ImageDraw.Draw(im).rectangle([v * scale for v in e], fill=(0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rectangle([v * scale for v in e], fill=(0, 0, 0))
+    if serial_area:
+        d.rectangle([v for v in serial_box(scale)], fill=(0, 0, 0))
     return im.tobytes()
 
 
@@ -303,6 +307,116 @@ def test_posters_for_several_businesses_and_campaigns_each_encode_their_own_perm
             r = biz.get(path)
             assert r.status_code == 200
             assert zxing(Image.open(io.BytesIO(r.content)).convert("RGB")) == [url]
-            seen[(name, label)] = (url, hashlib.sha256(outside_qr(Image.open(io.BytesIO(r.content)))).hexdigest())
+            seen[(name, label)] = (url, hashlib.sha256(outside_qr(Image.open(io.BytesIO(r.content)), serial_area=True)).hexdigest())  # a card poster also carries its serial, in its own corner
     assert len({v[0] for v in seen.values()}) == 6  # six different codes
     assert len({v[1] for v in seen.values()}) == 1  # one design
+
+
+# ------------------------------------------------------------------ the card's serial, printed small on the poster so a printed card can be tracked
+SERIAL_URL = f"{BASE}/c/" + "m" * 24
+
+
+def serial_box(scale: int = 1):
+    """Where the serial is drawn (bottom right, under the footer), with a little room around it."""
+    return (poster.SERIAL_RIGHT * scale - 260 * scale, 1425 * scale, poster.SERIAL_RIGHT * scale + 12 * scale, 1478 * scale)
+
+
+def test_a_poster_without_a_serial_is_exactly_what_it_was_before():
+    """Campaign posters, and any caller that passes no serial, get the approved artwork byte for byte."""
+    plain = poster.poster_png(SERIAL_URL)
+    assert poster.poster_png(SERIAL_URL, serial=None) == plain == poster.poster_png(SERIAL_URL, serial="")
+    assert poster.poster_svg(SERIAL_URL, serial=None) == poster.poster_svg(SERIAL_URL)
+    assert poster.poster_pdf(SERIAL_URL, serial=None) == poster.poster_pdf(SERIAL_URL)
+    assert hashlib.sha256(outside_qr(Image.open(io.BytesIO(plain)))).hexdigest() == APPROVED_OUTSIDE_QR
+
+
+def test_the_serial_is_drawn_only_in_its_corner_and_changes_nothing_else_in_the_artwork():
+    for k in (1, 2, 3):
+        plain = Image.open(io.BytesIO(poster.poster_png(SERIAL_URL, scale=k))).convert("RGB")
+        with_serial = Image.open(io.BytesIO(poster.poster_png(SERIAL_URL, scale=k, serial="FQR-0042"))).convert("RGB")
+        diff = ImageChops.difference(plain, with_serial).getbbox()
+        assert diff is not None, f"x{k}: the serial was not drawn"
+        x0, y0, x1, y1 = serial_box(k)
+        assert diff[0] >= x0 and diff[1] >= y0 and diff[2] <= x1 and diff[3] <= y1, f"x{k}: something outside the serial's corner changed: {diff}"
+        assert (diff[3] - diff[1]) <= 30 * k, f"x{k}: the serial is not small ({diff})"  # about 2.5 mm tall at the approved size
+    one = Image.open(io.BytesIO(poster.poster_png(SERIAL_URL, serial="FQR-0042")))
+    plain1 = Image.open(io.BytesIO(poster.poster_png(SERIAL_URL)))
+    assert outside_qr(one, serial_area=True) == outside_qr(plain1, serial_area=True)  # everything but the QR and the serial's corner is the approved artwork
+
+
+@pytest.mark.parametrize("serial", ["FQR-0001", "FQR-0042", "QRC-0123456", "X" * 24])
+def test_a_poster_with_a_serial_still_decodes_to_exactly_its_url_in_every_format(serial):
+    for k in (1, 3):
+        assert zxing(Image.open(io.BytesIO(poster.poster_png(SERIAL_URL, scale=k, serial=serial)))) == [SERIAL_URL], f"png x{k}"
+    assert zxing(raster(poster.poster_svg(SERIAL_URL, serial=serial), "svg")) == [SERIAL_URL]
+    for size in ("ref", "a6", "a4"):
+        assert zxing(raster(poster.poster_pdf(SERIAL_URL, size=size, serial=serial), "pdf")) == [SERIAL_URL], size
+
+
+def test_the_serial_is_real_text_in_the_svg_and_pdf_so_it_can_be_searched_and_copied():
+    assert ">FQR-0042</text>" in poster.poster_svg(SERIAL_URL, serial="FQR-0042").decode()
+    page = pymupdf.open(stream=poster.poster_pdf(SERIAL_URL, serial="FQR-0042"), filetype="pdf")[0]
+    hits = page.search_for("FQR-0042")
+    assert len(hits) == 1
+    r = hits[0]  # on the poster itself (inside the page), bottom right, and small
+    assert r.x1 <= page.rect.width and r.y1 <= page.rect.height and r.x0 > page.rect.width * 0.5 and r.y0 > page.rect.height * 0.9
+    assert r.height < 12  # points: small
+
+
+def test_the_sheet_prints_the_serial_on_every_poster_and_still_labels_the_margin():
+    items = [(f"FQR-{i:04d}", make_urls(1, seed=100 + i)[0], f"FQR-{i:04d}") for i in range(1, 6)] + [("Summer campaign", make_urls(1, seed=9)[0])]
+    doc = pymupdf.open(stream=poster.poster_sheet_pdf(items), filetype="pdf")
+    assert len(doc) == 2
+    text = doc[0].get_text() + doc[1].get_text()
+    for i in range(1, 6):
+        assert text.count(f"FQR-{i:04d}") == 2, f"FQR-{i:04d}: expected once on the poster and once in the margin"
+    assert text.count("Summer campaign") == 1  # a campaign has no serial on its poster, only the margin label
+
+
+@pytest.mark.parametrize("bad", ["", "   ", "x" * 25, "FQR-0001)\n/Evil", "<script>", "FQRé", "a/b", "FQR-0001<", None])
+def test_an_unsafe_or_odd_serial_is_never_drawn(bad):
+    """The serial goes into SVG and PDF text: anything that is not plain letters, digits, space, dot, dash or underscore is dropped, never escaped half-way."""
+    assert poster.serial_text(bad) is None
+    assert poster.poster_svg(SERIAL_URL, serial=bad) == poster.poster_svg(SERIAL_URL)
+    assert poster.poster_pdf(SERIAL_URL, serial=bad) == poster.poster_pdf(SERIAL_URL)
+
+
+def _has(pdf: bytes, text: str, page: int = 0) -> bool:
+    return bool(pymupdf.open(stream=pdf, filetype="pdf")[page].search_for(text))
+
+
+def test_every_route_that_serves_a_card_poster_prints_that_cards_own_serial(admin, biz_a):
+    b, cards = new_batch(admin, 3)
+    card = cards[0]
+    assert admin.post(f"/admin/cards/{card['id']}/assign", json={"tenant_id": biz_a.tenant_id, "location_id": biz_a.location_id, "activate": True}).status_code == 200
+    code = card["card_code"]
+    # a single poster: admin and the business that owns the card
+    assert _has(admin.get(f"/admin/cards/{card['id']}/poster.pdf").content, code)
+    assert _has(biz_a.get(f"/cards/{card['id']}/poster.pdf").content, code)
+    assert b">" + code.encode() + b"</text>" in admin.get(f"/admin/cards/{card['id']}/poster.svg").content
+    png = Image.open(io.BytesIO(admin.get(f"/admin/cards/{card['id']}/poster.png").content)).convert("RGB")
+    assert png.size == (1055, 1491) and png.crop(serial_box()).convert("L").getextrema()[0] < 200  # dark text pixels in the serial's corner
+    # the admin batch files: each card's own serial in its own file, and nobody else's
+    z = zipfile.ZipFile(io.BytesIO(admin.get(f"/admin/batches/{b['id']}/posters.zip", params={"fmt": "pdf"}).content))
+    assert len(z.namelist()) == 3
+    for c in cards:
+        pdf = z.read(f"{c['card_code']}-poster.pdf")
+        assert _has(pdf, c["card_code"]), c["card_code"]
+        assert not any(_has(pdf, o["card_code"]) for o in cards if o is not c)
+    # the admin print sheet: each serial on its poster and in its margin
+    sheet = pymupdf.open(stream=admin.get(f"/admin/batches/{b['id']}/posters.pdf").content, filetype="pdf")
+    assert sum(len(sheet[i].search_for(c["card_code"])) for i in range(len(sheet)) for c in cards) == 6
+    # the business's own bulk export
+    r = biz_a.post("/qr/bulk", json={"card_ids": [card["id"]], "design": "poster", "formats": ["pdf"], "sheet": True})
+    assert r.status_code == 200, r.text
+    zz = zipfile.ZipFile(io.BytesIO(r.content))
+    assert _has(zz.read(f"pdf/{code}-poster.pdf"), code)
+    assert _has(zz.read("print-sheet-A4-posters.pdf"), code)
+
+
+def test_a_campaign_poster_has_no_serial(biz_a):
+    camp = campaign(biz_a)
+    r = biz_a.get(f"/review-growth/campaigns/{camp['id']}/poster.pdf")
+    assert r.status_code == 200
+    text = pymupdf.open(stream=r.content, filetype="pdf")[0].get_text()
+    assert "FQR-" not in text and "QRC-" not in text

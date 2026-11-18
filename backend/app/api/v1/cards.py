@@ -203,4 +203,4 @@ def card_poster(card_id: uuid.UUID, fmt: str, scale: int = Query(1, ge=1, le=3),
     from app.api.v1.qr import poster_response
 
     card = get_own_card(ctx, card_id)
-    return poster_response(card_qr_url(card), fmt, card.card_code, scale=scale, size=size)
+    return poster_response(card_qr_url(card), fmt, card.card_code, scale=scale, size=size, serial=card.card_code)

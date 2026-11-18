@@ -139,7 +139,7 @@ def batch_poster_sheets(batch_id: uuid.UUID, request: Request, ctx: AuthContext 
     require_print_domain()
     batch, cards = _batch_cards(ctx, batch_id)
     try:
-        body = poster_svc.poster_sheet_pdf([(c.card_code, card_qr_url(c)) for c in cards])
+        body = poster_svc.poster_sheet_pdf([(c.card_code, card_qr_url(c), c.card_code) for c in cards])
     except poster_svc.PosterError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     audit(ctx.db, action="admin.batch_posters", user_id=ctx.user.id, entity_type="batch", entity_id=batch.id, meta={"cards": len(cards)}, ip=client_ip(request))
@@ -161,7 +161,7 @@ def batch_poster_files(batch_id: uuid.UUID, request: Request, fmt: str = Query("
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for c in page:
-            z.writestr(f"{c.card_code}-poster.{fmt}", poster_file(card_qr_url(c), fmt))
+            z.writestr(f"{c.card_code}-poster.{fmt}", poster_file(card_qr_url(c), fmt, serial=c.card_code))
     audit(ctx.db, action="admin.batch_poster_files", user_id=ctx.user.id, entity_type="batch", entity_id=batch.id,
           meta={"format": fmt, "offset": offset, "count": len(page)}, ip=client_ip(request))
     ctx.db.commit()
@@ -453,7 +453,7 @@ def admin_card_qr(card_id: uuid.UUID, fmt: str, ctx: AuthContext = Depends(requi
 def admin_card_poster(card_id: uuid.UUID, fmt: str, scale: int = Query(1, ge=1, le=3), size: str = Query("ref"), ctx: AuthContext = Depends(require_platform_admin)):
     """The approved FlowQR poster with this card's permanent QR code (PNG, SVG or print-ready PDF)."""
     card = _card_or_404(ctx, card_id)
-    return poster_response(card_qr_url(card), fmt, card.card_code, scale=scale, size=size)
+    return poster_response(card_qr_url(card), fmt, card.card_code, scale=scale, size=size, serial=card.card_code)
 
 
 def _tenant_row(db, t: Tenant, sub: Subscription | None, owner_email: str | None) -> dict:
