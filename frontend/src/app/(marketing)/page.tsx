@@ -1,7 +1,8 @@
-import { BadgeCheck, CalendarCheck, Layers, MousePointerClick, Nfc, QrCode, ScanLine, Search, Sparkles, Star, Store, TrendingUp } from "lucide-react";
+import { BadgeCheck, CalendarCheck, Layers, MousePointerClick, Nfc, QrCode, ScanLine, Search, Sparkles, Star, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Hero } from "@/components/marketing/Hero";
+import { BusinessBand } from "@/components/marketing/BusinessBand";
 import { HeroHub } from "@/components/marketing/HeroHub";
 import { MButton, MicroChip } from "@/components/marketing/kit";
 import { AgentShowcase } from "@/components/marketing/AgentShowcase";
@@ -33,9 +34,11 @@ export default function Home() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* S1 Hero */}
-      <Hero line1={c.hero.line1} line2={c.hero.line2} sub={c.hero.sub}
-        kicker={<span className="inline-flex items-center gap-2 rounded-full bg-m-surface/80 py-1.5 pl-1.5 pr-4 text-[14px] font-medium text-m-ink2 shadow-[var(--shadow-card)] backdrop-blur"><span className="grid h-7 w-7 place-items-center rounded-full bg-m-tint text-m-accentStrong"><Store className="h-3.5 w-3.5" strokeWidth={1.75} /></span>{c.hero.forLabel} <span className="text-m-accentStrong">{c.hero.forAccent}</span></span>}
+      <Hero line1={c.hero.line1} line2={c.hero.line2} words={c.hero.words} sub={c.hero.sub}
         flow={<HeroHub note={c.hero.left} />} />
+
+      {/* Made for: the kinds of business, large and scrolling, each linking to its block on /industries */}
+      <BusinessBand title={c.hero.bandTitle} all={c.hero.bandAll} items={en.industries.list.map(([id, name]) => [id, name] as [string, string])} />
 
       {/* The three agents, animated */}
       <AgentShowcase title={c.team.title} sub={c.team.sub} />
