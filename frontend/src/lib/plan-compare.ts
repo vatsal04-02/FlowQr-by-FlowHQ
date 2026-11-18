@@ -95,11 +95,11 @@ export function cardPoints(p: Plan): { text: string; soon?: boolean }[] {
   const out: { text: string; soon?: boolean }[] = [];
   out.push({ text: `${n(s.writing)} AI-assisted review-writing operations a month` });
   out.push({ text: `${n(s.replies)} AI-generated review replies a month` });
-  out.push({ text: `${s.analytics} analytics` });
+  out.push({ text: p.code === "pro" ? "Advanced analytics and ranking insights" : `${s.analytics} analytics` });
   out.push({ text: "Core review management" });
   if (has(p, "qr_campaigns")) out.push({ text: "QR-based review collection" });
   if (s.localSeo && has(p, "local_seo")) out.push({ text: s.localSeo === "Advanced" ? "Advanced local SEO" : "Local SEO features" });
-  if (s.advancedSeo && has(p, "keyword_tracking")) out.push({ text: p.code === "pro" ? "Advanced ranking insights" : "Keyword and local ranking insights" });
+  if (p.code === "growth" && has(p, "keyword_tracking")) out.push({ text: "Keyword and local ranking insights" });
   if (p.code === "growth" && has(p, "profile_optimizer")) out.push({ text: "Business profile optimisation" });
   if (s.posts !== null) out.push({ text: `${n(s.posts)} AI-generated post texts a month` });
   if (s.campaigns !== null) out.push({ text: `${n(s.campaigns)} AI marketing campaigns a month`, soon: NOT_YET_BUILT.has("campaigns") });
