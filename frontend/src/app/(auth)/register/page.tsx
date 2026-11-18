@@ -84,7 +84,6 @@ export default function RegisterPage() {
             aria-required="true" aria-invalid={ageErr || undefined} aria-describedby={ageErr ? "age-confirm-error" : undefined} className="mt-0.5 h-5 w-5 shrink-0 accent-[#C94C00]" />
           <span className="text-[14px] leading-relaxed text-ink-700">
             I confirm that I am 18 years of age or older.
-            <span lang="hi" className="mt-1 block text-ink-500">मैं पुष्टि करता/करती हूँ कि मेरी आयु 18 वर्ष या उससे अधिक है।</span>
           </span>
         </label>
         {ageErr && <p id="age-confirm-error" role="alert" className="mt-1.5 text-[13px] font-medium text-[#B3261E]">Please confirm that you are 18 years of age or older to create an account.</p>}

@@ -29,12 +29,12 @@ test("the notice is on BOTH customer pages, only where AI help is offered, and i
   assert.doesNotMatch(notice, /checkbox|defaultChecked|checked/i, "a notice, not a consent box");
 });
 
-test("sign-up: the 18+ declaration is unchecked by default, required, bilingual, and sent to the server", () => {
+test("sign-up: the 18+ declaration is unchecked by default, required, English only, and sent to the server", () => {
   const page = src("app/(auth)/register/page.tsx");
   assert.match(page, /const \[age, setAge\] = useState\(false\)/, "starts unchecked");
   assert.doesNotMatch(page, /defaultChecked/);
   assert.ok(page.includes("I confirm that I am 18 years of age or older."));
-  assert.ok(page.includes("मैं पुष्टि करता/करती हूँ कि मेरी आयु 18 वर्ष या उससे अधिक है।"));
+  assert.ok(!page.includes("मैं पुष्टि करता"), "the sign-up declaration is English only (owner decision 2026-11-18)");
   assert.match(page, /if \(!age\) \{ needAge\(\); return; \}/, "submit stops without it");
   assert.match(page, /age_confirmed: true/);
   assert.match(page, /aria-required="true"/);
