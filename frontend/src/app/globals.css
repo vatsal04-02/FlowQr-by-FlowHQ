@@ -119,6 +119,8 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   .mkt-caret-blink { animation: mkt-caret .8s steps(1) 5 forwards; }
   @keyframes mkt-caret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 0; } }
   @keyframes mkt-marquee { to { transform: translateX(-50%); } }
+  /* Text reveal (components/ui/text-reveal.tsx): under reduced motion the finished text is shown at once */
+  @media (prefers-reduced-motion: reduce) { [data-text-reveal], [data-text-reveal] * { opacity: 1 !important; filter: none !important; transform: none !important; } }
   /* the same loop running the other way (home FAQ, second row) */
   .mkt-marquee-rev { animation: mkt-marquee-rev 60s linear infinite; }
   @keyframes mkt-marquee-rev { from { transform: translateX(-50%); } to { transform: translateX(0); } }
