@@ -120,6 +120,13 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   @keyframes mkt-caret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 0; } }
   @keyframes mkt-marquee { to { transform: translateX(-50%); } }
   @media (prefers-reduced-motion: reduce) { .mkt-marquee { animation: none; } }
+  /* Home hero cards: dealt out from behind the headline one after another, then a slow drift. Below 1280px they are a grid and just rise in. */
+  .fc-in { --sx: 0px; --sy: 26px; --sr: 0deg; animation: fc-in 1.15s cubic-bezier(.3,1.25,.5,1) var(--d, 0s) backwards; }
+  .fc-float { animation: fc-float var(--fd, 7s) ease-in-out var(--fl, 0s) infinite; }
+  @media (min-width: 1280px) { .fc-in { --sx: var(--xsx); --sy: var(--xsy); --sr: var(--xsr); } }
+  @keyframes fc-in { from { opacity: 0; transform: translate(var(--sx), var(--sy)) rotate(var(--sr)) scale(.72); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
+  @keyframes fc-float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-9px) rotate(var(--fr, .5deg)); } }
+  @media (prefers-reduced-motion: reduce) { .fc-in, .fc-float { animation: none; } }
   /* Set-up wizard (components/onboarding): white fields with a hairline border and an orange focus ring instead of grey wells. Lives under .mkt for the colour tokens. */
   .wiz input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), .wiz select { background-color: #fff; border: 1px solid rgb(var(--m-line)); box-shadow: 0 1px 0 rgba(11,15,46,.03); }
   .wiz input:not([type="radio"]):not([type="checkbox"]):hover, .wiz select:hover { border-color: rgb(var(--m-muted2)); }
