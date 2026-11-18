@@ -50,10 +50,11 @@ class _Flow:
     verifier: str
     intent: str
     user_id: str
+    age_confirmed: bool = False  # ticked on the sign-up page before the redirect; only a brand-new account needs it
 
 
 def _flow_cookie(response: Response, flow: _Flow) -> None:
-    payload = "|".join([flow.state, flow.nonce, flow.verifier, flow.intent, flow.user_id or "-", str(int(time.time()))])
+    payload = "|".join([flow.state, flow.nonce, flow.verifier, flow.intent, flow.user_id or "-", str(int(time.time())), "1" if flow.age_confirmed else "0"])
     response.set_cookie(FLOW_COOKIE, sign_state(payload), max_age=FLOW_TTL_SECONDS, httponly=True,
                         secure=settings.cookie_secure, samesite="lax", path=FLOW_COOKIE_PATH)
 
@@ -63,9 +64,10 @@ def _read_flow(raw: str | None) -> _Flow | None:
     if not payload:
         return None
     parts = payload.split("|")
-    if len(parts) != 6:
+    if len(parts) not in (6, 7):  # 6 = a cookie issued before the age declaration existed (in flight during a deploy): read as "not declared"
         return None
-    state, nonce, verifier, intent, user_id, issued = parts
+    state, nonce, verifier, intent, user_id, issued = parts[:6]
+    age = len(parts) == 7 and parts[6] == "1"
     try:
         if time.time() - int(issued) > FLOW_TTL_SECONDS:
             return None
@@ -73,11 +75,11 @@ def _read_flow(raw: str | None) -> _Flow | None:
         return None
     if intent not in (LOGIN, LINK):
         return None
-    return _Flow(state, nonce, verifier, intent, "" if user_id == "-" else user_id)
+    return _Flow(state, nonce, verifier, intent, "" if user_id == "-" else user_id, age)
 
 
-def _new_flow(intent: str, user_id: str = "") -> _Flow:
-    return _Flow(state=new_token(24), nonce=new_token(24), verifier=new_token(48), intent=intent, user_id=user_id)
+def _new_flow(intent: str, user_id: str = "", age_confirmed: bool = False) -> _Flow:
+    return _Flow(state=new_token(24), nonce=new_token(24), verifier=new_token(48), intent=intent, user_id=user_id, age_confirmed=age_confirmed)
 
 
 def _auth_url(flow: _Flow) -> str:
@@ -100,11 +102,12 @@ def _not_configured() -> HTTPException:
 
 
 @router.get("/start", dependencies=[Depends(limit_by_ip("gl-start", 20, 60))])
-def start():
-    """Full-page redirect target for the "Continue with Google" button."""
+def start(age: str | None = None):
+    """Full-page redirect target for the "Continue with Google" button. `?age=1` is sent only by the sign-up page, after the person ticked "I confirm that I am 18 years of age or older";
+    without it a brand-new Google identity is refused at the callback (people who already have an account sign in as usual)."""
     if not settings.google_login_configured:
         return _redirect("/login", google_error="not_configured")
-    flow = _new_flow(LOGIN)
+    flow = _new_flow(LOGIN, age_confirmed=(age == "1"))
     r = RedirectResponse(_auth_url(flow), status_code=303)
     _flow_cookie(r, flow)
     return r
@@ -149,7 +152,7 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     try:
         if flow.intent == LINK:
             return _link_existing(db, request, session_token, flow, identity, fail)
-        return _sign_in(db, request, identity, fail)
+        return _sign_in(db, request, identity, fail, flow)
     except IntegrityError:  # two callbacks racing to create/link the same account
         db.rollback()
         return fail("exchange_failed")
@@ -173,7 +176,7 @@ def _link_existing(db: Session, request: Request, session_token, flow: _Flow, id
     return _done(_redirect("/settings/account", google="linked"))
 
 
-def _sign_in(db: Session, request: Request, identity, fail) -> RedirectResponse:
+def _sign_in(db: Session, request: Request, identity, fail, flow: _Flow) -> RedirectResponse:
     user = db.scalar(select(User).where(User.google_sub == identity.sub))
     created = False
     if user is None:
@@ -196,16 +199,19 @@ def _sign_in(db: Session, request: Request, identity, fail) -> RedirectResponse:
                 registration.gate_new_account(db, request, identity.email, "google")  # a NEW account: the same rule as password sign-up (existing accounts never reach this branch)
             except HTTPException:
                 return fail("registration_restricted")
+            if not flow.age_confirmed:  # a NEW account needs the 18+ declaration, exactly as password sign-up does; nothing is created without it
+                return fail("age_required")
             user = User(
                 email=identity.email, password_hash=None, google_sub=identity.sub,
                 full_name=((identity.name or "").strip() or identity.email.split("@")[0])[:200],
                 email_verified_at=utcnow(), is_platform_admin=identity.email in settings.platform_admin_email_set,
+                age_confirmed_at=utcnow(), age_declaration_version=registration.AGE_DECLARATION_VERSION,
             )
             db.add(user)
             db.flush()
             created = True
             audit(db, action="auth.register", user_id=user.id, entity_type="user", entity_id=user.id,
-                  ip=client_ip(request), meta={"via": "google"})
+                  ip=client_ip(request), meta={"via": "google", "age_declared": True, "age_declaration_version": registration.AGE_DECLARATION_VERSION})
     elif not user.is_active:
         return fail("account_disabled")
 

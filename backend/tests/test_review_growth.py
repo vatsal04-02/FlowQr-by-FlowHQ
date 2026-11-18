@@ -46,6 +46,7 @@ class StubLLM:
 def llm(monkeypatch):
     stub = StubLLM()
     monkeypatch.setattr(settings, "gemini_api_key", "test-key")  # makes ai_configured true; the provider itself is the stub
+    monkeypatch.setattr(settings, "gemini_data_terms_verified", True)  # this fixture exercises review generation, not the data-terms gate (tests/test_privacy_lifecycle.py covers that)
     monkeypatch.setattr("app.api.v1.review_public.get_provider", lambda: stub)
     return stub
 

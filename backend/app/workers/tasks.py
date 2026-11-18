@@ -146,8 +146,10 @@ def retry_failed_replies():
 
 @celery_app.task(name="flowqr.purge_deleted_accounts")
 def purge_deleted_accounts():
-    """Delete businesses whose owner scheduled deletion and whose grace period has ended."""
-    from app.services.account import delete_tenant, due_for_deletion
+    """Delete businesses whose owner scheduled deletion and whose grace period has ended, and anonymise people whose own account deletion is due. Each is told by email AFTER it has committed
+    (at most once: a failed email is logged, never retried into a duplicate)."""
+    from app.services import account_mail
+    from app.services.account import delete_tenant, delete_user, due_for_deletion, due_users
 
     db = system_session()
     try:
@@ -155,11 +157,29 @@ def purge_deleted_accounts():
         done = []
         for tid in ids:
             try:
-                done.append(delete_tenant(db, tid))
+                d = delete_tenant(db, tid)
+                done.append(d)
+                for email, name in d.get("notify", []):
+                    account_mail.business_deletion_completed(db, to=email, name=name, business=d.get("business") or "your business")
+                db.commit()
             except Exception:  # keep going: one failure must not block the others, and it retries next hour
                 db.rollback()
                 log.exception("account deletion failed for %s", tid)
-        return {"due": len(ids), "deleted": sum(1 for d in done if d.get("deleted"))}
+        uids = due_users(db)
+        people = []
+        for uid in uids:
+            try:
+                r = delete_user(db, uid)
+                people.append(r)
+                if r.get("deleted"):
+                    account_mail.deletion_completed(db, to=r["email"], name=r.get("name"), user_id=r["user_id"])
+                elif r.get("reason") == "blocked":
+                    account_mail.deletion_blocked(db, to=r["email"], name=r.get("name"), user_id=r["user_id"])
+                db.commit()
+            except Exception:
+                db.rollback()
+                log.exception("personal account deletion failed for %s", uid)
+        return {"due": len(ids), "deleted": sum(1 for d in done if d.get("deleted")), "people_due": len(uids), "people_deleted": sum(1 for d in people if d.get("deleted"))}
     finally:
         db.close()
 
@@ -242,6 +262,19 @@ def autonomy_housekeeping():
     db = system_session()
     try:
         return {"expired": executor.expire_due(db), "recovered": executor.recover_stuck(db), "recovered_content": content_exec.recover_stuck(db)}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="flowqr.privacy_retention")
+def privacy_retention():
+    """Daily: expire ended login sessions, old password-reset tokens, audit-log IP addresses and old demo requests (services/retention.py). PROVISIONAL periods, pending legal review, and the job does
+    nothing at all unless PRIVACY_RETENTION_ENABLED=true."""
+    from app.services import retention
+
+    db = system_session()
+    try:
+        return retention.run(db)
     finally:
         db.close()
 

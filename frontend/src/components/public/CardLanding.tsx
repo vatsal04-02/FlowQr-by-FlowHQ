@@ -4,6 +4,7 @@ import { Check, Copy, ExternalLink, Info, Loader2, QrCode, PenLine } from "lucid
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/ui/Brand";
 import { publicButtonClass } from "@/components/ui/Button";
+import { AiNotice } from "@/components/public/AiNotice";
 import ReviewLanding from "@/components/public/ReviewLanding";
 import { api, ApiError, errorMessage } from "@/lib/api";
 
@@ -109,8 +110,9 @@ export default function CardLanding({ token, channel }: { token: string; channel
           className="mt-1.5 w-full resize-y rounded-lg border border-ink-300 bg-white p-3.5 text-[16px] leading-relaxed placeholder:text-ink-400 hover:border-ink-500 focus-visible:border-brand-600" />
         <div className="mt-1 flex justify-between text-xs text-ink-500"><span>Be honest. Your words, your review.</span><span>{text.length}/1200</span></div>
 
-        {data.ai_available ? (
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        {data.ai_available ? (<>
+          <div className="mt-4"><AiNotice lang={lang === "auto" ? (biz?.language ?? "en") : lang} /></div>{/* before the button that sends the text for AI help; Hindi when Hindi is chosen */}
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="sm:w-44">
               <label htmlFor="lang" className="mb-1 block text-xs font-semibold text-ink-500">Language</label>
               <select id="lang" value={lang} onChange={(e) => setLang(e.target.value as typeof lang)} className="min-h-12 w-full rounded-lg border border-ink-300 bg-white px-3 text-[16px]">
@@ -122,7 +124,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
               {busy ? <Loader2 className="h-5 w-5 fq-spin" aria-hidden /> : <PenLine className="h-5 w-5" aria-hidden />}{busy ? "Improving…" : "Improve my wording"}
             </button>
           </div>
-        ) : (
+        </>) : (
           <p className="mt-4 flex gap-2 rounded-lg bg-white p-3 text-sm text-ink-700"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />Writing help isn't available right now. You can still copy your own words and post them on Google.</p>
         )}
         {aiError && <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{aiError}</p>}

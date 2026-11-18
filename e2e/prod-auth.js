@@ -63,6 +63,7 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
       await page.goto(`${SITE}/register`); await page.waitForLoadState('networkidle');
       await page.getByLabel(/your name/i).fill('Refusal Test'); await page.getByLabel(/work email/i).fill(`not-listed-${TAG}@example.com`);
       await page.getByLabel(/^password/i).fill('Str0ngPassw0rd!x' + TAG);
+      await page.getByLabel(/18 years of age or older/i).check();
       await page.getByRole('button', { name: /create account/i }).click();
       await page.waitForFunction(() => /approved businesses only at the moment/i.test(document.body.innerText) && document.querySelectorAll('[role=alert]').length > 0, null, { timeout: 15000 });
       expect(/\/register/.test(page.url()), 'left the sign-up page: ' + page.url());
@@ -110,6 +111,7 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
     await step('register the allowlisted test account through the real sign-up form', async () => {
       await page.goto(`${SITE}/register`); await page.waitForLoadState('networkidle');
       await page.getByLabel(/your name/i).fill(NAME); await page.getByLabel(/work email/i).fill(EMAIL); await page.getByLabel(/^password/i).fill(PASSWORD);
+      await page.getByLabel(/18 years of age or older/i).check();
       await page.getByRole('button', { name: /create account/i }).click();
       await page.waitForURL(/\/onboarding|\/admin|\/overview/, { timeout: 25000 });
       expect(apiStatuses.some((s) => s.startsWith('POST /api/v1/auth/register 201')), 'no 201: ' + apiStatuses.join(', '));

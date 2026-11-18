@@ -87,7 +87,7 @@ async function makeJpeg(page) {
   let csrf, tenant, locA, gid, ready = false;
   const H = () => ({ 'X-CSRF-Token': csrf });
   try {
-    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: `zz-gba-${TAG}@example.com`, password: PW, full_name: 'ZZ GBA Owner' } });
+    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: `zz-gba-${TAG}@example.com`, password: PW, age_confirmed: true, full_name: 'ZZ GBA Owner' } });
     expect(r.status() === 201, `register ${r.status()} ${await r.text()}`);
     csrf = (await r.json()).csrf_token;
     tenant = await (await ctx.request.post('/api/v1/tenants', { data: { name: NAME, category: 'Physiotherapy clinic', language: 'en' }, headers: H() })).json();

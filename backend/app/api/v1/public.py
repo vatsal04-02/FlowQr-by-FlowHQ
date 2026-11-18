@@ -15,7 +15,7 @@ from app.models import CardStatus, Location, QRCard, ReviewCampaign, ScanEvent, 
 from app.models.base import utcnow
 from app.schemas.cards import TrackEventIn
 from app.services import cards as svc
-from app.services.ai import AIUnavailable, get_provider
+from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai.review_assist import improve_review
 from app.services.ai_usage import log_generation, metered, quota_exceeded
 
@@ -110,7 +110,7 @@ def resolve_card(token: str, request: Request, channel: str | None = None, db: S
             "address": ", ".join(p for p in [location.address_line, location.city] if p) or None,
         },
         "review_url": location.review_url,
-        "ai_available": settings.ai_configured,
+        "ai_available": settings.ai_configured and privacy.blocked_now() is None,  # not offered while review data may not be sent (services/ai/privacy.py)
         "ai_disclaimer": AI_DISCLAIMER,
         "card_code": card.card_code,
     }

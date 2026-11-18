@@ -63,7 +63,7 @@ function expect(cond, msg) { if (!cond) throw new Error(msg); }
   let csrf, tenant, locA, locB, campaign, cards = [], staffCtx, staffEmail = `zz-e2e-staff-${TAG}@example.com`;
   const H = () => ({ 'X-CSRF-Token': csrf });
   try {
-    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: `zz-e2e-${TAG}@example.com`, password: PW, full_name: 'ZZ E2E Owner' } });
+    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: `zz-e2e-${TAG}@example.com`, password: PW, age_confirmed: true, full_name: 'ZZ E2E Owner' } });
     expect(r.status() === 201, `register ${r.status()} ${await r.text()}`);
     csrf = (await r.json()).csrf_token;
     tenant = await (await ctx.request.post('/api/v1/tenants', { data: { name: `ZZ-E2E-${TAG}`, category: 'Physiotherapy clinic', language: 'en' }, headers: H() })).json();
@@ -75,7 +75,7 @@ function expect(cond, msg) { if (!cond) throw new Error(msg); }
     expect(campaign.public_id, 'campaign not created: ' + JSON.stringify(campaign).slice(0, 200));
 
     staffCtx = await browser.newContext({ baseURL: BASE, viewport: { width: 1280, height: 900 } });
-    r = await staffCtx.request.post('/api/v1/auth/register', { data: { email: staffEmail, password: PW, full_name: 'ZZ E2E Staff' } });
+    r = await staffCtx.request.post('/api/v1/auth/register', { data: { email: staffEmail, password: PW, age_confirmed: true, full_name: 'ZZ E2E Staff' } });
     expect(r.status() === 201, `staff register ${r.status()}`);
 
     seed(`

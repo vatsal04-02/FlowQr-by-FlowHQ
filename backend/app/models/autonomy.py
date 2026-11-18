@@ -127,6 +127,34 @@ class AgentRankFollowup(IdMixin, Base):
     result: Mapped[dict | None] = mapped_column(JSONB)
 
 
+class ConsentGrant(IdMixin, Base):
+    """An owner's express consent for ONE kind of automated action at ONE location (Milestone 2, decision D2). Google's API policy: you "must not automate or
+    trigger review replies, Q&As, listing creations, listing edits, or other actions without the user's prior specific and express consent".
+
+    A grant is the ONLY thing that lets FlowQr act without a person approving the individual change, and it is narrow: one location, one action type. It stores
+    exactly what the owner was shown (`wording_text`, `wording_version`), who agreed and when, and, if withdrawn, who withdrew it and when. The row is never edited
+    or deleted (a database trigger refuses both) except to record the revocation; a new grant after a revocation is a new row, so the history of consent is complete.
+    Nothing here can authorise a Level 3 action, or the publishing of public content (posts, photos, AI-drafted replies): those stay with a person every time."""
+
+    __tablename__ = "consent_grants"
+    __table_args__ = (
+        Index("uq_consent_active", "google_location_id", "scope", unique=True, postgresql_where=text("revoked_at is null")),
+        Index("ix_consent_tenant", "tenant_id", "granted_at"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    google_location_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("google_locations.id", ondelete="CASCADE"))
+    scope: Mapped[str] = mapped_column(String(40))  # an action type from autonomy_policy.SPECS (Level 1-2, not person_only), or "reply_template"
+    wording_version: Mapped[str] = mapped_column(String(24))
+    wording_text: Mapped[str] = mapped_column(Text)  # exactly what the owner was shown when agreeing
+    granted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    source: Mapped[str] = mapped_column(String(16), default="owner_ui")
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    revoked_reason: Mapped[str | None] = mapped_column(Text)
+
+
 class PlatformControl(Base):
     """Platform-wide switches an operator can flip at runtime without a deploy (today: the autonomy emergency stop). Not tenant-scoped."""
 

@@ -32,10 +32,11 @@ async function ratingImage(business: string, rating: number, reviews: number): P
   const g = c.getContext("2d")!;
   g.fillStyle = "#FFFFFF"; g.fillRect(0, 0, 1080, 1080);
   g.fillStyle = "#16130F"; g.textAlign = "center";
-  g.font = "600 220px Inter, system-ui, sans-serif"; g.fillText(rating.toFixed(1), 540, 520);
+  const face = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif"; // the app's own (self-hosted) font: a canvas cannot use a CSS variable
+  g.font = `600 220px ${face}`; g.fillText(rating.toFixed(1), 540, 520);
   g.fillStyle = "#D9A314"; g.font = "120px system-ui, sans-serif"; g.fillText("★★★★★".slice(0, Math.round(rating)), 540, 680);
-  g.fillStyle = "#6B645B"; g.font = "500 48px Inter, system-ui, sans-serif"; g.fillText(`from ${reviews.toLocaleString("en-IN")} Google reviews`, 540, 790);
-  g.fillStyle = "#16130F"; g.font = "600 56px Inter, system-ui, sans-serif"; g.fillText(business.slice(0, 32), 540, 240);
+  g.fillStyle = "#6B645B"; g.font = `500 48px ${face}`; g.fillText(`from ${reviews.toLocaleString("en-IN")} Google reviews`, 540, 790);
+  g.fillStyle = "#16130F"; g.font = `600 56px ${face}`; g.fillText(business.slice(0, 32), 540, 240);
   return new Promise((r) => c.toBlob((b) => r(b!), "image/png"));
 }
 

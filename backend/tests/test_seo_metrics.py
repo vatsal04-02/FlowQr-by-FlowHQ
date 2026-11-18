@@ -2,13 +2,15 @@
 
 Google and Places are test doubles here. These tests prove FlowQR stores, isolates and labels data correctly; they do not prove Google's real answers."""
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from app.core.config import settings
 from app.core.db import system_session
 from app.models import GoogleLocation
+from app.models.base import utcnow
 from app.services import gbp_metrics as gm
 from app.services import rank as rank_svc
 from tests.conftest import owner_exec, owner_query
@@ -17,7 +19,7 @@ from tests.test_google_business_agent import gid  # noqa: F401
 from tests.test_location_permissions import invite
 from tests.test_rank_tracker import FakePlaces, KEY, PLACE, add, loc, on  # noqa: F401
 
-TODAY = date.today()
+TODAY = utcnow().date()  # the product works in UTC; date.today() is local time and disagrees between 00:00 and 05:30 IST
 
 
 def series(metric_values: dict[str, list[int]], end: date):
@@ -117,7 +119,7 @@ def test_summary_splits_search_and_maps_and_distinguishes_zero_from_missing(conn
 
 
 def test_previous_period_comparison_uses_only_stored_days_and_leaves_google_lag_out(connected, fake, gid):  # noqa: F811
-    end = TODAY - timedelta(days=gm.LAG_DAYS)
+    end = datetime.now(ZoneInfo("Asia/Kolkata")).date() - timedelta(days=gm.LAG_DAYS)  # the endpoint clips to the BUSINESS's own date (its timezone, India by default), which is not UTC between 18:30 and 24:00 UTC
     record_for(gid, series({"CALL_CLICKS": [1] * 14}, end))  # 14 stored days
     j = connected.get("/analytics/google-metrics", params={"from": (end - timedelta(days=6)).isoformat(), "to": TODAY.isoformat()}).json()
     assert j["range"]["to"] == end.isoformat()  # clipped: today's and the last 2 days are not reported by Google yet

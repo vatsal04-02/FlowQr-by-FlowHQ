@@ -4,6 +4,8 @@ is done separately with a real key."""
 import json
 
 import httpx
+import uuid
+
 import pytest
 
 from app.core.config import settings
@@ -95,7 +97,7 @@ def test_status_says_not_configured_and_checks_are_refused_without_a_key(connect
     assert add(connected, loc).status_code == 201
     r = connected.post(f"/gbp/{loc}/rank/check", json={})
     assert r.status_code == 503 and "set up" in r.json()["detail"]
-    assert owner_query("select count(*) from rank_checks")[0][0] == 0  # nothing measured, nothing invented
+    assert owner_query("select count(*) from rank_checks where tenant_id = :t", t=uuid.UUID(connected.tenant_id))[0][0] == 0  # nothing measured for THIS business, nothing invented (the table is shared with other tests)
 
 
 def test_check_measures_the_real_position_and_reports_movement(connected, fake, loc, on):  # noqa: F811

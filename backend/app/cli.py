@@ -106,6 +106,11 @@ def main() -> None:
 
     g = sub.add_parser("google-smoke", help="read-only live check of the Google Business Profile integration")
     smoke.add_arguments(g)
+    from app.services.google import readiness
+
+    r = sub.add_parser("google-readiness", help="Milestone 2: reads and validateOnly patches on ONE designated test profile (never writes)")
+    readiness.add_arguments(r)
+    sub.add_parser("privacy-retention-report", help="COUNT what the provisional privacy retention job would remove (ended sessions, reset tokens, audit-log IPs, demo leads). Deletes nothing.")
     from app import ops_cli
 
     ops_cli.add_commands(sub)
@@ -117,6 +122,21 @@ def main() -> None:
         sys.exit(ai_eval_cli.run(args))
     if args.cmd in ("preflight", "set-admin-password", "google-write-test", "autonomy-live-test", "registration"):
         sys.exit(ops_cli.run(args))
+    if args.cmd == "privacy-retention-report":
+        from app.core.db import system_session
+        from app.services import retention
+
+        db = system_session()
+        try:
+            out = retention.run(db, dry_run=True)
+        finally:
+            db.close()
+        print(f"DRY RUN: nothing was changed. Would remove: {out['counts']}; errors: {out['errors'] or 'none'}")
+        sys.exit(1 if out["errors"] else 0)
+    if args.cmd == "google-readiness":
+        from app.services.google import readiness as _readiness
+
+        sys.exit(_readiness.run(args))
     sys.exit(smoke.run(args) if args.cmd == "google-smoke" else card_url_audit(args.live, args.expect_domain))
 
 

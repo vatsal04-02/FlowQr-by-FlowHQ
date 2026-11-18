@@ -13,8 +13,9 @@ from sqlalchemy import select
 
 from app.core.deps import AuthContext, TenantContext, get_tenant_context, require_platform_admin, require_role
 from app.core.rate_limit import client_ip, hit
-from app.models import AgentAction, GoogleLocation, Role
+from app.models import AgentAction, ConsentGrant, GoogleLocation, Role
 from app.models.base import utcnow
+from app.services import consent as consent_svc
 from app.services import entitlements as ent
 from app.services.agent import autonomy_policy as pol
 from app.services.agent import controls, executor, history, seo_engine
@@ -248,6 +249,84 @@ def resume_autonomy(request: Request, ctx: TenantContext = Depends(require_role(
     out = _settings_out(ctx, s)
     ctx.db.commit()
     return out
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+# consent: express, per location, per action type, revocable (decision D2)
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+class ConsentIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    location_id: uuid.UUID  # the Google location (the same id the other /agent endpoints use)
+    scope: str = Field(min_length=1, max_length=40)
+    wording_version: str = Field(min_length=1, max_length=24)  # the version of the wording the owner was shown
+
+
+class RevokeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str | None = Field(default=None, max_length=300)
+
+
+class RevokeAllIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    location_id: uuid.UUID | None = None  # omitted = every location of this business
+    reason: str | None = Field(default=None, max_length=300)
+
+
+def _consent_err(exc: consent_svc.ConsentError):
+    return HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@router.get("/agent/consents")
+def list_consents(location_id: uuid.UUID | None = None, ctx: TenantContext = Depends(get_tenant_context)):
+    """What FlowQR may be allowed to do on its own, the exact wording the owner would agree to, and the full history of consent (active and withdrawn) for the locations the caller can see.
+    Nothing is on by default: an empty list means FlowQR will not act on its own anywhere."""
+    glocs = {g.id: g for g in ctx.db.scalars(select(GoogleLocation).where(GoogleLocation.tenant_id == ctx.tenant_id, GoogleLocation.selected.is_(True)))
+             if ctx.can_access_location(g.location_id) and (location_id is None or g.id == location_id)}
+    if location_id is not None and not glocs:
+        raise HTTPException(status_code=404, detail="Google location not found")
+    rows = list(ctx.db.scalars(select(ConsentGrant).where(ConsentGrant.tenant_id == ctx.tenant_id, ConsentGrant.google_location_id.in_(list(glocs) or [uuid.uuid4()]))
+                               .order_by(ConsentGrant.granted_at.desc())))
+    return {"wording_version": consent_svc.WORDING_VERSION, "default": "none: automation only runs where an owner has agreed, for that location and that kind of change",
+            "scopes": [{k: v for k, v in sc.items()} for sc in consent_svc.scopes().values()],
+            "locations": [{"id": str(g.id), "title": g.title} for g in glocs.values()],
+            "grants": [consent_svc.out(r) for r in rows], "never_grantable": "Changes to the business name, address, primary category, service area or primary contact details, "
+                                                                             "and publishing posts, photos or AI-written replies, are approved by a person every time."}
+
+
+@router.post("/agent/consents", status_code=201)
+def give_consent(body: ConsentIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
+    """Owner only. Records express consent for ONE action type at ONE location, with the exact wording shown. Refuses Level 3 and public-content scopes."""
+    ent.require_feature(ctx.db, ctx.tenant_id, "autonomy")
+    gl = _gloc(ctx, body.location_id)
+    try:
+        row, created = consent_svc.grant(ctx.db, tenant_id=ctx.tenant_id, gloc=gl, scope=body.scope, user_id=ctx.user.id, wording_version=body.wording_version, ip=client_ip(request))
+    except consent_svc.ConsentError as exc:
+        raise _consent_err(exc)
+    ctx.db.commit()
+    return {**consent_svc.out(row), "created": created}
+
+
+@router.post("/agent/consents/{consent_id}/revoke")
+def withdraw_consent(consent_id: uuid.UUID, body: RevokeIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
+    """Owner only; works at any time, on any plan. Takes effect immediately: queued autonomous work under this grant returns to 'waiting for you'."""
+    row = ctx.db.scalar(select(ConsentGrant).where(ConsentGrant.id == consent_id, ConsentGrant.tenant_id == ctx.tenant_id))
+    gl = ctx.db.get(GoogleLocation, row.google_location_id) if row else None
+    if row is None or gl is None or not ctx.can_access_location(gl.location_id):
+        raise HTTPException(status_code=404, detail="Consent not found")
+    res = consent_svc.revoke(ctx.db, row, user_id=ctx.user.id, reason=body.reason, ip=client_ip(request))
+    ctx.db.commit()
+    return {**consent_svc.out(row), **res}
+
+
+@router.post("/agent/consents/revoke-all")
+def withdraw_all_consent(body: RevokeAllIn, request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
+    if body.location_id is not None:
+        _gloc(ctx, body.location_id)
+    res = consent_svc.revoke_all(ctx.db, ctx.tenant_id, user_id=ctx.user.id, google_location_id=body.location_id, reason=body.reason, ip=client_ip(request))
+    audit(ctx.db, action="consent.revoked_all", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="consent_grant", ip=client_ip(request),
+          meta={"location_id": str(body.location_id) if body.location_id else None, **res})
+    ctx.db.commit()
+    return res
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------

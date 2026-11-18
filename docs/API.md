@@ -42,6 +42,18 @@ Base path `/api/v1`. Interactive OpenAPI at `/api/docs` when `APP_ENV != product
 | `GET /analytics/overview?from=&to=&location_id=` | S | reviews, engagement funnel + definitions, per card/location, AI usage, sync status |
 | `GET /api/health` | public | liveness + DB check |
 
+## Account lifecycle — `/account` (added 2026-11-18; see `PRIVACY_COMPLIANCE_AUDIT.md` §8)
+| Method & path | Who | Purpose |
+|---|---|---|
+| `POST /auth/register` | public | now requires `age_confirmed: true` (the 18+ declaration); `422 age_declaration_required` without it |
+| `GET /auth/google/start?age=1` | public | `age=1` only from the sign-up page after the box is ticked; a brand-new Google account without it is refused at the callback (`age_required`) |
+| `GET /account/me/deletion` | signed in | my own deletion state: `none`, `awaiting_confirmation`, `scheduled`; and what blocks it (businesses I am the only owner of) |
+| `POST /account/me/deletion` | signed in | body `{confirm_email, password?}`; password accounts give the password, Google-only accounts need a sign-in within `REAUTH_WINDOW_MINUTES`; emails a single-use link; `409 sole_owner`, `403 platform_admin`, `403 reauth_required`; 5 per hour |
+| `POST /account/me/deletion/confirm` | public | body `{token}` from the email; works once, expires, signs the person out everywhere, schedules deletion; one identical `400` for every failure; 10 per 5 minutes per IP |
+| `DELETE /account/me/deletion` | signed in | cancel a pending link or a scheduled deletion |
+| `GET /account/export` | owner | now also sends an email saying a download happened (never the data) |
+| `POST /account/deletion` | owner | business deletion: now emails a request notice once; 5 per hour per person |
+
 ## Billing (Razorpay) — `/billing`
 | Method & path | Who | Purpose |
 |---|---|---|

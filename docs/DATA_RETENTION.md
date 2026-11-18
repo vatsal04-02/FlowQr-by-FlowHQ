@@ -80,3 +80,16 @@ Retention is **by whole record, never by editing**. An erased action leaves no h
 | `RANK_GRID_RETENTION_DAYS` | 400 | geo-grid scans and points; `0` = keep |
 | `ACCOUNT_DELETION_GRACE_DAYS` | 14 | cancellable delay before a requested deletion is carried out |
 | `BACKUP_KEEP_DAYS` | 14 | local backup retention (remote copies follow the remote's own rule) |
+
+## 9. Personal data that is not part of the autonomy history (added 2026-11-18)
+
+Four more kinds of personal data now have a **provisional** period, in `services/retention.py` (task `flowqr.privacy_retention`, off until `PRIVACY_RETENTION_ENABLED=true`; `python -m app.cli privacy-retention-report` only counts). The periods are the owner's operating settings **pending legal review**; they are not a statement that FlowQR complies with any law and they do not decide what must be kept for accounting, security or legal reasons.
+
+| Variable | Default | What goes |
+|---|---|---|
+| `SESSION_RETENTION_DAYS` | 30 | login sessions (IP, browser) 30 days after they ended (signed out or expired) |
+| `PASSWORD_RESET_TOKEN_RETENTION_DAYS` | 30 | reset tokens, used or not, 30 days after creation |
+| `AUDIT_IP_RETENTION_DAYS` | 365 | only the IP address of an audit entry; the entry stays (the database allows nothing else to change: migration 0039) |
+| `LEAD_RETENTION_DAYS` | 365 | demo requests |
+
+A person deleting their **own** account is separate from deleting a business (`services/account.py`, `docs/PRIVACY_COMPLIANCE_AUDIT.md` §8 B). Google-derived data has **no** retention job: that is an unresolved question (§10 of the audit).

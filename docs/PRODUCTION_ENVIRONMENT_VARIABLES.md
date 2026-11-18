@@ -32,6 +32,8 @@ No other frontend variable is needed. `BACKEND_URL` (Docker only) is unused on V
 | `SMTP_HOST/PORT/USER/PASSWORD/FROM/STARTTLS` | a real provider | **yes** | the app refuses to start without it; a local mail sink is refused in production |
 | `SUPPORT_EMAIL`, `LEGAL_COMPANY_NAME` | monitored address; `FlowHQ` | recommended | shown on the legal pages. **Were not passed through Compose before this pass** |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | key; `gemini-3.5-flash` | for AI features | |
+| `GEMINI_DATA_TERMS_VERIFIED`, `AI_REVIEW_DATA_KILL_SWITCH` | leave `GEMINI_DATA_TERMS_VERIFIED` **unset (false)** until the owner holds written evidence about the key's data-use terms; kill switch `false` | with the default, review AI stays OFF for Gemini; customers are not offered AI help | unresolved item L2 in `LAUNCH_READINESS_CHECKLIST.md` |
+| `PRIVACY_RETENTION_ENABLED` and the four `*_RETENTION_DAYS` | `false`; 30 / 30 / 365 / 365 (provisional, pending legal review) | the job deletes data only when true; run `python -m app.cli privacy-retention-report` first | needs the worker and beat, which are stopped |
 | `AI_PRICE_IN_PER_MTOK`, `AI_PRICE_OUT_PER_MTOK`, `AI_PLATFORM_HARD_LIMIT_USD`, `AI_TENANT_MONTHLY_BUDGET_USD` | **unset today** | decision | dollar budgets refuse AI calls while unpriced |
 | `RANK_PROVIDER`, `RANK_PROVIDER_KEY` | `google_places`, a new restricted key | for maps and for the business/address suggestions in onboarding | rotate the exposed development key; do not reuse it. Enable Places API (New), restrict the key to this server's IP, link billing |
 | `RANK_PLATFORM_MONTHLY_CAP` | a number | **set before enabling scans** | `0` = no platform ceiling |

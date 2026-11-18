@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.models import AgentSettings, GoogleConnection, GoogleConnectionStatus, GoogleLocation, ReplyDraft, ReplyStatus, Review, Tenant
 from app.models.base import utcnow
 from app.services import ai_usage
+from app.services import consent as consent_svc
 from app.services import entitlements as ent
 from app.services.ai.safety import assess_risk
 from app.services.agent import controls
@@ -189,13 +190,16 @@ def still_allowed(db: Session, d: ReplyDraft) -> bool:
     s = settings_for(db, d.tenant_id)
     ok, _ = master_switch(s)
     review = db.get(Review, d.review_id)
-    return bool(ok and review is not None and review.google_reply_text is None and not controls.emergency_stop(db))
+    consented = bool(review is not None and consent_svc.has_active(db, d.tenant_id, review.google_location_id, consent_svc.REPLY_SCOPE))
+    return bool(ok and consented and review is not None and review.google_reply_text is None and not controls.emergency_stop(db))
 
 
 def eligibility(db: Session, tenant: Tenant, s: AgentSettings, review: Review, gloc: GoogleLocation, now: datetime) -> tuple[bool, str]:
     ok, why = master_switch(s)
     if not ok:
         return False, why
+    if not consent_svc.has_active(db, tenant.id, gloc.id, consent_svc.REPLY_SCOPE):
+        return False, "the owner has not given consent for automatic replies at this location"
     if not tenant.is_active or tenant.suspended_at or tenant.deletion_scheduled_for:
         return False, "the business is suspended or being deleted"
     if review.google_reply_text is not None or review.google_reply_state in ("PENDING", "LIVE"):

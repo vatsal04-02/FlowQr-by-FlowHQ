@@ -28,6 +28,9 @@ ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts"
 INFO_URL = "https://mybusinessbusinessinformation.googleapis.com/v1"
 REVIEWS_URL = "https://mybusiness.googleapis.com/v4"  # reviews, localPosts and media still live on the v4 surface
 PERFORMANCE_URL = "https://businessprofileperformance.googleapis.com/v1"
+VERIFY_URL = "https://mybusinessverifications.googleapis.com/v1"
+ACTIONS_URL = "https://mybusinessplaceactions.googleapis.com/v1"
+NOTIFY_URL = "https://mybusinessnotifications.googleapis.com/v1"
 UPLOAD_URL = "https://mybusiness.googleapis.com/upload/v1/media"  # byte upload target for media:startUpload references
 
 BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage"
@@ -531,6 +534,51 @@ class HttpGoogleProvider:
                     # (one per dailySubEntityType); they are summed into one daily total.
                     days[key] = days.get(key, 0) + int(dv.get("value") or 0)
         return {m: [{"date": k, "value": v} for k, v in sorted(days.items())] for m, days in out.items()}
+
+    # ================= Milestone 2: readiness reads and validation-only writes (docs/GOOGLE_READINESS_M2.md) =================
+    # Everything below is READ-ONLY or validation-only. None of it changes a profile, and none of it is wired into a customer-facing flow yet:
+    # each operation is only used by `python -m app.cli google-readiness` until a live success is recorded for it.
+    def get_location_raw(self, access_token, location_name, read_mask: str) -> dict:
+        """The Business Information location exactly as Google returns it for `read_mask` (no reshaping), for readiness checks."""
+        return self._send("GET", f"{INFO_URL}/{location_name}", access_token, params={"readMask": read_mask})
+
+    def validate_location_patch(self, access_token, location_name, body: dict, update_mask: str) -> dict:
+        """Ask Google to VALIDATE a location patch without applying it (`validateOnly=true`, documented: "the request is validated without actually
+        updating the location"). This is the ONLY patch this class can send without going through update_location, and it cannot be sent without
+        validateOnly: the flag is set here and is not a parameter. Returns Google's answer (an empty object means no errors)."""
+        return self._send("PATCH", f"{INFO_URL}/{location_name}", access_token, params={"updateMask": update_mask, "validateOnly": "true"}, json=body)
+
+    def get_google_updated(self, access_token, location_name, read_mask: str) -> dict:
+        """The location as it appears live on Google Maps and Search, with `diffMask` (fields where that view differs from the merchant's data)
+        and `pendingMask` (the merchant's own edits not yet published). Read-only; used to SHOW Google-initiated changes, never to revert them."""
+        j = self._send("GET", f"{INFO_URL}/{location_name}:getGoogleUpdated", access_token, params={"readMask": read_mask})
+        return {"location": j.get("location") or {}, "diff_mask": j.get("diffMask") or "", "pending_mask": j.get("pendingMask") or ""}
+
+    def get_voice_of_merchant_state(self, access_token, location_name) -> dict:
+        return self._send("GET", f"{VERIFY_URL}/{location_name}/VoiceOfMerchantState", access_token)
+
+    def list_verifications(self, access_token, location_name) -> dict:
+        return self._send("GET", f"{VERIFY_URL}/{location_name}/verifications", access_token)
+
+    def get_attributes(self, access_token, location_name) -> dict:
+        return self._send("GET", f"{INFO_URL}/{location_name}/attributes", access_token)
+
+    def list_attribute_metadata(self, access_token, *, parent: str | None = None, category_name: str | None = None, region: str = "IN", language: str = "en") -> dict:
+        # Google answers 400 when `parent` is combined with the region/language/category filters, so a location query sends only `parent`.
+        params: dict = {"pageSize": 200}
+        if parent:
+            params["parent"] = parent
+        else:
+            params.update({"regionCode": region, "languageCode": language})
+            if category_name:
+                params["categoryName"] = category_name
+        return self._send("GET", f"{INFO_URL}/attributes", access_token, params=params)
+
+    def list_place_action_links(self, access_token, location_name) -> dict:
+        return self._send("GET", f"{ACTIONS_URL}/{location_name}/placeActionLinks", access_token)
+
+    def get_notification_setting(self, access_token, account_name) -> dict:
+        return self._send("GET", f"{NOTIFY_URL}/{account_name}/notificationSetting", access_token)
 
 
 def _reply_state(reply: dict | None) -> str | None:

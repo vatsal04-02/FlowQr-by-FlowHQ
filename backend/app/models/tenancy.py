@@ -68,6 +68,17 @@ class User(IdMixin, TimestampMixin, Base):
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # "I confirm that I am 18 years of age or older" (ticked at sign-up; no date of birth is collected). NULL for everyone who registered before the declaration existed: their status is unknown, not assumed.
+    age_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    age_declaration_version: Mapped[str | None] = mapped_column(String(24))
+    # Deleting one's OWN account (the business is never deleted by this). requested -> confirmed by the emailed single-use link (only its hash is stored) -> scheduled for the end of the
+    # grace period -> anonymised by the hourly job (`deleted_at`). A completed deletion keeps a tombstone row with no personal data, so history that points at the person points at nobody.
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deletion_token_hash: Mapped[str | None] = mapped_column(String(64))
+    deletion_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deletion_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deletion_scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
 
