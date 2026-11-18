@@ -57,11 +57,13 @@ class ContactIn(BaseModel):
     utility: bool = False
     attested: bool = False
     evidence: str | None = Field(default=None, max_length=400)
+    location_id: uuid.UUID | None = None
 
 
 class ContactPatch(BaseModel):
     name: str | None = Field(default=None, max_length=120)
     tags: list[str] | None = Field(default=None, max_length=10)
+    location_id: uuid.UUID | None = None
 
 
 class ConsentIn(BaseModel):
@@ -150,9 +152,10 @@ def connection_disconnect(request: Request, ctx: TenantContext = Depends(require
 
 # ---- people and consent
 @router.get("/contacts")
-def contacts(search: str | None = None, consent_filter: Literal["marketing", "utility", "opted_out", "none"] | None = None, limit: int = 50, offset: int = 0, ctx: TenantContext = Depends(get_tenant_context)):
+def contacts(search: str | None = None, consent_filter: Literal["marketing", "utility", "opted_out", "none"] | None = None, location_id: uuid.UUID | None = None, limit: int = 50, offset: int = 0,
+             ctx: TenantContext = Depends(get_tenant_context)):
     _on()
-    total, items = consent.list_contacts(ctx.db, ctx.tenant_id, search=search, consent=consent_filter, limit=max(1, min(limit, 200)), offset=max(0, offset))
+    total, items = consent.list_contacts(ctx.db, ctx.tenant_id, search=search, consent=consent_filter, limit=max(1, min(limit, 200)), offset=max(0, offset), location_id=location_id)
     return {"total": total, "items": items, "counts": consent.counts(ctx.db, ctx.tenant_id), "wording": {p: rules.wording_for(p, ctx.tenant.name) for p in ("marketing", "utility")}}
 
 
@@ -171,7 +174,7 @@ def contact_add(body: ContactIn, request: Request, ctx: TenantContext = Depends(
     _limit(f"wa-contact-add:{ctx.tenant_id}", 300, 3600)
 
     def go():
-        c, created = consent.create_contact(ctx.db, ctx.tenant, phone=body.phone, name=body.name, tags=body.tags, source="owner_entry", user_id=ctx.user.id)
+        c, created = consent.create_contact(ctx.db, ctx.tenant, phone=body.phone, name=body.name, tags=body.tags, source="owner_entry", user_id=ctx.user.id, location_id=body.location_id)
         for purpose, wanted in (("marketing", body.marketing), ("utility", body.utility)):
             if wanted:
                 consent.grant(ctx.db, ctx.tenant, c, purpose, "owner_entry", user_id=ctx.user.id, attested=body.attested, evidence=body.evidence, ip=client_ip(request))
@@ -192,7 +195,8 @@ def contact_patch(contact_id: uuid.UUID, body: ContactPatch, ctx: TenantContext 
 
     def go():
         c = consent.get_contact(ctx.db, ctx.tenant_id, contact_id)
-        consent.update_contact(ctx.db, c, name=body.name, tags=body.tags, set_name="name" in body.model_fields_set, set_tags="tags" in body.model_fields_set)
+        consent.update_contact(ctx.db, c, name=body.name, tags=body.tags, set_name="name" in body.model_fields_set, set_tags="tags" in body.model_fields_set, location_id=body.location_id,
+                               set_location="location_id" in body.model_fields_set)
         return consent.serialize(c, consent.consent_map(ctx.db, [c.id])[c.id])
     return _run(ctx, go)
 
@@ -337,6 +341,13 @@ def campaign_create(body: CampaignIn, request: Request, ctx: TenantContext = Dep
     return _run(ctx, lambda: campaigns.serialize(campaigns.create(ctx.db, ctx.tenant, ctx.user, name=body.name, template_id=body.template_id, audience=body.audience, variables=body.variables, scheduled_at=body.scheduled_at, ip=client_ip(request))))
 
 
+@router.get("/campaigns/compare")
+def campaigns_compare(ctx: TenantContext = Depends(get_tenant_context)):
+    """Recent campaigns side by side: what WhatsApp reported for each (never sales)."""
+    _on()
+    return {"items": campaigns.compare(ctx.db, ctx.tenant_id)}
+
+
 @router.get("/campaigns/{campaign_id}")
 def campaign_get(campaign_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
     _on()
@@ -359,6 +370,25 @@ def campaign_approve(campaign_id: uuid.UUID, body: ApproveIn, request: Request, 
                                                                                      accept_estimate=body.accept_estimate, ip=client_ip(request))))
 
 
+class RescheduleIn(BaseModel):
+    scheduled_at: _dt
+
+
+@router.post("/campaigns/{campaign_id}/reschedule")
+def campaign_reschedule(campaign_id: uuid.UUID, body: RescheduleIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Move the start time of a campaign that has not started."""
+    _on()
+    return _run(ctx, lambda: campaigns.preview(ctx.db, ctx.tenant, campaigns.reschedule(ctx.db, ctx.tenant, ctx.user, campaigns.get(ctx.db, ctx.tenant_id, campaign_id), body.scheduled_at, client_ip(request))))
+
+
+@router.post("/campaigns/{campaign_id}/duplicate", status_code=201)
+def campaign_duplicate(campaign_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """A new draft with the same message and audience."""
+    _on()
+    _limit(f"wa-campaign-create:{ctx.tenant_id}", 60, 3600)
+    return _run(ctx, lambda: campaigns.serialize(campaigns.duplicate(ctx.db, ctx.tenant, ctx.user, campaigns.get(ctx.db, ctx.tenant_id, campaign_id), client_ip(request))))
+
+
 @router.post("/campaigns/{campaign_id}/{action}")
 def campaign_action(campaign_id: uuid.UUID, action: Literal["pause", "resume", "cancel"], request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     _on()
@@ -370,6 +400,17 @@ def campaign_action(campaign_id: uuid.UUID, action: Literal["pause", "resume", "
 def campaign_results(campaign_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
     _on()
     return _run(ctx, lambda: campaigns.results(ctx.db, ctx.tenant_id, campaigns.get(ctx.db, ctx.tenant_id, campaign_id)))
+
+
+@router.get("/campaigns/{campaign_id}/results.csv")
+def campaign_results_csv(campaign_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Who the campaign went to and what happened to each message, for the owner's own records."""
+    _on()
+    from app.services.audit import audit
+    c = _run(ctx, lambda: campaigns.get(ctx.db, ctx.tenant_id, campaign_id))
+    audit(ctx.db, action="whatsapp.campaign_export", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="whatsapp_campaign", entity_id=c.id, ip=client_ip(request))
+    ctx.db.commit()
+    return Response(campaigns.recipients_csv(ctx.db, ctx.tenant_id, c), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="campaign-results.csv"', "Cache-Control": "no-store"})
 
 
 # ---- usage and activity

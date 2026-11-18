@@ -17,7 +17,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Tenant
+from app.models import Location, Tenant
 from app.models.base import utcnow
 from app.models.whatsapp import CONSENT_SOURCES, CUSTOMER_SOURCES, PURPOSES, WhatsAppConsent, WhatsAppContact, WhatsAppSuppression
 from app.schemas.common import normalize_phone
@@ -69,7 +69,16 @@ def find_by_phone(db: Session, tenant_id: uuid.UUID, phone: str) -> WhatsAppCont
     return db.scalar(select(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id, WhatsAppContact.phone == phone))
 
 
-def create_contact(db: Session, tenant: Tenant, *, phone: str, name: str | None, tags, source: str, user_id: uuid.UUID | None) -> tuple[WhatsAppContact, bool]:
+def check_location(db: Session, tenant_id: uuid.UUID, location_id: uuid.UUID | None) -> uuid.UUID | None:
+    """A customer can only be placed at one of THIS business's own locations."""
+    if location_id is None:
+        return None
+    if db.scalar(select(Location.id).where(Location.id == location_id, Location.tenant_id == tenant_id)) is None:
+        raise WaError(422, "invalid_location", "Choose one of your own locations.")
+    return location_id
+
+
+def create_contact(db: Session, tenant: Tenant, *, phone: str, name: str | None, tags, source: str, user_id: uuid.UUID | None, location_id: uuid.UUID | None = None) -> tuple[WhatsAppContact, bool]:
     """Get-or-create by number. Returns (contact, created)."""
     if source not in CONSENT_SOURCES:
         raise WaError(422, "invalid_source", "Unknown source.")
@@ -80,14 +89,19 @@ def create_contact(db: Session, tenant: Tenant, *, phone: str, name: str | None,
             existing.customer_name = _name(name)
         if tags:
             existing.tags = _tags([*existing.tags, *tags])
+        if location_id and not existing.location_id:
+            existing.location_id = check_location(db, tenant.id, location_id)
         return existing, False
-    c = WhatsAppContact(tenant_id=tenant.id, phone=p, customer_name=_name(name), tags=_tags(tags), source=source, created_by=user_id)
+    c = WhatsAppContact(tenant_id=tenant.id, phone=p, customer_name=_name(name), tags=_tags(tags), source=source, created_by=user_id, location_id=check_location(db, tenant.id, location_id))
     db.add(c)
     db.flush()
     return c, True
 
 
-def update_contact(db: Session, contact: WhatsAppContact, *, name: str | None = None, tags=None, set_name: bool = False, set_tags: bool = False) -> WhatsAppContact:
+def update_contact(db: Session, contact: WhatsAppContact, *, name: str | None = None, tags=None, set_name: bool = False, set_tags: bool = False, location_id: uuid.UUID | None = None,
+                   set_location: bool = False) -> WhatsAppContact:
+    if set_location:
+        contact.location_id = check_location(db, contact.tenant_id, location_id)
     if set_name:
         contact.customer_name = _name(name)
     if set_tags:
@@ -216,12 +230,14 @@ def consent_map(db: Session, contact_ids: list[uuid.UUID]) -> dict[uuid.UUID, di
 
 def serialize(c: WhatsAppContact, consents: dict | None = None) -> dict:
     consents = consents or {"marketing": None, "utility": None}
-    return {"id": c.id, "phone": c.phone, "customer_name": c.customer_name, "tags": c.tags or [], "source": c.source, "created_at": c.created_at,
+    return {"id": c.id, "phone": c.phone, "customer_name": c.customer_name, "tags": c.tags or [], "location_id": c.location_id, "source": c.source, "created_at": c.created_at,
             "marketing": consents.get("marketing"), "utility": consents.get("utility"), "opted_out": c.marketing_opted_out_at is not None, "opted_out_at": c.marketing_opted_out_at}
 
 
-def list_contacts(db: Session, tenant_id: uuid.UUID, *, search: str | None, consent: str | None, limit: int, offset: int) -> tuple[int, list[dict]]:
+def list_contacts(db: Session, tenant_id: uuid.UUID, *, search: str | None, consent: str | None, limit: int, offset: int, location_id: uuid.UUID | None = None) -> tuple[int, list[dict]]:
     q = select(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id)
+    if location_id:
+        q = q.where(WhatsAppContact.location_id == location_id)
     if search and search.strip():
         term = search.strip()
         digits = re.sub(r"\D", "", term)

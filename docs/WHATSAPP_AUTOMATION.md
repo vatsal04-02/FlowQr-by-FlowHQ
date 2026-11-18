@@ -1,8 +1,8 @@
-# WhatsApp Automation: Phases 1 to 3
+# WhatsApp Automation: Phases 1 to 4
 
-Status: **Phases 1, 2 and 3 are implemented in the repository and tested locally; not deployed; every flag OFF by default.** Phases 2 and 3 are described in the section "Phases 2 and 3" below; the rest of this document describes Phase 1. No real Meta account, number, customer or message has been involved. Nothing in this document has been applied to production.
+Status: **Phases 1, 2, 3 and 4 are implemented in the repository and tested locally; not deployed; every flag OFF by default.** Phases 2 and 3 are described in the section "Phases 2 and 3" and Phase 4 in "Phase 4" below; the rest of this document describes Phase 1. No real Meta account, number, customer or message has been involved. Nothing in this document has been applied to production.
 
-Branch `feature/whatsapp-automation`, migrations **0048** (Phase 1, parent 0047) and **0049** (Phases 2 and 3, parent 0048). Official Meta WhatsApp Cloud API only: no WhatsApp Web automation, no unofficial libraries.
+Branch `feature/whatsapp-automation`, migrations **0048** (Phase 1, parent 0047) **0049** (Phases 2 and 3, parent 0048) and **0050** (Phase 4, parent 0049). Official Meta WhatsApp Cloud API only: no WhatsApp Web automation, no unofficial libraries.
 
 ## Product decisions (confirmed)
 
@@ -138,3 +138,17 @@ Automations (real controls, settings, checklist, recent activity), Offers (creat
 - Click tracking on review links, a guided test message and a first-run checklist (Phase 5).
 - An administrator screen for entering dated Meta rates (the API exists).
 - Real-Meta validation: template approval behaviour, the exact error codes, delivery statuses and pricing must be checked with a Meta test number before any customer is connected.
+
+## Phase 4 (campaign manager)
+
+Migration **0050** (parent 0049, single head): `whatsapp_contacts.location_id` (optional, SET NULL if the location is deleted) and `whatsapp_templates.simple` (true when the approved template has only a text body). Still local only; nothing sends unless the Phase 2 switches are on.
+
+- **Scheduling.** A campaign can start as soon as it is approved or at a chosen day and time (India time; a time without a zone is read as India time; it must be in the future and within 90 days). A draft or an approved-but-not-started campaign can be moved (`POST /campaigns/{id}/reschedule`, audited); once started it can only be paused.
+- **Sending hours.** Offers go out only between `WHATSAPP_SEND_WINDOW_START` and `WHATSAPP_SEND_WINDOW_END` (default 9 am to 9 pm India time; 0 and 24 = any time). Outside them a campaign waits and nothing is lost; the preview says when it will really start. Automation replies (thank-yous, review requests) are not held by these hours. The production config check validates the two values.
+- **Audience by plan.** Growth: everyone, a group, new customers, earlier customers. Pro adds **location** (customers can be placed at one of the business's own locations), several groups (any / all), groups to leave out, "not sent an offer in the last N days" and "never sent an offer", computed from the real send history. Starter has no campaigns. Using a Pro option on Growth is refused with `plan_required`.
+- **Choosing the message.** Any of the business's own **approved**, **marketing**, **text-only** templates can be used (the standard Offer message, or one the business created itself and FlowQR read with "Check with WhatsApp"). Templates with a header, picture or button are refused (`simple` is false). Each blank is filled from the customer's first name, the business name, or fixed text the owner writes (1 to 200 characters, single line); the count of blanks must match. A message another business owns is never reachable.
+- **Results.** Per-day timeline (India dates), delivery rate and read rate (read as a share of delivered, only where read receipts are on), a side-by-side comparison of started campaigns (`GET /campaigns/compare`), and a results file (`GET /campaigns/{id}/results.csv`: name, phone, result, reason, delivered and read times; spreadsheet formulas neutralised; audited). Results still claim no sales or revenue.
+- **Duplicate** (`POST /campaigns/{id}/duplicate`): a new draft with the same message, audience and wording; approval, schedule and results are never copied.
+- **Screens.** The Offers page gains message choice with blank-filling, "More ways to choose (Pro)", a start-time picker, a sending-hours explanation, change start time, make a copy, download results, a day-by-day bar chart with the numbers written out (not colour-only) and a comparison table; Customers gain an optional location and a location filter.
+
+Remaining after Phase 4: Phase 5 (first-run connection wizard, a guided test message, activation checklist), the QR review page opt-in, birthday and win-back, click tracking, an administrator screen for Meta rates, and everything that needs real Meta credentials and approval.

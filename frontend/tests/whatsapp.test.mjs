@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -135,4 +135,43 @@ test("the helper settings use the same limits the server enforces", () => {
   assert.equal(e.find((f) => f.key === "send_ack").bool, true);
   const h = e.find((f) => f.key === "follow_up_hours");
   assert.deepEqual([h.min, h.max], [1, 168]);
+});
+
+test("who an offer goes to is described in full, including the Pro choices", () => {
+  assert.equal(audienceSentence({ kind: "all" }), "Everyone who agreed to receive offers");
+  const s = audienceSentence({ kind: "all", tags_any: ["vip"], exclude_tags: ["staff"], location_id: "L1", not_messaged_days: 30, never_messaged: true }, (id) => (id === "L1" ? "Agra branch" : undefined));
+  assert.match(s, /agreed to receive offers/);
+  for (const part of ["“vip”", "not in “staff”", "at Agra branch", "last 30 days", "never had an offer"]) assert.ok(s.includes(part), part);
+  assert.match(audienceSentence({ kind: "all", location_id: "L9" }), /at one location/);
+});
+
+test("only approved, text-only messages that WhatsApp treats as offers can be chosen", () => {
+  const t = (o) => ({ id: "x", name: "n", key: null, language: "en", category: "marketing", status: "approved", body: "b", variables: [], rejection_reason: null, synced_at: null, simple: true, ...o });
+  const all = [t({ id: "1" }), t({ id: "2", status: "pending" }), t({ id: "3", category: "utility" }), t({ id: "4", simple: false }), t({ id: "5", status: "rejected" }), t({ id: "6", simple: undefined })];
+  assert.deepEqual(offerChoices(all).map((x) => x.id), ["1", "6"]);
+});
+
+test("sending hours read as a plain sentence", () => {
+  assert.deepEqual([0, 9, 12, 13, 21, 24].map(hourWords), ["12 am", "9 am", "12 pm", "1 pm", "9 pm", "midnight"]);
+  assert.equal(windowSentence({ start: 9, end: 21, timezone: "Asia/Kolkata", open_now: true, always: false }), "Offers go out between 9 am and 9 pm (India time). Outside those hours they wait.");
+  assert.equal(windowSentence({ start: 0, end: 24, timezone: "Asia/Kolkata", open_now: true, always: true }), "Offers can go out at any time of day.");
+});
+
+test("India-time inputs round-trip to the instant the server stores", () => {
+  assert.equal(fromIstInput("2026-12-05T11:30"), "2026-12-05T11:30:00+05:30");
+  assert.equal(fromIstInput(""), null);
+  assert.equal(toIstInput("2026-12-05T06:00:00Z"), "2026-12-05T11:30");
+  assert.equal(toIstInput(null), "");
+  assert.equal(new Date(fromIstInput(toIstInput("2026-12-05T06:00:00Z"))).toISOString(), "2026-12-05T06:00:00.000Z");
+});
+
+test("chart bars and rates never invent a number", () => {
+  assert.equal(barPercent(0, 10), 0);
+  assert.equal(barPercent(10, 10), 100);
+  assert.equal(barPercent(1, 1000), 4);
+  assert.equal(barPercent(5, 0), 0);
+  assert.equal(percent(null), "–");
+  assert.equal(percent(undefined), "–");
+  assert.equal(percent(0), "0%");
+  assert.equal(percent(75), "75%");
 });

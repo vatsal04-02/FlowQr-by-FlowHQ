@@ -368,10 +368,14 @@ role-admin	PUT	/api/v1/whatsapp/automations/{key}
 member	GET	/api/v1/whatsapp/automations/{key}/runs
 member	GET	/api/v1/whatsapp/campaigns
 role-admin	POST	/api/v1/whatsapp/campaigns
+member	GET	/api/v1/whatsapp/campaigns/compare
 member	GET	/api/v1/whatsapp/campaigns/{campaign_id}
 role-admin	PATCH	/api/v1/whatsapp/campaigns/{campaign_id}
 role-admin	POST	/api/v1/whatsapp/campaigns/{campaign_id}/approve
+role-admin	POST	/api/v1/whatsapp/campaigns/{campaign_id}/duplicate
+role-admin	POST	/api/v1/whatsapp/campaigns/{campaign_id}/reschedule
 member	GET	/api/v1/whatsapp/campaigns/{campaign_id}/results
+role-admin	GET	/api/v1/whatsapp/campaigns/{campaign_id}/results.csv
 role-admin	POST	/api/v1/whatsapp/campaigns/{campaign_id}/{action}
 role-admin	POST	/api/v1/whatsapp/connect/complete
 role-admin	POST	/api/v1/whatsapp/connect/start

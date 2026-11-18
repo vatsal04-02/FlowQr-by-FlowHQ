@@ -62,7 +62,7 @@ class Meta2(MockMeta):
 
 @pytest.fixture()
 def wm(wa, monkeypatch):
-    for k, v in dict(whatsapp_sending_enabled=True, whatsapp_send_per_minute=1000, whatsapp_daily_cap=100000, whatsapp_marketing_gap_hours=72).items():
+    for k, v in dict(whatsapp_sending_enabled=True, whatsapp_send_per_minute=1000, whatsapp_daily_cap=100000, whatsapp_marketing_gap_hours=72, whatsapp_send_window_start=0, whatsapp_send_window_end=24).items():
         monkeypatch.setattr(settings, k, v)
     m = Meta2()
     m.waba, m.phone_id, m.fail_code = base.WABA, base.PHONE, {}

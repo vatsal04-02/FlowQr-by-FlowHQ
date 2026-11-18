@@ -81,6 +81,7 @@ class WhatsAppContact(IdMixin, TimestampMixin, Base):
     source: Mapped[str] = mapped_column(String(18))
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     marketing_opted_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set by an opt-out; cleared only by a customer-originated new consent
+    location_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"))  # optional: which branch this customer belongs to (location-specific offers)
 
 
 class WhatsAppConsent(IdMixin, Base):
@@ -142,6 +143,7 @@ class WhatsAppTemplate(IdMixin, TimestampMixin, Base):
     variable_schema: Mapped[list] = mapped_column(JSONB, default=list)
     rejection_reason: Mapped[str | None] = mapped_column(String(300))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    simple: Mapped[bool] = mapped_column(Boolean, default=True)  # a text body only (no header, media or button variables): the only kind a campaign can fill with plain text
 
 
 class WhatsAppMessage(IdMixin, TimestampMixin, Base):

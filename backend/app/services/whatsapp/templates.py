@@ -98,7 +98,22 @@ def _category(raw) -> str:
     return c if c in ("marketing", "utility", "authentication") else "marketing"  # anything unknown is treated as the stricter one
 
 
-def _upsert(db: Session, conn: WhatsAppConnection, *, name: str, language: str, category: str, status: str, body: str | None, meta_id: str | None, rejection: str | None, now: datetime) -> WhatsAppTemplate:
+def is_simple(components) -> bool:
+    """True when the template is a text body (optionally a plain footer) and nothing that needs its own parameters: no header, media, buttons or carousel."""
+    if not components:
+        return True
+    for c in components:
+        t = str(c.get("type", "")).upper() if isinstance(c, dict) else ""
+        if t == "BODY":
+            continue
+        if t == "FOOTER" and not VAR.search(str(c.get("text") or "")):
+            continue
+        return False
+    return True
+
+
+def _upsert(db: Session, conn: WhatsAppConnection, *, name: str, language: str, category: str, status: str, body: str | None, meta_id: str | None, rejection: str | None, now: datetime,
+            simple: bool = True) -> WhatsAppTemplate:
     row = db.scalar(select(WhatsAppTemplate).where(WhatsAppTemplate.connection_id == conn.id, WhatsAppTemplate.template_name == name, WhatsAppTemplate.language == language))
     key = key_of(name)
     schema = STANDARD[key]["variables"] if key else [f"variable_{i}" for i in range(1, placeholders(body) + 1)]
@@ -109,6 +124,7 @@ def _upsert(db: Session, conn: WhatsAppConnection, *, name: str, language: str, 
     row.meta_template_id = meta_id or row.meta_template_id
     row.rejection_reason = (rejection or "")[:300] or None if status == "rejected" else None
     row.last_synced_at = now
+    row.simple = simple
     return row
 
 
@@ -170,7 +186,8 @@ def sync(db: Session, tenant_id: uuid.UUID, user_id: uuid.UUID | None = None, ip
         before = db.scalar(select(WhatsAppTemplate).where(WhatsAppTemplate.connection_id == conn.id, WhatsAppTemplate.template_name == name, WhatsAppTemplate.language == lang))
         old = (before.approval_status, before.category) if before else None
         row = _upsert(db, conn, name=name, language=lang, category=_category(t.get("category")), status=STATUS_MAP.get(str(t.get("status", "")).upper(), "disabled"), body=_body_of(t.get("components")),
-                      meta_id=str(t.get("id") or "") or None, rejection=str(t.get("rejected_reason") or "") if str(t.get("rejected_reason") or "").upper() not in ("", "NONE") else None, now=now)
+                      meta_id=str(t.get("id") or "") or None, rejection=str(t.get("rejected_reason") or "") if str(t.get("rejected_reason") or "").upper() not in ("", "NONE") else None, now=now,
+                      simple=is_simple(t.get("components")))
         changed += int(old != (row.approval_status, row.category))
     for row in db.scalars(select(WhatsAppTemplate).where(WhatsAppTemplate.connection_id == conn.id)):
         if (row.template_name, row.language) not in seen and row.meta_template_id and row.approval_status != "disabled":
@@ -198,4 +215,4 @@ def render(template: WhatsAppTemplate, variables: list[str]) -> str:
 
 def serialize(t: WhatsAppTemplate) -> dict:
     return {"id": t.id, "name": t.template_name, "key": key_of(t.template_name), "language": t.language, "category": t.category, "status": t.approval_status, "body": t.body_text,
-            "variables": t.variable_schema or [], "rejection_reason": t.rejection_reason, "synced_at": t.last_synced_at}
+            "variables": t.variable_schema or [], "rejection_reason": t.rejection_reason, "synced_at": t.last_synced_at, "simple": bool(t.simple)}

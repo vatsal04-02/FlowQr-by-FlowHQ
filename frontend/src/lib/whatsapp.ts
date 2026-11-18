@@ -12,7 +12,7 @@ export interface WaStatus {
 }
 export interface WaConsentInfo { since: string; source: string; wording_version: string }
 export interface WaContact {
-  id: string; phone: string; customer_name: string | null; tags: string[]; source: string; created_at: string; marketing: WaConsentInfo | null; utility: WaConsentInfo | null; opted_out: boolean; opted_out_at: string | null;
+  id: string; phone: string; customer_name: string | null; tags: string[]; location_id?: string | null; source: string; created_at: string; marketing: WaConsentInfo | null; utility: WaConsentInfo | null; opted_out: boolean; opted_out_at: string | null;
 }
 export interface WaContacts { total: number; items: WaContact[]; counts: WaStatus["counts"]; wording: { marketing: string; utility: string } }
 export interface WaChecklist { connected: boolean; templates_installed: boolean; templates_approved: boolean; missing: string[]; waiting: string[]; refused: string[] }
@@ -23,15 +23,23 @@ export interface WaAutomation {
 }
 export interface WaAutomations { items: WaAutomation[]; limit: number | null; active: number; sending: boolean }
 export interface WaRun { id: string; step: string; status: string; reason: string | null; to: string | null; phone_last4: string | null; scheduled_at: string; executed_at: string | null; attempts: number }
-export interface WaTemplate { id: string; name: string; key: string | null; language: string; category: string; status: string; body: string | null; variables: string[]; rejection_reason: string | null; synced_at: string | null }
+export interface WaTemplate { id: string; name: string; key: string | null; language: string; category: string; status: string; body: string | null; variables: string[]; rejection_reason: string | null; synced_at: string | null; simple?: boolean }
 export interface WaTemplates { items: WaTemplate[]; available: { key: string; category: string; body: string; installed: boolean }[] }
 export interface WaEstimate { category: string; count: number; rate: string | null; currency: string | null; amount: string | null; verified: boolean; note: string }
-export interface WaCampaign { id: string; name: string; status: "draft" | "scheduled" | "sending" | "paused" | "done" | "cancelled"; audience: { kind: string; tag?: string; days?: number }; variables: { offer_text?: string }; template_id: string | null;
+export type WaAudience = { kind: string; tag?: string; days?: number; tags_any?: string[]; tags_all?: string[]; exclude_tags?: string[]; location_id?: string; not_messaged_days?: number; never_messaged?: boolean };
+export type WaMapping = { source: "customer_name" | "business_name" | "text"; value?: string };
+export type WaVariables = { offer_text?: string; mapping?: WaMapping[] };
+export interface WaCampaign { id: string; name: string; status: "draft" | "scheduled" | "sending" | "paused" | "done" | "cancelled"; audience: WaAudience; variables: WaVariables; template_id: string | null;
   scheduled_at: string | null; approved_at: string | null; approved_recipients: number | null; approved_cost: string | null; started_at: string | null; finished_at: string | null; created_at: string }
+export interface WaWindow { start: number; end: number; timezone: string; open_now: boolean; always: boolean }
 export interface WaCampaignPreview { id: string; name: string; status: WaCampaign["status"]; audience: WaCampaign["audience"]; recipients: number; estimate: WaEstimate; message_preview: string | null; excluded_note: string;
-  ready: { plan: boolean; connection: boolean; template_approved: boolean; has_recipients: boolean; sending_on: boolean }; approved_recipients: number | null; approved_cost: string | null }
+  ready: { plan: boolean; connection: boolean; template_approved: boolean; has_recipients: boolean; sending_on: boolean }; approved_recipients: number | null; approved_cost: string | null;
+  scheduled_at: string | null; variables: WaVariables; template_id: string | null; segmentation: "none" | "basic" | "advanced"; window: WaWindow; starts_at: string; waits_for_hours: boolean; estimated_minutes: number }
+export interface WaDay { date: string; sent: number; delivered: number; read: number; failed: number }
+export interface WaCompareRow { id: string; name: string; status: string; approved_recipients: number | null; sent: number; delivered: number; read: number; failed: number; delivery_rate: number | null; read_rate: number | null;
+  opted_out_after: number; estimated_meta_cost: string; approved_estimate: string | null; started_at: string | null }
 export interface WaCampaignResults { id: string; name: string; status: string; approved_recipients: number | null; approved_estimate: string | null; attempted: number; sent: number; delivered: number; read: number; failed: number;
-  waiting: number; skipped: number; skipped_reasons: Record<string, number>; opted_out_after: number; estimated_meta_cost: string; note: string }
+  waiting: number; skipped: number; skipped_reasons: Record<string, number>; opted_out_after: number; estimated_meta_cost: string; note: string; delivery_rate: number | null; read_rate: number | null; timeline: WaDay[] }
 export interface WaUsage { month: string; totals: { attempted: number; sent: number; delivered: number; read: number; failed: number }; by_category: Record<string, { attempted: number; sent: number; delivered: number; read: number; failed: number; estimated_cost: string }>;
   estimated_meta_cost: string; currency: string; note: string; delivery_rate: number | null; rates: { marketing: WaEstimate; utility: WaEstimate }; limits: { per_minute: number; per_day: number } }
 export interface WaMessageRow { id: string; to: string | null; phone_last4: string | null; category: string | null; status: string; error_code: string | null; sent_at: string | null; delivered_at: string | null; read_at: string | null; created_at: string }
@@ -213,3 +221,60 @@ export const AUTOMATION_FIELDS: Record<string, AutomationField[]> = {
   review_followup: [{ key: "delay_minutes", label: "Send the review request after", unit: "minutes", min: 5, max: 10080 }],
   enquiry_followup: [{ key: "send_ack", label: "Send a thank-you straight away", bool: true }, { key: "follow_up_hours", label: "Follow up if nobody has replied after", unit: "hours", min: 1, max: 168 }],
 };
+
+// ---- Phase 4: the campaign manager
+
+/** Who a campaign goes to, including the Pro choices, in one plain sentence. */
+export function audienceSentence(a: WaAudience | undefined, locationName?: (id: string) => string | undefined): string {
+  const base = audienceWords(a);
+  if (!a) return base;
+  const extra: string[] = [];
+  if (a.tags_any?.length) extra.push(`in any of the groups ${a.tags_any.map((t) => `“${t}”`).join(", ")}`);
+  if (a.tags_all?.length) extra.push(`in all of the groups ${a.tags_all.map((t) => `“${t}”`).join(", ")}`);
+  if (a.exclude_tags?.length) extra.push(`not in ${a.exclude_tags.map((t) => `“${t}”`).join(", ")}`);
+  if (a.location_id) extra.push(`at ${locationName?.(a.location_id) ?? "one location"}`);
+  if (a.not_messaged_days) extra.push(`who have not had an offer in the last ${a.not_messaged_days} days`);
+  if (a.never_messaged) extra.push("who have never had an offer");
+  return extra.length ? `${base}, ${extra.join(", ")}` : base;
+}
+
+/** The messages a business can use for an offer: approved, treated by WhatsApp as an offer, and text-only. */
+export function offerChoices(items: WaTemplate[]): WaTemplate[] {
+  return items.filter((t) => t.status === "approved" && t.category === "marketing" && t.simple !== false);
+}
+
+/** One blank of a message, described for the owner. Standard offers have fixed blanks; other messages are filled by the owner. */
+export function blankLabel(i: number): string { return `Blank ${i + 1}`; }
+
+/** An hour of the day (India time) as the owner reads it, for example 9 am or 9 pm. */
+export function hourWords(h: number): string {
+  const x = h % 24;
+  const word = x === 0 ? "12 am" : x < 12 ? `${x} am` : x === 12 ? "12 pm" : `${x - 12} pm`;
+  return h === 24 ? "midnight" : word;
+}
+
+/** The sending hours as one sentence. */
+export function windowSentence(w: WaWindow): string {
+  return w.always ? "Offers can go out at any time of day." : `Offers go out between ${hourWords(w.start)} and ${hourWords(w.end)} (India time). Outside those hours they wait.`;
+}
+
+/** The value for a datetime-local input (India time) from an ISO instant, and back. */
+export function toIstInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(new Date(iso).getTime() + 5.5 * 3600 * 1000);
+  return d.toISOString().slice(0, 16);
+}
+export function fromIstInput(v: string): string | null {
+  return v ? `${v}:00+05:30` : null;
+}
+
+/** A bar's width (0 to 100) for a count against the largest count, never below a visible sliver for a non-zero count. */
+export function barPercent(n: number, max: number): number {
+  if (n <= 0 || max <= 0) return 0;
+  return Math.max(4, Math.round((n * 100) / max));
+}
+
+/** A rate as the owner reads it: a whole percent, or a dash when nothing was measured. */
+export function percent(v: number | null | undefined): string {
+  return v === null || v === undefined ? "–" : `${v}%`;
+}

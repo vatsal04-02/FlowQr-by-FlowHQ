@@ -3,7 +3,7 @@ import { Download, Plus, Search, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, Card, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
-import { FilterSelect, Input, Textarea } from "@/components/ui/Form";
+import { FilterSelect, Input, Select, Textarea } from "@/components/ui/Form";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { api, apiFile, errorMessage } from "@/lib/api";
@@ -26,8 +26,12 @@ export default function Customers() {
   const [q, setQ] = useState(""), [search, setSearch] = useState(""), [filter, setFilter] = useState(""), [page, setPage] = useState(0);
   const [add, setAdd] = useState(false), [imp, setImp] = useState(false), [agree, setAgree] = useState<WaContact | null>(null), [erase, setErase] = useState<WaContact | null>(null);
   useEffect(() => { const t = setTimeout(() => { setSearch(q); setPage(0); }, 300); return () => clearTimeout(t); }, [q]);
-  const list = useFetch<WaContacts>("/whatsapp/contacts", { search, consent_filter: filter, limit: PAGE, offset: page * PAGE });
+  const locs = useFetch<{ id: string; name: string }[]>("/locations");
+  const [loc, setLoc] = useState("");
+  const list = useFetch<WaContacts>("/whatsapp/contacts", { search, consent_filter: filter, location_id: loc, limit: PAGE, offset: page * PAGE });
   const d = list.data;
+  const manyLocs = (locs.data?.length ?? 0) > 1;
+  const locName = (id: string | null | undefined) => (id ? locs.data?.find((l) => l.id === id)?.name : undefined);
 
   async function stopOffers(c: WaContact) {
     try { await api(`/whatsapp/contacts/${c.id}/opt-out`, { method: "POST", body: { purpose: "marketing" } }); toast("Done. This customer will not get offers."); void list.reload(); } catch (e) { toast(errorMessage(e)); }
@@ -58,6 +62,7 @@ export default function Customers() {
       </div>}
       <Card pad={false} className="mb-4 p-3 sm:p-4"><div className="flex flex-wrap gap-2">
         <div className="relative min-w-[200px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden /><input aria-label="Search customers" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or phone" className="min-h-11 w-full rounded-xl border border-ink-200 pl-9 pr-3 text-sm sm:min-h-10" /></div>
+        {manyLocs && <FilterSelect label="Location" value={loc} onChange={(e) => { setLoc(e.target.value); setPage(0); }}><option value="">All locations</option>{locs.data?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</FilterSelect>}
         <FilterSelect label="Show" value={filter} onChange={(e) => { setFilter(e.target.value); setPage(0); }}><option value="">Everyone</option><option value="marketing">Agreed to offers</option><option value="utility">Agreed to visit updates</option><option value="opted_out">Asked to stop offers</option><option value="none">No agreement yet</option></FilterSelect>
       </div></Card>
       {list.error && <Alert tone="error">{list.error}</Alert>}
@@ -73,7 +78,7 @@ export default function Customers() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-ink">{c.customer_name ?? "No name"} <span className="ml-1 font-normal tabular-nums text-ink-500">{c.phone}</span></p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><Badge tone={w.tone}>{w.label}</Badge>{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}<span>{SOURCE_WORDS[c.source] ?? c.source} · {fmtDate(c.created_at)}</span></p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><Badge tone={w.tone}>{w.label}</Badge>{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}{manyLocs && locName(c.location_id) && <Badge tone="blue">{locName(c.location_id)}</Badge>}<span>{SOURCE_WORDS[c.source] ?? c.source} · {fmtDate(c.created_at)}</span></p>
                   {c.opted_out && c.opted_out_at && <p className="mt-1 text-[13px] text-neg">Asked to stop offers on {fmtDate(c.opted_out_at)}. Only the customer can start them again.</p>}
                 </div>
                 {isAdmin && <div className="flex flex-wrap gap-2">
@@ -88,7 +93,7 @@ export default function Customers() {
       )}
       {d && d.total > PAGE && <div className="mt-4 flex items-center justify-between"><Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><span className="text-sm text-ink-500">{page * PAGE + 1}–{Math.min(d.total, (page + 1) * PAGE)} of {d.total}</span><Button variant="secondary" size="sm" disabled={(page + 1) * PAGE >= d.total} onClick={() => setPage(page + 1)}>Next</Button></div>}
 
-      {add && d && <AddCustomer wording={d.wording} onClose={() => setAdd(false)} onDone={() => { setAdd(false); void list.reload(); }} />}
+      {add && d && <AddCustomer wording={d.wording} locations={manyLocs ? locs.data ?? [] : []} onClose={() => setAdd(false)} onDone={() => { setAdd(false); void list.reload(); }} />}
       {imp && d && <ImportList wording={d.wording} onClose={() => setImp(false)} onDone={() => void list.reload()} />}
       {agree && d && <RecordAgreement contact={agree} wording={d.wording} onClose={() => setAgree(null)} onDone={() => { setAgree(null); void list.reload(); }} />}
       <Modal open={!!erase} onClose={() => setErase(null)} title="Delete this customer?" footer={<><Button variant="secondary" onClick={() => setErase(null)}>Keep</Button><Button variant="danger" onClick={() => void doErase()}>Delete customer</Button></>}>
@@ -116,16 +121,16 @@ function Agreement({ wording, marketing, utility, setMarketing, setUtility, atte
   );
 }
 
-function AddCustomer({ wording, onClose, onDone }: { wording: WaContacts["wording"]; onClose: () => void; onDone: () => void }) {
+function AddCustomer({ wording, locations, onClose, onDone }: { wording: WaContacts["wording"]; locations: { id: string; name: string }[]; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const [f, setF] = useState({ phone: "", name: "", tags: "" }), [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
+  const [f, setF] = useState({ phone: "", name: "", tags: "", location: "" }), [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
   const any = marketing || utility;
   const ok = f.phone.replace(/\D/g, "").length >= 10 && (!any || (attested && evidence.trim().length >= 10));
   async function save() {
     setBusy(true); setErr(null);
     try {
-      await api("/whatsapp/contacts", { method: "POST", body: { phone: f.phone, name: f.name || null, tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean), marketing, utility, attested, evidence: evidence.trim() || null } });
+      await api("/whatsapp/contacts", { method: "POST", body: { phone: f.phone, name: f.name || null, tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean), marketing, utility, attested, evidence: evidence.trim() || null, location_id: f.location || null } });
       toast("Customer added."); onDone();
     } catch (e) { setErr(errorMessage(e)); setBusy(false); }
   }
@@ -136,6 +141,7 @@ function AddCustomer({ wording, onClose, onDone }: { wording: WaContacts["wordin
         <Input label="Mobile number" inputMode="tel" placeholder="98765 43210" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
         <Input label="Name (optional)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <Input label="Groups (optional)" placeholder="regular, family" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} hint="Separate with commas." />
+        {locations.length > 0 && <Select label="Location (optional)" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} hint="Lets you send an offer to one location's customers (Pro)."><option value="">Not set</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</Select>}
         <Agreement wording={wording} marketing={marketing} utility={utility} setMarketing={setMarketing} setUtility={setUtility} attested={attested} setAttested={setAttested} evidence={evidence} setEvidence={setEvidence} />
         {!any && <p className="text-[13px] text-ink-500">You can add someone without an agreement. They will not get any message until they agree.</p>}
       </div>

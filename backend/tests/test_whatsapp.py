@@ -465,7 +465,7 @@ def test_every_owner_route_needs_a_role_and_the_manifest_knows_them():
             assert kind.startswith("public"), ln
         elif path.startswith("/api/v1/admin/"):
             assert kind == "platform-admin", ln
-        elif method == "GET" and "export" not in path:
+        elif method == "GET" and "export" not in path and not path.endswith(".csv"):  # a file download of customers or results is an owner/admin action
             assert kind == "member", ln
         else:
             assert kind == "role-admin", ln
@@ -1047,8 +1047,8 @@ def test_the_migrations_are_two_steps_on_top_of_the_website_builder():
     cfg = Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0049"] and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048"
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0049"
+    assert script.get_heads() == ["0050"] and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0050").down_revision == "0049"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0050"
     tables = {r[0] for r in owner_query("SELECT tablename FROM pg_tables WHERE tablename LIKE 'whatsapp_%' OR tablename = 'tenant_addons'")}
     assert tables == {"whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
                       "whatsapp_rates", "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients"}

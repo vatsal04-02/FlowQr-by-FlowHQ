@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     whatsapp_review_gap_days: int = 30  # WHATSAPP_REVIEW_GAP_DAYS: the least time between two review requests to the same person
     whatsapp_send_max_attempts: int = 5  # WHATSAPP_SEND_MAX_ATTEMPTS: a failing automation send is retried with growing delays, then marked failed (the dead letter)
     whatsapp_campaign_batch: int = 40  # WHATSAPP_CAMPAIGN_BATCH: recipients one campaign sends per worker pass
+    whatsapp_send_window_start: int = 9  # WHATSAPP_SEND_WINDOW_START: offers go out only between these hours, India time (0 and 24 = any time). Automation replies are not held.
+    whatsapp_send_window_end: int = 21  # WHATSAPP_SEND_WINDOW_END
 
     # Google OAuth / Business Profile (customers connect their OWN accounts via this app).
     google_client_id: str = ""
@@ -503,6 +505,8 @@ def config_problems(s: Settings) -> list[str]:
             for name, v in (("META_APP_ID", s.meta_app_id), ("META_APP_SECRET", s.meta_app_secret), ("WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID", s.whatsapp_embedded_signup_config_id)):
                 if not v:
                     p.append(f"{name} is required when WHATSAPP_SIGNUP_ENABLED is true")
+        if not (0 <= s.whatsapp_send_window_start < s.whatsapp_send_window_end <= 24):
+            p.append("WHATSAPP_SEND_WINDOW_START must be before WHATSAPP_SEND_WINDOW_END, both between 0 and 24")
         if not s.whatsapp_graph_base_url.startswith("https://"):
             p.append("WHATSAPP_GRAPH_BASE_URL must be https")
     if s.sites_enabled:
