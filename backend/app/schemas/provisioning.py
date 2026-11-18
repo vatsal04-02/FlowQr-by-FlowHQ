@@ -297,6 +297,16 @@ class DataRequestDeliveredIn(BaseModel):
 
 
 class DataRequestExecuteIn(BaseModel):
+    """The three things a permanent deletion needs from the administrator: WHY (recorded), the business name typed exactly, and an explicit final confirmation."""
     model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=10, max_length=300)
     confirm_name: str = Field(min_length=1, max_length=200)
     acknowledge: bool = False
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, v):
+        v = _clean(v) or ""
+        if len(v) < 10:
+            raise ValueError("Say why this business is being deleted (at least 10 characters)")
+        return v

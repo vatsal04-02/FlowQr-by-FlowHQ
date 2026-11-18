@@ -168,8 +168,8 @@ def deletion_state(db: Session, req: DataRequest) -> dict:
                        "live_cards": db.scalar(select(func.count()).select_from(QRCard).where(QRCard.tenant_id == t.id, QRCard.status.in_(prov.LIVE_CARD_STATUSES))) or 0}}
 
 
-def execute_deletion(db: Session, req: DataRequest, *, admin, confirm_name: str, acknowledge: bool, ip: str | None = None) -> dict:
-    """Irreversibly delete the business. Explicit administrator action only: verified, past the cooling-off, name typed exactly, consequences acknowledged."""
+def execute_deletion(db: Session, req: DataRequest, *, admin, reason: str, confirm_name: str, acknowledge: bool, ip: str | None = None) -> dict:
+    """Irreversibly delete the business. Explicit administrator action only: verified, past the cooling-off, a reason recorded, name typed exactly, consequences acknowledged."""
     from app.services import account as account_svc
 
     if req.kind != "deletion":
@@ -182,6 +182,9 @@ def execute_deletion(db: Session, req: DataRequest, *, admin, confirm_name: str,
         raise prov.ProvisionError(409, "cooling_off", f"Deletion is not allowed before {req.eligible_at.date().isoformat()}. The waiting period gives the shop time to change its mind.")
     if st["reason"] == "paid_subscription":
         raise prov.ProvisionError(409, "cancel_subscription_first", "Cancel the paid subscription first, so the business is not charged again.")
+    reason = (reason or "").strip()
+    if len(reason) < 10:
+        raise prov.ProvisionError(422, "reason_required", "Say why this business is being deleted (at least 10 characters). It is recorded in the audit log.")
     if confirm_name.strip() != t.name:
         raise prov.ProvisionError(422, "name_mismatch", "Type the business name exactly as shown to confirm.")
     if not acknowledge:
@@ -190,10 +193,10 @@ def execute_deletion(db: Session, req: DataRequest, *, admin, confirm_name: str,
     tenant_id, name = t.id, t.name
     # Written in the SAME transaction as the deletion (delete_tenant commits it): the request ends, the contact detail is erased, and an audit entry that survives the business is added.
     req.status, req.resolved_by, req.resolved_at, req.requester_contact = "fulfilled", admin.id, utcnow(), None
-    req.resolution = f"deleted: {impact['locations']} locations, {impact['cards']} cards returned to stock"[:300]
+    req.resolution = f"deleted ({impact['locations']} locations, {impact['cards']} cards returned to stock): {reason}"[:300]
     _event(db, req, admin, "deleted", req.resolution)
     audit(db, action="admin.data_request_deletion_executed", tenant_id=None, user_id=admin.id, entity_type="data_request", entity_id=req.id, ip=ip,
-          meta={"business": name, "tenant_id": str(tenant_id), "verified_by": str(req.verified_by) if req.verified_by else None, "verification_method": req.verification_method, **impact})
+          meta={"business": name, "tenant_id": str(tenant_id), "reason": reason[:300], "verified_by": str(req.verified_by) if req.verified_by else None, "verification_method": req.verification_method, **impact})
     db.flush()
     out = account_svc.delete_tenant(db, tenant_id)
     return {"deleted": bool(out.get("deleted")), "cards_returned": out.get("cards_returned", 0), "google_grants_revoked": out.get("google_grants_revoked", 0)}

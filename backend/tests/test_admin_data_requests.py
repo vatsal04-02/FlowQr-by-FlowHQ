@@ -72,7 +72,7 @@ def test_the_data_request_routes_are_admin_only(admin, biz_a):
     routes = [("post", f"/admin/tenants/{b['id']}/data-requests", {"kind": "export"}), ("get", f"/admin/tenants/{b['id']}/data-requests", None), ("get", "/admin/data-requests", None),
               ("post", f"/admin/data-requests/{rid}/verify", {"method": "in_person_at_shop", "confirm": True}), ("post", f"/admin/data-requests/{rid}/reject", {"reason": "not allowed"}),
               ("post", f"/admin/data-requests/{rid}/cancel", {"reason": "not allowed"}), ("get", f"/admin/data-requests/{rid}/export", None),
-              ("post", f"/admin/data-requests/{rid}/delivered", {"delivery": "other"}), ("post", f"/admin/data-requests/{rid}/execute-deletion", {"confirm_name": b["name"], "acknowledge": True}),
+              ("post", f"/admin/data-requests/{rid}/delivered", {"delivery": "other"}), ("post", f"/admin/data-requests/{rid}/execute-deletion", {"reason": REASON, "confirm_name": b["name"], "acknowledge": True}),
               ("get", "/admin/managed-usage", None), ("post", f"/admin/tenants/{b['id']}/claim/{uuid.uuid4()}/revoke", {"remove_from_allowlist": True})]
     anon = TestClient(app, base_url="http://testserver")
     for method, path, body in routes:
@@ -169,8 +169,14 @@ def deletion_ready(admin, b):
     return rid
 
 
-def execute(admin, rid, name, ack=True):
-    return admin.post(f"/admin/data-requests/{rid}/execute-deletion", json={"confirm_name": name, "acknowledge": ack})
+REASON = "Verified owner asked in person to erase the shop's data"
+
+
+def execute(admin, rid, name, ack=True, reason=REASON):
+    body = {"confirm_name": name, "acknowledge": ack}
+    if reason is not None:
+        body["reason"] = reason
+    return admin.post(f"/admin/data-requests/{rid}/execute-deletion", json=body)
 
 
 def test_deletion_is_never_automatic_and_does_not_start_the_daily_deletion_job(admin):
@@ -211,6 +217,30 @@ def test_deletion_needs_verification_the_exact_name_and_an_acknowledgement(admin
     assert execute(admin, export_only, "x").json()["detail"]["code"] == "not_deletion"
 
 
+def test_a_deletion_needs_a_reason_the_exact_name_and_the_final_confirmation_all_three(admin):
+    """The single-administrator safeguards: nothing is erased unless the reason, the typed name and the explicit acknowledgement are ALL present, and each is checked on its own."""
+    b = biz(admin)
+    rid = deletion_ready(admin, b)
+    owner_exec("UPDATE data_requests SET eligible_at = now() - interval '1 minute' WHERE id = :r", r=rid)
+    # no reason, a blank one, a token one: refused before anything is looked at, and nothing is deleted
+    assert execute(admin, rid, b["name"], reason=None).status_code == 422
+    assert execute(admin, rid, b["name"], reason="   ").status_code == 422
+    assert execute(admin, rid, b["name"], reason="ok").status_code == 422
+    assert execute(admin, rid, b["name"], reason="too short").status_code == 422  # 9 characters
+    # reason and acknowledgement present but the name is wrong, and the other way round
+    assert execute(admin, rid, "Some Other Shop").json()["detail"]["code"] == "name_mismatch"
+    assert execute(admin, rid, b["name"], ack=False).json()["detail"]["code"] == "not_acknowledged"
+    assert owner_query("SELECT count(*) FROM tenants WHERE id = :t", t=b["id"])[0][0] == 1
+    assert owner_query("SELECT status FROM data_requests WHERE id = :r", r=rid)[0][0] == "verified"
+    # all three together: it goes ahead, and the reason is on the record
+    assert execute(admin, rid, b["name"], reason="  The owner confirmed in person; shop is closing.  ").status_code == 200
+    ev = owner_query("SELECT detail FROM data_request_events WHERE request_id = :r AND action = 'deleted'", r=rid)[0][0]
+    assert "The owner confirmed in person; shop is closing." in ev
+    aud = owner_query("SELECT metadata->>'reason', metadata->>'business' FROM audit_logs WHERE action = 'admin.data_request_deletion_executed' AND entity_id = :r", r=rid)[0]
+    assert aud == ("The owner confirmed in person; shop is closing.", b["name"])
+    assert "shop is closing" in owner_query("SELECT resolution FROM data_requests WHERE id = :r", r=rid)[0][0]
+
+
 def test_an_executed_deletion_erases_the_business_returns_its_cards_and_keeps_the_record(admin):
     b = biz(admin)
     loc = b["location"]["id"]
@@ -232,7 +262,7 @@ def test_an_executed_deletion_erases_the_business_returns_its_cards_and_keeps_th
     assert "admin.data_request_deletion_executed" in acts
     listed = admin.get("/admin/data-requests").json()["items"]
     assert any(x["id"] == rid and x["status"] == "fulfilled" and x["business_name"] == b["name"] for x in listed)
-    assert admin.post(f"/admin/data-requests/{rid}/execute-deletion", json={"confirm_name": b["name"], "acknowledge": True}).status_code == 409  # cannot run twice
+    assert execute(admin, rid, b["name"]).status_code == 409  # cannot run twice
 
 
 def test_other_businesses_are_untouched_by_a_deletion(admin):

@@ -95,7 +95,7 @@ def mark_delivered(request_id: uuid.UUID, body: DataRequestDeliveredIn, request:
 
 @router.post("/data-requests/{request_id}/execute-deletion")
 def execute_deletion(request_id: uuid.UUID, body: DataRequestExecuteIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
-    """PERMANENTLY delete the business. Only for a verified deletion request past its cooling-off period, with the business name typed exactly and the consequences acknowledged."""
+    """PERMANENTLY delete the business. Only for a verified deletion request past its cooling-off period, with a recorded reason, the business name typed exactly and the consequences acknowledged."""
     if not hit(f"admin-datareq-delete:{ctx.user.id}", 5, 3600):
         raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
-    return _run(ctx, lambda: svc.execute_deletion(ctx.db, svc.get(ctx.db, request_id), admin=ctx.user, confirm_name=body.confirm_name, acknowledge=body.acknowledge, ip=client_ip(request)))
+    return _run(ctx, lambda: svc.execute_deletion(ctx.db, svc.get(ctx.db, request_id), admin=ctx.user, reason=body.reason, confirm_name=body.confirm_name, acknowledge=body.acknowledge, ip=client_ip(request)))
