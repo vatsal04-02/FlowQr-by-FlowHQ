@@ -114,7 +114,7 @@ export function PricingPlans() {
         <p className="text-[15px] text-m-muted" aria-live="polite">{BILLING_NOTE[billing]}</p>
         <p className="mt-1 text-[14px] text-m-muted">{data.trial_days}-day free trial. {trialTerms(data.billing ? !!data.billing.mandate_required : null)}</p>
       </div>
-      <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3 md:items-center">
+      <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
         {plans.map((p, i) => {
           const hot = p.code === "growth";
           const paise = periodPrice(data.terms, p.code, billing) as number;
