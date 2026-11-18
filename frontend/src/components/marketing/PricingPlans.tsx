@@ -108,8 +108,7 @@ function CellView({ c }: { c: Cell }) {
 export function PlanComparison() {
   const { data } = usePlansLive();
   if (!data) return null;
-  const plans = sellablePlans(data.plans, data.terms);
-  if (!plans.length) return null;
+  const plans = data.plans;   // the table shows what each plan includes and needs no prices, so it does not wait for them
   const rec = plans.findIndex((p) => p.code === "growth");
   const rows = comparisonRows(plans);
   return (
