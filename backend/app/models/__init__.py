@@ -12,7 +12,7 @@ from app.models.leads import Lead  # noqa: F401
 from app.models.registration import RegistrationAllowlist  # noqa: F401
 from app.models.platform import AICallLedger, AIGenerationLog, AuditLog, Subscription  # noqa: F401
 from app.models.tenancy import (  # noqa: F401
-    AuthSession, EmailVerificationToken, Invitation, Membership, MembershipLocation, PasswordResetToken, Role, Tenant, User,
+    AuthSession, DataRequest, DataRequestEvent, EmailVerificationToken, Invitation, Membership, MembershipLocation, PasswordResetToken, Role, Tenant, TenantAgreement, User,
 )
 
 from app.models.notifications import NotificationPref  # noqa: F401,E402

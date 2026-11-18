@@ -117,7 +117,7 @@ def test_wrong_password_and_unknown_email_look_the_same():
 def test_the_login_and_sign_up_pages_only_offer_google_when_the_server_says_it_works():
     google = (FRONTEND / "components" / "GoogleAuth.tsx").read_text(encoding="utf-8")
     login = (FRONTEND / "app" / "(auth)" / "login" / "page.tsx").read_text(encoding="utf-8")
-    register = (FRONTEND / "app" / "(auth)" / "register" / "page.tsx").read_text(encoding="utf-8")
+    register = (FRONTEND / "app" / "(auth)" / "register" / "page.tsx").read_text(encoding="utf-8") + (FRONTEND / "components" / "auth" / "RegisterForm.tsx").read_text(encoding="utf-8")  # the form moved into a component so the pricing page can open it in a window
     assert "/auth/providers" in google
     for page in (login, register):
         assert "GoogleSignIn" in page and "<GoogleButton" not in page, "a page renders the Google button unconditionally"

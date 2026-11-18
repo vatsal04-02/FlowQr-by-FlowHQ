@@ -3,6 +3,7 @@ import { API_V1 } from "@/lib/config";
 import { Archive, Download, FileStack, FileText, Image as ImageIcon, Link2Off, PackageCheck, Plus, QrCode, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AssignCards } from "@/components/cards/AssignCards";
+import { BusinessPicker } from "@/components/admin/BusinessPicker";
 import { BulkAssignModal } from "@/components/cards/BulkAssignModal";
 import { CardDetail } from "@/components/cards/CardDetail";
 import { PosterDownload } from "@/components/cards/PosterDownload";
@@ -238,10 +239,7 @@ function ReserveModal({ card, onClose, onDone }: { card: CardT; onClose: () => v
 }
 
 function AssignModal({ card, onClose, onDone }: { card: CardT; onClose: () => void; onDone: () => void }) {
-  const tenants = useFetch<{ items: TenantRow[] }>("/admin/tenants");
   const [tenant, setTenant] = useState(card.tenant_id ?? "");
-  const locs = useFetch<Opt[]>(tenant ? `/admin/tenants/${tenant}/locations` : null);
-  const camps = useFetch<Opt[]>(tenant ? `/admin/tenants/${tenant}/campaigns` : null);
   const [loc, setLoc] = useState("");
   const [campaign, setCampaign] = useState("");
   const [label, setLabel] = useState(card.label ?? "");
@@ -254,14 +252,11 @@ function AssignModal({ card, onClose, onDone }: { card: CardT; onClose: () => vo
     try { await api(`/admin/cards/${card.id}/assign`, { method: "POST", body: { tenant_id: tenant, location_id: loc, campaign_id: campaign || null, label: label.trim() || null, confirm: ack, activate: true } }); onDone(); } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
   return (
-    <Modal open onClose={onClose} title={`Assign ${card.card_code}`} footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!tenant || !loc || (inUse && !ack)} onClick={() => void save()}>Assign and activate</Button></>}>
+    <Modal open onClose={onClose} title={`Assign ${card.card_code}`} footer={<><Button variant="secondary" className="!rounded-full" onClick={onClose}>Cancel</Button><Button className="!rounded-full" loading={busy} disabled={!tenant || !loc || (inUse && !ack)} onClick={() => void save()}>Assign and activate</Button></>}>
       <div className="space-y-4">
         {err && <Alert tone="error">{err}</Alert>}
-        <Select label="Business" value={tenant} onChange={(e) => { setTenant(e.target.value); setLoc(""); setCampaign(""); }}><option value="">Choose a business…</option>{tenants.data?.items.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>
-        <Select label="Location" value={loc} disabled={!tenant} onChange={(e) => { setLoc(e.target.value); setCampaign(""); }}><option value="">Choose a location…</option>{locs.data?.map((l) => <option key={l.id} value={l.id}>{l.name}{l.city ? ` – ${l.city}` : ""}</option>)}</Select>
-        <Select label="Review campaign" value={campaign} disabled={!loc} onChange={(e) => setCampaign(e.target.value)}><option value="">Plain review page</option>
-          {(camps.data ?? []).filter((c) => !c.location_id || c.location_id === loc).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
-        <Input label="Label (optional)" placeholder="e.g. Reception desk" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <BusinessPicker tenant={tenant} loc={loc} campaign={campaign} onTenant={setTenant} onLoc={setLoc} onCampaign={setCampaign} />
+        <Input label="Placement label (optional)" placeholder="e.g. Reception desk, Billing counter, Table 4" value={label} onChange={(e) => setLabel(e.target.value)} />
         {inUse && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             <p>This card is already {card.status === "reserved" ? "reserved for" : "in use by"} <b>{card.tenant_name}</b>. Assigning it sends everyone who scans or taps it to the new destination. The printed code and NFC tag do not change; history is kept.</p>

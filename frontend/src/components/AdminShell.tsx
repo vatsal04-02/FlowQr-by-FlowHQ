@@ -10,7 +10,7 @@ import { Logo } from "./ui/Brand";
 import { Alert, Spinner } from "./ui/Card";
 
 const NAV = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard }, { href: "/admin/customers", label: "Customers", icon: Users }, { href: "/admin/users", label: "Users", icon: UserSearch },
+  { href: "/admin", label: "Overview", icon: LayoutDashboard }, { href: "/admin/customers", label: "Businesses", icon: Users }, { href: "/admin/users", label: "Users", icon: UserSearch },
   { href: "/admin/cards", label: "Cards", icon: QrCode }, { href: "/admin/billing", label: "Billing", icon: CreditCard },
   { href: "/admin/plans", label: "Plans", icon: SlidersHorizontal }, { href: "/admin/finance", label: "Finance", icon: Gauge },
   { href: "/admin/queue", label: "Work queue", icon: ListChecks }, { href: "/admin/ops", label: "Operations", icon: Activity },

@@ -39,6 +39,10 @@ class Tenant(IdMixin, TimestampMixin, Base):
     brand_tone: Mapped[str | None] = mapped_column(String(300))  # e.g. "warm, professional"
     ai_instructions: Mapped[str | None] = mapped_column(Text)  # business-specific reply instructions
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    contact_name: Mapped[str | None] = mapped_column(String(120))  # the person at the shop (optional; a contact, NOT a user account)
+    origin: Mapped[str] = mapped_column(String(12), default="self_service", server_default="self_service")  # self_service | admin (created by FlowQR staff for a shop that has no login)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # who created the record through the admin console
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # who last edited it through the admin console
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suspension_reason: Mapped[str | None] = mapped_column(String(300))
@@ -52,6 +56,66 @@ class Tenant(IdMixin, TimestampMixin, Base):
     review_goal: Mapped[int | None] = mapped_column(Integer)
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="tenant")
+
+
+class TenantAgreement(IdMixin, Base):
+    """Append-only: a FLOWQR ADMINISTRATOR recorded an offline agreement on behalf of a business. It is not the shopkeeper personally accepting terms and says nothing about their age:
+    `statement` carries that wording on every row so no screen or export can present it as a personal acceptance."""
+
+    __tablename__ = "tenant_agreements"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    recorded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    terms_version: Mapped[str] = mapped_column(String(40))
+    method: Mapped[str] = mapped_column(String(12))  # phone | in_person | whatsapp | paper | other
+    note: Mapped[str | None] = mapped_column(String(300))
+    statement: Mapped[str] = mapped_column(String(300))
+
+
+class DataRequest(IdMixin, Base):
+    """An administrator-handled request to EXPORT or DELETE the data of a business that has no owner login (an owner uses Settings, which is not possible here).
+
+    Nothing is deleted or sent automatically. The request must have its requester's identity verified by an administrator first; an export is generated and handed over by an
+    administrator; a deletion is executed by an administrator, typed-name confirmed, and only after a cooling-off period. `tenant_id` becomes NULL when the business is deleted and
+    `business_name` is a snapshot, so the record of what was asked and done survives the deletion. Platform-only: row-level security admits the bypass context and nothing else."""
+
+    __tablename__ = "data_requests"
+
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenants.id", ondelete="SET NULL"), index=True)
+    business_name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(10))  # export | deletion
+    status: Mapped[str] = mapped_column(String(10), default="open")  # open | verified | fulfilled | rejected | cancelled
+    requester_name: Mapped[str] = mapped_column(String(120))
+    requester_role: Mapped[str] = mapped_column(String(14))  # owner | representative | other
+    received_via: Mapped[str] = mapped_column(String(12))  # phone | in_person | whatsapp | email | paper | other
+    requester_contact: Mapped[str | None] = mapped_column(String(200))  # erased when the request is resolved
+    request_note: Mapped[str | None] = mapped_column(String(300))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    verification_method: Mapped[str | None] = mapped_column(String(24))
+    verification_note: Mapped[str | None] = mapped_column(String(300))
+    contact_matched_record: Mapped[bool | None] = mapped_column()  # the number or address used to verify was the one already on the business record
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eligible_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # deletion only: not before this time
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution: Mapped[str | None] = mapped_column(String(300))
+    export_count: Mapped[int] = mapped_column(Integer, default=0)  # how many times the export was generated for this request
+
+
+class DataRequestEvent(IdMixin, Base):
+    """Append-only history of a data request: every step, who took it, when."""
+
+    __tablename__ = "data_request_events"
+
+    request_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("data_requests.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tenants.id", ondelete="SET NULL"))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    action: Mapped[str] = mapped_column(String(24))
+    detail: Mapped[str | None] = mapped_column(String(300))
 
 
 class User(IdMixin, TimestampMixin, Base):
@@ -149,6 +213,8 @@ class Invitation(IdMixin, TimestampMixin, Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     location_ids: Mapped[list | None] = mapped_column(JSONB)  # staff invitations only: NULL = every location
+    # Owner-claim invitations only: the sign-up allowlist row THIS invitation created (NULL when the address was already listed). Only such a row may be removed when the claim is revoked.
+    allowlist_entry_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("registration_allowlist.id", ondelete="SET NULL"))
 
 
 class PasswordResetToken(IdMixin, Base):

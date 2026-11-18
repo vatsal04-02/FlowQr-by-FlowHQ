@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     admin_session_ttl_hours: int = 12  # platform admins sign in again at least this often
     password_reset_ttl_minutes: int = 30
     invitation_ttl_hours: int = 72
+    # Optional "claim your business" invitations for admin-managed businesses. OFF by default: nothing about cards, scans or review pages ever needs an account. When on, an administrator may invite a
+    # shopkeeper to take ownership of the business record the administrator created; the invitation expires after CLAIM_INVITATION_TTL_HOURS and can be revoked.
+    claim_invitations_enabled: bool = False  # CLAIM_INVITATIONS_ENABLED
+    claim_invitation_ttl_hours: int = 168  # CLAIM_INVITATION_TTL_HOURS
 
     # Google OAuth / Business Profile (customers connect their OWN accounts via this app).
     google_client_id: str = ""

@@ -52,7 +52,11 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   "competitor_snapshots", "gbp_metric_daily", "gbp_snapshots", "health_snapshots", "membership_locations", "notification_prefs", "pinned_competitors",
                   "promotional_grants", "rank_checks", "review_request_templates", "scheduled_media", "scheduled_posts", "subscription_events",
                   # added by the release since the first version of this list (prepaid checkout, QR/NFC destinations); the drift test found them
-                  "prepaid_orders", "prepaid_price_overrides", "card_destination_history")
+                  "prepaid_orders", "prepaid_price_overrides", "card_destination_history",
+                  # admin-managed businesses: the offline agreement an administrator recorded
+                  "tenant_agreements",
+                  # and the administrator-handled export / deletion requests for a business that has no owner login (a person's own requests about their business are their data too)
+                  "data_requests", "data_request_events")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 

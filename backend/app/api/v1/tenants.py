@@ -216,6 +216,9 @@ def accept_invitation(body: InvitationAcceptIn, request: Request, ctx: AuthConte
     inv = db.scalar(select(Invitation).where(Invitation.token_hash == hash_token(body.token)))
     if not inv or inv.accepted_at or inv.revoked_at or inv.expires_at < utcnow() or inv.email != ctx.user.email:
         raise HTTPException(status_code=400, detail="This invitation is invalid, expired, or for a different email")
+    if inv.role == Role.owner and db.scalar(select(Membership.id).where(Membership.tenant_id == inv.tenant_id, Membership.role == Role.owner).limit(1)) is not None:
+        # an administrator's "claim your business" invitation is good only while nobody owns the business: it can never add a second owner or take one over
+        raise HTTPException(status_code=400, detail="This business already has an owner, so this invitation can no longer be used")
     if not db.scalar(select(Membership).where(Membership.tenant_id == inv.tenant_id, Membership.user_id == ctx.user.id)):
         limited = inv.role == Role.staff and inv.location_ids is not None
         m = Membership(tenant_id=inv.tenant_id, user_id=ctx.user.id, role=inv.role, all_locations=not limited)
@@ -227,6 +230,8 @@ def accept_invitation(body: InvitationAcceptIn, request: Request, ctx: AuthConte
                 db.add(MembershipLocation(tenant_id=inv.tenant_id, membership_id=m.id, location_id=lid))
     inv.accepted_at = utcnow()
     ctx.session.active_tenant_id = inv.tenant_id
+    if inv.role == Role.owner:
+        audit(db, action="tenant.claimed", tenant_id=inv.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=inv.tenant_id, ip=client_ip(request), meta={"invitation": str(inv.id)})
     audit(db, action="staff.accept", tenant_id=inv.tenant_id, user_id=ctx.user.id, entity_type="invitation",
           entity_id=inv.id, ip=client_ip(request))
     db.commit()

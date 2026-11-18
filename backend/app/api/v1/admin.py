@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import date, datetime, time as dtime, timedelta, timezone
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import exists, func, or_, select, update
 
 from app.api.v1.cards import card_out, names_for
 from app.api.v1.qr import poster_file, poster_response, require_print_domain
@@ -457,7 +457,16 @@ def admin_card_poster(card_id: uuid.UUID, fmt: str, scale: int = Query(1, ge=1, 
 
 
 def _tenant_row(db, t: Tenant, sub: Subscription | None, owner_email: str | None) -> dict:
+    from app.models import TenantAgreement
+    from app.services import provisioning as prov
+
+    first_loc = db.scalar(select(Location).where(Location.tenant_id == t.id).order_by(Location.created_at).limit(1))
     return {
+        "contact_name": t.contact_name, "phone": t.phone, "email": t.email, "origin": t.origin, "city": first_loc.city if first_loc else None,
+        "active_cards": db.scalar(select(func.count()).select_from(QRCard).where(QRCard.tenant_id == t.id, QRCard.status.in_(prov.LIVE_CARD_STATUSES))),
+        "onboarding_status": prov.onboarding_status(db, t, owner_email is not None or prov.has_owner(db, t.id)),
+        "agreement_recorded": db.scalar(select(TenantAgreement.id).where(TenantAgreement.tenant_id == t.id).limit(1)) is not None,
+        "managed_access": prov.managed_state(sub),
         "id": t.id, "name": t.name, "category": t.category, "created_at": t.created_at, "is_active": t.is_active,
         "suspended_at": t.suspended_at, "suspension_reason": t.suspension_reason, "support_status": t.support_status,
         "owner_email": owner_email, "plan": sub.plan if sub else None, "subscription_status": sub.status if sub else None,
@@ -469,10 +478,24 @@ def _tenant_row(db, t: Tenant, sub: Subscription | None, owner_email: str | None
 
 @router.get("/tenants")
 def list_tenants(ctx: AuthContext = Depends(require_platform_admin), search: str | None = None, status: str | None = None,
+                 origin: str | None = Query(None, pattern="^(admin|self_service)$"), onboarding: str | None = Query(None, pattern="^(has_account|live|ready|incomplete)$"),
                  limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
     q = select(Tenant)
     if search:
-        q = q.where(Tenant.name.ilike(f"%{search.strip()}%"))
+        term = search.strip()
+        digits = "".join(ch for ch in term if ch.isdigit())
+        conds = [Tenant.name.ilike(f"%{term}%"), Tenant.contact_name.ilike(f"%{term}%"), Tenant.email.ilike(f"%{term}%"),
+                 Tenant.id.in_(select(Location.tenant_id).where(Location.city.ilike(f"%{term}%") | Location.name.ilike(f"%{term}%")))]
+        if len(digits) >= 4:
+            conds.append(func.regexp_replace(func.coalesce(Tenant.phone, ""), "[^0-9]", "", "g").like(f"%{digits}%"))
+        q = q.where(or_(*conds))
+    if origin:
+        q = q.where(Tenant.origin == origin)
+    if onboarding:
+        has_owner = exists().where(_M.tenant_id == Tenant.id, _M.role == _R.owner)
+        live = exists().where(QRCard.tenant_id == Tenant.id, QRCard.status.in_([CardStatus.assigned, CardStatus.active]))
+        ready = exists().where(Location.tenant_id == Tenant.id, Location.is_active.is_(True), Location.review_url.is_not(None), Location.review_url != "")
+        q = q.where({"has_account": has_owner, "live": ~has_owner & live, "ready": ~has_owner & ~live & ready, "incomplete": ~has_owner & ~live & ~ready}[onboarding])
     if status == "suspended":
         q = q.where(Tenant.is_active.is_(False))
     elif status in ("trialing", "active", "past_due", "halted", "expired", "canceled", "pending"):
@@ -505,6 +528,32 @@ def _tenant_or_404(ctx: AuthContext, tenant_id: uuid.UUID) -> Tenant:
     return t
 
 
+def _email_of(db, user_id) -> str | None:
+    return db.scalar(select(User.email).where(User.id == user_id)) if user_id else None
+
+
+def _provisioning_detail(db, t: Tenant) -> dict:
+    """What the Business page adds for admin-managed businesses: the offline agreement record, claim invitations, this month's AI use and cost, and whether claiming is switched on."""
+    from app.core.config import settings
+    from app.models import DataRequest, Invitation, TenantAgreement
+    from app.services import data_requests
+    from app.services import provisioning as prov
+
+    now = utcnow()
+    agreements = db.scalars(select(TenantAgreement).where(TenantAgreement.tenant_id == t.id).order_by(TenantAgreement.recorded_at.desc())).all()
+    invs = db.scalars(select(Invitation).where(Invitation.tenant_id == t.id, Invitation.role == _R.owner).order_by(Invitation.created_at.desc()).limit(10)).all()
+    return {
+        "agreements": [{"id": a.id, "recorded_at": a.recorded_at, "recorded_by": _email_of(db, a.recorded_by), "terms_version": a.terms_version, "method": a.method, "note": a.note, "statement": a.statement}
+                       for a in agreements],
+        "claim": {"enabled": settings.claim_invitations_enabled, "has_owner": prov.has_owner(db, t.id),
+                  "invitations": [{"id": i.id, "email": i.email, "expires_at": i.expires_at, "accepted_at": i.accepted_at, "revoked_at": i.revoked_at,
+                                   "state": "accepted" if i.accepted_at else "revoked" if i.revoked_at else "expired" if i.expires_at < now else "open",
+                                   "allowlist": prov.allowlist_removal_check(db, i)} for i in invs]},
+        "ai_usage": prov.ai_usage(db, t.id),
+        "data_requests": [data_requests.serialize(db, r) for r in db.scalars(select(DataRequest).where(DataRequest.tenant_id == t.id).order_by(DataRequest.created_at.desc()).limit(10)).all()],
+    }
+
+
 @router.get("/tenants/{tenant_id}")
 def tenant_detail(tenant_id: uuid.UUID, ctx: AuthContext = Depends(require_platform_admin)):
     t = _tenant_or_404(ctx, tenant_id)
@@ -517,12 +566,15 @@ def tenant_detail(tenant_id: uuid.UUID, ctx: AuthContext = Depends(require_platf
     audit_rows = db.scalars(select(AuditLog).where(AuditLog.tenant_id == t.id).order_by(AuditLog.created_at.desc()).limit(25)).all()
     ai_month = db.scalar(select(func.count()).select_from(AIGenerationLog).where(AIGenerationLog.tenant_id == t.id, AIGenerationLog.created_at >= month_start())) or 0
     return {
-        "tenant": _tenant_row(db, t, sub, next((u.email for m, u in members if m.role == _R.owner), None)) | {"support_note": t.support_note, "email": t.email, "phone": t.phone},
+        "tenant": _tenant_row(db, t, sub, next((u.email for m, u in members if m.role == _R.owner), None)) | {"support_note": t.support_note, "email": t.email, "phone": t.phone, "address": t.address,
+                                                                                                         "website": t.website, "created_by": _email_of(db, t.created_by), "updated_by": _email_of(db, t.updated_by), "updated_at": t.updated_at},
+        **_provisioning_detail(db, t),
         "subscription": None if not sub else {c: getattr(sub, c) for c in ("plan", "status", "source", "max_locations", "monthly_ai_generations", "max_staff", "features",
                                                                            "trial_ends_at", "current_period_end", "cancel_at_period_end", "past_due_since", "razorpay_subscription_id")},
         "members": [{"user_id": u.id, "email": u.email, "full_name": u.full_name, "role": m.role.value, "is_active": u.is_active, "email_verified": bool(u.email_verified_at)} for m, u in members],
-        "locations": [{"id": l.id, "name": l.name, "city": l.city, "is_active": l.is_active, "has_review_link": bool(l.review_url)} for l in locs],
-        "cards": [{"id": c.id, "card_code": c.card_code, "status": c.status.value, "location_id": c.location_id} for c in cards],
+        "locations": [{"id": l.id, "name": l.name, "city": l.city, "address_line": l.address_line, "phone": l.phone, "review_url": l.review_url, "is_active": l.is_active,
+                       "has_review_link": bool(l.review_url)} for l in locs],
+        "cards": [{"id": c.id, "card_code": c.card_code, "status": c.status.value, "location_id": c.location_id, "label": c.label} for c in cards],
         "payments": [{"id": p.id, "kind": p.kind, "status": p.status, "amount_paise": p.amount_paise, "created_at": p.created_at} for p in pays],
         "audit": [{"action": a.action, "created_at": a.created_at, "user_id": a.user_id, "meta": a.meta} for a in audit_rows],
         "ai_generations_this_month": ai_month,

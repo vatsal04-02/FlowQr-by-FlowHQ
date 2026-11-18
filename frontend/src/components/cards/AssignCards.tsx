@@ -1,6 +1,7 @@
 "use client";
 import { Check, ScanLine, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
+import { BusinessPicker, type PickedNames } from "@/components/admin/BusinessPicker";
 import { CardScanner } from "@/components/cards/CardScanner";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Card";
@@ -28,10 +29,11 @@ const where = (b: string | null | undefined, l: string | null | undefined, c: st
  */
 export function AssignCards({ mode, onDone }: { mode: Mode; onDone?: () => void }) {
   const admin = mode === "admin";
-  const tenants = useFetch<{ items: Opt[] }>(admin ? "/admin/tenants" : null);
   const [tenant, setTenant] = useState("");
-  const locs = useFetch<Opt[]>(admin ? (tenant ? `/admin/tenants/${tenant}/locations` : null) : "/locations");
-  const camps = useFetch<Opt[]>(admin ? (tenant ? `/admin/tenants/${tenant}/campaigns` : null) : "/review-growth/campaigns");
+  const [picked, setPicked] = useState<PickedNames>({});
+  // staff choose (or create) the business with the shared picker, which loads its own lists; a business owner only ever sees their own locations and campaigns
+  const locs = useFetch<Opt[]>(admin ? null : "/locations");
+  const camps = useFetch<Opt[]>(admin ? null : "/review-growth/campaigns");
   const [loc, setLoc] = useState("");
   const [campaign, setCampaign] = useState("");
   const [label, setLabel] = useState("");
@@ -48,9 +50,9 @@ export function AssignCards({ mode, onDone }: { mode: Mode; onDone?: () => void 
 
   const locations = (locs.data ?? []).filter((l) => (l as { is_active?: boolean }).is_active !== false);
   const campaigns = useMemo(() => (camps.data ?? []).filter((c) => c.status !== "archived" && (!c.location_id || c.location_id === loc)), [camps.data, loc]);
-  const tenantName = admin ? tenants.data?.items.find((t) => t.id === tenant)?.name : undefined;
-  const locName = locations.find((l) => l.id === loc)?.name;
-  const campName = campaigns.find((c) => c.id === campaign)?.name;
+  const tenantName = admin ? picked.business : undefined;
+  const locName = admin ? picked.location : locations.find((l) => l.id === loc)?.name;
+  const campName = admin ? picked.campaign : campaigns.find((c) => c.id === campaign)?.name;
   const ready = !!loc && (!admin || !!tenant);
 
   const inUse = !!card && ["assigned", "active", "paused"].includes(card.status);
@@ -93,20 +95,23 @@ export function AssignCards({ mode, onDone }: { mode: Mode; onDone?: () => void 
   return (
     <div className="space-y-5" data-testid="assign-cards">
       <Panel title="1. Where should the cards go?" meta="choose first, then scan each card">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {admin && (
-            <Select label="Business" value={tenant} onChange={(e) => { setTenant(e.target.value); setLoc(""); setCampaign(""); setCard(null); }}>
-              <option value="">Choose a business…</option>{tenants.data?.items.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        {admin ? (
+          <div className="space-y-4">
+            <BusinessPicker tenant={tenant} loc={loc} campaign={campaign} onNames={setPicked}
+              onTenant={(v) => { setTenant(v); setCard(null); }} onLoc={(v) => { setLoc(v); setCard(null); }} onCampaign={(v) => { setCampaign(v); setCard(null); }} />
+            <Input label="Label (optional)" placeholder="e.g. Reception desk" value={label} onChange={(e) => setLabel(e.target.value)} />
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Select label="Location" value={loc} onChange={(e) => { setLoc(e.target.value); setCampaign(""); setCard(null); }}>
+              <option value="">Choose a location…</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}{l.city ? ` – ${l.city}` : ""}</option>)}
             </Select>
-          )}
-          <Select label="Location" value={loc} disabled={admin && !tenant} onChange={(e) => { setLoc(e.target.value); setCampaign(""); setCard(null); }}>
-            <option value="">Choose a location…</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}{l.city ? ` – ${l.city}` : ""}</option>)}
-          </Select>
-          <Select label="Review campaign" hint="The page customers see when they scan or tap" value={campaign} disabled={!loc} onChange={(e) => { setCampaign(e.target.value); setCard(null); }}>
-            <option value="">Plain review page (no campaign)</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}{c.status === "paused" ? " (paused)" : ""}</option>)}
-          </Select>
-          <Input label="Label (optional)" placeholder="e.g. Reception desk" value={label} onChange={(e) => setLabel(e.target.value)} />
-        </div>
+            <Select label="Review campaign" hint="The page customers see when they scan or tap" value={campaign} disabled={!loc} onChange={(e) => { setCampaign(e.target.value); setCard(null); }}>
+              <option value="">Plain review page (no campaign)</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}{c.status === "paused" ? " (paused)" : ""}</option>)}
+            </Select>
+            <Input label="Label (optional)" placeholder="e.g. Reception desk" value={label} onChange={(e) => setLabel(e.target.value)} />
+          </div>
+        )}
       </Panel>
 
       <Panel title="2. Scan the card" meta={ready ? where(tenantName, locName, campName) : "choose the destination above"}>
