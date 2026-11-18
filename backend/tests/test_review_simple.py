@@ -471,7 +471,9 @@ def test_every_step_is_tracked_and_google_clicks_are_never_called_reviews(biz_a,
 def test_provider_daily_cap_detection_is_precise():
     from app.services.ai.openrouter import OpenRouterProvider
 
-    cap = httpx.Response(429, json=DAILY_CAP)
+    # The reset time is stamped NOW, not when the module was imported: DAILY_CAP's is fixed at collection time, so a suite that takes over ~1000 s to reach this test would see less than 17000 s left.
+    fresh = {"error": {**DAILY_CAP["error"], "metadata": {**DAILY_CAP["error"]["metadata"], "headers": {**DAILY_CAP["error"]["metadata"]["headers"], "X-RateLimit-Reset": str(int((time.time() + 5 * 3600) * 1000))}}}}
+    cap = httpx.Response(429, json=fresh)
     assert 17000 < OpenRouterProvider._daily_cap(cap) <= 18000  # ~5h until the reset header
     assert OpenRouterProvider._daily_cap(httpx.Response(429, json={"error": {"message": "temporarily rate-limited upstream", "metadata": {"limit_source": "upstream_provider_shared_pool"}}})) is None
     assert OpenRouterProvider._daily_cap(httpx.Response(429, content=b"<html>")) is None
