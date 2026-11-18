@@ -37,7 +37,7 @@ from app.models.rank_grid import RankGrid, RankGridPoint, RankGridScan
 log = logging.getLogger("flowqr.account")
 
 # Never exported, whatever table they are in.
-SECRET_COLUMNS = {"refresh_token_encrypted", "access_token_encrypted", "access_token_expires_at", "password_hash", "token_hash", "csrf_token",
+SECRET_COLUMNS = {"data", "refresh_token_encrypted", "access_token_encrypted", "access_token_expires_at", "password_hash", "token_hash", "csrf_token",
                   "visitor_hash", "logo_png", "idempotency_key", "publish_token", "dedupe_key"}
 MAX_ROWS = 200_000
 TABLES = [Location, GoogleConnection, GoogleLocation, Review, ReplyDraft, ReplyLog, QRCard, CardAssignment, ReviewCampaign, RetiredCampaignId,
@@ -56,7 +56,9 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   # admin-managed businesses: the offline agreement an administrator recorded
                   "tenant_agreements",
                   # and the administrator-handled export / deletion requests for a business that has no owner login (a person's own requests about their business are their data too)
-                  "data_requests", "data_request_events")
+                  "data_requests", "data_request_events",
+                  # the website builder: the business's own website content, hostnames, image metadata, enquiries and publish history (image FILES are added to the ZIP by build_export)
+                  "sites", "site_domains", "site_assets", "site_enquiries", "site_revisions")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 
@@ -101,6 +103,11 @@ def build_export(db: Session, tenant: Tenant) -> tuple[bytes, dict]:
                 rows = rows[:MAX_ROWS]
                 manifest["truncated"].append(model.__tablename__)
             put(model.__tablename__, [_row(r) for r in rows])
+        from app.services.sites import service as sites_svc
+
+        for name, blob in sites_svc.export_files(db, tenant.id):
+            z.writestr(name, blob)
+            manifest["files"][name] = 1
         style = db.scalar(select(QRStyle).where(QRStyle.tenant_id == tenant.id))
         if style:
             put("qr_styles", [_row(style)])
@@ -139,6 +146,9 @@ def delete_tenant(db: Session, tenant_id: uuid.UUID, *, provider=None) -> dict:
                 revoked += 1
             except Exception as exc:  # noqa: BLE001
                 log.warning("Google revoke failed during account deletion: %s", type(exc).__name__)
+    from app.services.sites import service as sites_svc
+
+    sites_svc.on_tenant_delete(db, tenant_id)  # takes the website offline and holds its name for 90 days; raises (so nothing is deleted) if the hosting provider cannot remove it
     from app.services.cards import unassign_card
     cards_returned = 0
     for card in db.scalars(select(QRCard).where(QRCard.tenant_id == tenant_id)):

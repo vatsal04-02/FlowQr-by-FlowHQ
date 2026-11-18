@@ -14,6 +14,7 @@ import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
 import { SpendingCeilings } from "@/components/admin/SpendingCeilings";
 import { SUB_TONE, type TenantRow } from "@/lib/admin-ui";
+import { WebsiteCard } from "@/components/admin/site/WebsiteCard";
 import { DataRequestsCard, type DataRequestInfo } from "@/components/admin/DataRequestsCard";
 import { AgreementCard, BusinessDetailsCard, ClaimCard, LocationsCard, ManagedAccessCard, type AgreementInfo, type BusinessInfo, type ClaimInfo, type LocationInfo, type UsageInfo } from "@/components/admin/BusinessPanels";
 
@@ -71,6 +72,7 @@ export default function CustomerDetail() {
           <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><div><p className="font-semibold">{m.full_name} <Badge tone={m.role === "owner" ? "blue" : "gray"}>{m.role}</Badge></p><p className="text-ink-500">{m.email}{!m.email_verified && " · unverified"}</p></div>
             <Button size="sm" variant={m.is_active ? "danger" : "secondary"} onClick={() => { if (confirm(`${m.is_active ? "Deactivate" : "Reactivate"} ${m.email}?`)) void run(() => api(`/admin/users/${m.user_id}`, { method: "PATCH", body: { is_active: !m.is_active } }), "User updated."); }}>{m.is_active ? "Deactivate" : "Reactivate"}</Button></li>))}</ul></Card>
         <LocationsCard tenantId={id} locations={d.locations} reload={reload} />
+        <WebsiteCard tenantId={id} />
         {t.origin === "admin" && <AgreementCard tenantId={id} agreements={d.agreements} reload={reload} />}
         {t.origin === "admin" && <ClaimCard tenantId={id} claim={d.claim} reload={reload} />}
         {!d.claim.has_owner && <DataRequestsCard tenantId={id} businessName={t.name} phone={t.phone} email={t.email} requests={d.data_requests} reload={reload} />}

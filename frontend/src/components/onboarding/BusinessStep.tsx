@@ -1,5 +1,6 @@
 "use client";
-import { ArrowRight, Building2, CheckCircle2, ChevronDown, ExternalLink, MapPin, Phone, Search, Star, X } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, ChevronDown, ExternalLink, Globe, MapPin, Phone, Search, Star, X } from "lucide-react";
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GoogleG } from "@/components/marketing/kit";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +18,13 @@ import { Section, StepActions, StepCard, StepHeading } from "./Shell";
 const STATES = ["Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa", "Gujarat",
   "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
   "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"];
+
+type WebsiteInterest = "has_site" | "wants_site" | "not_now";
+const WEBSITE_OPTIONS: { id: WebsiteInterest; title: string; body: string }[] = [
+  { id: "has_site", title: "Yes, I have one", body: "You can add its address." },
+  { id: "wants_site", title: "No, please build one", body: "FlowQR can build a simple website for you." },
+  { id: "not_now", title: "No, not now", body: "Skip this. You can ask later." },
+];
 
 /**
  * Step 1: the business AND its first location, in one form. Creating it saves the business, then the location. Coming back to this step later (the business exists)
@@ -40,6 +48,8 @@ function BusinessForm({ tenant, existing, place, onPlace, onDone }: { tenant: Te
   const [softNote, setSoftNote] = useState<string | null>(null);
   const [needsVerify, setNeedsVerify] = useState(false);
   const [resent, setResent] = useState<string | null>(null);
+  const [interest, setInterest] = useState<WebsiteInterest | null>(tenant?.website_interest ?? (tenant?.website ? "has_site" : null));  // "do you have a website?"
+  const [interestError, setInterestError] = useState<string | null>(null);
   const tenantMade = useRef(!!tenant);  // the business exists once it has been saved, even if the location then fails: a retry must not create it twice
   const locId = useRef<string | null>(existing?.id ?? null);
 
@@ -85,7 +95,7 @@ function BusinessForm({ tenant, existing, place, onPlace, onDone }: { tenant: Te
     if (d.state) f.set("state", d.state);
     if (d.postal_code) { seenPin.current = d.postal_code; f.set("postal_code", d.postal_code); }
     if (d.phone) f.set("phone", d.phone);
-    if (d.website) f.set("website", d.website);
+    if (d.website) { f.set("website", d.website); setInterest((i) => i ?? "has_site"); setInterestError(null); }
     if (d.review_url) { f.set("review_url", d.review_url); setLinkFromGoogle(true); }
     if (d.category && CATEGORIES.includes(d.category)) f.set("category", d.category);
     else if (!f.values.category) f.set("category", "Other local business");
@@ -116,18 +126,21 @@ function BusinessForm({ tenant, existing, place, onPlace, onDone }: { tenant: Te
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); f.setServerError(null);
-    if (!f.validateAll()) return;
+    const valid = f.validateAll();
+    if (!interest) setInterestError("Tell us whether you have a website. Choose one.");
+    if (!valid || !interest) return;
     setBusy(true); setNeedsVerify(false);
     const v = f.values;
     const nul = (s: string) => s.trim() || null;
     const address = [v.address_line, v.city, v.state, v.postal_code].map((x) => x.trim()).filter(Boolean).join(", ");
     try {
-      const tenantBody = { name: v.name.trim(), category: v.category, email: nul(v.email), phone: nul(v.phone), address: address || null, website: nul(v.website), language: v.language, timezone: v.timezone };
+      const tenantBody = { name: v.name.trim(), category: v.category, email: nul(v.email), phone: nul(v.phone), address: address || null, website: interest === "has_site" ? nul(v.website) : null, language: v.language, timezone: v.timezone };
       if (tenantMade.current) await api("/tenant", { method: "PATCH", body: tenantBody });
       else { await api("/tenants", { method: "POST", body: tenantBody }); tenantMade.current = true; }
       const locBody = { name: v.location_name.trim() || (place?.area ? `${place.area} branch` : "Main branch"), address_line: nul(v.address_line), city: nul(v.city), state: nul(v.state), postal_code: nul(v.postal_code), phone: nul(v.phone), review_url: nul(v.review_url) };
       if (locId.current) await api(`/locations/${locId.current}`, { method: "PATCH", body: locBody });
       else { const l = await api<Location>("/locations", { method: "POST", body: locBody }); locId.current = l.id; }
+      if (interest !== tenant?.website_interest) await api("/tenant/website-interest", { method: "PUT", body: { interest } });
       await onDone();
     } catch (err) {
       // While registration is restricted (REGISTRATION_MODE closed/allowlist) the backend needs a verified address before it creates a business.
@@ -197,7 +210,28 @@ function BusinessForm({ tenant, existing, place, onPlace, onDone }: { tenant: Te
             <Input label="Phone" type="tel" inputMode="tel" autoComplete="tel-national" placeholder="98765 43210" {...f.bind("phone")} />
             <Input label="Business email" type="email" inputMode="email" autoComplete="email" {...f.bind("email")} />
           </div>
-          <Input label="Website" inputMode="url" autoComplete="url" placeholder="yourbusiness.in" {...f.bind("website")} />
+        </Section>
+
+        <Section icon={Globe} title="Do you have a website?" delay={200}>
+          <fieldset aria-describedby={interestError ? "interest-err" : undefined}>
+            <legend className="sr-only">Do you have a website?</legend>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {WEBSITE_OPTIONS.map((o) => {
+                const on = interest === o.id;
+                return (
+                  <label key={o.id} className={clsx("flex min-h-[88px] cursor-pointer flex-col gap-1 rounded-[18px] p-4 ring-1 transition-[box-shadow,background-color] duration-200 focus-within:ring-2 focus-within:ring-m-accentStrong",
+                    on ? "bg-m-tint ring-2 ring-m-accent" : "bg-white ring-m-line hover:ring-m-ink/25")}>
+                    <input type="radio" name="website_interest" value={o.id} checked={on} onChange={() => { setInterest(o.id); setInterestError(null); }} className="sr-only" />
+                    <span className="flex items-center justify-between gap-2 text-[15px] font-semibold text-m-ink">{o.title}<span aria-hidden className={clsx("grid h-5 w-5 shrink-0 place-items-center rounded-full ring-1", on ? "bg-m-accent text-m-ink ring-m-accent" : "bg-white ring-m-muted2")}>{on && <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={3} />}</span></span>
+                    <span className="text-[13px] leading-snug text-m-ink2">{o.body}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {interestError && <p id="interest-err" role="alert" className="mt-2 text-[13px] font-medium text-[#B42318]">{interestError}</p>}
+          </fieldset>
+          {interest === "has_site" && <Input label="Your website address" inputMode="url" autoComplete="url" placeholder="yourbusiness.in" hint="Optional. We show it on your Google profile checks and your review page." {...f.bind("website")} />}
+          {interest === "wants_site" && <p role="status" className="rounded-[14px] bg-m-tint p-3.5 text-[14px] leading-relaxed text-m-ink">Good. Our team will build a simple website for your business and get in touch to go through it with you. Choosing this creates nothing and charges nothing, and you can change your mind any time.</p>}
         </Section>
 
         <Section icon={Star} title="Your Google review link" hint="Optional" delay={240}>

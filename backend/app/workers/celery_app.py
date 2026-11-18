@@ -14,6 +14,7 @@ celery_app.conf.update(
             "schedule": settings.review_sync_interval_minutes * 60 / 2,  # check twice per interval
         },
         "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
+        "sites-housekeeping": {"task": "flowqr.sites_housekeeping", "schedule": 3600.0},  # no-op unless SITES_ENABLED (services/sites/service.py)
         "prepaid-reconcile": {"task": "flowqr.prepaid_reconcile", "schedule": 3600.0},  # prepaid plans: catches a lost webhook or a closed tab after paying
         "billing-reconcile": {"task": "flowqr.billing_reconcile", "schedule": 3600.0},  # Cashfree: the safety net for webhooks that never arrive
         "retry-failed-replies": {"task": "flowqr.retry_failed_replies", "schedule": 900.0},

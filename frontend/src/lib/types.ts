@@ -7,6 +7,8 @@ export interface Tenant {
   suspended_at: string | null; suspension_reason: string | null; support_status: string;
   /** reviews per calendar month the owner aims for; null = not set (the Overview suggests one) */
   review_goal?: number | null;
+  /** asked in onboarding: has_site | wants_site (FlowQR may build one) | not_now; null = never asked */
+  website_interest?: "has_site" | "wants_site" | "not_now" | null;
 }
 export interface User { id: string; email: string; full_name: string; phone: string | null; picture_url?: string | null; is_platform_admin: boolean; email_verified_at: string | null; has_local_login: boolean; google_linked: boolean }
 export interface Me {

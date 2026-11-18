@@ -22,6 +22,7 @@ from app.models import (
     AIGenerationLog, AuditLog, AuthSession, BillingPlan, CardOrder, Payment, Subscription, User, WebhookEvent,
 )
 from app.models.base import utcnow
+from app.models.sites import Site
 from app.models.tenancy import Membership as _M, Role as _R
 from app.schemas.admin import BudgetsIn, CardOrderAdminIn, PlanLimitsIn, SubscriptionAdminIn, SuspendIn, SupportIn, UserActiveIn
 from app.services import billing as billing_svc
@@ -467,6 +468,8 @@ def _tenant_row(db, t: Tenant, sub: Subscription | None, owner_email: str | None
         "onboarding_status": prov.onboarding_status(db, t, owner_email is not None or prov.has_owner(db, t.id)),
         "agreement_recorded": db.scalar(select(TenantAgreement.id).where(TenantAgreement.tenant_id == t.id).limit(1)) is not None,
         "managed_access": prov.managed_state(sub),
+        "website_interest": t.website_interest, "website_url": t.website,
+        "site_status": db.scalar(select(Site.status).where(Site.tenant_id == t.id)),
         "id": t.id, "name": t.name, "category": t.category, "created_at": t.created_at, "is_active": t.is_active,
         "suspended_at": t.suspended_at, "suspension_reason": t.suspension_reason, "support_status": t.support_status,
         "owner_email": owner_email, "plan": sub.plan if sub else None, "subscription_status": sub.status if sub else None,
@@ -479,6 +482,7 @@ def _tenant_row(db, t: Tenant, sub: Subscription | None, owner_email: str | None
 @router.get("/tenants")
 def list_tenants(ctx: AuthContext = Depends(require_platform_admin), search: str | None = None, status: str | None = None,
                  origin: str | None = Query(None, pattern="^(admin|self_service)$"), onboarding: str | None = Query(None, pattern="^(has_account|live|ready|incomplete)$"),
+                 website: str | None = Query(None, pattern="^(wants|built|none)$"),
                  limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0)):
     q = select(Tenant)
     if search:
@@ -496,6 +500,9 @@ def list_tenants(ctx: AuthContext = Depends(require_platform_admin), search: str
         live = exists().where(QRCard.tenant_id == Tenant.id, QRCard.status.in_([CardStatus.assigned, CardStatus.active]))
         ready = exists().where(Location.tenant_id == Tenant.id, Location.is_active.is_(True), Location.review_url.is_not(None), Location.review_url != "")
         q = q.where({"has_account": has_owner, "live": ~has_owner & live, "ready": ~has_owner & ~live & ready, "incomplete": ~has_owner & ~live & ~ready}[onboarding])
+    if website:
+        built = exists().where(Site.tenant_id == Tenant.id)
+        q = q.where({"built": built, "wants": ~built & (Tenant.website_interest == "wants_site"), "none": ~built & (Tenant.website_interest.is_(None) | (Tenant.website_interest == "not_now"))}[website])
     if status == "suspended":
         q = q.where(Tenant.is_active.is_(False))
     elif status in ("trialing", "active", "past_due", "halted", "expired", "canceled", "pending"):
@@ -585,6 +592,17 @@ def tenant_detail(tenant_id: uuid.UUID, ctx: AuthContext = Depends(require_platf
 def suspend(tenant_id: uuid.UUID, body: SuspendIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
     t = _tenant_or_404(ctx, tenant_id)
     t.is_active, t.suspended_at, t.suspension_reason = False, utcnow(), body.reason
+    from app.core.config import settings as _settings
+
+    if _settings.sites_enabled:
+        from app.services.sites import service as sites_svc
+
+        site = sites_svc.get_by_tenant(ctx.db, t.id)
+        if site is not None and site.status == "published":
+            try:
+                sites_svc.suspend(ctx.db, admin=ctx.user, site=site, reason=f"Business suspended: {body.reason}"[:300], ip=client_ip(request))
+            except sites_svc.SiteError:
+                pass  # the daily check suspends it as soon as hosting is reachable; the business suspension itself must not fail because of a website
     audit(ctx.db, action="admin.tenant_suspend", tenant_id=t.id, user_id=ctx.user.id, entity_type="tenant", entity_id=t.id, meta={"reason": body.reason}, ip=client_ip(request))
     ctx.db.commit()
 

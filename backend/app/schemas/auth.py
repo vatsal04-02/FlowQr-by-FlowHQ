@@ -97,6 +97,7 @@ class TenantOut(ORM):
     suspension_reason: str | None = None
     support_status: str = "none"
     review_goal: int | None = None
+    website_interest: str | None = None
 
 
 class MembershipOut(BaseModel):

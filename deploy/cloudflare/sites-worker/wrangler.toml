@@ -1,0 +1,23 @@
+# FlowQR business websites: the shared Worker. NOTHING HERE IS DEPLOYED BY THE REPOSITORY. Deploying needs the Cloudflare zone prerequisites in docs/WEBSITE_BUILDER_CLOUDFLARE.md
+# (the sites domain's DNS on Cloudflare, a proxied wildcard record, the KV namespace and R2 bucket created) and an explicit approval.
+name = "flowqr-sites"
+main = "index.mjs"
+compatibility_date = "2026-11-01"
+workers_dev = false          # never reachable on a *.workers.dev address
+
+# Routes need the zone to be on Cloudflare. Replace the pattern with your sites domain. Do not use a pattern that also matches www., api. or go.
+# routes = [{ pattern = "*.example-sites-domain.com/*", zone_name = "example-sites-domain.com" }]
+
+[vars]
+SITES_BASE_DOMAIN = "example-sites-domain.com"       # the domain business sites live under, e.g. flowqr.site or a separate registrable domain
+FLOWQR_API_URL = "https://api.flowqr.site"           # where the enquiry form is relayed (server to server)
+
+[[kv_namespaces]]
+binding = "HOSTS"                                    # host:<hostname> -> {site_id, version, status}; written only by the FlowQR backend
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[[r2_buckets]]
+binding = "SITES"                                    # sites/<site_id>/v<version>/<file>; read-only here
+bucket_name = "REPLACE_WITH_BUCKET_NAME"
+
+# Secret, set with:  wrangler secret put SITES_SERVICE_TOKEN   (the same value as SITES_SERVICE_TOKEN on the FlowQR server)

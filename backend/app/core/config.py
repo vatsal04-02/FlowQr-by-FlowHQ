@@ -37,6 +37,25 @@ class Settings(BaseSettings):
     claim_invitations_enabled: bool = False  # CLAIM_INVITATIONS_ENABLED
     claim_invitation_ttl_hours: int = 168  # CLAIM_INVITATION_TTL_HOURS
 
+    # Website builder (static business websites an administrator builds and publishes). OFF by default: with SITES_ENABLED=false every site route answers "sites_disabled" and nothing else in
+    # FlowQR changes. See docs/WEBSITE_BUILDER.md for the architecture and docs/WEBSITE_BUILDER_CLOUDFLARE.md for the hosting prerequisites.
+    sites_enabled: bool = False  # SITES_ENABLED
+    sites_base_domain: str = "sites.localhost"  # SITES_BASE_DOMAIN: business sites are <slug>.<this>. Production: flowqr.site (see the cookie-scope rule below) or a separate registrable domain
+    sites_provider: str = "local"  # SITES_PROVIDER: local (development and tests only) | cloudflare
+    sites_local_dir: str = "/tmp/flowqr-sites"  # SITES_LOCAL_DIR: where the local provider writes
+    sites_service_token: str = ""  # SITES_SERVICE_TOKEN: shared secret between the hosting Worker and the enquiry endpoint (at least 32 characters)
+    sites_accept_shared_cookie_scope: bool = False  # SITES_ACCEPT_SHARED_COOKIE_SCOPE: see check_production
+    sites_grace_days: int = 14  # SITES_GRACE_DAYS: how long an expired site stays up before it is suspended (its content is never deleted by a lapse)
+    sites_enquiry_retention_days: int = 180  # SITES_ENQUIRY_RETENTION_DAYS: enquiries older than this are deleted
+    sites_enquiry_notifier: str = "none"  # SITES_ENQUIRY_NOTIFIER: none | smtp. "smtp" is NOT recommended on the shared Gmail account (quota, deliverability): review first
+    cloudflare_account_id: str = ""  # CLOUDFLARE_ACCOUNT_ID
+    cloudflare_api_token: str = ""  # CLOUDFLARE_API_TOKEN: scoped to Workers KV edit on ONE namespace (and optionally cache purge on ONE zone). Server-side only
+    cloudflare_kv_namespace_id: str = ""  # CLOUDFLARE_KV_NAMESPACE_ID: the host -> site pointer table the Worker reads
+    cloudflare_zone_id: str = ""  # CLOUDFLARE_ZONE_ID: optional, for cache purge after a publish
+    r2_bucket: str = ""  # R2_BUCKET: the published static files
+    r2_access_key_id: str = ""  # R2_ACCESS_KEY_ID: an R2 token limited to that one bucket (object read and write)
+    r2_secret_access_key: str = ""  # R2_SECRET_ACCESS_KEY
+
     # Google OAuth / Business Profile (customers connect their OWN accounts via this app).
     google_client_id: str = ""
     google_client_secret: str = ""
@@ -452,6 +471,23 @@ def config_problems(s: Settings) -> list[str]:
             p.append("Razorpay keys must be removed while BILLING_PROVIDER=cashfree (one payment provider only)")
         if s.cashfree_authorization_paise < 100:
             p.append("CASHFREE_AUTHORIZATION_PAISE cannot be below 100 (Cashfree's minimum authorisation for UPI and cards is Rs 1)")
+    if s.sites_enabled:
+        base = (s.sites_base_domain or "").strip().lower().lstrip(".")
+        if not base or "." not in base or base.endswith(".localhost"):
+            p.append("SITES_BASE_DOMAIN must be a real domain when SITES_ENABLED is true")
+        if s.sites_provider != "cloudflare":
+            p.append("SITES_PROVIDER must be cloudflare in production (the local provider is for development and tests)")
+        else:
+            for name, v in (("CLOUDFLARE_ACCOUNT_ID", s.cloudflare_account_id), ("CLOUDFLARE_API_TOKEN", s.cloudflare_api_token), ("CLOUDFLARE_KV_NAMESPACE_ID", s.cloudflare_kv_namespace_id),
+                            ("R2_BUCKET", s.r2_bucket), ("R2_ACCESS_KEY_ID", s.r2_access_key_id), ("R2_SECRET_ACCESS_KEY", s.r2_secret_access_key)):
+                if not v:
+                    p.append(f"{name} is required when SITES_ENABLED is true and SITES_PROVIDER is cloudflare")
+        if len(s.sites_service_token or "") < 32:
+            p.append("SITES_SERVICE_TOKEN must be a random value of at least 32 characters when SITES_ENABLED is true")
+        cd = (s.cookie_domain or "").lstrip(".").lower()
+        if cd and base and (base == cd or base.endswith("." + cd)) and not s.sites_accept_shared_cookie_scope:
+            p.append(f"SITES_BASE_DOMAIN '{base}' is inside COOKIE_DOMAIN '{s.cookie_domain}': the session and CSRF cookies are sent to every business website. Use a separate registrable domain, or set "
+                     "SITES_ACCEPT_SHARED_COOKIE_SCOPE=true only after reading docs/WEBSITE_BUILDER.md (section Cookie and origin isolation): the sites ship no JavaScript and the Worker never reads or sets cookies")
     return p
 
 

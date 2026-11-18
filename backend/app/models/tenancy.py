@@ -54,6 +54,7 @@ class Tenant(IdMixin, TimestampMixin, Base):
     review_context: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     # reviews per calendar month the owner aims for (Overview "Monthly review goal"); NULL = not set, the dashboard suggests one
     review_goal: Mapped[int | None] = mapped_column(Integer)
+    website_interest: Mapped[str | None] = mapped_column(String(12))  # asked in onboarding: has_site | wants_site (FlowQR may build one) | not_now; NULL = never asked
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="tenant")
 

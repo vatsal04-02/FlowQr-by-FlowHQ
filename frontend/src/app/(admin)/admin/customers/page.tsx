@@ -1,5 +1,5 @@
 "use client";
-import { Plus, Search } from "lucide-react";
+import { Globe, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import { fmtDate } from "@/lib/format";
 import { ONBOARDING, SUB_TONE, type TenantRow } from "@/lib/admin-ui";
 import { useFetch } from "@/lib/use-api";
+import { STATUS_LABEL, STATUS_TONE, type SiteConfig } from "@/lib/sites";
 
 const PAGE = 25;
 
@@ -19,11 +20,13 @@ const PAGE = 25;
 export default function Businesses() {
   const router = useRouter();
   const toast = useToast();
-  const [q, setQ] = useState(""), [search, setSearch] = useState(""), [status, setStatus] = useState(""), [origin, setOrigin] = useState(""), [onboarding, setOnboarding] = useState(""), [page, setPage] = useState(0);
+  const [q, setQ] = useState(""), [search, setSearch] = useState(""), [status, setStatus] = useState(""), [origin, setOrigin] = useState(""), [onboarding, setOnboarding] = useState(""), [website, setWebsite] = useState(""), [page, setPage] = useState(0);
   const [adding, setAdding] = useState(false);
   useEffect(() => { const t = setTimeout(() => { setSearch(q); setPage(0); }, 300); return () => clearTimeout(t); }, [q]);
-  const { data, error, loading, reload } = useFetch<{ total: number; items: TenantRow[] }>("/admin/tenants", { search, status, origin, onboarding, limit: PAGE, offset: page * PAGE });
-  const filtered = !!(search || status || origin || onboarding);
+  const { data, error, loading, reload } = useFetch<{ total: number; items: TenantRow[] }>("/admin/tenants", { search, status, origin, onboarding, website, limit: PAGE, offset: page * PAGE });
+  const cfg = useFetch<SiteConfig>("/admin/sites/config");
+  const sitesOn = !!cfg.data?.enabled;
+  const filtered = !!(search || status || origin || onboarding || website);
   return (
     <>
       <PageHeader eyebrow="Platform" title="Businesses" subtitle="Every business on FlowQR: shops you set up for them, and businesses with their own login. Open one to manage its locations, cards and access."
@@ -32,14 +35,15 @@ export default function Businesses() {
         <div className="relative min-w-[200px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden /><input aria-label="Search businesses" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, contact, city or phone" className="min-h-11 w-full rounded-xl border border-ink-200 pl-9 pr-3 text-sm sm:min-h-10" /></div>
         <FilterSelect label="Set up by" value={origin} onChange={(e) => { setOrigin(e.target.value); setPage(0); }}><option value="">Everyone</option><option value="admin">Set up by FlowQR staff</option><option value="self_service">Signed up themselves</option></FilterSelect>
         <FilterSelect label="Onboarding" value={onboarding} onChange={(e) => { setOnboarding(e.target.value); setPage(0); }}><option value="">Any stage</option>{Object.entries(ONBOARDING).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</FilterSelect>
+        <FilterSelect label="Website" value={website} onChange={(e) => { setWebsite(e.target.value); setPage(0); }}><option value="">Any</option><option value="wants">Asked us to build one</option><option value="built">We built one</option><option value="none">No website yet</option></FilterSelect>
         <FilterSelect label="Subscription" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">All plans</option>{["trialing", "active", "manual", "past_due", "halted", "expired", "canceled", "suspended"].map((s) => <option key={s}>{s}</option>)}</FilterSelect>
       </div></Card>
       {error && <Alert tone="error">{error}</Alert>}
       {loading && !data ? <Skeleton className="h-64" /> : data && data.items.length === 0 ? (
         <EmptyState title={filtered ? "No businesses match" : "No businesses yet"} action={filtered ? undefined : <Button onClick={() => setAdding(true)}>Add business</Button>}>{filtered ? "Try a different search or filter." : "Add the first shop to start assigning cards."}</EmptyState>
       ) : (
-        <Card pad={false}><div className="overflow-x-auto"><table className="dt min-w-[1080px]">
-          <thead><tr>{["Business", "Contact", "Phone", "Locations", "Cards", "Live", "Stage", "Access", "Added"].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
+        <Card pad={false}><div className="overflow-x-auto"><table className="dt min-w-[1240px]">
+          <thead><tr>{["Business", "Contact", "Phone", "Locations", "Cards", "Live", "Stage", "Website", "Access", "Added"].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
           <tbody>{data?.items.map((t) => {
             const o = ONBOARDING[t.onboarding_status ?? "incomplete"];
             return (
@@ -50,6 +54,13 @@ export default function Businesses() {
                 <td className="whitespace-nowrap px-4 tabular-nums">{t.phone ?? <span className="text-ink-400">–</span>}</td>
                 <td className="px-4 tabular-nums">{t.locations}</td><td className="px-4 tabular-nums">{t.cards}</td><td className="px-4 tabular-nums">{t.active_cards ?? 0}</td>
                 <td className="px-4"><Badge tone={o.tone}>{o.label}</Badge>{t.agreement_recorded && <span className="block text-xs text-ink-500">Agreement recorded</span>}</td>
+                <td className="px-4 text-xs">{t.site_status ? (
+                    <><Badge tone={STATUS_TONE[t.site_status] ?? "gray"}>{STATUS_LABEL[t.site_status] ?? t.site_status}</Badge><Link href={`/admin/customers/${t.id}/website`} className="mt-1 block font-semibold text-brand-700 hover:underline">Open editor</Link></>
+                  ) : (
+                    <>{t.website_interest === "wants_site" ? <Badge tone="amber">Wants a website</Badge> : t.website_interest === "has_site" ? <Badge tone="gray">Has its own</Badge> : t.website_interest === "not_now" ? <Badge tone="gray">Not now</Badge> : <span className="text-ink-400">Not asked</span>}
+                      {sitesOn ? <Link href={`/admin/customers/${t.id}?website=create`} className="mt-1 inline-flex min-h-8 items-center gap-1 font-semibold text-brand-700 hover:underline"><Globe className="h-3.5 w-3.5" aria-hidden />Generate site</Link>
+                        : cfg.data ? <span className="mt-1 block text-ink-400">Builder is off</span> : null}</>
+                  )}</td>
                 <td className="px-4 text-xs">{t.origin === "admin" ? (t.managed_access === "revoked" ? <Badge tone="red">managed: revoked</Badge> : t.managed_access === "managed" ? <Badge tone="green">managed by FlowQR</Badge> : <Badge tone="gray">{t.plan}</Badge>) : <Badge tone={SUB_TONE[t.subscription_status ?? ""] ?? "gray"}>{t.plan} · {t.subscription_status}</Badge>}</td>
                 <td className="whitespace-nowrap px-4">{fmtDate(t.created_at)}</td></tr>);
           })}</tbody>

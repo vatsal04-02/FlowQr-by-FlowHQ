@@ -160,6 +160,29 @@ def retry_failed_replies():
         db.close()
 
 
+@celery_app.task(name="flowqr.sites_housekeeping")
+def sites_housekeeping():
+    """Websites: expire paid-until dates, suspend sites whose grace period ended or whose business is suspended, delete enquiries past their retention. Does nothing unless SITES_ENABLED."""
+    from app.core.config import settings
+
+    if not settings.sites_enabled:
+        return {"enabled": False}
+    from app.services.sites import service as sites_svc
+
+    db = system_session()
+    try:
+        out = sites_svc.enforce_commercial(db)
+        out["enquiries_deleted"] = sites_svc.purge_old_enquiries(db)
+        db.commit()
+        return out
+    except Exception:
+        db.rollback()
+        log.exception("sites housekeeping failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.purge_deleted_accounts")
 def purge_deleted_accounts():
     """Delete businesses whose owner scheduled deletion and whose grace period has ended, and anonymise people whose own account deletion is due. Each is told by email AFTER it has committed

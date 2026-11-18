@@ -71,6 +71,19 @@ def update_tenant(body: TenantUpdateIn, request: Request, ctx: TenantContext = D
     return ctx.tenant
 
 
+class WebsiteInterestIn(BaseModel):
+    interest: str = Field(pattern="^(has_site|wants_site|not_now)$")
+
+
+@router.put("/tenant/website-interest", response_model=TenantOut)
+def set_website_interest(body: WebsiteInterestIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Onboarding: does the business already have a website? `wants_site` is a request that FlowQR staff build one (it shows in the admin business list); nothing is created, published or charged by saying so."""
+    ctx.tenant.website_interest = body.interest
+    audit(ctx.db, action="tenant.website_interest", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=ctx.tenant_id, meta={"interest": body.interest}, ip=client_ip(request))
+    ctx.db.commit()
+    return ctx.tenant
+
+
 class VoicePreviewIn(BaseModel):
     rating: int = Field(ge=1, le=5)
     brand_tone: str | None = Field(default=None, max_length=300)
