@@ -79,8 +79,8 @@ export function comparisonRows(plans: Plan[]): Row[] {
   const each = (f: (p: Plan) => Cell) => Object.fromEntries(plans.map((p) => [p.code, f(p)]));
   const yes = (k: string) => (p: Plan): Cell => (has(p, k) ? { kind: "yes" } : { kind: "no" });
   const rows: Row[] = [
-    { id: "review_generations", label: "AI review writing", note: "A month. Resets every month, including on yearly plans.", cells: each((p) => ({ kind: "value", text: `${n(p.review_generations)} a month` })) },
-    { id: "review_replies", label: "AI review replies", note: "A month. Resets every month, including on yearly plans.", cells: each((p) => ({ kind: "value", text: `${n(p.review_replies)} a month` })) },
+    { id: "review_generations", label: "AI review writing", note: "Resets every month, including on yearly plans.", cells: each((p) => ({ kind: "value", text: `${n(p.review_generations)} a month` })) },
+    { id: "review_replies", label: "AI review replies", note: "Resets every month, including on yearly plans.", cells: each((p) => ({ kind: "value", text: `${n(p.review_replies)} a month` })) },
     { id: "analytics", label: "Analytics", cells: each((p) => ({ kind: "value", text: has(p, "insights") || has(p, "gbp_performance") ? "Review analytics + Google profile insights" : "Basic review analytics" })) },
     { id: "local_seo", label: "Local SEO", cells: each(yes("local_seo")) },
     { id: "keyword_tracking", label: "Keyword and local ranking tracking", cells: each(yes("keyword_tracking")) },
