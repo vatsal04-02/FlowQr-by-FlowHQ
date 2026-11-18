@@ -10,6 +10,7 @@ import { BILLING_NOTE, BILLING_SUFFIX, cardPoints, comparisonRows, periodPrice, 
 import { effectiveMonthlyPaise } from "@/lib/pricing";
 import { track } from "@/lib/track";
 import { Rise } from "./motion";
+import { SignupDialog } from "./SignupDialog";
 import { TalkToUs, usePlansLive } from "./PlansFromConfig";
 
 /**
@@ -93,6 +94,7 @@ export function PricingPlans() {
   const { data, failed, loading } = usePlansLive();
   const [billing, setBilling] = useState<Billing>("monthly");
   const wide = useMedia("(min-width: 768px)");
+  const [signup, setSignup] = useState(false);
   const reduced = useReducedMotion();
   if (failed) return <TalkToUs />;
   if (loading || !data) return <div className="grid gap-4 md:grid-cols-3" aria-busy>{[0, 1, 2].map((i) => <div key={i} className="h-[560px] animate-pulse rounded-2xl bg-m-surface" />)}</div>;
@@ -146,7 +148,7 @@ export function PricingPlans() {
                 ))}
               </ul>
               <hr className="my-5 border-m-line" />
-              <Link href="/register" onClick={() => track("signup_cta_click")}
+              <Link href="/register" onClick={(e) => { track("signup_cta_click"); if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); setSignup(true); } }}
                 className={clsx("group relative inline-flex min-h-12 w-full items-center justify-center overflow-hidden rounded-full text-[17px] font-semibold tracking-[-.02em] transition-all duration-300 ease-out",
                   hot ? "bg-m-accent text-m-ink hover:bg-[#F06000]" : "border border-m-ink/70 bg-m-surface text-m-ink hover:bg-m-accent hover:text-m-ink hover:ring-2 hover:ring-m-accent hover:ring-offset-1")}>
                 Start free trial
@@ -156,6 +158,7 @@ export function PricingPlans() {
           );
         })}
       </div>
+      <SignupDialog open={signup} onClose={() => setSignup(false)} />
       <p className="mx-auto mt-8 max-w-[640px] text-center text-[13px] text-m-muted">AI allowances are monthly. They reset every month, on yearly plans too, and are not added up across the year.</p>
     </>
   );
