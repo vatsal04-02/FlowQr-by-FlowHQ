@@ -11,7 +11,8 @@ import { FeatureStrip, StorySection } from "@/components/marketing/HomeSections"
 import { StepConnectArt, StepCounterArt, StepReviewsArt } from "@/components/marketing/HomeVisuals";
 import { MiniCard, OverviewScreen } from "@/components/marketing/Mockups";
 import { PhoneOrbit } from "@/components/marketing/PhoneOrbit";
-import { ComparisonTable, FAQ, FinalCTA, HowItWorks } from "@/components/marketing/Sections";
+import { PinnedSteps } from "@/components/marketing/PinnedSteps";
+import { ComparisonTable, FAQ, FinalCTA } from "@/components/marketing/Sections";
 import { en } from "@/content/marketing/en";
 import { pageMeta, SITE_URL } from "@/lib/site";
 
@@ -60,7 +61,7 @@ export default function Home() {
       <StorySection c={c.story} />
 
       {/* A. How it works: three connected steps */}
-      <HowItWorks title={c.how.title} sub={c.how.sub} steps={c.how.steps} art={[<StepConnectArt key="1" />, <StepCounterArt key="2" />, <StepReviewsArt key="3" />]} />
+      <PinnedSteps title={c.how.title} sub={c.how.sub} steps={c.how.steps} art={[<StepConnectArt key="1" />, <StepCounterArt key="2" />, <StepReviewsArt key="3" />]} />
 
       {/* E. Comparison */}
       <ComparisonTable tight title={c.compare.title} sub={c.compare.sub} columns={c.compare.columns} note={c.compare.note}
