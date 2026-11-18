@@ -74,6 +74,24 @@ def test_export_is_owner_only_complete_and_contains_no_secrets(clinic, admin):
     assert owner_query("SELECT count(*) FROM audit_logs WHERE tenant_id = :t AND action = 'account.export'", t=clinic.tenant_id)[0][0] == 1
 
 
+def test_every_tenant_table_is_exported_or_exempt():
+    """A privacy audit found 21 tenant-owned tables missing from the export. Adding a table with a tenant_id now forces a decision: export it or name it as exported elsewhere."""
+    from app.core.db import Base
+    exported = {m.__tablename__ for m in svc.TABLES} | svc.EXPORTED_ELSEWHERE | {"tenants", "memberships"}
+    owned = {t.name for t in Base.metadata.sorted_tables if "tenant_id" in t.columns}
+    assert owned - exported == set(), f"not in the data export: {sorted(owned - exported)}"
+
+
+def test_export_includes_the_knowledge_base_and_leaves_secret_columns_out(clinic):
+    from app.models import BusinessKnowledge, ScheduledPost
+    assert BusinessKnowledge in svc.TABLES and ScheduledPost in svc.TABLES
+    assert {"publish_token", "dedupe_key"} <= svc.SECRET_COLUMNS
+    z = zipfile.ZipFile(io.BytesIO(clinic.get("/account/export").content))
+    names = set(z.namelist())
+    assert {"business_knowledge.json", "scheduled_posts.json", "scheduled_media.json", "gbp_snapshots.json", "gbp_metric_daily.json", "notification_prefs.json"} <= names
+    assert b"publish_token" not in b"".join(z.read(n) for n in names if n.endswith(".json"))
+
+
 def test_export_never_contains_another_businesses_rows(clinic, biz_b):
     z = zipfile.ZipFile(io.BytesIO(clinic.get("/account/export").content))
     blob = b"".join(z.read(n) for n in z.namelist()).decode()

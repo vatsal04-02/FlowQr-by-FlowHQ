@@ -46,12 +46,13 @@ const config: Config = {
       },
       fontFamily: {
         // One family for everything people read and tap; its mono sibling only for card IDs, tokens and other technical identifiers.
-        sans: ["Geist", "system-ui", "-apple-system", "'Segoe UI'", "'Noto Sans Devanagari'", "Roboto", "sans-serif"],
-        display: ["Geist", "system-ui", "-apple-system", "'Segoe UI'", "'Noto Sans Devanagari'", "sans-serif"],
-        app: ["Inter", "system-ui", "-apple-system", "'Segoe UI'", "'Noto Sans Devanagari'", "Roboto", "sans-serif"],
+        // The families come from next/font in app/layout.tsx (self-hosted; no request to Google), through these CSS variables.
+        sans: ["var(--font-geist)", "system-ui", "-apple-system", "'Segoe UI'", "var(--font-devanagari)", "Roboto", "sans-serif"],
+        display: ["var(--font-geist)", "system-ui", "-apple-system", "'Segoe UI'", "var(--font-devanagari)", "sans-serif"],
+        app: ["var(--font-inter)", "system-ui", "-apple-system", "'Segoe UI'", "var(--font-devanagari)", "Roboto", "sans-serif"],
         // The FlowQR wordmark only (the "flowqr" in the logo lockup).
-        brand: ["'Plus Jakarta Sans'", "Geist", "system-ui", "sans-serif"],
-        mono: ["'Geist Mono'", "ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
+        brand: ["var(--font-jakarta)", "var(--font-geist)", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       fontWeight: { semibold: "600", bold: "650", extrabold: "700" },
       // App radii (docs/DESIGN.md): data cards 16px, wells and tiles inside them 12px, inner rows 10px. Nested radii are always smaller than their parent.

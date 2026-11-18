@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { DeleteMyAccountPanel } from "@/components/DeleteMyAccountPanel";
 import { useGoogleAvailable, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, PageHeader } from "@/components/ui/Card";
@@ -20,6 +21,7 @@ export default function AccountPage() {
       <div className="max-w-3xl space-y-6">
         <ProfilePanels email={me.user.email} name={me.user.full_name ?? ""} phone={me.user.phone ?? ""}
           hasLocalLogin={me.user.has_local_login ?? true} googleLinked={me.user.google_linked ?? false} onSaved={refresh} />
+        <DeleteMyAccountPanel />
       </div>
     </>
   );

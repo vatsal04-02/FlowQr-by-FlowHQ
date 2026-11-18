@@ -106,6 +106,7 @@ export default function GeneratorPage() {
         actions={campaigns.length > 0 && selected ? <FilterSelect label="Campaign" value={selected.id} onChange={(e) => choose(e.target.value)}>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</FilterSelect> : undefined} />
 
       {ai && !ai.configured && <div className="mb-4"><Alert tone="warning" title="AI drafting isn't configured on this server">Set the AI provider key on the server to enable it. Until then customers write their own review and still continue to Google.</Alert></div>}
+      {ai?.review_data_blocked && <div className="mb-4"><Alert tone="warning" title="AI help with reviews is switched off">{ai.review_data_blocked === "kill_switch" ? "An administrator has stopped review text from being sent to the AI provider." : "Review text is not sent to the AI provider until its data-use terms have been confirmed."} Customers can still write their own review and continue to Google, and you can write replies yourself.</Alert></div>}
       {ai?.degraded && (
         <div className="mb-4"><Alert tone="warning" title="AI writing help is paused" action={isAdmin ? <span className="text-xs">Run a test to re-check</span> : undefined}>
           {ai.degraded.message} Customers are not blocked: they see the plain “write your review” screen until this clears (automatically, or after a successful test below).</Alert></div>

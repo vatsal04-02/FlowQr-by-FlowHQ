@@ -81,7 +81,7 @@ const pngSize = (b) => ({ w: b.readUInt32BE(16), h: b.readUInt32BE(20) });
   const H = () => ({ 'X-CSRF-Token': csrf });
   let ready = false; let X, Y, Z, W3;  // cards
   try {
-    let r = await ownerCtx.request.post('/api/v1/auth/register', { data: { email: `zz-cards-${TAG}@example.com`, password: PW, full_name: 'ZZ Cards Owner' } });
+    let r = await ownerCtx.request.post('/api/v1/auth/register', { data: { email: `zz-cards-${TAG}@example.com`, password: PW, age_confirmed: true, full_name: 'ZZ Cards Owner' } });
     expect(r.status() === 201, `register ${r.status()} ${await r.text()}`);
     csrf = (await r.json()).csrf_token;
     tenant = await (await ownerCtx.request.post('/api/v1/tenants', { data: { name: NAME, category: 'Physiotherapy clinic', language: 'en' }, headers: H() })).json();
@@ -93,7 +93,7 @@ const pngSize = (b) => ({ w: b.readUInt32BE(16), h: b.readUInt32BE(20) });
     campB = await (await ownerCtx.request.post('/api/v1/review-growth/campaigns', { data: { name: 'Branch desk', location_id: locB.id }, headers: H() })).json();
     // a second, unrelated business (own session) for isolation checks
     otherCtx = await browser.newContext({ baseURL: BASE });
-    r = await otherCtx.request.post('/api/v1/auth/register', { data: { email: `zz-cards-other-${TAG}@example.com`, password: PW, full_name: 'ZZ Other Owner' } });
+    r = await otherCtx.request.post('/api/v1/auth/register', { data: { email: `zz-cards-other-${TAG}@example.com`, password: PW, age_confirmed: true, full_name: 'ZZ Other Owner' } });
     otherCsrf = (await r.json()).csrf_token;
     await otherCtx.request.post('/api/v1/tenants', { data: { name: NAME_B, category: 'Dental clinic', language: 'en' }, headers: { 'X-CSRF-Token': otherCsrf } });
     await otherCtx.request.post('/api/v1/locations', { data: { name: 'Other main', city: 'Kanpur', review_url: 'https://g.page/r/OTH/review' }, headers: { 'X-CSRF-Token': otherCsrf } });
@@ -101,7 +101,7 @@ const pngSize = (b) => ({ w: b.readUInt32BE(16), h: b.readUInt32BE(20) });
     // the platform admin (FlowHQ staff)
     const adminCtx = await browser.newContext({ baseURL: BASE, viewport: { width: 1280, height: 900 }, acceptDownloads: true });
     globalThis.__adminCtx = adminCtx;
-    r = await adminCtx.request.post('/api/v1/auth/register', { data: { email: `zz-cards-admin-${TAG}@example.com`, password: PW, full_name: 'ZZ FlowHQ Admin' } });
+    r = await adminCtx.request.post('/api/v1/auth/register', { data: { email: `zz-cards-admin-${TAG}@example.com`, password: PW, age_confirmed: true, full_name: 'ZZ FlowHQ Admin' } });
     expect(r.status() === 201, 'admin register');
     sql(`UPDATE users SET email_verified_at = now(), is_platform_admin = true WHERE email IN ('zz-cards-${TAG}@example.com', 'zz-cards-other-${TAG}@example.com', 'zz-cards-admin-${TAG}@example.com') AND email LIKE 'zz-cards-admin-%';
          UPDATE users SET email_verified_at = now() WHERE email LIKE 'zz-cards-%${TAG}@example.com';`);

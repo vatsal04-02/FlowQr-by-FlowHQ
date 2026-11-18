@@ -92,6 +92,7 @@ def test_every_route_is_classified_and_nothing_mutating_is_public_by_accident():
     """Public mutating routes are an explicit, reviewed list: anything else public that changes data is a mistake."""
     reviewed_public_writes = {
         "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/password-reset/request", "/api/v1/auth/password-reset/confirm", "/api/v1/auth/verify-email",
+        "/api/v1/account/me/deletion/confirm",  # reviewed: single-use, expiring, hashed link from the person's own mailbox; 10 per 5 minutes per IP; one identical answer for every failure
         "/api/v1/billing/razorpay/webhook",
         "/api/v1/webhooks/cashfree",  # reviewed: signature over the raw body, 5-minute window, stored before processing, treated as a hint (tests/test_cashfree_billing.py)
         "/api/v1/webhooks/cashfree-pg",  # reviewed: 404 unless prepaid checkout is on; signature over the raw body, 5-minute window, stored before processing, the order looked up by OUR id and the truth re-read from Cashfree (tests/test_prepaid_checkout.py)

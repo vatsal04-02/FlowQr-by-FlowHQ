@@ -31,7 +31,7 @@ def mode(monkeypatch, m, allow=""):
 
 def attempt(email, name="Reg Test", client=None):
     c = client or TestClient(app, base_url="http://testserver")
-    return c, c.post("/api/v1/auth/register", json={"email": email, "password": PW, "full_name": name})
+    return c, c.post("/api/v1/auth/register", json={"email": email, "password": PW, "age_confirmed": True, "full_name": name})
 
 
 def fresh(prefix="p"):

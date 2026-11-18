@@ -30,6 +30,7 @@ PUBLIC_PREFIXES = (
     "/api/v1/invitations/accept", "/api/v1/public/", "/api/v1/go/",  # go: the QR/NFC redirect door, public like /public/c (rate limited, 404 for unknown codes, destination only from the database)
      "/api/v1/r/", "/api/v1/review-public", "/api/v1/billing/razorpay/webhook", "/api/v1/google/callback",
     "/api/v1/legal", "/api/v1/leads", "/api/v1/billing/plans",
+    "/api/v1/account/me/deletion/confirm",  # POST: the emailed single-use link for deleting one's own account; proves the mailbox like a password reset, rate-limited per IP, one answer for every failure
     "/api/v1/auth/registration",  # GET: only the registration MODE (closed/allowlist/open), nothing about any address
     "/api/v1/auth/providers",  # GET: one boolean, whether Google sign-in is configured
     "/api/v1/webhooks/",  # POST: payment-provider webhooks, each authenticated by its own signature over the raw body (not by a session)

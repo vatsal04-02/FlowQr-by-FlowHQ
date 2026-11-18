@@ -46,6 +46,7 @@ def clean_ledger(monkeypatch):
     for k, v in (("ai_price_in_per_mtok", 0.0), ("ai_price_out_per_mtok", 0.0), ("ai_tenant_monthly_budget_usd", 0.0), ("ai_tenant_monthly_token_budget", 0),
                  ("ai_platform_hard_limit_usd", 0.0), ("ai_platform_monthly_token_limit", 0), ("ai_platform_soft_pct", 90)):
         monkeypatch.setattr(settings, k, v)
+    monkeypatch.setattr(settings, "gemini_data_terms_verified", True)  # these tests exercise budgets and the ledger, not the data-terms gate (that gate is tested in tests/test_privacy_lifecycle.py)
     health.reset()
     yield
 

@@ -103,7 +103,7 @@ def make_user(email=None, name="Test User", register=True, verify=True) -> Sessi
     email = email or f"user-{uuid.uuid4().hex[:8]}@example.com"
     s = Session(None, email)
     if register:
-        r = s.http.post("/api/v1/auth/register", json={"email": email, "password": s.password, "full_name": name})
+        r = s.http.post("/api/v1/auth/register", json={"email": email, "password": s.password, "age_confirmed": True, "full_name": name})
         assert r.status_code == 201, r.text
         s.csrf = r.json()["csrf_token"]
         if verify:
@@ -145,7 +145,7 @@ def admin():
     """Platform admin (email is in PLATFORM_ADMIN_EMAILS for tests)."""
     email = "root@flowhq-admin.example.com"
     s = Session(None, email)
-    r = s.http.post("/api/v1/auth/register", json={"email": email, "password": s.password, "full_name": "Root"})
+    r = s.http.post("/api/v1/auth/register", json={"email": email, "password": s.password, "age_confirmed": True, "full_name": "Root"})
     if r.status_code == 409:
         r = s.http.post("/api/v1/auth/login", json={"email": email, "password": s.password})
         assert r.status_code == 200, r.text

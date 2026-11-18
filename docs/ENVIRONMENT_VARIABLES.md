@@ -40,7 +40,7 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 
 ## AI
 
-`AI_PROVIDER` (`gemini` default), `GEMINI_API_KEY` (**S**), `GEMINI_MODEL`, `OPENROUTER_*`, `OPENAI_COMPAT_*` (**S** keys), `AI_TIMEOUT_SECONDS`, `AI_REVIEW_RISK_CHECK`, `REVIEW_*`.
+`GEMINI_DATA_TERMS_VERIFIED` (**false**: review data is not sent to Gemini until the owner has written evidence of the key's data-use terms), `AI_REVIEW_DATA_KILL_SWITCH` (false; true stops review data going to any provider), `PRIVACY_RETENTION_ENABLED` (**false**; the provisional retention job is off until true), `SESSION_RETENTION_DAYS` (30), `PASSWORD_RESET_TOKEN_RETENTION_DAYS` (30), `AUDIT_IP_RETENTION_DAYS` (365), `LEAD_RETENTION_DAYS` (365), `USER_DELETION_CONFIRM_HOURS` (24), `REAUTH_WINDOW_MINUTES` (15) (see `docs/PRIVACY_COMPLIANCE_AUDIT.md` §8-§9), `AI_PROVIDER` (`gemini` default), `GEMINI_API_KEY` (**S**), `GEMINI_MODEL`, `OPENROUTER_*`, `OPENAI_COMPAT_*` (**S** keys), `AI_TIMEOUT_SECONDS`, `AI_REVIEW_RISK_CHECK`, `REVIEW_*`.
 
 ## Money: plans, prices, budgets (Phase 2)
 

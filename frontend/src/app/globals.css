@@ -44,7 +44,7 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   input[type="checkbox"], input[type="radio"] { accent-color: #E05A00; }
 
   /* ---- Logged-in app (DESIGN.md). Everything here only applies under <html class="fq-app">. ---- */
-  html.fq-app body { background: rgb(var(--c-canvas-outer)); color: rgb(var(--c-ink)); font-family: Inter, system-ui, -apple-system, "Segoe UI", "Noto Sans Devanagari", Roboto, sans-serif;
+  html.fq-app body { background: rgb(var(--c-canvas-outer)); color: rgb(var(--c-ink)); font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", var(--font-devanagari), Roboto, sans-serif;
     font-size: 14px; line-height: 20px; font-feature-settings: "cv11", "ss01"; }
   html.fq-app h1, html.fq-app h2, html.fq-app h3, html.fq-app h4 { font-family: inherit; letter-spacing: -.015em; }
   html.fq-app :focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; --tw-ring-shadow: 0 0 #0000; --tw-ring-offset-shadow: 0 0 #0000; }

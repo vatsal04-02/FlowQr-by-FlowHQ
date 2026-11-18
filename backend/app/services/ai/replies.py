@@ -8,6 +8,7 @@ from app.models import Review, Tenant
 from app.services.ai import craft, quality
 from app.services.ai.base import AIUnavailable, LLMProvider
 from app.services.ai.language import LANGUAGE_INSTRUCTION, detect_language
+from app.services.ai.privacy import ensure_review_data_allowed, redact
 from app.services.ai.safety import REASON_TEXT, assess_review
 
 SYSTEM = """You are the owner's voice: you write the public reply to one Google review for a local business in India, the way a thoughtful, experienced business owner would write it by hand.
@@ -66,9 +67,9 @@ def build_prompt(review: Review, tenant: Tenant, location_name: str | None, kb: 
     parts.append(f"WHAT KIND OF REVIEW THIS IS ({mood.replace('_', ' ')}): {craft.REPLY_GUIDE[mood]}")
     if recent:
         parts.append("Recent replies from this business. Do NOT reuse their openings, structure or phrases:\n" + "\n".join(f"- {r[:160]}" for r in recent[:4]))
-    parts.append(f"Reviewer name: {review.reviewer_name or 'not provided'} (use the first name only if it reads naturally; do not force it)\n"
-                 f"Star rating: {review.rating} out of 5 (never say this in the reply)\n\n"
-                 f"<review>\n{text if text.strip() else '(rating only, no written text: thank them briefly and warmly, do not invent what they liked)'}\n</review>")
+    # The reviewer's NAME is deliberately not sent (privacy finding 26): the reply is written without addressing them by name, and e-mail addresses, phone numbers and links in the text are masked.
+    parts.append(f"Star rating: {review.rating} out of 5 (never say this in the reply)\n\n"
+                 f"<review>\n{redact(text) if text.strip() else '(rating only, no written text: thank them briefly and warmly, do not invent what they liked)'}\n</review>")
     return "\n\n".join(parts)
 
 
@@ -87,6 +88,7 @@ def draft_reply_scored(provider: LLMProvider, review: Review, tenant: Tenant, lo
     prices or offers that are not verified, outcome promises, and anything confirming someone is a patient are rejected. One retry is made
     with the problems spelled out (safety and quality together); if it still breaks a safety rule the draft is refused (AIUnavailable code
     "rejected"), never shown as a normal draft. Quality problems that survive the retry only lower the draft's score."""
+    ensure_review_data_allowed(provider)  # fails safe BEFORE any prompt with review text is built (kill switch; Gemini terms not confirmed)
     text = review.text or ""
     lang = _language(review, tenant, language)
     reasons = assess_review(text, review.rating, tenant.category)

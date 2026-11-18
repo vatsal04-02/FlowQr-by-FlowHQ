@@ -9,7 +9,7 @@ import { en } from "@/content/marketing/en";
 const TYPES: [string, string][] = [["clinic", "Clinic"], ["dental", "Dental"], ["salon", "Salon"], ["restaurant", "Restaurant or café"], ["gym", "Gym"], ["coaching", "Coaching"], ["retail", "Retail"], ["hotel", "Hotel"], ["other", "Other"]];
 const TIMES = ["Weekday mornings", "Weekday afternoons", "Weekday evenings", "Saturday"];
 type F = { name: string; business_name: string; city: string; business_type: string; locations: string; phone: string; whatsapp_ok: boolean; preferred_time: string; website: string };
-const EMPTY: F = { name: "", business_name: "", city: "", business_type: "", locations: "1", phone: "", whatsapp_ok: true, preferred_time: "", website: "" };
+const EMPTY: F = { name: "", business_name: "", city: "", business_type: "", locations: "1", phone: "", whatsapp_ok: false, preferred_time: "", website: "" }; // never pre-ticked: consent to WhatsApp messages must be an active choice
 
 function validate(f: F) {
   const e: Partial<Record<keyof F, string>> = {};
@@ -79,7 +79,7 @@ export function DemoForm() {
             <button type="submit" disabled={busy} className="inline-flex h-11 items-center gap-2 rounded-full bg-m-accent px-6 text-[14px] font-medium text-m-ink transition hover:bg-[#F06000] disabled:opacity-60">
               {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}Book my demo
             </button>
-            <p className="mt-3 text-[12.5px] text-m-muted">We use these details only to contact you about FlowQR.</p>
+            <p className="mt-3 text-[12.5px] text-m-muted">We use these details only to contact you about FlowQR. See our <a href="/privacy" className="underline">Privacy policy</a>.</p>
           </div>
         </form>
       )}

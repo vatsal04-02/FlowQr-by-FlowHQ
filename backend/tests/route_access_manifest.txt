@@ -4,6 +4,10 @@ role-owner	DELETE	/api/v1/account/deletion
 member	GET	/api/v1/account/deletion
 role-owner	POST	/api/v1/account/deletion
 role-owner	GET	/api/v1/account/export
+signed-in	DELETE	/api/v1/account/me/deletion
+signed-in	GET	/api/v1/account/me/deletion
+signed-in	POST	/api/v1/account/me/deletion
+public	POST	/api/v1/account/me/deletion/confirm
 platform-admin	GET	/api/v1/admin/ai-quality
 platform-admin	GET	/api/v1/admin/ai-usage
 platform-admin	GET	/api/v1/admin/audit
@@ -91,6 +95,10 @@ role-owner	PUT	/api/v1/agent/autonomy-settings
 role-owner	POST	/api/v1/agent/autonomy-settings/resume
 role-owner	POST	/api/v1/agent/autonomy-settings/stop
 member	GET	/api/v1/agent/business-photo
+member	GET	/api/v1/agent/consents
+role-owner	POST	/api/v1/agent/consents
+role-owner	POST	/api/v1/agent/consents/revoke-all
+role-owner	POST	/api/v1/agent/consents/{consent_id}/revoke
 member	GET	/api/v1/agent/control-centre
 member	GET	/api/v1/agent/counts
 role-admin	POST	/api/v1/agent/google/refresh

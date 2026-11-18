@@ -136,8 +136,21 @@ def descs(env, out):
     return [x for x in (env.db.get(AgentAction, uuid.UUID(i)) for i in out["proposed"]) if x.action_type == "description_improve"]
 
 
+def consent_all(env):
+    """Record the owner's express consent (decision D2) for every grantable action type at this location, as an owner now has to. Consent itself is tested in tests/test_consent.py."""
+    from app.models import ConsentGrant
+    from app.services import consent as consent_svc
+    for scope in consent_svc.scopes():
+        if not consent_svc.has_active(env.db, env.tenant.id, env.gloc.id, scope):
+            env.db.add(ConsentGrant(tenant_id=env.tenant.id, google_location_id=env.gloc.id, scope=scope, wording_version=consent_svc.WORDING_VERSION,
+                                    wording_text=consent_svc.wording_for(scope, env.gloc.title), granted_by=env.uid, source="test"))
+    env.db.flush()
+
+
 def autonomy(env, enabled=True, perms=None, limit=None):
     s = executor.get_settings(env.db, env.tenant.id)
+    if enabled:
+        consent_all(env)
     s.autonomy_enabled = enabled
     if perms is not None:
         s.autonomy_permissions = perms

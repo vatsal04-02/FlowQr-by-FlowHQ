@@ -51,7 +51,7 @@ const call = (pg, method, url, body, headers) => pg.evaluate(async ([m, u, b, h]
   // ------------------------------------------------------------------ customer: the wizard
   await step('register an owner and land in the onboarding wizard', async () => {
     await page.goto(`${APP}/login`); await page.waitForLoadState('domcontentloaded');
-    const r = await call(page, 'POST', '/api/v1/auth/register', { email: OWNER, password: PW, full_name: 'Onboarding Owner' });
+    const r = await call(page, 'POST', '/api/v1/auth/register', { email: OWNER, password: PW, age_confirmed: true, full_name: 'Onboarding Owner' });
     expect(r.status === 201, `register ${r.status} ${r.text}`);
     csrf = r.json.csrf_token;
     await page.goto(`${APP}/onboarding`);
