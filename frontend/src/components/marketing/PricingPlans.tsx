@@ -101,8 +101,7 @@ export function PricingPlans() {
 function CellView({ c }: { c: Cell }) {
   if (c.kind === "yes") return <Check className="mx-auto h-4 w-4" strokeWidth={2.25} aria-label="Included" />;
   if (c.kind === "no") return <Minus className="mx-auto h-4 w-4 text-m-muted" strokeWidth={1.75} aria-label="Not included" />;
-  if (c.kind === "soon") return <span className="rounded-full bg-m-ink/10 px-2.5 py-1 text-[12px] font-semibold">Coming soon</span>;
-  return <>{c.text}</>;
+  return <>{c.text}{c.soon && <span className="mt-1 block"><span className="rounded-full bg-m-ink/10 px-2.5 py-0.5 text-[11.5px] font-semibold">Coming soon</span></span>}</>;
 }
 
 export function PlanComparison() {

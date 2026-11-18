@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { termPrice, termSaving } from "../src/lib/pricing.ts";
-import { periodPrice, yearlySaving, sellablePlans, cardPoints, comparisonRows, COMING_SOON, BILLING_SUFFIX, BILLING_MONTHS } from "../src/lib/plan-compare.ts";
+import { periodPrice, yearlySaving, sellablePlans, cardPoints, comparisonRows, discrepancies, SPEC, NOT_YET_BUILT, BILLING_SUFFIX, BILLING_MONTHS } from "../src/lib/plan-compare.ts";
 
-// A fixture shaped like GET /billing/plans (the real numbers live only in backend/app/services/plans.py; the page reads them from the server).
+// A fixture shaped like GET /billing/plans as production serves it today (the amounts and entitlements live in backend/app/services/plans.py).
 const R = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v * 100]));
-const terms = { months: [1, 3, 6, 12], checkout_open: false, prices_paise: { starter: R({ 1: 499, 3: 1399, 6: 2699, 12: 4999 }), growth: R({ 1: 799, 3: 2299, 6: 4299, 12: 7999 }), pro: R({ 1: 1299, 3: 3699, 6: 6999, 12: 12999 }) } };
+const terms = { months: [1, 3, 6, 12], checkout_open: true, prices_paise: { starter: R({ 1: 499, 3: 1399, 6: 2699, 12: 4999 }), growth: R({ 1: 799, 3: 2299, 6: 4299, 12: 7999 }), pro: R({ 1: 1299, 3: 3699, 6: 6999, 12: 12999 }) } };
 const CORE = ["review_sync", "ai_replies", "review_generation", "qr_campaigns", "review_analytics", "gbp_connection", "gbp_info"];
 const GROWTH = [...CORE, "gbp_posts", "gbp_media", "gbp_performance", "insights", "local_seo", "keyword_tracking", "geo_ranking", "autonomy", "ai_posts", "profile_optimizer", "growth_agent"];
 const plan = (code, name, gens, reps, locs, staff, features) => ({ code, name, price_paise: 0, currency: "INR", interval: "monthly", max_locations: locs, monthly_ai_generations: gens + reps, review_generations: gens, review_replies: reps, max_staff: staff, features });
@@ -25,7 +25,7 @@ test("no price in the list means no price on the page: never a guess", () => {
   assert.equal(periodPrice(undefined, "growth", "monthly"), null);
   assert.equal(periodPrice(terms, "nope", "yearly"), null);
   const partial = { ...terms, prices_paise: { ...terms.prices_paise, growth: { 1: 79900 } } };
-  assert.deepEqual(sellablePlans(plans, partial).map((p) => p.code), ["starter", "pro"]);  // a plan missing its yearly price is left out whole
+  assert.deepEqual(sellablePlans(plans, partial).map((p) => p.code), ["starter", "pro"]);
   assert.deepEqual(sellablePlans(plans, undefined), []);
 });
 
@@ -36,43 +36,64 @@ test("the yearly saving is arithmetic against the plan's own monthly price, noth
   assert.equal(yearlySaving(undefined, "growth"), null);
 });
 
-test("allowances shown are the plan rows' own numbers, monthly, never multiplied for yearly", () => {
-  const rows = comparisonRows(plans);
-  const gen = rows.find((r) => r.id === "review_generations"), rep = rows.find((r) => r.id === "review_replies");
-  assert.deepEqual(plans.map((p) => gen.cells[p.code].text), ["200 a month", "400 a month", "800 a month"]);   // Scale shows what the backend enforces
-  assert.deepEqual(plans.map((p) => rep.cells[p.code].text), ["200 a month", "400 a month", "800 a month"]);
-  assert.match(gen.note, /Resets every month, including on yearly plans/);
-  for (const p of plans) assert.ok(!JSON.stringify(cardPoints(p)).match(/year|12/i), "no yearly credit totals on a card");
-});
-
-test("a feature appears for a plan only if its entitlement does", () => {
-  const rows = Object.fromEntries(comparisonRows(plans).map((r) => [r.id, r]));
-  assert.deepEqual(plans.map((p) => rows.local_seo.cells[p.code].kind), ["no", "yes", "yes"]);
-  assert.deepEqual(plans.map((p) => rows.keyword_tracking.cells[p.code].kind), ["no", "yes", "yes"]);
-  assert.deepEqual(plans.map((p) => rows.ai_posts.cells[p.code].kind), ["no", "yes", "yes"]);
-  assert.deepEqual(plans.map((p) => rows.analytics.cells[p.code].text), ["Basic review analytics", "Review analytics + Google profile insights", "Review analytics + Google profile insights"]);
-  assert.deepEqual(plans.map((p) => rows.locations.cells[p.code].text), ["1", "1", "10"]);
-  const launch = cardPoints(plans[0]).map((x) => x.text).join("|");
-  assert.ok(!/SEO|ranking|Growth Agent|Google Post/.test(launch), "Launch has none of the Growth features");
-  // if the backend later removes a feature from a plan, the page follows with no code change
-  const trimmed = plans.map((p) => (p.code === "growth" ? { ...p, features: p.features.filter((f) => f !== "local_seo") } : p));
-  assert.equal(comparisonRows(trimmed).find((r) => r.id === "local_seo").cells.growth.kind, "no");
-});
-
-test("specified-but-not-built items are labelled Coming soon, carry no number and are never 'included'", () => {
-  assert.deepEqual(COMING_SOON.map((c) => [c.id, c.plan]), [["campaigns", "pro"]]);
-  const row = comparisonRows(plans).find((r) => r.id === "campaigns");
-  assert.deepEqual(plans.map((p) => row.cells[p.code].kind), ["no", "no", "soon"]);
-  const pts = cardPoints(plans[2]).filter((x) => x.soon);
-  assert.deepEqual(pts, [{ text: "AI marketing campaigns", soon: true }]);
-  assert.ok(!/\d/.test(pts[0].text));
-  for (const p of [plans[0], plans[1]]) assert.ok(!cardPoints(p).some((x) => /campaign/i.test(x.text) && !/QR/.test(x.text)));
-});
-
 test("the two lookups agree with lib/pricing.ts for every plan and term", () => {
   for (const code of ["starter", "growth", "pro"]) {
     assert.equal(periodPrice(terms, code, "monthly"), termPrice(terms, code, 1));
     assert.equal(periodPrice(terms, code, "yearly"), termPrice(terms, code, 12));
     assert.deepEqual(yearlySaving(terms, code), termSaving(terms, code, 12));
   }
+});
+
+test("the comparison table is the specification's seven rows with its exact values", () => {
+  const rows = comparisonRows(plans);
+  assert.deepEqual(rows.map((r) => r.label), ["AI review writing allowance", "AI review reply allowance", "Analytics", "Local SEO", "Advanced SEO and ranking insights", "AI post generation", "AI marketing campaigns"]);
+  const text = (id) => plans.map((p) => { const c = rows.find((r) => r.id === id).cells[p.code]; return c.kind === "value" ? c.text : c.kind; });
+  assert.deepEqual(text("writing"), ["200 a month", "400 a month", "600 a month"]);
+  assert.deepEqual(text("replies"), ["200 a month", "400 a month", "600 a month"]);
+  assert.deepEqual(text("analytics"), ["Basic", "Advanced", "Advanced, with ranking insights"]);
+  assert.deepEqual(text("local_seo"), ["no", "Included", "Advanced"]);
+  assert.deepEqual(text("advanced_seo"), ["no", "Included", "Advanced"]);
+  assert.deepEqual(text("posts"), ["no", "no", "30 post texts a month"]);
+  assert.deepEqual(text("campaigns"), ["no", "no", "5 a month"]);
+});
+
+test("allowances are monthly and say so; nothing is multiplied for yearly or called unlimited", () => {
+  const rows = comparisonRows(plans);
+  for (const id of ["writing", "replies", "posts", "campaigns"]) assert.match(rows.find((r) => r.id === id).note, /Resets every month, including on yearly plans/);
+  const all = JSON.stringify([rows, plans.map(cardPoints)]);
+  assert.ok(!/unlimited|\b(2,400|4,800|7,200|360)\b/i.test(all), "no yearly totals, no unlimited");
+});
+
+test("a campaign that is not built is shown with its number and a Coming soon mark, never as live", () => {
+  assert.ok(NOT_YET_BUILT.has("campaigns"));
+  const c = comparisonRows(plans).find((r) => r.id === "campaigns").cells.pro;
+  assert.deepEqual(c, { kind: "value", text: "5 a month", soon: true });
+  assert.deepEqual(cardPoints(plans[2]).find((x) => /campaigns/.test(x.text)), { text: "5 AI marketing campaigns a month", soon: true });
+  assert.ok(!cardPoints(plans[0]).concat(cardPoints(plans[1])).some((x) => /AI marketing campaigns/.test(x.text)));
+});
+
+test("card bullets follow the specification, and Launch has no SEO", () => {
+  const t = (p) => cardPoints(p).map((x) => x.text);
+  assert.deepEqual(t(plans[0]), ["200 AI-assisted review-writing operations a month", "200 AI-generated review replies a month", "Basic analytics", "Core review management", "QR-based review collection"]);
+  assert.deepEqual(t(plans[1]).slice(0, 6), ["400 AI-assisted review-writing operations a month", "400 AI-generated review replies a month", "Advanced analytics", "Core review management", "QR-based review collection", "Local SEO features"]);
+  assert.ok(t(plans[1]).includes("Business profile optimisation") && t(plans[1]).includes("Keyword and local ranking insights"));
+  assert.ok(t(plans[2]).includes("600 AI-assisted review-writing operations a month") && t(plans[2]).includes("30 AI-generated post texts a month") && t(plans[2]).includes("Advanced local SEO"));
+  // an item that maps to a real entitlement disappears if the plan row lacks it
+  const bare = { ...plans[1], features: plans[1].features.filter((f) => f !== "local_seo") };
+  assert.ok(!t(bare).includes("Local SEO features"));
+});
+
+test("every difference between the specification and the entitlement system is reported (and nothing is changed)", () => {
+  const d = discrepancies(plans);
+  assert.deepEqual(d, [
+    "Growth: has the AI post-text entitlement, the specification says none",
+    "Scale: AI review writing is 800 a month in the plan row, 600 in the specification",
+    "Scale: AI review replies are 800 a month in the plan row, 600 in the specification",
+    "Scale: AI post text is an entitlement without a monthly count, the specification says 30 a month (nothing enforces 30)",
+    "Scale: \"AI marketing campaigns, 5 a month\" is not an entitlement in the backend at all",
+    "Scale: \"Advanced\" local SEO and ranking insights are the same entitlements as Growth's (there is no separate advanced tier in the backend)",
+  ]);
+  const fixed = plans.map((p) => (p.code === "pro" ? { ...p, review_generations: 600, review_replies: 600 } : p));
+  assert.ok(discrepancies(fixed).length < d.length, "once the backend matches, the report shrinks");
+  assert.equal(SPEC.pro.writing, 600);
 });
