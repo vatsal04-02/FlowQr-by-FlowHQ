@@ -6,7 +6,7 @@
 export const en = {
   home: {
     meta: { title: "FlowQR: Google reviews and QR/NFC review cards for local businesses", description: "FlowQR by FlowHQ helps local businesses manage their Google reviews and keep their Google Business Profile active. A QR/NFC card makes it easy for every genuine customer to share honest feedback, and AI drafts replies for you to approve." },
-    hero: { line1: "AI marketing for", line2: "", typed: "local businesses.", bandTitle: "Made for your kind of business", bandAll: "See all businesses", sub: "Manage your Google reviews, replies and posts in one place.", forLabel: "Built for local businesses —", forAccent: "any kind.", primary: "Book a demo", secondary: "Free profile check", left: "Your Google profile, reviews and marketing, managed from one app.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
+    hero: { line1: "AI marketing team for", line2: "", typed: "local businesses.", bandTitle: "Made for your kind of business", bandAll: "See all businesses", sub: "Manage your Google reviews, replies and posts in one place.", forLabel: "Built for local businesses —", forAccent: "any kind.", primary: "Book a demo", secondary: "Free profile check", left: "Your Google profile, reviews and marketing, managed from one app.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
     team: { title: "GBP AI Agent", sub: "Track your local SEO, fix gaps in your profile and reply to every review. AI handles the daily routine, so you can focus on your customers." },
     intro: { line1: "Your Google profile,", line2Pre: "looked after", accent: "every day.", sub: "Reviews to reply to, updates to post, details to complete. FlowQR keeps track and drafts the routine work for you to approve." },
     story: {
