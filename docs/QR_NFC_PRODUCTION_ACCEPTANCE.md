@@ -1,8 +1,7 @@
 # QR / NFC production acceptance and print-readiness audit
 
-Audited 2026-11-18 against production `prod-0dd82fd` (migration 0042, Vercel `flowqr-7n6muoj8f`) and branch `release/ui-premium` @ 3e381cb.
-**Recommendation: NOT READY TO PRINT.** See section 15 for the reasons and the exact steps that would change it.
-Nothing was committed, pushed, deployed or restarted; no production record was created or changed; no DNS or Caddy change was made.
+Audited 2026-11-18. First audit: production `prod-0dd82fd`. **Updated the same day (section 16):** production is now `prod-048b797` (migration 0045), the two fixes are deployed, DNS for `go.flowqr.site` is verified, and the Caddy block is validated but **not yet applied** (blocked on file permission).
+**Recommendation: NOT READY TO PRINT** until the Caddy block is applied, `PUBLIC_CARD_BASE_URL` is switched and the controlled physical test passes (section 15 and 16).
 
 ## 1. Architecture overview
 
@@ -113,17 +112,41 @@ Rollback of code: set `FLOWQR_TAG` to the previous image and recreate api/worker
 
 **NOT READY TO PRINT because:** (1) the two defects above are fixed only in the local working tree and are not deployed; (2) the permanent redirect domain does not exist yet and the current printed path depends on JavaScript and Vercel; (3) no live card has ever been generated, assigned, scanned or tapped on production; (4) a real NFC tag and a real printed card have not been scanned by real phones.
 
+## 16. Configuration log, 2026-11-18 (after the audit)
+**Production state differed from the brief.** The brief said `prod-0dd82fd`; another session had since released `prod-2c95397`, then `prod-4fbebec`, then `prod-d5829c1` (privacy and account lifecycle, consent, user picture; migrations 0043 to 0045). Nothing here was deployed from an older tree: the fixes were merged onto the live release tip and re-tested before shipping.
+| Step | Result | Evidence |
+|---|---|---|
+| DNS | PASS | `go.flowqr.site` A 201.18.202.128 from 8.8.8.8, 1.1.1.1, 9.9.9.9, 208.67.222.222 and both GoDaddy nameservers; no AAAA, no CNAME; TTL 3600 |
+| Backups | PASS | `/opt/flowqr/backups/pre-go-fixes-20261118124525.dump`, `env.production.pre-go-fixes-20261118124525`, `docker-compose.yml.pre-go-fixes-20261118124525`. The Caddyfile itself was **not** backed up (nothing changed it; the apply script backs it up in place) |
+| Caddy block written and validated | PASS | `deploy/vps/Caddyfile.flowqr-go` (sha256 starts 22effe6fc2520675). Production Caddy v2.11.7, current Caddyfile + block: `caddy validate` exit 0, "Valid configuration"; live file checksum unchanged; temp files removed |
+| Caddy block applied | **BLOCKED** | The Caddyfile is `/home/deploy/GKP-Final-Build/Caddyfile`, owned by `deploy`. The FlowQR deploy user has no access to that directory and no sudo; the sanctioned script refuses ("run this as the file's owner (deploy) or root"). Working around it through Docker's root access was not done without explicit approval |
+| TLS for go.flowqr.site | NOT TESTED | Cannot be issued until the block is applied. Baseline today: :80 answers 308 to https, :443 has no site (TLS internal error, no certificate) |
+| Existing certificates | PASS | www.flowqr.site and api.flowqr.site valid to Feb 2027 |
+| `PUBLIC_CARD_BASE_URL` | NOT DONE (on purpose) | Stays `https://flowqr.site` until the domain answers, otherwise new codes would encode a dead address. Existing codes are unaffected either way (the per-code address never changes) |
+| Two fixes deployed | PASS | `prod-048b797`, only the three app files differ from the live release (23 lines); api, worker, beat healthy; alembic 0045; API port 172.17.0.1:18000; public ready 200 |
+| Test results on the deployed tree | PASS | Backend 1992 passed, 0 failed, 0 skipped; frontend typecheck clean, 40 tests passed |
+| Production smoke (read-only) | PASS | website, login, pricing, admin shell 200; anonymous admin analytics, card list, prepaid offers 401; `/go` unknown, traversal, SQL-shaped and 200-character codes 404 with `Cache-Control: no-store`. Admin login and the inventory data pages were **not** exercised (no credentials used) |
+
+**Known failure and skips, investigated.** `test_seo_metrics ... leaves_google_lag_out` builds "today" from the machine's UTC date while the application uses each business's timezone (Asia/Kolkata, UTC+5:30): the two dates differ between 18:30 and 24:00 UTC, which matches every failure seen (all in the evening, UTC) and it passed at 06:37 UTC. It is a test-only defect (not changed here). The two skips were `skipif(frontend not mounted)`; with `frontend/src` mounted both pass, and the final run mounted it.
+
+**To finish the domain (needs the Caddyfile owner, `deploy` or root, or your explicit approval for another route):**
+1. `bash /opt/flowqr/deploy/vps/apply-caddy-go.sh --dry-run`, then without `--dry-run` (the files are already staged in `/opt/flowqr/deploy/vps/`; it backs up the Caddyfile, appends in place, validates, reloads gracefully and restores itself if validation fails).
+2. Check `https://go.flowqr.site/q/<unknown>` answers 404 over a valid certificate and `http://` redirects to https.
+3. Only then set `PUBLIC_CARD_BASE_URL=https://go.flowqr.site` in `/opt/flowqr/.env.production` and recreate the api (the setting is read by the API; worker and beat do not render card addresses, but recreate them too to keep versions aligned).
+**Rollback.** Caddy: `cat <printed .bak path> > /home/deploy/GKP-Final-Build/Caddyfile` (in place, never `mv`/`cp` over it) then `docker exec gkp-final-build-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`. Backend: set `FLOWQR_TAG=prod-d5829c1` in `/opt/flowqr/.env.production` and `docker compose -p flowqr-production --env-file .env.production -f docker-compose.yml -f deploy/vps/docker-compose.vps.yml up -d --no-deps api worker beat` (image still on the server; migrations are additive and stay). Environment: `/opt/flowqr/backups/env.production.pre-go-fixes-20261118124525`.
+
 ## Final acceptance table
 | Area | Status | Evidence | Remaining action |
 |---|---|---|---|
 | Bulk generation | PASS | Local runtime tests: batches of 1, 10, 2000; 144-bit unique codes; DB UNIQUE; transactional rollback; limits | Production batch not created (by instruction); add a creation rate limit |
 | Inventory | PASS | Local: filters, lifecycle, history, tenant isolation | Run in the controlled production test |
-| Business assignment | PASS | Local: invalid/foreign ids refused, confirmation to move, one open assignment, audit | Deploy the destination-clearing fix (finding 1) |
-| Destination update | FAIL | Deployed build keeps a stale destination after a move (reproduced; test fails without the fix) | Deploy the local fix, re-test |
-| Redirect | FAIL | Printed path is apex 308, a JS page, then the API; empty page without JS; `/go` not on the printed path; `/go` loop hazard for the new domain (fixed locally) | Create `go.flowqr.site`, deploy the fix, run the controlled test |
-| QR/NFC parity | PASS | Local: same card and destination, door letter attribution, forged verification rejected | Physical NFC tag test (row below) |
+| Business assignment | PASS | Local: invalid/foreign ids refused, confirmation to move, one open assignment, audit; destination-clearing fix deployed in `prod-048b797` | Run in the controlled production test |
+| Destination update | PASS | Local runtime tests incl. the reassign/stock/reserve clearing (fail without the fix); fix deployed | Verify on production in the controlled test |
+| Redirect | BLOCKED | `/go` deployed and tested (loop fixed); the permanent host answers nothing over HTTPS until the Caddy block is applied; today's printed path is still apex 308 + JavaScript | Apply the Caddy block, then re-test over the real domain |
+| QR/NFC parity | PASS | Local: same card and destination, door-letter attribution, forged verification rejected | Physical NFC tag test (row below) |
 | NFC physical tag | NOT TESTED | No hardware used | Program and tap a real tag |
 | Analytics | PASS | Local: QR/NFC/bot separated, no personal data, no review counted, access closed | Verify on production in the controlled test |
 | PDF printing | PASS | Local: PNG/SVG/PDF decode to exact URL, reductions, 25-card sheet, page size | Scan a real printed card |
-| Security | PASS | Local: open redirect, injection-shaped paths, IDOR, anonymous/foreign access, rate limits (findings 1 and 2 fixed locally) | Deploy fixes; accept or fix findings 3 and 4 |
-| Permanent domain | BLOCKED | `go.flowqr.site` does not resolve; DNS, Caddy and env changes need approval | Section 11 steps 1 to 3 |
+| Security | PASS | Local: open redirect, injection-shaped paths, IDOR, anonymous/foreign access, rate limits; findings 1 and 2 fixed and deployed | Accept or fix findings 3 and 4 |
+| DNS go.flowqr.site | PASS | Four resolvers and both authoritative servers | none |
+| Permanent domain (HTTPS, Caddy) | BLOCKED | Block validated against production Caddy; not applied (file owner `deploy`); no certificate yet | Section 16 steps 1 to 3 |
