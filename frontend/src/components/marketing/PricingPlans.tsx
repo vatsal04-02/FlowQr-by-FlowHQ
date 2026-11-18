@@ -1,99 +1,162 @@
 "use client";
 import clsx from "clsx";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, Minus } from "lucide-react";
-import { useId, useState } from "react";
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { Check, Minus, Star } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { rupees } from "@/lib/billing";
 import { trialTerms } from "@/lib/plans";
 import { BILLING_NOTE, BILLING_SUFFIX, cardPoints, comparisonRows, periodPrice, POSITION, sellablePlans, yearlySaving, type Billing, type Cell } from "@/lib/plan-compare";
 import { effectiveMonthlyPaise } from "@/lib/pricing";
-import { MButton } from "./kit";
-import { EASE, Rise } from "./motion";
+import { track } from "@/lib/track";
+import { Rise } from "./motion";
 import { TalkToUs, usePlansLive } from "./PlansFromConfig";
 
 /**
- * The public pricing section: Monthly / Yearly (Monthly first), three plans with Growth recommended, and a comparison table.
- * Every price is read from the prepaid price list the server serves, every allowance and feature from the plan rows (see lib/plan-compare.ts); nothing is written here, and a plan
- * without both prices is left out rather than guessed. A yearly price is one payment for 12 months; the AI allowances stay monthly.
+ * The public pricing section, in the layout of the "Pricing" block the owner chose: a switch above three centred cards, the recommended card raised with an accent border and a badge, the
+ * outer cards a little smaller and tucked toward it on a wide screen, prices that roll to their new value, and a small burst of confetti when the switch goes to yearly.
+ * Monthly is selected first. Every price is read from the prepaid price list the server serves, every allowance and feature from lib/plan-compare.ts; nothing is written here, and a plan
+ * without both prices is left out rather than guessed. A yearly price is one payment for 12 months (no automatic renewal); the AI allowances stay monthly.
  */
-function Toggle({ value, onChange }: { value: Billing; onChange: (b: Billing) => void }) {
-  const id = useId();
-  const opts: [Billing, string][] = [["monthly", "Monthly"], ["yearly", "Yearly"]];
-  const move = () => onChange(value === "monthly" ? "yearly" : "monthly");
-  return (
-    <div role="radiogroup" aria-label="Billing period" className="relative mx-auto flex w-fit rounded-full bg-m-surface p-1 shadow-[var(--shadow-card)]"
-      onKeyDown={(e) => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) { e.preventDefault(); move(); } }}>
-      {opts.map(([v, label]) => {
-        const on = v === value;
-        return (
-          <button key={v} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(v)}
-            className={clsx("relative min-h-11 min-w-[116px] rounded-full px-6 text-[15px] font-medium tracking-[-.01em] transition-colors duration-200", on ? "text-white" : "text-m-ink2 hover:text-m-ink")}>
-            {on && <motion.span layoutId={`${id}-pill`} aria-hidden className="absolute inset-0 rounded-full bg-m-navy" transition={{ type: "spring", stiffness: 480, damping: 36 }} />}
-            <span className="relative">{label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+
+/** Matches a CSS media query, false on the server and until the browser says otherwise (so the markup is the same for everyone on first render). */
+function useMedia(query: string) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia(query), f = () => setOn(m.matches);
+    f(); m.addEventListener("change", f);
+    return () => m.removeEventListener("change", f);
+  }, [query]);
+  return on;
 }
 
-function Price({ paise, billing }: { paise: number; billing: Billing }) {
+/** A small burst of round confetti from a point (the switch), in the brand's colours. Skipped for people who asked for reduced motion. Draws on its own throwaway canvas, then removes it. */
+function confetti(x: number, y: number) {
+  if (typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const c = document.createElement("canvas"), dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.setAttribute("aria-hidden", "true");
+  Object.assign(c.style, { position: "fixed", inset: "0", width: "100vw", height: "100vh", pointerEvents: "none", zIndex: "70" });
+  c.width = innerWidth * dpr; c.height = innerHeight * dpr;
+  document.body.appendChild(c);
+  const g = c.getContext("2d");
+  if (!g) { c.remove(); return; }
+  g.scale(dpr, dpr);
+  const colours = ["#FE6A05", "#0B0F2E", "#FFB27A", "#C94C00", "#FFE3CC"];
+  const bits = Array.from({ length: 50 }, () => {
+    const a = (-90 + (Math.random() - 0.5) * 70) * (Math.PI / 180), v = 7 + Math.random() * 6;
+    return { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 2.5 + Math.random() * 2.5, col: colours[(Math.random() * colours.length) | 0], life: 0 };
+  });
+  const t0 = performance.now();
+  const frame = (t: number) => {
+    const el = t - t0;
+    g.clearRect(0, 0, innerWidth, innerHeight);
+    for (const b of bits) {
+      b.vx *= 0.97; b.vy = b.vy * 0.97 + 0.42; b.x += b.vx; b.y += b.vy;
+      g.globalAlpha = Math.max(0, 1 - el / 1500); g.fillStyle = b.col;
+      g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.fill();
+    }
+    if (el < 1500) requestAnimationFrame(frame); else c.remove();
+  };
+  requestAnimationFrame(frame);
+}
+
+/** A rupee amount that counts to its new value when it changes (the server's whole-rupee prices; formatting is the same as everywhere else on the site). */
+function AnimatedPrice({ paise }: { paise: number }) {
   const reduced = useReducedMotion();
+  const mv = useMotionValue(paise / 100);
+  const text = useTransform(mv, (v) => rupees(Math.round(v) * 100));
+  useEffect(() => {
+    if (reduced) { mv.set(paise / 100); return; }
+    const a = animate(mv, paise / 100, { duration: 0.55, ease: [0.22, 1, 0.36, 1] });
+    return () => a.stop();
+  }, [paise, reduced, mv]);
+  return <motion.span className="tabular-nums">{text}</motion.span>;
+}
+
+function Switch({ yearly, onChange, savePct }: { yearly: boolean; onChange: (yearly: boolean, el: HTMLElement) => void; savePct: string | null }) {
+  const ref = useRef<HTMLButtonElement>(null);
   return (
-    <p className="mt-6 flex items-baseline t-number">
-      <span className="relative inline-flex overflow-hidden pb-[.12em] -mb-[.12em]">
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span key={billing} initial={{ y: reduced ? 0 : "55%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: reduced ? 0 : "-55%", opacity: 0 }} transition={{ duration: reduced ? 0.15 : 0.32, ease: EASE }}>{rupees(paise)}</motion.span>
-        </AnimatePresence>
-      </span>
-      <span className="ml-1 text-[14px] font-medium tracking-normal opacity-70">{BILLING_SUFFIX[billing]}</span>
-    </p>
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+      <button type="button" onClick={() => ref.current && yearly && onChange(false, ref.current)} className={clsx("min-h-11 px-1 text-[16px] font-medium tracking-[-.01em] transition-colors", yearly ? "text-m-muted hover:text-m-ink" : "text-m-ink")}>Monthly</button>
+      <button ref={ref} type="button" role="switch" aria-checked={yearly} aria-label="Bill yearly" onClick={() => ref.current && onChange(!yearly, ref.current)}
+        className={clsx("relative h-[30px] w-[54px] shrink-0 rounded-full p-[3px] transition-colors duration-300", yearly ? "bg-m-accent" : "bg-m-ink/20")}>
+        <motion.span aria-hidden className="block h-6 w-6 rounded-full bg-white shadow-[0_1px_3px_rgba(11,15,46,.3)]" animate={{ x: yearly ? 24 : 0 }} transition={{ type: "spring", stiffness: 520, damping: 34 }} />
+      </button>
+      <button type="button" onClick={() => ref.current && !yearly && onChange(true, ref.current)} className={clsx("min-h-11 px-1 text-[16px] font-medium tracking-[-.01em] transition-colors", yearly ? "text-m-ink" : "text-m-muted hover:text-m-ink")}>
+        Yearly{savePct && <span className="ml-2 text-m-accentText">({savePct})</span>}
+      </button>
+    </div>
   );
 }
 
 export function PricingPlans() {
   const { data, failed, loading } = usePlansLive();
   const [billing, setBilling] = useState<Billing>("monthly");
+  const wide = useMedia("(min-width: 768px)");
+  const reduced = useReducedMotion();
   if (failed) return <TalkToUs />;
-  if (loading || !data) return <div className="grid gap-3 md:grid-cols-3" aria-busy>{[0, 1, 2].map((i) => <div key={i} className="h-[520px] animate-pulse rounded-[20px] bg-m-surface" />)}</div>;
+  if (loading || !data) return <div className="grid gap-4 md:grid-cols-3" aria-busy>{[0, 1, 2].map((i) => <div key={i} className="h-[560px] animate-pulse rounded-2xl bg-m-surface" />)}</div>;
   const plans = sellablePlans(data.plans, data.terms);
   if (!plans.length) return <TalkToUs />;
+  const yearly = billing === "yearly";
+  // "Save N%" comes from the list itself (12 months against twelve of the plan's own months); one figure when every plan agrees, a range when they do not
+  const pcts = plans.map((p) => yearlySaving(data.terms, p.code)?.percent).filter((v): v is number => typeof v === "number");
+  const lo = pcts.length ? Math.min(...pcts) : 0, hi = pcts.length ? Math.max(...pcts) : 0;
+  const savePct = pcts.length ? `Save ${lo === hi ? `${lo}%` : `${lo}–${hi}%`}` : null;
+  const setYearly = (y: boolean, el: HTMLElement) => {
+    setBilling(y ? "yearly" : "monthly");
+    if (y) { const r = el.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top + r.height / 2); }
+  };
   return (
     <>
-      <Toggle value={billing} onChange={setBilling} />
-      <div className="mt-4 min-h-[44px] text-center">
+      <Switch yearly={yearly} onChange={setYearly} savePct={savePct} />
+      <div className="mt-3 min-h-[44px] text-center">
         <p className="text-[15px] text-m-muted" aria-live="polite">{BILLING_NOTE[billing]}</p>
         <p className="mt-1 text-[14px] text-m-muted">{data.trial_days}-day free trial. {trialTerms(data.billing ? !!data.billing.mandate_required : null)}</p>
       </div>
-      <div className="mt-8 grid gap-3 md:grid-cols-3">
+      <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3 md:items-center">
         {plans.map((p, i) => {
           const hot = p.code === "growth";
           const paise = periodPrice(data.terms, p.code, billing) as number;
-          const save = billing === "yearly" ? yearlySaving(data.terms, p.code) : null;
+          const save = yearly ? yearlySaving(data.terms, p.code) : null;
+          const side = i === 0 ? 1 : i === plans.length - 1 ? -1 : 0;
           return (
-            <motion.div key={p.code} data-plan={p.code} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, ease: EASE, delay: i * 0.1 }}
-              className={clsx("flex flex-col rounded-[20px] p-7", hot ? "bg-m-accent text-m-ink md:-my-3 md:py-10" : "bg-m-surface shadow-[var(--shadow-card)]")}>
-              <div className="flex items-center justify-between"><h2 className="text-[22px] font-medium tracking-[-.02em]">{p.name}</h2>{hot && <span className="rounded-full bg-white/70 px-2.5 py-0.5 text-[11.5px] font-semibold">Recommended</span>}</div>
-              <p className={clsx("mt-2 min-h-[44px] text-[14px] leading-snug", hot ? "text-m-ink/80" : "text-m-muted")}>{POSITION[p.code]}</p>
-              <Price paise={paise} billing={billing} />
-              <p className={clsx("mt-2 text-[13px]", hot ? "text-m-ink/75" : "text-m-muted")}>+ GST as applicable</p>
-              <div className="min-h-[40px]">
-                {save && <p className={clsx("mt-1 text-[13px]", hot ? "text-m-ink/85" : "text-m-ink2")}>About {rupees(effectiveMonthlyPaise(paise, 12))} a month. {rupees(save.paise)} less than paying monthly for a year.</p>}
+            <motion.div key={p.code} data-plan={p.code} initial={{ y: 40 }}
+              whileInView={wide && !reduced ? { y: hot ? -20 : 0, x: side * 14, scale: hot ? 1 : 0.95 } : { y: 0 }} viewport={{ once: true }}
+              transition={{ duration: 1.1, type: "spring", stiffness: 100, damping: 26, delay: 0.25 + i * 0.08 }}
+              style={{ transformOrigin: side === 1 ? "right center" : side === -1 ? "left center" : "center" }}
+              className={clsx("relative flex flex-col rounded-2xl bg-m-surface p-6 text-center md:p-7", hot ? "z-10 border-2 border-m-accent shadow-[var(--shadow-float)]" : "z-0 border border-m-line")}>
+              {hot && (
+                <span className="absolute right-0 top-0 inline-flex items-center rounded-bl-xl rounded-tr-[14px] bg-m-accent px-2.5 py-1 text-[12.5px] font-semibold text-m-ink">
+                  <Star className="mr-1 h-3.5 w-3.5 fill-current" aria-hidden />Recommended
+                </span>
+              )}
+              <h2 className="text-[13px] font-semibold uppercase tracking-[.08em] text-m-muted">{p.name}</h2>
+              <p className="mt-6 flex items-baseline justify-center gap-x-2 text-m-ink t-number"><AnimatedPrice paise={paise} /><span className="text-[14px] font-semibold tracking-normal text-m-muted">{BILLING_SUFFIX[billing].replace("/", "/ ")}</span></p>
+              <p className="mt-1 text-[12.5px] leading-5 text-m-muted">{yearly ? "billed once for 12 months, no auto-renewal" : "billed monthly"} · + GST as applicable</p>
+              <div className="min-h-[44px]">
+                {save && <p className="mt-2 text-[13px] leading-snug text-m-ink2">About {rupees(effectiveMonthlyPaise(paise, 12))} a month. {rupees(save.paise)} less than paying monthly for a year.</p>}
               </div>
-              <ul className={clsx("mt-5 space-y-2.5 border-t pt-5 text-[14px]", hot ? "border-m-ink/15" : "border-m-line")}>
+              <ul className="mt-4 flex flex-col gap-2.5 text-left text-[14.5px]">
                 {cardPoints(p).map((pt) => (
-                  <li key={pt.text} className="flex gap-2.5">
-                    <Check className={clsx("mt-0.5 h-4 w-4 shrink-0", pt.soon && "opacity-40")} strokeWidth={2} aria-hidden />
+                  <li key={pt.text} className="flex items-start gap-2.5">
+                    <Check className={clsx("mt-1 h-4 w-4 shrink-0 text-m-accentText", pt.soon && "opacity-40")} strokeWidth={2.25} aria-hidden />
                     <span>{pt.text}{pt.soon && <span className="ml-2 rounded-full bg-m-ink/10 px-2 py-0.5 text-[11px] font-semibold">Coming soon</span>}</span>
                   </li>
                 ))}
               </ul>
-              <div className="mt-auto pt-8"><MButton href="/register" variant={hot ? "dark" : "primary"} className="w-full justify-between" event="signup_cta_click">Start free trial</MButton></div>
+              <hr className="my-5 border-m-line" />
+              <Link href="/register" onClick={() => track("signup_cta_click")}
+                className={clsx("group relative inline-flex min-h-12 w-full items-center justify-center overflow-hidden rounded-full text-[17px] font-semibold tracking-[-.02em] transition-all duration-300 ease-out",
+                  hot ? "bg-m-accent text-m-ink hover:bg-[#F06000]" : "border border-m-ink/70 bg-m-surface text-m-ink hover:bg-m-accent hover:text-m-ink hover:ring-2 hover:ring-m-accent hover:ring-offset-1")}>
+                Start free trial
+              </Link>
+              <p className="mt-5 text-[12.5px] leading-5 text-m-muted">{POSITION[p.code]}</p>
             </motion.div>
           );
         })}
       </div>
-      <p className="mx-auto mt-6 max-w-[640px] text-center text-[13px] text-m-muted">AI allowances are monthly. They reset every month, on yearly plans too, and are not added up across the year.</p>
+      <p className="mx-auto mt-8 max-w-[640px] text-center text-[13px] text-m-muted">AI allowances are monthly. They reset every month, on yearly plans too, and are not added up across the year.</p>
     </>
   );
 }
