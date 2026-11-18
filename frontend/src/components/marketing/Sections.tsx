@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { ArrowRight, Check, Minus } from "lucide-react";
 import Image from "next/image";
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { track } from "@/lib/track";
 import { Accent, Chip, MButton, SectionHead } from "./kit";
 import { TrialNote } from "./TrialNote";
@@ -101,7 +101,9 @@ export type Cell = string | boolean;
 export function ComparisonTable({ title, sub, columns, rows, brandIndex = 0, tight, note }: { title: string; sub?: string; columns: string[]; rows: { feature: string; icon?: ReactNode; cells: Cell[] }[]; brandIndex?: number; tight?: boolean; note?: string }) {
   const reduced = useReducedMotion();
   const cell = (c: Cell, brand: boolean) => c === true
-    ? <><Check className={clsx("mx-auto h-5 w-5", brand ? "text-m-ink" : "text-[#157347]")} strokeWidth={2.25} aria-hidden /><span className="sr-only">Yes</span></>
+    ? <>{brand
+        ? <span aria-hidden className="mx-auto grid h-6 w-6 place-items-center rounded-full bg-m-accentStrong text-white"><Check className="h-3.5 w-3.5" strokeWidth={3} /></span>
+        : <Check className="mx-auto h-5 w-5 text-[#157347]" strokeWidth={2.25} aria-hidden />}<span className="sr-only">Yes</span></>
     : c === false
       ? <><Minus className="mx-auto h-4 w-4 text-m-muted" strokeWidth={1.75} aria-hidden /><span className="sr-only">No</span></>
       : c;
@@ -110,16 +112,18 @@ export function ComparisonTable({ title, sub, columns, rows, brandIndex = 0, tig
       <div className="mkt-wrap">
         <Rise><SectionHead title={title} sub={sub} /></Rise>
         <Rise delay={0.1} y={14} blur={false} className="mt-8 md:mt-10">
-          <table className="w-full table-fixed border-separate border-spacing-0 text-center text-[13px] md:text-[14px]">
+          <div className="relative [--f:36%] md:[--f:30%]" style={{ "--n": columns.length, "--bi": brandIndex } as CSSProperties}>
+          {/* The FlowQR column is one white card behind the table (a single piece, so its top, sides and corners always line up with the cells), with an orange top edge. */}
+          <motion.span aria-hidden className="absolute -top-3 bottom-0 z-0 origin-top rounded-[20px] border border-m-line border-t-[3px] border-t-m-accent bg-white shadow-[0_28px_60px_-28px_rgba(11,15,46,.28),0_2px_6px_rgba(11,15,46,.04)]"
+            style={{ left: "calc(var(--f) + var(--bi) * (100% - var(--f)) / var(--n))", width: "calc((100% - var(--f)) / var(--n))" }}
+            initial={{ scaleY: reduced ? 1 : 0.94, opacity: reduced ? 1 : 0 }} whileInView={{ scaleY: 1, opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6, ease: EASE }} />
+          <table className="relative z-[1] w-full table-fixed border-separate border-spacing-0 text-center text-[13px] md:text-[14px]">
             <caption className="sr-only">{title}</caption>
             <thead>
               <tr>
                 <th scope="col" className="w-[36%] px-1 pb-3 text-left text-[12px] font-medium text-m-muted sm:px-4 md:w-[30%] md:text-[13px]">Feature</th>
                 {columns.map((c, i) => (
-                  <th key={c} scope="col" className={clsx("relative px-1 pb-3 align-bottom text-[12px] font-medium md:text-[14px]", i === brandIndex ? "text-[13px] text-m-ink md:text-[15px]" : "text-m-ink2")}>
-                    {i === brandIndex && <motion.span aria-hidden className="absolute inset-x-0.5 -top-2 rounded-t-[12px] bg-m-accent md:inset-x-2" style={{ bottom: 0 }} initial={{ scaleY: reduced ? 1 : 0.96 }} whileInView={{ scaleY: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, ease: EASE }} />}
-                    <span className="relative">{c}</span>
-                  </th>
+                  <th key={c} scope="col" className={clsx("px-1 pb-3 align-bottom text-[12px] font-medium md:text-[14px]", i === brandIndex ? "text-[14px] font-semibold text-m-ink md:text-[16px]" : "text-m-ink2")}>{c}</th>
                 ))}
               </tr>
             </thead>
@@ -132,13 +136,14 @@ export function ComparisonTable({ title, sub, columns, rows, brandIndex = 0, tig
                       <span className="flex items-center gap-2.5">{r.icon && <span aria-hidden className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-m-surface text-m-muted md:grid">{r.icon}</span>}{r.feature}</span>
                     </th>
                     {r.cells.map((c, i) => (
-                      <td key={i} className={clsx("h-12 px-1 leading-tight md:h-[52px]", i === brandIndex ? clsx("mx-0.5 border-b border-white/25 bg-m-accent font-medium text-m-ink", last && "rounded-b-[12px] border-b-0") : "border-b border-m-line bg-m-tint/50 text-m-ink2")}>{cell(c, i === brandIndex)}</td>
+                      <td key={i} className={clsx("h-12 px-1 leading-tight md:h-[52px]", i === brandIndex ? clsx("border-b border-m-line font-medium text-m-ink", last && "border-b-0") : "border-b border-m-line text-m-ink2", last && i !== brandIndex && "border-b-0")}>{cell(c, i === brandIndex)}</td>
                     ))}
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </div>
         </Rise>
         {note && <p className="mx-auto mt-4 max-w-[640px] text-center text-[12.5px] leading-relaxed text-m-muted md:text-[13px]">{note}</p>}
       </div>
