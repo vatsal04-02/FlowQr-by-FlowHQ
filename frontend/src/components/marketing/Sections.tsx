@@ -3,9 +3,11 @@ import clsx from "clsx";
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { ArrowRight, Check, Minus } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { track } from "@/lib/track";
-import { Accent, Chip, MButton, SectionHead } from "./kit";
+import { Accent, Chip, GoogleG, MButton, SectionHead } from "./kit";
+import { GrowthCard, ReplyCard } from "./HeroFloaters";
 import { TrialNote } from "./TrialNote";
 import { HeroBackdrop } from "./Depth";
 import { EASE, Rise } from "./motion";
@@ -201,18 +203,47 @@ export function Marquee({ items }: { items: MarqueeItem[] }) {
 }
 
 /* ======================================================================= Final CTA (09) */
+const CLOSE_POINTS = ["Every Google review and reply in one inbox", "AI drafts the reply, you approve it", "QR and NFC cards for your counter"];
+
+/**
+ * The closing call to action: one large navy panel. Left: the closing line, three plain points (the same facts as the rest of the page), the two buttons and the trial terms. Right: two small pieces of the
+ * product (a drafted reply waiting for approval, and the Growth score, marked as sample data) floating over a warm glow, with a "Google Business Profile, connected" pill. Used at the foot of every public page.
+ */
 export function FinalCTA({ line1, line2, primary = "Sign up", primaryHref = "/register", secondary = true }: { line1: string; line2: string; primary?: string; primaryHref?: string; secondary?: boolean }) {
   return (
-    <section className="relative isolate overflow-hidden pb-24 pt-16 md:pb-32">
-      <HeroBackdrop />
-      <div className="relative mkt-wrap text-center">
-        <Rise><h2 className="t-statement mx-auto max-w-[680px] text-m-ink">{line1}<br /><span className="text-m-muted">{line2}</span></h2></Rise>
-        <Rise delay={0.15} className="mx-auto mt-8 flex max-w-[340px] flex-col items-stretch gap-3 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-2.5">
-          <MButton href={primaryHref} className="w-full justify-between sm:w-auto" event={primaryHref === "/register" ? "signup_cta_click" : undefined}>{primary}</MButton>
-          {secondary && <MButton href="/login" variant="secondary" className="w-full justify-center sm:w-auto">Log in</MButton>}
-        </Rise>
-        {primaryHref === "/register" && <Rise delay={0.2}><TrialNote className="mt-4 text-[14px] text-m-muted" /></Rise>}
-      </div>
+    <section className="relative px-3 pb-6 pt-10 sm:px-5 md:pb-8 md:pt-14">
+      <Rise y={24} blur={false}>
+        <div className="relative isolate mx-auto max-w-[1180px] overflow-hidden rounded-[28px] bg-m-navy px-6 py-10 text-white sm:px-10 md:rounded-[36px] md:px-14 md:py-16">
+          <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 -z-10 h-[520px] w-[520px] rounded-full bg-[radial-gradient(closest-side,rgba(254,106,5,.42),rgba(254,106,5,0))]" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-40 left-[20%] -z-10 h-[420px] w-[420px] rounded-full bg-[radial-gradient(closest-side,rgba(255,178,122,.16),rgba(255,178,122,0))]" />
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-[.5]" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.10) 1px, transparent 1px)", backgroundSize: "26px 26px", maskImage: "linear-gradient(90deg, #000, transparent 70%)", WebkitMaskImage: "linear-gradient(90deg, #000, transparent 70%)" }} />
+          <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-6">
+            <div>
+              <h2 className="t-h2 max-w-[560px] text-white">{line1} <span className="text-m-accent300">{line2}</span></h2>
+              <ul className="mt-6 space-y-2.5">
+                {CLOSE_POINTS.map((t) => (
+                  <li key={t} className="flex items-start gap-3 text-[15px] leading-snug text-white/80 md:text-[16px]">
+                    <span aria-hidden className="mt-[2px] grid h-5 w-5 shrink-0 place-items-center rounded-full bg-m-accent text-m-ink"><Check className="h-3 w-3" strokeWidth={3} /></span>{t}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
+                <MButton href={primaryHref} className="w-full justify-center sm:w-auto" event={primaryHref === "/register" ? "signup_cta_click" : undefined}>{primary}</MButton>
+                {secondary && <Link href="/login" className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/40 px-5 text-[14px] font-normal tracking-[-.01em] text-white transition-colors duration-200 hover:bg-white/10 focus-visible:!outline-white sm:w-auto">Log in</Link>}
+              </div>
+              {primaryHref === "/register" && <TrialNote className="mt-4 text-[14px] text-white/60" />}
+            </div>
+
+            <div aria-hidden className="relative mx-auto h-[250px] w-full max-w-[420px] sm:h-[330px] lg:h-[340px] lg:max-w-none">
+              <div className="fc-float absolute left-0 top-0 w-[84%] max-w-[300px] sm:left-[4%]" style={{ "--fd": "7.5s", "--fl": "0s", "--fr": "0.4deg" } as CSSProperties}><ReplyCard /></div>
+              <div className="fc-float absolute bottom-0 right-0 w-[64%] max-w-[240px] sm:right-[6%]" style={{ "--fd": "8.5s", "--fl": "-2s", "--fr": "-0.5deg" } as CSSProperties}><GrowthCard /></div>
+              <div className="fc-float absolute left-[6%] top-[58%] hidden lg:block" style={{ "--fd": "6.5s", "--fl": "-1s", "--fr": "0.6deg" } as CSSProperties}>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/95 py-1.5 pl-1.5 pr-3.5 text-[12.5px] font-medium text-m-ink shadow-[0_18px_36px_-16px_rgba(0,0,0,.5)]"><GoogleG size={26} />Google Business Profile<span className="h-1.5 w-1.5 rounded-full bg-[#157347]" /></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Rise>
     </section>
   );
 }

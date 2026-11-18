@@ -33,7 +33,7 @@ function GoogleCard() {
   );
 }
 
-function ReplyCard() {
+export function ReplyCard() {
   return (
     <div className={clsx(FACE, "bg-white p-3.5 text-left")}>
       <div className="flex items-center justify-between">
@@ -52,7 +52,7 @@ function ReplyCard() {
   );
 }
 
-function GrowthCard() {
+export function GrowthCard() {
   const c = 2 * Math.PI * 22;
   return (
     <div className={clsx(FACE, "bg-white p-3.5 text-left")}>
