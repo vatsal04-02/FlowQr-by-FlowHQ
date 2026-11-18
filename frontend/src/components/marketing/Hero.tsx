@@ -23,7 +23,7 @@ export function Hero({ line1, line2, actions, center, left, chips, sub, leftNode
           <BlurWords as="div" text={line1} />
           <BlurWords as="div" text={line2} delay={0.18} className="text-m-accentText" />
         </h1>
-        {sub && <Rise delay={0.3}><p className={clsx("mx-auto text-pretty text-[17px] leading-relaxed text-m-ink2 md:text-[19px]", flow ? "mt-4 max-w-[640px] lg:max-w-[860px]" : "mt-6 max-w-[640px]")}>{sub}</p></Rise>}
+        {sub && <Rise delay={0.3}><p className={clsx("mx-auto text-balance text-[17px] leading-relaxed text-m-ink2 md:text-[19px]", flow ? "mt-4 max-w-[640px] lg:max-w-[860px]" : "mt-6 max-w-[640px]")}>{sub}</p></Rise>}
         {actions && <Rise delay={0.35} className={clsx("flex flex-wrap items-center justify-center gap-2.5", flow ? "mt-5" : "mt-7")}>{actions}</Rise>}
       </div>
       {flow && <div className="relative mx-auto mt-7 max-w-[1120px] px-4 md:mt-6">{flow}</div>}
