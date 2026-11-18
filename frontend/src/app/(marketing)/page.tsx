@@ -34,7 +34,7 @@ export default function Home() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* S1 Hero */}
-      <Hero line1={c.hero.line1} line2={c.hero.line2} words={c.hero.words} sub={c.hero.sub}
+      <Hero line1={c.hero.line1} line2={c.hero.line2} typed={c.hero.typed} sub={c.hero.sub}
         flow={<HeroHub note={c.hero.left} />} />
 
       {/* Made for: the kinds of business, large and scrolling, each linking to its block on /industries */}
