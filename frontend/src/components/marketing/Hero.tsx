@@ -3,14 +3,13 @@ import type { ReactNode } from "react";
 import { HeroBackdrop, Tilt } from "./Depth";
 import { BlurWords, Pop, Rise } from "./motion";
 import { TextReveal } from "@/components/ui/text-reveal";
-import { Typed } from "./Typed";
 
 /**
  * DESIGN.md §1 / 01-hero.png: centred two-line headline (line 2 in accent), two pill buttons, then a faint 3-column grid with + crosshairs
  * at every intersection, fading at the edges. Left: icon + one line. Centre: a product card. Right: stacked micro-chips.
  */
 export function Hero({ line1, line2, typed, actions, center, left, chips, sub, leftNode, rightNode, below, kicker, flow, floaters }: {
-  line1: string; line2: string; /** When given, the second line is this text, typed out once in the accent colour (the full text is in the heading for screen readers and search). */ typed?: string; actions?: ReactNode; center?: ReactNode; left?: { icon: ReactNode; text: string }; chips?: ReactNode[]; sub?: string;
+  line1: string; line2: string; /** When given, the second line is this text in the accent colour, revealed word by word after the first line (the full text is in the heading for screen readers and search). */ typed?: string; actions?: ReactNode; center?: ReactNode; left?: { icon: ReactNode; text: string }; chips?: ReactNode[]; sub?: string;
   /** Richer side columns (a product card each) instead of the one-line left text and the chips. */
   leftNode?: ReactNode; rightNode?: ReactNode; below?: ReactNode; kicker?: ReactNode;
   /** One flow strip in place of the three-column product grid. The hero is also tightened so the strip starts higher on the page. */
@@ -25,7 +24,7 @@ export function Hero({ line1, line2, typed, actions, center, left, chips, sub, l
         {kicker && <Rise className={clsx("flex justify-center", flow ? "mb-4" : "mb-6")}>{kicker}</Rise>}
         <h1 className={clsx("t-display mx-auto text-m-ink", !flow && "max-w-[900px]", flow && "max-w-[980px] max-sm:!text-[length:min(8.7vw,38px)] max-sm:!leading-[1.08] sm:!text-[clamp(30px,4.9vw,46px)] sm:!leading-[1.08] sm:!tracking-[-.035em] lg:!text-[clamp(40px,3.7vw,54px)]")}>
           <TextReveal as="div" per="word" preset="fade-in-blur" speedReveal={1.2} delay={0.1}>{line1}</TextReveal>
-          {typed ? <Rise delay={0.2} blur={false}><div className="text-m-accentText"><Typed text={typed} /></div></Rise>
+          {typed ? <TextReveal as="div" per="word" preset="fade-in-blur" speedReveal={1.2} delay={0.55} className="text-m-accentText">{typed}</TextReveal>
             : line2 && <BlurWords as="div" text={line2} delay={0.18} className="text-m-accentText" />}
         </h1>
         {sub && <TextReveal as="p" per="word" preset="fade-in-blur" speedReveal={1.6} delay={0.45} className={clsx("mx-auto text-balance text-[17px] leading-relaxed text-m-ink2 md:text-[19px]", flow ? "mt-4 max-w-[640px] lg:max-w-[860px]" : "mt-6 max-w-[640px]")}>{sub}</TextReveal>}

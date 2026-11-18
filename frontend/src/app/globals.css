@@ -115,9 +115,6 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   @media (min-width: 1024px) { .hero-flow { --cw: clamp(200px, calc((100svh - 450px) / 1.456), 260px); } }
   .mkt-marquee { animation: mkt-marquee 40s linear infinite; }
   .mkt-marquee:hover { animation-play-state: paused; }
-  /* the typing caret in the home hero: blinks five times after the line is typed, then is gone */
-  .mkt-caret-blink { animation: mkt-caret .8s steps(1) 5 forwards; }
-  @keyframes mkt-caret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 0; } }
   @keyframes mkt-marquee { to { transform: translateX(-50%); } }
   /* Text reveal (components/ui/text-reveal.tsx): under reduced motion the finished text is shown at once */
   @media (prefers-reduced-motion: reduce) { [data-text-reveal], [data-text-reveal] * { opacity: 1 !important; filter: none !important; transform: none !important; } }
