@@ -7,10 +7,10 @@ import { TrialHeadline, TrialPitch } from "@/components/marketing/TrialHeadline"
 import { Logo, LogoMark } from "./Brand";
 
 /**
- * Sign-in and sign-up frame, adapted from the "Travel Connect" card: one rounded card on a soft gradient, an animated dot map with moving routes on the left, the form on the right.
+ * Sign-in and sign-up frame, adapted from the "Travel Connect" card: one rounded card on a soft gradient, a still dot map (no lines) on the left, the form on the right.
  * What changed for FlowQR: the FlowQR mark and wordmark instead of the arrow and "Travel Connect"; the brand's orange instead of blue and indigo; FlowQR's real pitch (and the "what happens
  * next" steps on sign-up) instead of travel copy; the card grows with the form (sign-up is longer than log-in); and the sign-in controls come from each page (its own validation, server errors
- * and the real Google button), not from this frame. Phones show the form only, with the logo above it. Reduced motion: the map is drawn still and the card simply appears.
+ * and the real Google button), not from this frame. Phones show the form only, with the logo above it. Reduced motion: the card simply appears.
  */
 export function AuthPage({ title, subtitle, children, footer, pitch, points, mobileNote }: {
   title: string; subtitle?: string; children: ReactNode; footer?: ReactNode;
@@ -76,16 +76,7 @@ export function AuthPage({ title, subtitle, children, footer, pitch, points, mob
 }
 
 // ------------------------------------------------------------------------------------------------ the animated dot map (decorative)
-type Pt = { x: number; y: number; delay: number };
-/** The map lives in the top part of the panel (`mapH`), above the text, so the lines never cross the wordmark. Route ends are fractions of that area, so they stay on the map whatever size the card grows to. Decorative: it shows no data. */
-const ROUTES: { start: Pt; end: Pt }[] = [
-  { start: { x: 0.18, y: 0.55, delay: 0 }, end: { x: 0.5, y: 0.2, delay: 2 } },
-  { start: { x: 0.5, y: 0.2, delay: 2 }, end: { x: 0.74, y: 0.5, delay: 4 } },
-  { start: { x: 0.1, y: 0.15, delay: 1 }, end: { x: 0.4, y: 0.85, delay: 3 } },
-  { start: { x: 0.84, y: 0.25, delay: 0.5 }, end: { x: 0.52, y: 0.9, delay: 2.5 } },
-];
-const ROUTE = "#C94C00", MOVING = "#FE6A05";
-
+/** The map lives in the top part of the panel (`mapH`), above the text, so it never sits behind the wordmark. Decorative: it shows no data. */
 function DotMap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -107,7 +98,6 @@ function DotMap() {
     const { width, height } = size;
     const canvas = canvasRef.current, ctx = canvas?.getContext("2d");
     if (!canvas || !ctx || !width || !height) return;
-    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     // A grid of dots, kept where a rough world map would be (the continents are boxes, as in the original design), with a fixed seed so it does not shimmer on every resize.
     let seed = 7;
@@ -123,31 +113,9 @@ function DotMap() {
       if (land && rnd() > 0.3) dots.push({ x, y, o: rnd() * 0.5 + 0.2 });
     }
 
-    const draw = (t: number) => {
-      ctx.clearRect(0, 0, width, height);
-      for (const d of dots) { ctx.beginPath(); ctx.arc(d.x, d.y, 1, 0, Math.PI * 2); ctx.fillStyle = `rgba(201,76,0,${d.o})`; ctx.fill(); }
-      for (const r of ROUTES) {
-        const sx = r.start.x * width, sy = r.start.y * mapH, ex = r.end.x * width, ey = r.end.y * mapH;
-        const elapsed = t - r.start.delay;
-        if (elapsed <= 0) continue;
-        const p = Math.min(elapsed / 3, 1), x = sx + (ex - sx) * p, y = sy + (ey - sy) * p;
-        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(x, y); ctx.strokeStyle = ROUTE; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fillStyle = ROUTE; ctx.fill();
-        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fillStyle = MOVING; ctx.fill();
-        if (p < 1) { ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fillStyle = "rgba(254,106,5,.35)"; ctx.fill(); }
-      }
-    };
-    if (calm) { draw(99); return; } // still picture: every route complete
-
-    let raf = 0, start = performance.now();
-    const loop = (now: number) => {
-      let t = (now - start) / 1000;
-      if (t > 15) { start = now; t = 0; } // restart after 15 s, as the original does
-      draw(t);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    // A still picture of dots, drawn once (and again when the panel is resized).
+    ctx.clearRect(0, 0, width, height);
+    for (const d of dots) { ctx.beginPath(); ctx.arc(d.x, d.y, 1, 0, Math.PI * 2); ctx.fillStyle = `rgba(201,76,0,${d.o})`; ctx.fill(); }
   }, [size]);
 
   return <div className="absolute inset-0 overflow-hidden" aria-hidden><canvas ref={canvasRef} className="absolute inset-0 h-full w-full" /></div>;
