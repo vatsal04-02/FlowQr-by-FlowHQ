@@ -11,9 +11,10 @@ import { Rise } from "./motion";
  * for screen readers and the keyboard; the extra copies that make the loop seamless are aria-hidden and inert. Markup is the same on the server and in the browser (CSS `motion-reduce:` does the rest).
  */
 
+/** White cards with one small accent: a thin orange top edge. */
 function FaqCard({ question, answer }: { question: string; answer: ReactNode }) {
   return (
-    <li className="flex w-[286px] shrink-0 flex-col gap-3 rounded-[18px] bg-m-surface p-5 shadow-[var(--shadow-card)] sm:w-[340px] sm:p-6 motion-reduce:w-full">
+    <li className="flex w-[286px] shrink-0 flex-col gap-3 rounded-[18px] border-t-[3px] border-m-accent bg-m-surface p-5 shadow-[var(--shadow-card)] sm:w-[340px] sm:p-6 motion-reduce:w-full">
       <h3 className="text-[17px] font-medium leading-snug tracking-[-.02em] text-m-ink sm:text-[18px]">{question}</h3>
       <p className="text-[14.5px] leading-relaxed text-m-muted">{answer}</p>
     </li>
