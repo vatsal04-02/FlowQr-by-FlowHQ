@@ -40,7 +40,7 @@ export default function Home() {
         actions={<HeroActions />} floaters={<HeroFloaters />} />
 
       {/* Made for: the kinds of business, large and scrolling, each linking to its block on /industries */}
-      <BusinessBand title={c.hero.bandTitle} all={c.hero.bandAll} items={en.industries.list.map(([id, name]) => [id, name] as [string, string])} />
+      <BusinessBand title={c.hero.bandTitle} items={en.industries.list.map(([id, name]) => [id, name] as [string, string])} />
 
       {/* The three agents, animated */}
       <AgentShowcase title={c.team.title} sub={c.team.sub} />
