@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Hero } from "@/components/marketing/Hero";
 import { BusinessBand } from "@/components/marketing/BusinessBand";
-import { HeroCursor } from "@/components/marketing/HeroCursor";
 import { HeroFloaters } from "@/components/marketing/HeroFloaters";
 import { HeroActions } from "@/components/marketing/HeroActions";
 import { MButton, MicroChip } from "@/components/marketing/kit";
@@ -39,7 +38,7 @@ export default function Home() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* S1 Hero */}
       <Hero line1={c.hero.line1} line2={c.hero.line2} typed={c.hero.typed} sub={c.hero.sub}
-        actions={<HeroActions />} floaters={<HeroFloaters />} cursor={<HeroCursor />} />
+        actions={<HeroActions />} floaters={<HeroFloaters />} />
 
       {/* Made for: the kinds of business, large and scrolling, each linking to its block on /industries */}
       <BusinessBand title={c.hero.bandTitle} items={en.industries.list.map(([id, name]) => [id, name] as [string, string])} />

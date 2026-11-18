@@ -8,7 +8,7 @@ import { Typed } from "./Typed";
  * DESIGN.md §1 / 01-hero.png: centred two-line headline (line 2 in accent), two pill buttons, then a faint 3-column grid with + crosshairs
  * at every intersection, fading at the edges. Left: icon + one line. Centre: a product card. Right: stacked micro-chips.
  */
-export function Hero({ line1, line2, typed, actions, center, left, chips, sub, leftNode, rightNode, below, kicker, flow, floaters, cursor }: {
+export function Hero({ line1, line2, typed, actions, center, left, chips, sub, leftNode, rightNode, below, kicker, flow, floaters }: {
   line1: string; line2: string; /** When given, the second line is this text, typed out once in the accent colour (the full text is in the heading for screen readers and search). */ typed?: string; actions?: ReactNode; center?: ReactNode; left?: { icon: ReactNode; text: string }; chips?: ReactNode[]; sub?: string;
   /** Richer side columns (a product card each) instead of the one-line left text and the chips. */
   leftNode?: ReactNode; rightNode?: ReactNode; below?: ReactNode; kicker?: ReactNode;
@@ -16,8 +16,6 @@ export function Hero({ line1, line2, typed, actions, center, left, chips, sub, l
   flow?: ReactNode;
   /** Cards that float around the headline (see HeroFloaters): in the empty space beside it on wide screens, a grid under the buttons otherwise. */
   floaters?: ReactNode;
-  /** A custom pointer over the hero (see HeroCursor). */
-  cursor?: ReactNode;
 }) {
   return (
     <section className={clsx("relative isolate -mt-[76px] overflow-hidden", flow ? "pb-12 pt-[112px] md:pb-14 md:pt-[108px]" : "pb-16 pt-[140px] md:pb-24 md:pt-[188px]", floaters && "xl:min-h-[720px]")}>
@@ -33,7 +31,6 @@ export function Hero({ line1, line2, typed, actions, center, left, chips, sub, l
         {actions && <Rise delay={0.35} className={clsx("flex flex-wrap items-center justify-center gap-2.5", flow ? "mt-5" : "mt-7")}>{actions}</Rise>}
       </div>
       {floaters}
-      {cursor}
       {flow && <div className="relative mx-auto mt-7 max-w-[1120px] px-4 md:mt-6">{flow}</div>}
       {center && (
         <div className="relative mx-auto mt-14 max-w-[1200px] px-4 md:mt-16">

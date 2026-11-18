@@ -21,6 +21,8 @@ export type MouseTrackerContextType = {
   x: MotionValue<number>;
   y: MotionValue<number>;
   active: boolean;
+  /** true when the pointer is drawn in the window (fixed) rather than inside its parent element */
+  fixed: boolean;
   wrapperRef: React.RefObject<HTMLDivElement | null>;
   pointerRef: React.RefObject<HTMLDivElement | null>;
 };
@@ -35,9 +37,9 @@ export const useMouseTracker = (): MouseTrackerContextType => {
 
 const INTERACTIVE = "a, button, input, select, textarea, label, summary, [role='button'], [role='link'], [role='switch'], [role='dialog']";
 
-export type MouseTrackerProviderProps = React.ComponentProps<"div"> & { children: React.ReactNode };
+export type MouseTrackerProviderProps = React.ComponentProps<"div"> & { children: React.ReactNode; /** follow the mouse over the whole window (use for a whole page: it stays under the mouse while the page scrolls) */ fixed?: boolean };
 
-function MouseTrackerProvider({ ref, children, className, ...rest }: MouseTrackerProviderProps) {
+function MouseTrackerProvider({ ref, children, className, fixed = false, ...rest }: MouseTrackerProviderProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const [active, setActive] = React.useState(false);
@@ -59,7 +61,7 @@ function MouseTrackerProvider({ ref, children, className, ...rest }: MouseTracke
     const move = (e: MouseEvent) => {
       const over = (e.target as Element | null)?.closest?.(INTERACTIVE);
       if (over) { setActive(false); return; }
-      const bounds = container.getBoundingClientRect();
+      const bounds = fixed ? { left: 0, top: 0 } : container.getBoundingClientRect();
       x.set(e.clientX - bounds.left);
       y.set(e.clientY - bounds.top);
       setActive(true);
@@ -73,7 +75,7 @@ function MouseTrackerProvider({ ref, children, className, ...rest }: MouseTracke
       container.removeEventListener("mouseleave", leave);
       container.style.cursor = "";
     };
-  }, [x, y]);
+  }, [x, y, fixed]);
 
   // The system cursor is hidden only while the custom pointer is on show.
   React.useEffect(() => {
@@ -82,8 +84,8 @@ function MouseTrackerProvider({ ref, children, className, ...rest }: MouseTracke
   }, [active]);
 
   return (
-    <MouseTrackerContext.Provider value={{ x, y, active, wrapperRef, pointerRef }}>
-      <div ref={wrapperRef} data-role="tracker-wrapper" aria-hidden className={clsx("pointer-events-none absolute inset-0 z-[3] overflow-hidden", className)} {...rest}>
+    <MouseTrackerContext.Provider value={{ x, y, active, fixed, wrapperRef, pointerRef }}>
+      <div ref={wrapperRef} data-role="tracker-wrapper" aria-hidden className={clsx("pointer-events-none inset-0 overflow-hidden", fixed ? "fixed z-[80]" : "absolute z-[3]", className)} {...rest}>
         {children}
       </div>
     </MouseTrackerContext.Provider>
@@ -93,12 +95,12 @@ function MouseTrackerProvider({ ref, children, className, ...rest }: MouseTracke
 export type PointerProps = HTMLMotionProps<"div"> & { children: React.ReactNode };
 
 function Pointer({ ref, className, style, children, ...rest }: PointerProps) {
-  const { x, y, active, pointerRef } = useMouseTracker();
+  const { x, y, active, fixed, pointerRef } = useMouseTracker();
   React.useImperativeHandle(ref, () => pointerRef.current as HTMLDivElement);
   return (
     <AnimatePresence>
       {active && (
-        <motion.div ref={pointerRef} data-role="custom-pointer" className={clsx("pointer-events-none absolute z-[9999] -translate-x-1/2 -translate-y-1/2", className)}
+        <motion.div ref={pointerRef} data-role="custom-pointer" className={clsx("pointer-events-none z-[9999] -translate-x-1/2 -translate-y-1/2", fixed ? "fixed" : "absolute", className)}
           style={{ top: y, left: x, ...style }} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} {...rest}>
           {children}
         </motion.div>
@@ -112,7 +114,7 @@ export type Anchor = "top" | "top-left" | "top-right" | "bottom" | "bottom-left"
 export type PointerFollowerProps = HTMLMotionProps<"div"> & { align?: Anchor; gap?: number; transition?: SpringOptions; children: React.ReactNode };
 
 function PointerFollower({ ref, align = "bottom-right", gap = 20, transition = { stiffness: 380, damping: 34, mass: 0.6 }, children, className, style, ...rest }: PointerFollowerProps) {
-  const { x, y, active } = useMouseTracker();
+  const { x, y, active, fixed } = useMouseTracker();
   const followerRef = React.useRef<HTMLDivElement>(null);
   React.useImperativeHandle(ref, () => followerRef.current as HTMLDivElement);
   const sx = useSpring(x, transition);
@@ -134,7 +136,7 @@ function PointerFollower({ ref, align = "bottom-right", gap = 20, transition = {
   return (
     <AnimatePresence>
       {active && (
-        <motion.div ref={followerRef} data-role="pointer-follower" className={clsx("pointer-events-none absolute z-[9998] -translate-x-1/2 -translate-y-1/2 font-medium", className)}
+        <motion.div ref={followerRef} data-role="pointer-follower" className={clsx("pointer-events-none z-[9998] -translate-x-1/2 -translate-y-1/2 font-medium", fixed ? "fixed" : "absolute", className)}
           style={{ top: sy, left: sx, marginLeft: off.x, marginTop: off.y, ...style }} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} {...rest}>
           {children}
         </motion.div>

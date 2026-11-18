@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter_Tight } from "next/font/google";
 import { FooterCards } from "@/components/marketing/FooterCards";
 import { Nav } from "@/components/marketing/Nav";
+import { SiteCursor } from "@/components/marketing/SiteCursor";
 import { ScrollProgress } from "@/components/marketing/scroll";
 import { TrialBanner } from "@/components/marketing/TrialBanner";
 import { SITE_URL } from "@/lib/site";
@@ -19,6 +20,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   return (
     <div className={`${tight.variable} mkt min-h-dvh overflow-x-clip`}>
       <ScrollProgress />
+      <SiteCursor />
       <TrialBanner />
       <Nav />
       <main id="content">{children}</main>
