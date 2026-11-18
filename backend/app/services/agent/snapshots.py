@@ -41,6 +41,11 @@ def _sum_window(series: dict, start: date, end: date) -> int:
     return total
 
 
+def snapshot_media(media: list[dict]) -> list[dict]:
+    """What is saved about each photo: name, category, date. The link is kept only for the profile (logo) photo, which the app shows as the business avatar; no other photo link is stored."""
+    return [{"name": m.get("name"), "category": m.get("category"), "created_at": m.get("created_at"), **({"url": m.get("google_url") or m.get("url")} if m.get("category") in ("PROFILE", "LOGO") else {})} for m in media]
+
+
 def refresh(db: Session, gloc: GoogleLocation, *, provider=None, today: date | None = None) -> GbpSnapshot:
     """Fetch profile, posts, photos and 56 days of performance. Each part is independent: a failure in one is recorded and the rest
     are still stored. Nothing is invented when Google refuses."""
@@ -82,7 +87,7 @@ def refresh(db: Session, gloc: GoogleLocation, *, provider=None, today: date | N
     if posts is not None:
         snap.posts = [{"name": p.get("name"), "summary": (p.get("summary") or "")[:200], "state": p.get("state"), "created_at": p.get("created_at")} for p in posts]
     if media is not None:
-        snap.media = [{"name": m.get("name"), "category": m.get("category"), "created_at": m.get("created_at")} for m in media]
+        snap.media = snapshot_media(media)
     keywords = None
     if hasattr(provider, "search_keywords"):
         last = today.replace(day=1) - timedelta(days=1)  # last complete month

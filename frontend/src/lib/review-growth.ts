@@ -136,7 +136,7 @@ export type Rating = 1 | 2 | 3 | 4 | 5;
 /** The 1-5 stars customers chose on the FlowQr page. NOT the Google rating. */
 export interface RatingStats { distribution: Record<"1" | "2" | "3" | "4" | "5", number>; rated: number; unrated: number; average: number | null; source: string }
 export interface RGSettings {
-  ai: { configured: boolean; provider: string | null; model: string | null; degraded: { code: string; message: string; until: number } | null; used_this_month: number; monthly_limit: number };
+  ai: { configured: boolean; review_data_blocked: string | null; provider: string | null; model: string | null; degraded: { code: string; message: string; until: number } | null; used_this_month: number; monthly_limit: number };
   limits: { max_drafts_per_customer: number; max_campaigns: number };
   retention_days: number; google_connected: boolean;
   locations: { id: string; name: string; review_url: string | null; review_url_source: string | null; google_link_available: boolean; review_url_kind: "direct" | "listing" | "unknown" | "none" }[];

@@ -21,7 +21,7 @@ from app.models.base import utcnow
 from app.schemas.review_growth import ApproveIn, Customization, GenerateIn, HandoffIn, RedirectIn, RefineIn, RegenerateIn, SubmitIn
 from app.services import cards as cards_svc
 from app.services import review_growth as svc
-from app.services.ai import AIUnavailable, get_provider
+from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai.base import configured_identity
 from app.services.review_suggestions import MEANING, SENTIMENTS, follow_up_for, merged_context, topics_for
 from app.services.ai import health as ai_health
@@ -116,7 +116,7 @@ def landing(public_id: str, request: Request, db: Session = Depends(public_db)):
         "generator": {"styles": c.allowed_styles, "default_style": c.default_style, "default_language": default_lang,
                       "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": settings.review_max_drafts_per_session,
                       "max_input_chars": settings.public_ai_max_input_chars},
-        "ai_available": settings.ai_configured and not quota_exceeded(db, tenant.id, "review_generate") and ai_health.current() is None,
+        "ai_available": settings.ai_configured and privacy.blocked_now() is None and not quota_exceeded(db, tenant.id, "review_generate") and ai_health.current() is None,
         "google_ready": bool(url),
         "review_url": url,  # the business's own public Google link: the page opens it straight from the customer's tap (never gated by rating)
         "review_url_kind": svc.review_url_kind(url),

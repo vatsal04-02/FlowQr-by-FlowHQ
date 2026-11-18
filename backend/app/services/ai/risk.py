@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from app.core.config import settings
 from app.services.ai.base import AIUnavailable, LLMProvider
+from app.services.ai.privacy import ensure_review_data_allowed, redact
 from app.services.ai.safety import Risk, assess_risk, level_for
 from app.services.ai.structured import generate_json
 
@@ -36,7 +37,8 @@ Use "high" for threat, legal, privacy, self_harm, harassment, extortion, defamat
 
 def classify(provider: LLMProvider, text: str, rating: int, category: str | None) -> tuple[str, list[str]]:
     """(risk, reason codes) from the model. Raises AIUnavailable when it cannot answer (including a budget stop)."""
-    user = f"Business category: {category or 'local business'}\nStar rating: {rating}\n<review>\n{text[:2000]}\n</review>"
+    ensure_review_data_allowed(provider)  # raises AIUnavailable: review_risk then treats the review as unchecked, which can only make it MORE cautious
+    user = f"Business category: {category or 'local business'}\nStar rating: {rating}\n<review>\n{redact(text[:2000])}\n</review>"
     data = generate_json(provider, SYSTEM, user, max_tokens=160, temperature=0.0)
     if not isinstance(data, dict) or data.get("risk") not in ("low", "medium", "high"):
         raise AIUnavailable("AI risk check returned an unexpected answer", code="bad_response")

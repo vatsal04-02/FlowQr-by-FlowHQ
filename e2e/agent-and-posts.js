@@ -61,7 +61,7 @@ const stamp = (d) => { const p = (n) => String(n).padStart(2, '0'); return `${d.
   let csrf, tenant, locA, ready = false;
   const H = () => ({ 'X-CSRF-Token': csrf });
   try {
-    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: `zz-e2e-${TAG}@example.com`, password: PW, full_name: 'ZZ E2E Owner' } });
+    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: `zz-e2e-${TAG}@example.com`, password: PW, age_confirmed: true, full_name: 'ZZ E2E Owner' } });
     expect(r.status() === 201, `register ${r.status()} ${await r.text()}`);
     csrf = (await r.json()).csrf_token;
     tenant = await (await ctx.request.post('/api/v1/tenants', { data: { name: NAME, category: 'Physiotherapy clinic', language: 'en' }, headers: H() })).json();

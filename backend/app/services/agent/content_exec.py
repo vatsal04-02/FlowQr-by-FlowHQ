@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.models import AgentAction, GoogleConnection, GoogleConnectionStatus, GoogleLocation, Role, ScheduledMedia, ScheduledPost, ReplyDraft, ReplyStatus, Review, Tenant
 from app.models.autonomy import LIVE_STATUSES
 from app.models.base import utcnow
+from app.services import consent as consent_svc
 from app.services import entitlements as ent
 from app.services import google as g
 from app.services import usage as api_usage
@@ -135,6 +136,8 @@ def govern(db: Session, sub: Subject, *, provider=None, now: datetime | None = N
         return {"outcome": "held", "reason": "emergency_stop", "detail": stop["reason"]}
     if sub.policy_rule is not None and not (sub.policy_rule == "template_reply_v1" and sub.kind == "reply"):
         return {"outcome": "held", "reason": "bad_rule", "detail": "Only the template-reply rule may approve something without a person."}
+    if sub.policy_rule == "template_reply_v1" and not consent_svc.has_active(db, sub.tenant_id, sub.google_location_id, consent_svc.REPLY_SCOPE):
+        return {"outcome": "held", "reason": "no_consent", "detail": "The owner has not given (or has withdrawn) consent for automatic replies at this location."}
     if sub.approved_by is None and sub.policy_rule is None:
         return {"outcome": "held", "reason": "no_person_approval", "detail": "A person must approve this before it is sent to Google."}
     gloc = db.get(GoogleLocation, sub.google_location_id)

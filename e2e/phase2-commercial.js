@@ -53,7 +53,7 @@ function expect(cond, msg) { if (!cond) throw new Error(msg); }
   let csrf, tenant, ready = false;
   const H = () => ({ 'X-CSRF-Token': csrf });
   try {
-    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: OWNER, password: PW, full_name: 'ZZ P2 Owner' } });
+    let r = await ctx.request.post('/api/v1/auth/register', { data: { email: OWNER, password: PW, age_confirmed: true, full_name: 'ZZ P2 Owner' } });
     expect(r.status() === 201, `register ${r.status()} ${await r.text()}`);
     csrf = (await r.json()).csrf_token;
     tenant = await (await ctx.request.post('/api/v1/tenants', { data: { name: NAME, category: 'Physiotherapy clinic', language: 'en' }, headers: H() })).json();
@@ -136,7 +136,7 @@ db.commit()
 
     await step('onboarding explains in plain language what connecting Google allows, and offers a path without a profile', async () => {
       const ctx2 = await browser.newContext({ baseURL: BASE });
-      let r = await ctx2.request.post('/api/v1/auth/register', { data: { email: OWNER2, password: PW, full_name: 'ZZ P2 Owner B' } });
+      let r = await ctx2.request.post('/api/v1/auth/register', { data: { email: OWNER2, password: PW, age_confirmed: true, full_name: 'ZZ P2 Owner B' } });
       expect(r.status() === 201, 'register 2 ' + r.status());
       const c2 = (await r.json()).csrf_token;
       await ctx2.request.post('/api/v1/tenants', { data: { name: NAME2, category: 'Dental clinic', language: 'en' }, headers: { 'X-CSRF-Token': c2 } });
@@ -160,7 +160,7 @@ db.commit()
     const ap = await actx.newPage();
     let adminOk = false;
     try {
-      let r = await actx.request.post('/api/v1/auth/register', { data: { email: ADMIN, password: ADMIN_PW, full_name: 'ZZ P2 Admin' } });
+      let r = await actx.request.post('/api/v1/auth/register', { data: { email: ADMIN, password: ADMIN_PW, age_confirmed: true, full_name: 'ZZ P2 Admin' } });
       if (r.status() === 409) r = await actx.request.post('/api/v1/auth/login', { data: { email: ADMIN, password: ADMIN_PW } });
       if (r.status() === 201 || r.status() === 200) {
         // Administrator rights are granted only when the mailbox is verified (Phase 2 security fix). This stack has no mail, so the verification is seeded here, then the admin signs in again.

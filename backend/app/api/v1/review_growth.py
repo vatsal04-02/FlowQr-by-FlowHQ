@@ -23,7 +23,7 @@ from app.schemas.review_growth import (
 )
 from app.services import entitlements as ent
 from app.services import review_growth as svc
-from app.services.ai import AIUnavailable, get_provider
+from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai.base import configured_identity
 from app.services.ai import health as ai_health
 from app.services.ai.review_generate import NeedsMoreDetail, ReviewDraftRejected, ReviewInput, clean_field, generate_review
@@ -351,7 +351,7 @@ def review_growth_settings(ctx: TenantContext = Depends(get_tenant_context)):
     connected = ctx.db.scalar(select(func.count()).select_from(GoogleConnection).where(
         GoogleConnection.tenant_id == ctx.tenant_id, GoogleConnection.status == GoogleConnectionStatus.active)) or 0
     return {
-        "ai": {"configured": settings.ai_configured, "provider": settings.ai_provider if settings.ai_configured else None,
+        "ai": {"configured": settings.ai_configured, "review_data_blocked": privacy.blocked_now(), "provider": settings.ai_provider if settings.ai_configured else None,
                "model": configured_identity()[1] if settings.ai_configured else None, "degraded": ai_health.current(),
                "used_this_month": usage_this_month(ctx.db, ctx.tenant_id), "monthly_limit": e.monthly_ai_generations},
         "limits": {"max_drafts_per_customer": settings.review_max_drafts_per_session, "max_campaigns": MAX_CAMPAIGNS},

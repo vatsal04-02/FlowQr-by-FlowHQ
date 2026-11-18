@@ -17,6 +17,7 @@ const MESSAGES: Record<string, string> = {
   already_linked: "A different Google account is already connected to this FlowQR account.",
   account_disabled: "This account is disabled. Contact FlowQR support.",
   session_mismatch: "You were signed in as a different user. Please try connecting Google again.",
+  age_required: "To create a new account with Google, go to Sign up and confirm that you are 18 years of age or older first. If you already have an account, log in with the email and password you registered with.",
   registration_restricted: "FlowQR is open to approved businesses only at the moment. If you expected access, contact FlowQR support. If you already have an account, log in with the email and password you registered with.",
 };
 
@@ -46,10 +47,14 @@ function GoogleG() {
 }
 
 /** Full-page navigation (not fetch): the server sets the OAuth cookie and redirects to Google. */
-export function GoogleButton({ label = "Continue with Google" }: { label?: string }) {
+export function GoogleButton({ label = "Continue with Google", ageConfirmed, onNeedAge }: { label?: string; ageConfirmed?: boolean; onNeedAge?: () => void }) {
   const [going, setGoing] = useState(false);
+  // The sign-up page passes `onNeedAge`: the button then does nothing but ask for the 18+ declaration until it is ticked, and sends `?age=1` once it is. The login page passes nothing (people with an account are unaffected).
+  if (onNeedAge && !ageConfirmed) {
+    return <button type="button" onClick={onNeedAge} className={buttonClass("secondary", "lg", "w-full")}><GoogleG />{label}</button>;
+  }
   return (
-    <a href={`${API_V1}/auth/google/start`} onClick={() => setGoing(true)} aria-busy={going || undefined}
+    <a href={`${API_V1}/auth/google/start${onNeedAge ? "?age=1" : ""}`} onClick={() => setGoing(true)} aria-busy={going || undefined}
       className={buttonClass("secondary", "lg", "w-full")}>
       <GoogleG />{going ? "Opening Google…" : label}
     </a>
@@ -82,8 +87,8 @@ export function useGoogleAvailable(): boolean | null {
 }
 
 /** The "Continue with Google" button plus its "or" divider, shown only when Google sign-in is really configured. Otherwise nothing: the email form is the whole page. */
-export function GoogleSignIn({ label, divider }: { label?: string; divider: string }) {
+export function GoogleSignIn({ label, divider, ageConfirmed, onNeedAge }: { label?: string; divider: string; ageConfirmed?: boolean; onNeedAge?: () => void }) {
   const available = useGoogleAvailable();
   if (!available) return null;
-  return (<><GoogleButton label={label} /><OrDivider>{divider}</OrDivider></>);
+  return (<><GoogleButton label={label} ageConfirmed={ageConfirmed} onNeedAge={onNeedAge} /><OrDivider>{divider}</OrDivider></>);
 }

@@ -7,7 +7,7 @@ const log = (...a) => console.log(...a);
 
 async function apiCtx(browser, email, name) {
   const ctx = await browser.newContext({ ignoreHTTPSErrors: !!process.env.IGNORE_HTTPS_ERRORS, baseURL: BASE });
-  const r = await ctx.request.post('/api/v1/auth/register', { data: { email, password: process.env.ADMIN_PASSWORD || 'Str0ngPassw0rd!', full_name: name } });
+  const r = await ctx.request.post('/api/v1/auth/register', { data: { email, password: process.env.ADMIN_PASSWORD || 'Str0ngPassw0rd!', age_confirmed: true, full_name: name } });
   if (r.status() === 409) {
     const l = await ctx.request.post('/api/v1/auth/login', { data: { email, password: process.env.ADMIN_PASSWORD || 'Str0ngPassw0rd!' } });
     return { ctx, csrf: (await l.json()).csrf_token };
@@ -42,6 +42,7 @@ async function apiCtx(browser, email, name) {
   await page.getByLabel('Password').blur();
   await page.screenshot({ path: `${OUT}/02-register-inline-error.png` });
   await page.getByLabel('Password').fill('Str0ngPassw0rd!');
+  await page.getByLabel(/18 years of age or older/).check();
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.waitForURL('**/onboarding');
 

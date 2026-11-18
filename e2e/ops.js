@@ -10,7 +10,7 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
 
 async function signedIn(browser, email, name) {
   const ctx = await browser.newContext({ baseURL: BASE });
-  let r = await ctx.request.post('/api/v1/auth/register', { data: { email, password: PASSWORD, full_name: name } });
+  let r = await ctx.request.post('/api/v1/auth/register', { data: { email, password: PASSWORD, age_confirmed: true, full_name: name } });
   if (r.status() === 409) r = await ctx.request.post('/api/v1/auth/login', { data: { email, password: PASSWORD } });
   expect(r.ok(), 'could not sign in ' + email + ' (' + r.status() + ')');
   return ctx;

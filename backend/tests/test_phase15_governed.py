@@ -438,7 +438,7 @@ def test_the_control_centre_reads_waiting_done_failed_and_usage_in_one_call(conn
     scheduled_post(connected, gid)
     publish_due_posts.run()
     cc = connected.get("/agent/control-centre").json()
-    assert cc["is_owner"] is True and cc["can_decide"] is True and cc["settings"]["enabled"] is True  # on by default since migration 0031
+    assert cc["is_owner"] is True and cc["can_decide"] is True and cc["settings"]["enabled"] is False  # OFF by default since migration 0044 (decision D2: automation is opt-in)
     assert [a["label"] for a in cc["problems"]] == ["Publish an approved Google Post"] and "not confirmed" in cc["problems"][0]["last_error"]
     u = cc["usage"]
     assert u["ai"]["generations_cap"] > 0 and "places" in u and u["autonomy"]["daily_limit"] == 3 and u["places"]["grid_enabled"] in (True, False)
@@ -455,6 +455,8 @@ def test_the_owners_emergency_stop_switches_autonomy_off_and_returns_policy_auth
     assert connected.put("/agent/knowledge", json={"description": "Physiotherapy for back and neck pain in Lucknow.", "services": ["Back care", "Neck pain physiotherapy"], "offers": [], "faqs": [], "prohibited_claims": []}).status_code == 200
     assert connected.post("/agent/google/refresh").json()["locations"][0]["ok"] is True
     connected.put("/agent/autonomy-settings", json={"enabled": True})
+    from app.services import consent as consent_svc
+    assert connected.post("/agent/consents", json={"location_id": gid, "scope": "description_improve", "wording_version": consent_svc.WORDING_VERSION}).status_code == 201  # D2: express consent
     db = SessionLocal(); set_rls_context(db, bypass=True)
     from app.models import GoogleLocation, Tenant
     a = executor.propose(db, db.get(Tenant, uuid.UUID(connected.tenant_id)), db.get(GoogleLocation, uuid.UUID(gid)), "description_improve",

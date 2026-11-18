@@ -20,7 +20,7 @@ def test_register_login_logout_and_cookies():
 
 def test_session_cookie_is_httponly_and_token_not_in_body():
     s = Session(None, f"c-{uuid.uuid4().hex[:6]}@example.com")
-    r = s.http.post("/api/v1/auth/register", json={"email": s.email, "password": s.password, "full_name": "Cookie Test"})
+    r = s.http.post("/api/v1/auth/register", json={"email": s.email, "password": s.password, "age_confirmed": True, "full_name": "Cookie Test"})
     sc = r.headers.get_list("set-cookie")
     session_cookie = next(c for c in sc if c.startswith("flowqr_session="))
     assert "HttpOnly" in session_cookie and "SameSite=lax" in session_cookie
@@ -38,13 +38,13 @@ def test_login_wrong_password_and_unknown_user_same_error():
 
 def test_weak_password_rejected():
     s = Session(None, "weak@example.com")
-    r = s.http.post("/api/v1/auth/register", json={"email": s.email, "password": "short", "full_name": "Weak"})
+    r = s.http.post("/api/v1/auth/register", json={"email": s.email, "password": "short", "age_confirmed": True, "full_name": "Weak"})
     assert r.status_code == 422
 
 
 def test_duplicate_email_rejected():
     s = make_user()
-    r = Session(None, s.email).http.post("/api/v1/auth/register", json={"email": s.email.upper(), "password": s.password, "full_name": "Dup"})
+    r = Session(None, s.email).http.post("/api/v1/auth/register", json={"email": s.email.upper(), "password": s.password, "age_confirmed": True, "full_name": "Dup"})
     assert r.status_code == 409
 
 
