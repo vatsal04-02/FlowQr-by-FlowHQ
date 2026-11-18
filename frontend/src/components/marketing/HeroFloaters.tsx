@@ -10,8 +10,8 @@ import { GoogleG, SampleTag } from "./kit";
  * Motion is CSS only (see .fc-in / .fc-float in globals.css), so the server and the browser draw the same markup: on load the cards start stacked behind the headline and
  * are dealt out to their places one after another, then each drifts up and down slowly. Under reduced motion they just sit still.
  *
- * From 1280px wide they sit in the empty space either side of the headline. Below that there is no space beside it, so the first four become a tidy two-column
- * grid under the buttons (the phone's first screen is still the heading and the two buttons). Every number on a card is sample data and says so.
+ * From 1280px wide they sit in the empty space either side of the headline. Below that there is no space beside it, so only the first two are shown, one a little to the left and one
+ * a little to the right, under the buttons (the phone's first screen is still the heading and the two buttons). Every number on a card is sample data and says so.
  */
 
 function Ring({ value }: { value: number }) {
@@ -63,10 +63,10 @@ const CARDS: Card[] = [
     extra: <span aria-label="Five stars" className="text-[13px] leading-none tracking-[1px] text-[#E8B04A]">★★★★★</span>,
     side: "r", top: 132, inset: "clamp(16px,2.2vw,44px)", from: ["-34vw", "120px", "13deg"], delay: 0.7, drift: [8, -1.5, -0.6], small: true },
   { id: "growth", title: "Growth score", text: "One score for reviews, replies and your profile, with the fixes that raise it.", icon: <Ring value={85} />, sample: true,
-    side: "l", top: 262, inset: "clamp(56px,6.4vw,112px)", from: ["30vw", "-10px", "9deg"], delay: 0.85, drift: [6.5, -2.5, 0.7], small: true },
+    side: "l", top: 262, inset: "clamp(56px,6.4vw,112px)", from: ["30vw", "-10px", "9deg"], delay: 0.85, drift: [6.5, -2.5, 0.7] },
   { id: "rank", title: "Local rankings", text: "See where you show up in Google Maps for the words you choose.", icon: <Tile><MapPin className="h-4 w-4" strokeWidth={1.75} /></Tile>,
     extra: <span className="rounded-full bg-m-tint px-2 py-0.5 text-[11px] font-semibold text-m-accentStrong">Rank 2</span>, sample: true,
-    side: "r", top: 288, inset: "clamp(48px,5.6vw,100px)", from: ["-30vw", "-30px", "-10deg"], delay: 1.0, drift: [7.5, 2, -0.5], small: true },
+    side: "r", top: 288, inset: "clamp(48px,5.6vw,100px)", from: ["-30vw", "-30px", "-10deg"], delay: 1.0, drift: [7.5, 2, -0.5] },
   { id: "posts", title: "Google posts", text: "Write and schedule posts for your offers and events.", icon: <Tile><CalendarCheck className="h-4 w-4" strokeWidth={1.75} /></Tile>,
     extra: <span className="rounded-full bg-m-ink/[.06] px-2 py-0.5 text-[11px] font-medium text-m-ink2">Scheduled</span>,
     side: "l", top: 468, inset: "clamp(16px,2.2vw,44px)", from: ["34vw", "-170px", "-12deg"], delay: 1.15, drift: [8.5, 0, 0.4] },
@@ -76,12 +76,12 @@ const CARDS: Card[] = [
 
 export function HeroFloaters() {
   return (
-    <ul aria-label="What FlowQR does" className="relative mx-auto mt-9 grid max-w-[520px] list-none grid-cols-2 gap-3 px-4 sm:gap-4 xl:pointer-events-none xl:absolute xl:inset-0 xl:z-0 xl:mx-0 xl:mt-0 xl:block xl:max-w-none xl:p-0">
+    <ul aria-label="What FlowQR does" className="relative mx-auto mt-9 flex max-w-[380px] list-none flex-col gap-3 px-4 xl:pointer-events-none xl:absolute xl:inset-0 xl:z-0 xl:mx-0 xl:mt-0 xl:block xl:max-w-none xl:p-0">
       {CARDS.map((c) => {
         const style = { "--xt": `${c.top}px`, "--xs": c.inset, "--xsx": c.from[0], "--xsy": c.from[1], "--xsr": c.from[2], "--d": `${c.delay}s`, "--fd": `${c.drift[0]}s`, "--fl": `${c.drift[1]}s`, "--fr": `${c.drift[2]}deg` } as CSSProperties;
         return (
           <li key={c.id} style={style}
-            className={clsx("fc-in min-w-0 xl:absolute xl:top-[var(--xt)] xl:w-[clamp(206px,16.4vw,246px)]", c.side === "l" ? "xl:left-[var(--xs)]" : "xl:right-[var(--xs)]", !c.small && "hidden xl:block")}>
+            className={clsx("fc-in min-w-0 max-xl:w-[90%] max-xl:odd:self-start max-xl:even:self-end xl:absolute xl:top-[var(--xt)] xl:w-[clamp(206px,16.4vw,246px)]", c.side === "l" ? "xl:left-[var(--xs)]" : "xl:right-[var(--xs)]", !c.small && "hidden xl:block")}>
             <div className="fc-float h-full">
               <div className="h-full rounded-[18px] border border-white/90 bg-white/[.88] p-3 text-left shadow-[0_22px_48px_-22px_rgba(11,15,46,.30),0_2px_6px_rgba(11,15,46,.05)] backdrop-blur-md sm:p-3.5">
                 <div className="flex items-center gap-2.5">
