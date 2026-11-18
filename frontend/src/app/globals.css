@@ -119,7 +119,10 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   .mkt-caret-blink { animation: mkt-caret .8s steps(1) 5 forwards; }
   @keyframes mkt-caret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 0; } }
   @keyframes mkt-marquee { to { transform: translateX(-50%); } }
-  @media (prefers-reduced-motion: reduce) { .mkt-marquee { animation: none; } }
+  /* the same loop running the other way (home FAQ, second row) */
+  .mkt-marquee-rev { animation: mkt-marquee-rev 60s linear infinite; }
+  @keyframes mkt-marquee-rev { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+  @media (prefers-reduced-motion: reduce) { .mkt-marquee, .mkt-marquee-rev { animation: none; } }
   /* Home hero cards: dealt out from behind the headline one after another, then a slow drift. Below 1280px they are a grid and just rise in. */
   .fc-in { --sx: 0px; --sy: 26px; --sr: 0deg; animation: fc-in 1.15s cubic-bezier(.3,1.25,.5,1) var(--d, 0s) backwards; }
   .fc-float { animation: fc-float var(--fd, 7s) ease-in-out var(--fl, 0s) infinite; }

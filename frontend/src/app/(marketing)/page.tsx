@@ -12,7 +12,8 @@ import { StepConnectArt, StepCounterArt, StepReviewsArt } from "@/components/mar
 import { MiniCard, OverviewScreen } from "@/components/marketing/Mockups";
 import { PhoneOrbit } from "@/components/marketing/PhoneOrbit";
 import { PinnedSteps } from "@/components/marketing/PinnedSteps";
-import { ComparisonTable, FAQ, FinalCTA } from "@/components/marketing/Sections";
+import { FaqScroller } from "@/components/marketing/FaqScroller";
+import { ComparisonTable, FinalCTA } from "@/components/marketing/Sections";
 import { en } from "@/content/marketing/en";
 import { pageMeta, SITE_URL } from "@/lib/site";
 
@@ -68,7 +69,7 @@ export default function Home() {
         rows={c.compare.rows.map(([feature, ...cells], i) => { const I = ROW_ICONS[i]; return { feature, cells, icon: <I className="h-3.5 w-3.5" strokeWidth={1.5} /> }; })} />
 
       {/* S8 FAQ */}
-      <FAQ tight items={c.faq.map(([q, a]) => [q, a === "PRICING_LINK" ? <span key="pricing">Plans are in rupees on our <Link href="/pricing" className="text-m-accentStrong underline">pricing page</Link>. Cards are sold separately.</span> : a])} />
+      <FaqScroller sub="Straight answers about reviews, replies, Google and cost." items={c.faq.map(([q, a]) => [q, a === "PRICING_LINK" ? <span key="pricing">Plans are in rupees on our <Link href="/pricing" className="text-m-accentStrong underline">pricing page</Link>. Cards are sold separately.</span> : a])} />
 
       {/* F. Feature strip + final CTA */}
       <FeatureStrip c={c.strip} />
