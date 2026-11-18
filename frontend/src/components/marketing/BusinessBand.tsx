@@ -2,7 +2,6 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { useReducedMotion } from "motion/react";
 import { Rise } from "./motion";
 
 /**
@@ -11,7 +10,6 @@ import { Rise } from "./motion";
  */
 export function BusinessBand({ title, items, all }: { title: string; items: [string, string][]; all: string }) {
   const [paused, setPaused] = useState(false);
-  const reduced = useReducedMotion();
   const row = (dup: boolean) => items.map(([id, name]) => (
     <li key={(dup ? "b" : "a") + id} aria-hidden={dup || undefined} className={dup ? "motion-reduce:hidden" : undefined}>
       <Link href={`/industries#${id}`} tabIndex={dup ? -1 : undefined} className="group flex items-center gap-8 whitespace-nowrap">
@@ -34,11 +32,9 @@ export function BusinessBand({ title, items, all }: { title: string; items: [str
           {row(false)}{row(true)}
         </ul>
       </div>
-      {!reduced && (
-        <div className="mt-4 flex justify-center motion-reduce:hidden">
-          <button type="button" aria-pressed={paused} onClick={() => setPaused((p) => !p)} className="inline-flex min-h-11 items-center rounded-full px-4 text-[13px] font-medium text-m-muted hover:text-m-ink">{paused ? "Play scrolling" : "Pause scrolling"}</button>
-        </div>
-      )}
+      <div className="mt-4 flex justify-center motion-reduce:hidden">
+        <button type="button" aria-pressed={paused} onClick={() => setPaused((p) => !p)} className="inline-flex min-h-11 items-center rounded-full px-4 text-[13px] font-medium text-m-muted hover:text-m-ink">{paused ? "Play scrolling" : "Pause scrolling"}</button>
+      </div>
     </section>
   );
 }
