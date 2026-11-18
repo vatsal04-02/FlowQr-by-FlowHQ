@@ -18,7 +18,7 @@ export function Hero({ line1, line2, typed, actions, center, left, chips, sub, l
   floaters?: ReactNode;
 }) {
   return (
-    <section className={clsx("relative isolate -mt-[76px] overflow-hidden", flow ? "pb-12 pt-[112px] md:pb-14 md:pt-[108px]" : "pb-16 pt-[140px] md:pb-24 md:pt-[188px]", floaters && "xl:min-h-[680px]")}>
+    <section className={clsx("relative isolate -mt-[76px] overflow-hidden", flow ? "pb-12 pt-[112px] md:pb-14 md:pt-[108px]" : "pb-16 pt-[140px] md:pb-24 md:pt-[188px]", floaters && "xl:min-h-[720px]")}>
       <HeroBackdrop />
       <div className="relative z-[1] mkt-wrap text-center">
         {kicker && <Rise className={clsx("flex justify-center", flow ? "mb-4" : "mb-6")}>{kicker}</Rise>}
