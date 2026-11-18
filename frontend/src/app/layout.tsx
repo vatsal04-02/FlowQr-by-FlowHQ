@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Inter, Noto_Sans_Devanagari, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -13,13 +13,13 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#F4F2EE" };
 
-// Fonts are downloaded once, when the site is built, and served from FlowQR's own domain: a visitor's browser never contacts Google's font servers (which would send their IP
-// address and browser details to Google before they have agreed to anything). The CSS variables are what tailwind.config.ts and globals.css use.
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-inter", display: "swap" });
-const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["700"], variable: "--font-jakarta", display: "swap" });
-const devanagari = Noto_Sans_Devanagari({ subsets: ["devanagari"], weight: ["400", "600"], variable: "--font-devanagari", display: "swap", preload: false }); // Hindi review page only
+// Fonts are files in this repository (src/fonts, see its README), served from FlowQR's own domain: a visitor's browser never contacts Google's font servers (which would send their IP
+// address and browser details to Google before they have agreed to anything), and neither does the build. The CSS variables are what tailwind.config.ts and globals.css use.
+const geist = localFont({ src: "../fonts/geist-latin.woff2", weight: "100 900", variable: "--font-geist", display: "swap" });
+const geistMono = localFont({ src: "../fonts/geist-mono-latin.woff2", weight: "100 900", variable: "--font-geist-mono", display: "swap" });
+const inter = localFont({ src: "../fonts/inter-latin.woff2", weight: "100 900", variable: "--font-inter", display: "swap" });
+const jakarta = localFont({ src: "../fonts/plus-jakarta-sans-700-latin.woff2", weight: "700", variable: "--font-jakarta", display: "swap" });
+const devanagari = localFont({ src: "../fonts/noto-sans-devanagari.woff2", weight: "100 900", variable: "--font-devanagari", display: "swap", preload: false }); // Hindi review page only
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

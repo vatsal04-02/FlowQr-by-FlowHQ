@@ -31,7 +31,7 @@ FlowQR's technical privacy basics are strong: no analytics, ad pixels, session r
 | # | Item | Result | Evidence |
 |---|---|---|---|
 | 8 | List of every third-party domain | **DONE** | Section 3. |
-| 9 | Self-host fonts; no requests to fonts.googleapis.com / fonts.gstatic.com | **FAIL → fixed** | `frontend/src/app/layout.tsx:21-24` (before the change) loaded Geist, Inter, Geist Mono, Plus Jakarta Sans and Noto Sans Devanagari from Google on every page, sending visitors' IP and browser details to Google. **Fixed** with `next/font` (files downloaded at build, served from FlowQR's domain). The built output contains no reference to either host (checked). |
+| 9 | Self-host fonts; no requests to fonts.googleapis.com / fonts.gstatic.com | **FAIL → fixed** | `frontend/src/app/layout.tsx:21-24` (before the change) loaded Geist, Inter, Geist Mono, Plus Jakarta Sans and Noto Sans Devanagari from Google on every page, sending visitors' IP and browser details to Google. **Fixed** with `next/font/local` (five font files committed in `frontend/src/fonts`, served from FlowQR's domain; see its README). The built output contains no reference to either host (checked). |
 | 10 | Embeds only after click/consent | **PASS** | No YouTube, map or social embed exists. Razorpay and Cashfree scripts are injected only after the user clicks a pay button (`frontend/src/lib/billing.ts:27-31,46`). Wikimedia pictures on `/industries` are text credit links, not loaded resources. |
 
 ### D. Cookies, analytics, session replay
@@ -96,14 +96,14 @@ FlowQR's technical privacy basics are strong: no analytics, ad pixels, session r
 
 | Change | Files | Verification |
 |---|---|---|
-| Fonts self-hosted through `next/font`; Google font `<link>` tags removed; Tailwind and CSS use the new CSS variables; the share-image canvas reads the page's own font | `frontend/src/app/layout.tsx`, `frontend/tailwind.config.ts`, `frontend/src/app/globals.css`, `frontend/src/app/(app)/growth/page.tsx` | `tsc --noEmit` clean; `npm run build` succeeds; the built output contains no `fonts.googleapis`/`fonts.gstatic` reference and the `.woff2` files are bundled; 23 frontend unit tests pass |
+| Fonts self-hosted: five files in `frontend/src/fonts` loaded with `next/font/local`; Google font `<link>` tags removed; Tailwind and CSS use the new CSS variables; the share-image canvas reads the page's own font | `frontend/src/app/layout.tsx`, `frontend/tailwind.config.ts`, `frontend/src/app/globals.css`, `frontend/src/app/(app)/growth/page.tsx` | `tsc --noEmit` clean; `npm run build` succeeds; the built output contains no `fonts.googleapis`/`fonts.gstatic` reference and the `.woff2` files are bundled; 23 frontend unit tests pass |
 | Demo form: WhatsApp box no longer pre-ticked; privacy-policy link added beside "we use these details only to contact you" | `frontend/src/components/marketing/DemoForm.tsx` | build clean |
 | Data export now includes 21 more tables; `publish_token` and `dedupe_key` are never exported; a note says photo files are not in the export; a test fails if a new tenant table is added without being exported | `backend/app/services/account.py`, `backend/tests/test_account_lifecycle.py` | 25 tests pass (account lifecycle + retention) |
 | New documents | `docs/PRIVACY_COMPLIANCE_AUDIT.md`, `docs/INCIDENT_AND_BREACH_RESPONSE.md`, `docs/PRIVACY_POLICY_DRAFT.md` | n/a |
 
 `backend/app/services/account.py` also holds the earlier, uncommitted Milestone 2 change (consent grants in the export). Review both together.
 
-Design note on fonts: this makes the **build** download the fonts from Google once (the marketing layout already did this for Inter Tight). The build machine needs internet access; visitors do not touch Google.
+Design note on fonts: the first version used `next/font/google` (a build-time download). It passed locally but **failed on Vercel's build** (`Cannot read properties of null` in Next's Google font loader: Google sometimes answers with font URLs that have no file extension), so the five font files were committed to the repository instead. Neither visitors nor the build touch Google for these fonts. The marketing layout's Inter Tight (another session's work) still uses `next/font/google` and carries the same build-time risk.
 
 ## 5. Needs your approval (changes what the product does, or sets a number)
 
