@@ -167,3 +167,32 @@ Independently verified first (read-only): certificate for `go.flowqr.site` issue
 **Action taken:** because a printed campaign code cannot be recalled, the value was restored from the backup the same hour (file byte-identical to the backup; api recreated; campaign addresses confirmed back to `https://flowqr.site/r/...`). No campaign link was produced in the window (no campaign API traffic in the log).
 **Fix prepared, not deployed:** `campaign_url` now follows `FRONTEND_URL` (the website serves `/r/`), identical to the old address while the two settings match, and the poster print gate judges the address actually encoded. New tests `tests/test_campaign_address.py`; campaign, poster, QR, inventory and card suites: 282 passed. Existing printed campaign codes (`flowqr.site/r/...`) are unaffected in either state.
 **To complete the switch:** deploy that fix, then set `PUBLIC_CARD_BASE_URL=https://go.flowqr.site` again and recreate only the api (the same steps), then re-run the checks above plus: a campaign address is still `https://flowqr.site/r/...`. Rollback is the backup file above plus `docker compose ... up -d --no-deps api`.
+
+## 18. Campaign fix deployed and `PUBLIC_CARD_BASE_URL` switched (2026-11-18)
+**Approved by the owner after section 17.** Code: backend `prod-548221c` = release tip + campaign fix (`dcf2662`) + a test-only stabilisation (`4deedbf`) + the latest frontend-only release commit (not deployed by this step; no Vercel change). Migration unchanged (0045).
+
+**Tests on the exact tree that shipped.** Backend, complete: **1995 passed, 0 failed, 0 skipped** (17 min 56 s; frontend sources mounted so the two frontend-dependent tests run). An earlier complete run of the same code had one failure, `test_provider_daily_cap_detection_is_precise`: its fixture stamps "reset in 5 hours" at collection time and the test requires more than 17000 s to remain, so it fails whenever the suite takes over about 1000 s to reach it (that run took 19 min). It passes alone and is unrelated to this change; the test now stamps the time when it runs. Frontend: typecheck clean, 40 tests passed, production build compiled. Change review: the shipped app code differs from the previous release by two lines (`campaign_url` -> `FRONTEND_URL`; poster gate judges the encoded address).
+
+**Deployment.** Guarded by a tag check; backups `pre-campaign-fix-20261118140242` (database, env, compose) and, for the base URL, `/opt/flowqr/backups/env.production.pre-go-base2-20261118140338` (mode 600). Step 1: api, worker, beat on `prod-548221c`, base URL still `https://flowqr.site`. Step 2: only the `PUBLIC_CARD_BASE_URL` line changed (every other env line identical to the backup), **only the API recreated**; worker and beat untouched.
+
+| Verification (read-only, inside the production container unless stated) | Result |
+|---|---|
+| Running app: base `https://go.flowqr.site`, `FRONTEND_URL` `https://flowqr.site`, hardened, config problems none | PASS |
+| Card addresses `go.flowqr.site/q/<code>`, `/n/<code>`, `/c/<code>`; QR and NFC differ only by the door letter | PASS |
+| 2 existing active campaigns: addresses `https://flowqr.site/r/...` (unchanged) | PASS |
+| A newly generated campaign address would be `https://flowqr.site/r/<id>` (pure function; every call site in `qr.py`, `review_growth.py`, `request_templates.py` uses it; a campaign was **not** created on production, by instruction) | PASS |
+| Posters for the card QR, the NFC address and an existing campaign decode to the exact address | PASS |
+| Poster print gate (hardened): card on go.flowqr.site allowed; campaign on flowqr.site allowed; `http://localhost`, plain `http`, bare IP refused with 409; batch export gate allows the new base | PASS |
+| Destinations refuse FlowQR's own hosts (`flowqr.site`, `www`, `go`, `www.go`) | PASS |
+| Emergency stop true; prepaid on; billing provider cashfree (all unchanged) | PASS |
+| Data fingerprints before/after identical: cards, batches, assignments, destination history, scan events (all empty), subscriptions, prepaid orders, payments | PASS |
+| Website home, login, pricing, admin inventory page 200; anonymous admin card list, admin analytics, prepaid offers 401 | PASS |
+| `go.flowqr.site`: unknown `/q` and `/n` 404, `/` -> 302 www, http -> 308 https; API `/go` unknown 404 | PASS |
+| Existing campaign pages `flowqr.site/r/<id>` load (HTML 200) | PASS |
+| API log, 10 minutes: no tracebacks | PASS |
+| Admin login and the authenticated inventory pages | NOT TESTED (no credentials used) |
+| Creating a campaign or a batch on production | NOT TESTED (forbidden by instruction) |
+
+**Rollback.** Base URL: `cp -p /opt/flowqr/backups/env.production.pre-go-base2-20261118140338 /opt/flowqr/.env.production` then `docker compose -p flowqr-production --env-file .env.production -f docker-compose.yml -f deploy/vps/docker-compose.vps.yml up -d --no-deps api`. Code: set `FLOWQR_TAG=prod-048b797` in the env file and recreate api, worker, beat the same way (that image is still on the server). Both leave the additive migrations in place.
+
+**Status for the physical test: ready to be scheduled, not run.** What remains is your approval of section 14's controlled test, which creates records on production.
