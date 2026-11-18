@@ -7,7 +7,7 @@ import { HeroFloaters } from "@/components/marketing/HeroFloaters";
 import { HeroActions } from "@/components/marketing/HeroActions";
 import { MButton, MicroChip } from "@/components/marketing/kit";
 import { AgentShowcase } from "@/components/marketing/AgentShowcase";
-import { FeatureStrip, StorySection } from "@/components/marketing/HomeSections";
+import { StorySection } from "@/components/marketing/HomeSections";
 import { StepConnectArt, StepCounterArt, StepReviewsArt } from "@/components/marketing/HomeVisuals";
 import { MiniCard, OverviewScreen } from "@/components/marketing/Mockups";
 import { PhoneOrbit } from "@/components/marketing/PhoneOrbit";
@@ -71,8 +71,7 @@ export default function Home() {
       {/* S8 FAQ */}
       <FaqScroller sub="Straight answers about reviews, replies, Google and cost." items={c.faq.map(([q, a]) => [q, a === "PRICING_LINK" ? <span key="pricing">Plans are in rupees on our <Link href="/pricing" className="text-m-accentStrong underline">pricing page</Link>. Cards are sold separately.</span> : a])} />
 
-      {/* F. Feature strip + final CTA */}
-      <FeatureStrip c={c.strip} />
+      {/* Final CTA */}
       <FinalCTA line1={c.cta.line1} line2={c.cta.line2} />
     </>
   );
