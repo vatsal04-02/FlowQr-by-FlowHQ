@@ -50,7 +50,9 @@ TABLES = [Location, GoogleConnection, GoogleLocation, Review, ReplyDraft, ReplyL
 # when a new tenant table is added without either being listed here or being named in EXPORTED_ELSEWHERE, so the export cannot silently fall behind again.
 _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_tasks", "ai_call_ledger", "ai_outputs", "api_usage_ledger", "business_knowledge",
                   "competitor_snapshots", "gbp_metric_daily", "gbp_snapshots", "health_snapshots", "membership_locations", "notification_prefs", "pinned_competitors",
-                  "promotional_grants", "rank_checks", "review_request_templates", "scheduled_media", "scheduled_posts", "subscription_events")
+                  "promotional_grants", "rank_checks", "review_request_templates", "scheduled_media", "scheduled_posts", "subscription_events",
+                  # added by the release since the first version of this list (prepaid checkout, QR/NFC destinations); the drift test found them
+                  "prepaid_orders", "prepaid_price_overrides", "card_destination_history")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 
