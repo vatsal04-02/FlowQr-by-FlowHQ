@@ -1,7 +1,7 @@
 "use client";
 import clsx from "clsx";
 import { useReducedMotion } from "motion/react";
-import { BarChart3, CalendarCheck, Clock, MessageSquareReply, Nfc, Pause, Play, Star } from "lucide-react";
+import { BarChart3, CalendarCheck, Clock, MapPin, MessageSquareReply, Nfc, Pause, Play, Search, Star } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { en } from "@/content/marketing/en";
 import { StripCardArt, StripInsightsArt, StripReplyArt } from "./HomeVisuals";
@@ -98,8 +98,8 @@ const TONE: Record<Tone, { card: string; icon: string; body: string }> = {
   white: { card: "bg-m-surface text-m-ink shadow-[var(--shadow-card)]", icon: "bg-m-tint text-m-accentStrong", body: "text-m-muted" },
   peach: { card: "bg-m-tint2 text-m-ink", icon: "bg-white/70 text-m-accentStrong", body: "text-m-ink2" },
 };
-const STRIP_ICONS = [Star, MessageSquareReply, Nfc, CalendarCheck, BarChart3];
-const STRIP_TONES: Tone[] = ["navy", "orange", "white", "peach", "navy"];
+const STRIP_ICONS = [Star, MessageSquareReply, Nfc, CalendarCheck, BarChart3, MapPin, Search];
+const STRIP_TONES: Tone[] = ["navy", "orange", "white", "peach", "navy", "orange", "white"];
 type StripItem = { kind: "card"; i: number } | { kind: "art"; node: ReactNode };
 // Feature cards in order, with a drawn illustration between some of them so the rhythm never repeats two like cards side by side (also across the loop seam).
 const STRIP: StripItem[] = [
@@ -109,6 +109,7 @@ const STRIP: StripItem[] = [
   { kind: "art", node: <StripReplyArt /> },
   { kind: "card", i: 4 },
   { kind: "art", node: <StripInsightsArt /> },
+  { kind: "card", i: 5 }, { kind: "card", i: 6 },
 ];
 
 export function FeatureStrip({ c }: { c: Home["strip"] }) {
@@ -133,7 +134,7 @@ export function FeatureStrip({ c }: { c: Home["strip"] }) {
   return (
     <section aria-label="What FlowQR gives you" className="py-10 md:py-14">
       <div className="overflow-hidden motion-reduce:overflow-x-auto" style={{ maskImage: "linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent)", WebkitMaskImage: "linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent)" }}>
-        <ul className="mkt-marquee flex w-max gap-4 px-4 py-2" style={{ animationPlayState: paused ? "paused" : undefined }}>
+        <ul className="mkt-marquee flex w-max gap-4 px-4 py-2" style={{ animationPlayState: paused ? "paused" : undefined, animationDuration: "51s" }}>
           {STRIP.map((it, i) => cell(it, `a${i}`, false))}
           {STRIP.map((it, i) => cell(it, `b${i}`, true))}
         </ul>

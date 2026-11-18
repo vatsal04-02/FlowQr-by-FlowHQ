@@ -32,7 +32,7 @@ export const en = {
       note: "Basic QR = a free, static code with one fixed link. \u2014 means not included.",
     },
     strip: {
-      cards: [["Easier customer reviews", "A card and a link that make it simple for genuine customers to share feedback."], ["AI-powered replies", "Suggested replies for the reviews you receive. You review and approve them."], ["QR + NFC cards", "One permanent link. Tap or scan, and change where it points without reprinting."], ["Google Business updates", "Draft posts and manage photos for your profile, then approve before they go live."], ["Business insights", "See how your Google profile is performing, and how many scans and taps your card gets."]] as [string, string][],
+      cards: [["Easier customer reviews", "A card and a link that make it simple for genuine customers to share feedback."], ["AI-powered replies", "Suggested replies for the reviews you receive. You review and approve them."], ["QR + NFC cards", "One permanent link. Tap or scan, and change where it points without reprinting."], ["Google Business updates", "Draft posts and manage photos for your profile, then approve before they go live."], ["Business insights", "See how your Google profile is performing, and how many scans and taps your card gets."], ["Local rankings", "Check where your business appears in Google Maps for the search words you choose, and watch it change over time."], ["Local SEO", "See the search terms people used to find your profile, with plain-language fixes for the gaps in it."]] as [string, string][],
       pause: "Pause scrolling", play: "Play scrolling",
     },
     faq: [

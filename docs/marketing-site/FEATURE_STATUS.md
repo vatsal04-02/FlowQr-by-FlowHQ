@@ -16,6 +16,7 @@ Checked against the code on 13 Nov 2026. "Built" means the code exists and is co
 | Separate QR / NFC analytics | Built | Shown |
 | Branded poster PNG/SVG/PDF | Built | Shown |
 | AI Growth Agent: daily plan, recommendations, approvals, activity log, business knowledge, automations | Built | Shown |
+| Local rank tracking (position among Google Maps results around the location for words the owner picks) and Google's own search terms for the profile, plus plain-language profile fixes | Built (covered by tests; positions are measured, never guaranteed, and are not what every searcher sees) | Shown on the home strip as "Local rankings" and "Local SEO" |
 | Multi-location, team access per location | Built | Shown |
 | Book-a-demo leads (`POST /api/v1/public/leads`) | Built (this change) | Demo form |
 | WhatsApp inbox, leads, appointments, follow-ups, campaigns | **Not built** ("Setup required" screens only) | Coming soon, FAQ only |
