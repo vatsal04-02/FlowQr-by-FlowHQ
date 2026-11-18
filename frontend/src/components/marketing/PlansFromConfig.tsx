@@ -13,12 +13,12 @@ import { motion } from "motion/react";
  * Plans read live from the app's subscription config (/billing/plans). There are deliberately no fallback numbers here:
  * if the config can't be read, the page says "Talk to us for pricing" (PRD §4.6).
  */
-function usePlansLive() {
+export function usePlansLive() {
   const { data, error, loading } = useFetch<PlansResponse>("/billing/plans");
   return { data: data && data.plans.length ? data : null, failed: !!error || (!!data && !data.plans.length), loading };
 }
 
-function TalkToUs() {
+export function TalkToUs() {
   return (
     <div className="mkt-card mx-auto max-w-[520px] p-8 text-center">
       <p className="t-h3 text-m-ink">Talk to us for pricing</p>
