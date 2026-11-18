@@ -39,7 +39,7 @@ const words = (s) => (s.match(/[A-Za-z]+|[ऀ-ॿ]+/g) || []).length;
   for (const b of BUSINESSES) {
     const api = await request.newContext({ baseURL: BASE });
     const email = `zz-ev-${Date.now().toString(36)}-${emails.length}@example.com`; emails.push(email);
-    const reg = await (await api.post("/api/v1/auth/register", { data: { email, password: "Str0ngPassw0rd!", full_name: "Eval" } })).json();
+    const reg = await (await api.post("/api/v1/auth/register", { data: { email, password: "Str0ngPassw0rd!", age_confirmed: true, full_name: "Eval" } })).json();
     const H = { "X-CSRF-Token": reg.csrf_token };
     await api.post("/api/v1/tenants", { headers: H, data: { name: b.name, category: b.category } });
     const loc = await (await api.post("/api/v1/locations", { headers: H, data: { name: "Main branch", city: "Lucknow", review_url: "https://g.page/r/EV/review" } })).json();

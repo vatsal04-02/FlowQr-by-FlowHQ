@@ -29,6 +29,10 @@ def on(connected, fake, gid):  # noqa: F811
     owner_exec("DELETE FROM platform_controls")
     # the test database is shared by the whole session and the job covers every business: leave other tests' businesses out of this one's counts
     owner_exec("UPDATE agent_settings SET auto_reply_enabled = false WHERE tenant_id <> :t", t=connected.tenant_id)
+    # decision D2: nothing is automatic without the owner's express consent for THIS location; the owner gives it through the real endpoint
+    from app.services import consent as consent_svc
+    r = connected.post("/agent/consents", json={"location_id": gid, "scope": consent_svc.REPLY_SCOPE, "wording_version": consent_svc.WORDING_VERSION})
+    assert r.status_code == 201, r.text
     return connected
 
 
@@ -110,10 +114,21 @@ def test_hindi_reviews_get_a_hindi_reply():
 
 
 # ----------------------------------------------------------------------------------------------------------------------------- defaults and the off switch
-def test_automatic_replies_and_autonomy_are_on_by_default_for_a_new_business_and_can_be_switched_off(connected):
+def test_automatic_replies_and_autonomy_are_off_by_default_for_a_new_business_and_need_consent_to_run(connected, fake, gid):
+    """Decision D2 (2026-11-17), reversing the 2026-11-15 default: nothing is automatic until the owner agrees, per location."""
     s = connected.get("/agent/auto-reply").json()
-    assert s["enabled"] is True and s["running"] is True and s["min_rating"] == 4 and s["using_built_in"] is True
-    assert connected.get("/agent/autonomy-settings").json()["enabled"] is True
+    assert s["enabled"] is False and s["running"] is False and s["min_rating"] == 4 and s["using_built_in"] is True
+    assert connected.get("/agent/autonomy-settings").json()["enabled"] is False
+    assert connected.put("/agent/auto-reply", json={"enabled": True}).status_code == 200
+    assert connected.put("/agent/autonomy-settings", json={"enabled": True}).status_code == 200
+    owner_exec("UPDATE agent_settings SET auto_reply_since = now() - interval '1 hour' WHERE tenant_id = :t", t=connected.tenant_id)  # switching on moves the cutoff to now: backdate it past the review
+    owner_exec("DELETE FROM platform_controls")
+    owner_exec("UPDATE agent_settings SET auto_reply_enabled = false WHERE tenant_id <> :t", t=connected.tenant_id)
+    sync(connected, fake, fresh(1))
+    assert run_job()["sent"] == 0 and fake.replies == []  # both switches on, but no consent for this location: nothing is sent
+    from app.services import consent as consent_svc
+    assert connected.post("/agent/consents", json={"location_id": gid, "scope": consent_svc.REPLY_SCOPE, "wording_version": consent_svc.WORDING_VERSION}).status_code == 201
+    assert run_job()["sent"] == 1 and len(fake.replies) == 1  # the same review is answered once the owner has agreed
     off = connected.put("/agent/auto-reply", json={"enabled": False}).json()
     assert off["enabled"] is False and off["running"] is False and "switched off" in off["not_running_because"]
 

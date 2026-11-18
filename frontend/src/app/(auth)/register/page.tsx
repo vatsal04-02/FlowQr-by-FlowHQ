@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { trialTerms, usePlans } from "@/lib/plans";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { GoogleSignIn, useGoogleError } from "@/components/GoogleAuth";
 import { Button } from "@/components/ui/Button";
@@ -32,6 +32,11 @@ export default function RegisterPage() {
   const router = useRouter();
   const { mandateRequired, trialDays } = usePlans();
   const [busy, setBusy] = useState(false);
+  // "I confirm that I am 18 years of age or older": never pre-ticked; the server refuses sign-up without it (backend/app/api/v1/auth.py) and no date of birth is collected.
+  const [age, setAge] = useState(false);
+  const [ageErr, setAgeErr] = useState(false);
+  const ageRef = useRef<HTMLInputElement>(null);
+  const needAge = () => { setAgeErr(true); ageRef.current?.focus(); };
   const f = useForm({ full_name: "", email: "", phone: "", password: "" }, {
     full_name: required("Your name"), email: emailRule, password: passwordRule, phone: phoneRule,
   });
@@ -49,10 +54,11 @@ export default function RegisterPage() {
     e.preventDefault();
     f.setServerError(null);
     if (!f.validateAll()) return;
+    if (!age) { needAge(); return; }
     setBusy(true);
     try {
       const v = f.values;
-      await api("/auth/register", { method: "POST", body: { full_name: v.full_name.trim(), email: v.email.trim(), phone: v.phone.trim() || null, password: v.password } });
+      await api("/auth/register", { method: "POST", body: { full_name: v.full_name.trim(), email: v.email.trim(), phone: v.phone.trim() || null, password: v.password, age_confirmed: true } });
       if (!(await refresh())) { f.fail("Your account was created, but your browser did not keep the session. Allow cookies for flowqr.site, then log in."); return; }
       router.replace("/onboarding");
     } catch (err) { f.fail(errorMessage(err)); } finally { setBusy(false); }
@@ -72,7 +78,18 @@ export default function RegisterPage() {
       mobileNote={<>{trialDays}-day free trial{trialTerms(mandateRequired) ? <> · {trialTerms(mandateRequired).replace(/\.$/, "")}</> : null}</>}
       points={["Create your account.", "Add your business. If you are on Google, we will find it for you.", mandateRequired ? "Pick a plan and authorise UPI AutoPay or a card. Your first payment is after the free trial." : "Pick a plan and start your free trial."]}>
       {mode === "allowlist" && <div className="mb-4"><Alert tone="info">FlowQR is open to approved businesses only at the moment. Register with the email address you gave us. Other addresses are not accepted yet.</Alert></div>}
-      <GoogleSignIn label="Sign up with Google" divider="or sign up with email" />
+      <div className="mb-4">
+        <label htmlFor="age-confirm" className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-ink-200 bg-white p-3">
+          <input ref={ageRef} id="age-confirm" type="checkbox" checked={age} onChange={(e) => { setAge(e.target.checked); if (e.target.checked) setAgeErr(false); }}
+            aria-required="true" aria-invalid={ageErr || undefined} aria-describedby={ageErr ? "age-confirm-error" : undefined} className="mt-0.5 h-5 w-5 shrink-0 accent-[#C94C00]" />
+          <span className="text-[14px] leading-relaxed text-ink-700">
+            I confirm that I am 18 years of age or older.
+            <span lang="hi" className="mt-1 block text-ink-500">मैं पुष्टि करता/करती हूँ कि मेरी आयु 18 वर्ष या उससे अधिक है।</span>
+          </span>
+        </label>
+        {ageErr && <p id="age-confirm-error" role="alert" className="mt-1.5 text-[13px] font-medium text-[#B3261E]">Please confirm that you are 18 years of age or older to create an account.</p>}
+      </div>
+      <GoogleSignIn label="Sign up with Google" divider="or sign up with email" ageConfirmed={age} onNeedAge={needAge} />
       <form onSubmit={submit} noValidate className="space-y-4">
         <ErrorSummary errors={f.errors} serverError={f.serverError} summaryRef={f.summaryRef} />
         <Input label="Your name" autoComplete="name" required {...f.bind("full_name")} />

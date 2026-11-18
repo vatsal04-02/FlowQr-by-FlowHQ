@@ -3,6 +3,7 @@ import re
 
 from app.services.ai.base import AIUnavailable, LLMProvider
 from app.services.ai.language import LANGUAGE_INSTRUCTION, detect_language
+from app.services.ai.privacy import ensure_review_data_allowed, redact
 
 SYSTEM = """You are a writing assistant that helps a real customer polish their own Google review.
 
@@ -24,11 +25,12 @@ def _clean(out: str) -> str:
 
 def improve_review(provider: LLMProvider, text: str, *, language: str, business_name: str, category: str | None) -> tuple[str, str]:
     """Returns (suggestion, language_used)."""
+    ensure_review_data_allowed(provider)  # fails safe before the customer's words are put in a prompt
     lang = detect_language(text) if language == "auto" else language
     user = (
         f"Business: {business_name}{' (' + category + ')' if category else ''}\n"
         f"{LANGUAGE_INSTRUCTION.get(lang, LANGUAGE_INSTRUCTION['en'])}\n\n"
-        f"<customer_text>\n{text}\n</customer_text>"
+        f"<customer_text>\n{redact(text)}\n</customer_text>"  # e-mail addresses, phone numbers and links are masked before anything leaves the server
     )
     out = _clean(provider.generate(SYSTEM, user, max_tokens=500, temperature=0.3))
     # Guardrails: refuse outputs that balloon beyond what the customer wrote (likely fabrication).

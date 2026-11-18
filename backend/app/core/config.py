@@ -114,7 +114,21 @@ class Settings(BaseSettings):
     places_suggest_enabled: bool = True  # PLACES_SUGGEST_ENABLED: business and address suggestions while setting up (uses the Places key above; no key = forms stay manual)
     places_suggest_user_daily_cap: int = 150  # Google calls (typing counts) one person may spend on suggestions per day
     places_suggest_monthly_cap: int = 3000  # the whole platform's Google calls for suggestions per month (0 = no cap)
-    account_deletion_grace_days: int = 14  # how long an owner can cancel a deletion request
+    account_deletion_grace_days: int = 14  # how long an owner can cancel a deletion request (a business), or a person can cancel deleting their own account
+    user_deletion_confirm_hours: int = 24  # the emailed "confirm deleting my account" link works once, for this long
+    reauth_window_minutes: int = 15  # deleting your own account needs a password, or (Google-only accounts) a sign-in this recent
+    # Provisional retention, owner-approved 2026-11-18, PENDING LEGAL REVIEW (not a statement of compliance). 0 = keep. The scheduled job is OFF until PRIVACY_RETENTION_ENABLED=true,
+    # so nothing is deleted just because this code was deployed; `privacy-retention-report` (CLI) counts what would go without deleting anything.
+    privacy_retention_enabled: bool = False
+    session_retention_days: int = 30  # ended (expired or signed-out) login sessions, which hold an IP address and a browser string
+    password_reset_token_retention_days: int = 30  # password-reset tokens, whether used or not (they stop working after minutes; this removes the rows)
+    audit_ip_retention_days: int = 365  # only the IP address is removed from an audit entry; the entry itself stays
+    lead_retention_days: int = 365  # demo requests from the marketing site
+    # AI safeguard (docs/PRIVACY_COMPLIANCE_AUDIT.md, finding 26e). Review text and customers' typed words are personal data. Gemini's data-use terms for this project's key have NOT been
+    # confirmed, so review data is not sent to Gemini unless GEMINI_DATA_TERMS_VERIFIED=true (set only after the owner has the evidence). AI_REVIEW_DATA_KILL_SWITCH=true stops review data
+    # going to ANY provider, at once. Neither setting changes AI that works only from the owner's own business facts (posts, ideas).
+    ai_review_data_kill_switch: bool = False
+    gemini_data_terms_verified: bool = False
     support_email: str = ""  # shown on the legal pages; empty = pages say it is not configured
     legal_company_name: str = "FlowHQ"
     review_session_retention_days: int = 90  # customer answers/drafts are deleted after this; aggregate analytics are kept

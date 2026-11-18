@@ -76,15 +76,15 @@ def google(monkeypatch):
     gl.clear_jwks_cache()
 
 
-def begin(fake: FakeGoogle, s: Session | None = None, link: bool = False):
-    """Click the button: returns (session, state, auth_query). Does NOT follow the redirect to Google."""
+def begin(fake: FakeGoogle, s: Session | None = None, link: bool = False, age: bool = True):
+    """Click the button: returns (session, state, auth_query). Does NOT follow the redirect to Google. `age` is what the sign-up page adds (?age=1) once the 18+ box is ticked."""
     s = s or Session(None, "anon")
     if link:
         r = s.post("/auth/google/link")
         assert r.status_code == 200, r.text
         url = r.json()["auth_url"]
     else:
-        r = s.http.get("/api/v1/auth/google/start", follow_redirects=False)
+        r = s.http.get("/api/v1/auth/google/start", params={"age": "1"} if age else None, follow_redirects=False)
         assert r.status_code == 303, r.text
         url = r.headers["location"]
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
@@ -405,7 +405,7 @@ def test_existing_password_login_and_registration_still_work():
     u = make_user()
     r = Session(None, u.email).http.post("/api/v1/auth/login", json={"email": u.email, "password": u.password})
     assert r.status_code == 200 and r.json()["user"]["has_local_login"] is True and r.json()["user"]["google_linked"] is False
-    assert u.http.post("/api/v1/auth/register", json={"email": u.email, "password": u.password, "full_name": "Dup"}).status_code == 409
+    assert u.http.post("/api/v1/auth/register", json={"email": u.email, "password": u.password, "age_confirmed": True, "full_name": "Dup"}).status_code == 409
 
 
 def test_business_profile_google_integration_is_untouched():

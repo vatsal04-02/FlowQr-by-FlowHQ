@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from app.core.config import settings
 from app.services.ai.base import AIUnavailable, LLMProvider
+from app.services.ai.privacy import ensure_review_data_allowed, redact
 
 STYLES = ("natural", "short", "detailed", "professional", "warm")
 LANGUAGES = ("en", "hi")
@@ -220,11 +221,11 @@ def _answers_block(inp: ReviewInput) -> str:
         if inp.topic_hi:
             lines.append("Hindi names for these topics (for a Hindi review): " + "; ".join(inp.topic_hi))
     if inp.note:
-        lines.append(f"The customer wrote: {inp.note}")
-        lines += [f"{label}: {v}" for label, v in (("Service received", inp.service), ("What they appreciated", inp.appreciated), ("Specific details", inp.details)) if v]
+        lines.append(f"The customer wrote: {redact(inp.note)}")  # e-mail addresses, phone numbers and links are masked before anything leaves the server
+        lines += [f"{label}: {redact(v)}" for label, v in (("Service received", inp.service), ("What they appreciated", inp.appreciated), ("Specific details", inp.details)) if v]
     elif not inp.topics:
-        lines += [f"Service received: {inp.service or '(not given)'}", f"What they appreciated: {inp.appreciated or '(not given)'}",
-                  f"Specific details they mentioned: {inp.details or '(not given)'}"]
+        lines += [f"Service received: {redact(inp.service) or '(not given)'}", f"What they appreciated: {redact(inp.appreciated) or '(not given)'}",
+                  f"Specific details they mentioned: {redact(inp.details) or '(not given)'}"]
     return "<customer_answers>\n" + "\n".join(lines) + "\n</customer_answers>"
 
 
@@ -596,6 +597,7 @@ def generate_review(provider: LLMProvider, inp: ReviewInput, *, language: str, s
     stats.update(attempts=0, rejects_rules=0, rejects_factcheck=0)  # filled in as we go, so callers can log cost/quality even when we raise
     if not inp.topics and is_too_vague(inp.text()):  # decided locally: no provider call, nothing guessed (a picked topic is something to write about)
         raise NeedsMoreDetail()
+    ensure_review_data_allowed(provider)  # fails safe before the customer's words are put in a prompt
     fact_check = settings.review_verify_with_ai if verify is None else verify
     location_terms = f"{location_name or ''} {category or ''}"
     reason: str | None = None

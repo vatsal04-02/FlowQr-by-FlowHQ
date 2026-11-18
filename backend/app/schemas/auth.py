@@ -23,6 +23,8 @@ class RegisterIn(BaseModel):
     password: str
     full_name: str = Field(min_length=2, max_length=200)
     phone: str | None = None
+    # "I confirm that I am 18 years of age or older." Defaults to False (never assumed); the endpoint refuses registration unless it is True. No date of birth is collected.
+    age_confirmed: bool = False
 
     _pw = field_validator("password")(_strong)
     _phone = field_validator("phone")(lambda v: normalize_phone(v))

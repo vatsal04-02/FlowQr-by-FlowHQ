@@ -27,6 +27,7 @@ from app.models import (
 from app.models.autonomy import LIVE_STATUSES
 from app.models.base import utcnow
 from app.models.tenancy import ROLE_RANK
+from app.services import consent as consent_svc
 from app.services import entitlements as ent
 from app.services import google as g
 from app.services.agent import autonomy_policy as pol
@@ -142,6 +143,8 @@ def propose(db: Session, tenant: Tenant, gloc: GoogleLocation, action_type: str,
         authz = "owner"
     if authz in ("policy", "preauthorized") and not ent.for_tenant(db, tenant.id).has("autonomy"):
         authz = "owner"  # the plan does not include autonomous maintenance: a person decides every change
+    if authz in ("policy", "preauthorized") and not consent_svc.has_active(db, tenant.id, gloc.id, decision.effective_type):
+        authz = "owner"  # no express consent for THIS location and THIS action type (decision D2): a person decides every change
     status = "blocked" if problems else ("approved" if authz in ("policy", "preauthorized") else "pending_approval")
     a = AgentAction(
         tenant_id=tenant.id, google_location_id=gloc.id, task_id=task_id, action_type=action_type, field_key=fk, trigger=trigger[:60], problem=problem, reason=reason,
@@ -396,10 +399,11 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
     autonomous = ap.basis in AUTONOMOUS_BASES
     if autonomous:
         perm = (srow.autonomy_permissions or {}).get(a.effective_type, "auto" if a.policy_level == 1 else "ask")
-        if not srow.autonomy_enabled or srow.autonomy_suspended_at or perm != "auto" or a.policy_level >= 3 or not ent.for_tenant(db, tenant.id).has("autonomy"):
-            ap.invalidated_at, ap.invalidated_reason = now, "autonomy was switched off, suspended or narrowed before execution"
+        consented = consent_svc.has_active(db, a.tenant_id, a.google_location_id, a.effective_type)
+        if not srow.autonomy_enabled or srow.autonomy_suspended_at or perm != "auto" or a.policy_level >= 3 or not ent.for_tenant(db, tenant.id).has("autonomy") or not consented:
+            ap.invalidated_at, ap.invalidated_reason = now, "autonomy was switched off, suspended, narrowed or its consent was withdrawn before execution"
             return _terminal(db, a, "pending_approval", "autonomy_withdrawn", {"reason": ap.invalidated_reason, "enabled": srow.autonomy_enabled,
-                                                                              "suspended": bool(srow.autonomy_suspended_at), "permission": perm}, now)
+                                                                              "suspended": bool(srow.autonomy_suspended_at), "permission": perm, "consent": consented}, now)
         if _autonomous_in_last_day(db, a.tenant_id, now) >= srow.autonomy_daily_limit:
             a.next_attempt_at = now + timedelta(hours=1)
             history.record(db, a, "held", actor="system", now=now, data={"reason": "the daily limit for autonomous changes is reached", "limit": srow.autonomy_daily_limit})
@@ -516,12 +520,18 @@ def _finish_verified(db: Session, a: AgentAction, gloc: GoogleLocation, now: dat
     return {"status": "executed", "verified": True}
 
 
-def withdraw_autonomous(db: Session, tenant_id: uuid.UUID, *, reason: str, user_id: uuid.UUID | None = None, now: datetime | None = None) -> int:
+def withdraw_autonomous(db: Session, tenant_id: uuid.UUID, *, reason: str, user_id: uuid.UUID | None = None, now: datetime | None = None,
+                        google_location_id: uuid.UUID | None = None, effective_type: str | None = None) -> int:
     """Return every action that was authorised by standing policy (not by a named person) to "waiting for a person", right now. Used by the owner's emergency stop so
     nothing waits for the next job run to be withdrawn. Person-approved actions are untouched: a person decided those."""
     now = now or utcnow()
     n = 0
-    for a in db.scalars(select(AgentAction).where(AgentAction.tenant_id == tenant_id, AgentAction.status == "approved", AgentAction.subject_type.is_(None)).with_for_update(skip_locked=True)):
+    q = select(AgentAction).where(AgentAction.tenant_id == tenant_id, AgentAction.status == "approved", AgentAction.subject_type.is_(None))
+    if google_location_id is not None:  # withdrawing ONE consent: only that location's, and that action type's, queued work
+        q = q.where(AgentAction.google_location_id == google_location_id)
+    if effective_type is not None:
+        q = q.where(AgentAction.effective_type == effective_type)
+    for a in db.scalars(q.with_for_update(skip_locked=True)):
         ap = _valid_approval(db, a)
         if ap is not None and ap.basis in AUTONOMOUS_BASES:
             ap.invalidated_at, ap.invalidated_reason = now, reason[:300]

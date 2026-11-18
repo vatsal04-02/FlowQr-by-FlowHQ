@@ -24,4 +24,4 @@ from app.models.ai_quality import AIOutput  # noqa: F401,E402
 from app.models.agent import (  # noqa: F401,E402
     AgentRun, AgentSettings, AgentTask, AgentTaskEvent, BusinessKnowledge, GbpSnapshot, HealthSnapshot, ScheduledMedia, ScheduledPost,
 )
-from app.models.autonomy import AgentAction, AgentActionApproval, AgentInterventionEvent, AgentRankFollowup, PlatformControl  # noqa: F401,E402
+from app.models.autonomy import AgentAction, AgentActionApproval, AgentInterventionEvent, AgentRankFollowup, ConsentGrant, PlatformControl  # noqa: F401,E402

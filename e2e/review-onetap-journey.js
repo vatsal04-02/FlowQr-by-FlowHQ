@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const email = `zz-ot-${Date.now().toString(36)}@example.com`;
   const browser = await chromium.launch({ executablePath: EDGE, headless: true });
   const owner = await browser.newContext({ viewport: { width: 1360, height: 900 } });
-  const reg = await (await owner.request.post(`${BASE}/api/v1/auth/register`, { data: { email, password: "Str0ngPassw0rd!", full_name: "One Tap" } })).json();
+  const reg = await (await owner.request.post(`${BASE}/api/v1/auth/register`, { data: { email, password: "Str0ngPassw0rd!", age_confirmed: true, full_name: "One Tap" } })).json();
   const H = { "X-CSRF-Token": reg.csrf_token }, R = owner.request;
   await R.post(`${BASE}/api/v1/tenants`, { headers: H, data: { name: "Sunrise Physio", category: "Physiotherapy clinic" } });
   const loc = await (await R.post(`${BASE}/api/v1/locations`, { headers: H, data: { name: "Gomti Nagar clinic", city: "Lucknow", review_url: GOOGLE } })).json();
