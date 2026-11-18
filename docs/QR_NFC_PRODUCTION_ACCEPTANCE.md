@@ -150,3 +150,20 @@ Rollback of code: set `FLOWQR_TAG` to the previous image and recreate api/worker
 | Security | PASS | Local: open redirect, injection-shaped paths, IDOR, anonymous/foreign access, rate limits; findings 1 and 2 fixed and deployed | Accept or fix findings 3 and 4 |
 | DNS go.flowqr.site | PASS | Four resolvers and both authoritative servers | none |
 | Permanent domain (HTTPS, Caddy) | BLOCKED | Block validated against production Caddy; not applied (file owner `deploy`); no certificate yet | Section 16 steps 1 to 3 |
+
+## 17. Switching `PUBLIC_CARD_BASE_URL` to `https://go.flowqr.site` (2026-11-18, attempted and rolled back)
+Independently verified first (read-only): certificate for `go.flowqr.site` issued by Let's Encrypt (valid 2026-11-18 to 2027-02-16, chain verifies); `http` -> 308 to `https`; unknown `/q`, `/n`, `/c` -> 404 `no-store`; `/` and `/api/v1/admin/cards`, traversal and extra segments -> 302 to the website; `?channel=` and `?url=` on a code do not change the result; `www` and `api` certificates unchanged.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Env backup | PASS | `/opt/flowqr/backups/env.production.pre-go-base-20261118130147` (mode 600) |
+| Value set, only that line changed | PASS | every other env line identical to the backup |
+| Only the API recreated (worker and beat do not render card addresses) | PASS | api healthy on `prod-048b797`, worker/beat untouched and healthy, port 172.17.0.1:18000 |
+| Application reads the setting | PASS | running container: base `https://go.flowqr.site`, `permanent_url_problem` None, config guard clean |
+| QR / NFC / old-door addresses | PASS | `go.flowqr.site/q/<code>`, `/n/<code>`, `/c/<code>`; posters for both decode to the exact address |
+| Existing cards, assignments, destinations, events | PASS | all five tables empty before and after (nothing existed to change); subscriptions, prepaid orders, payments fingerprints captured, no writes performed |
+| Safety settings | PASS | emergency stop true, prepaid on, billing provider unchanged |
+| **Campaign addresses** | **FAIL** | the same setting also builds campaign links (`campaign_url`), which came out as `https://go.flowqr.site/r/<id>`; that host serves only `/q`, `/n`, `/c` and sends everything else to the home page (verified: 302 to `www.flowqr.site`). Production has 2 active campaigns, so every new campaign link, QR download, poster and message link would have been dead |
+**Action taken:** because a printed campaign code cannot be recalled, the value was restored from the backup the same hour (file byte-identical to the backup; api recreated; campaign addresses confirmed back to `https://flowqr.site/r/...`). No campaign link was produced in the window (no campaign API traffic in the log).
+**Fix prepared, not deployed:** `campaign_url` now follows `FRONTEND_URL` (the website serves `/r/`), identical to the old address while the two settings match, and the poster print gate judges the address actually encoded. New tests `tests/test_campaign_address.py`; campaign, poster, QR, inventory and card suites: 282 passed. Existing printed campaign codes (`flowqr.site/r/...`) are unaffected in either state.
+**To complete the switch:** deploy that fix, then set `PUBLIC_CARD_BASE_URL=https://go.flowqr.site` again and recreate only the api (the same steps), then re-run the checks above plus: a campaign address is still `https://flowqr.site/r/...`. Rollback is the backup file above plus `docker compose ... up -d --no-deps api`.

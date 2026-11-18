@@ -51,8 +51,10 @@ def permanent_url_problem(base: str | None = None) -> str | None:
 
 
 def campaign_url(public_id: str) -> str:
-    """Review Growth campaign landing page. Same base URL as cards, so one short domain serves both."""
-    return f"{settings.public_card_base_url.rstrip('/')}/r/{public_id}"
+    """Review Growth campaign landing page. It is a page of the APP, served by the website, so its address follows FRONTEND_URL and NOT the card redirect domain: the redirect domain
+    (go.flowqr.site) carries only /q, /n and /c and sends everything else to the home page, so a campaign link built on it would be dead. While the two settings are the same (the
+    default, and production before go.flowqr.site) this is exactly the address campaigns have always had."""
+    return f"{settings.frontend_url.rstrip('/')}/r/{public_id}"
 
 
 def _qr(url: str):
