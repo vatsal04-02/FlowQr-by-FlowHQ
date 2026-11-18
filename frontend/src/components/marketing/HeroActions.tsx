@@ -14,14 +14,14 @@ export function HeroActions() {
   const [open, setOpen] = useState(false);
   return (
     <div className="flex w-full basis-full flex-col items-center md:mt-3">
-      <div className="flex w-full max-w-[420px] flex-col items-stretch gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-center">
+      <div className="flex items-center justify-center gap-2.5 md:gap-3">
         <Link href="/register" onClick={(e) => { track("signup_cta_click"); if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); setOpen(true); } }}
-          className="group inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-m-accent px-7 text-[16px] font-medium tracking-[-.01em] text-m-ink transition-colors duration-200 hover:bg-[#F06000]">
+          className="group inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-m-accent px-5 text-[15px] font-medium tracking-[-.01em] text-m-ink transition-colors duration-200 hover:bg-[#F06000] md:min-h-[52px] md:gap-2 md:px-7 md:text-[16px]">
           Start free trial<ArrowRight aria-hidden className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[3px]" strokeWidth={1.75} />
         </Link>
-        <Link href="/login" className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-m-ink/70 px-7 text-[16px] font-medium tracking-[-.01em] text-m-ink transition-colors duration-200 hover:bg-m-ink/[.04]">Log in</Link>
+        <Link href="/login" className="inline-flex min-h-11 items-center justify-center rounded-full border border-m-ink/70 px-5 text-[15px] font-medium tracking-[-.01em] text-m-ink transition-colors duration-200 hover:bg-m-ink/[.04] md:min-h-[52px] md:px-7 md:text-[16px]">Log in</Link>
       </div>
-      <TrialNote className="mt-4 text-[14px] text-m-muted" />
+      <TrialNote className="mt-3 text-[13px] text-m-muted md:mt-4 md:text-[14px]" />
       <SignupDialog open={open} onClose={() => setOpen(false)} />
     </div>
   );
