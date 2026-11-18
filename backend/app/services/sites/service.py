@@ -614,6 +614,14 @@ def create_enquiry(db: Session, *, host: str, payload: dict, ip: str | None) -> 
     e = SiteEnquiry(site_id=site.id, tenant_id=site.tenant_id, name=name, phone=phone, email=email or None, message=message, consent_at=utcnow(), status="new", ip_hash=iph)
     db.add(e)
     db.flush()
+    if payload.get("whatsapp_ok") and settings.whatsapp_enabled:
+        try:  # the visitor's own tick: record their WhatsApp consent and schedule the helper's messages. Never allowed to lose the enquiry.
+            with db.begin_nested():
+                from app.services.whatsapp import automations as wa_automations
+
+                wa_automations.on_enquiry(db, site.tenant_id, e, True)
+        except Exception:  # noqa: BLE001
+            log.warning("WhatsApp follow-up for an enquiry could not be scheduled")
     try:
         get_notifier().new_enquiry(site, e)
     except Exception:  # noqa: BLE001 - a notification problem must never lose the enquiry

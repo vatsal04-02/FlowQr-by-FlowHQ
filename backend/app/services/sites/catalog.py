@@ -74,7 +74,7 @@ SECTION_TYPES: dict[str, dict] = {
     "practice": {"label": "Practice areas", "fields": [heading(), area("intro", "Introduction", 300), lst("items", "Areas", [text("title", "Title", 80, True), area("detail", "Detail", 300)], 10)]},
     "hours": {"label": "Opening hours", "fields": [heading(), text("note", "Note under the hours", 160)]},
     "location": {"label": "Location and directions", "fields": [heading(), text("note", "Note (parking, landmark)", 200)]},
-    "contact": {"label": "Contact and enquiry", "fields": [heading(), area("intro", "Introduction", 300), _f("show_enquiry", "Show the enquiry form", "bool")]},
+    "contact": {"label": "Contact and enquiry", "fields": [heading(), area("intro", "Introduction", 300), _f("show_enquiry", "Show the enquiry form", "bool"), _f("whatsapp_optin", "Offer \"updates on WhatsApp\" on the enquiry form (needs WhatsApp automation)", "bool")]},
     "disclaimer": {"label": "Health disclaimer", "fields": [heading(), area("text", "Text", 500, True)]},
     "cta_band": {"label": "Call-to-action band", "fields": [text("heading", "Heading", 100, True), text("text", "Text", 200)]},
 }

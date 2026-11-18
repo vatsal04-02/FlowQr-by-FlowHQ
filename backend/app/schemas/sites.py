@@ -68,5 +68,6 @@ class EnquiryPublicIn(_Strict):
     email: str = Field(default="", max_length=400)
     message: str = Field(default="", max_length=4000)
     consent: bool = False
+    whatsapp_ok: bool = False  # the visitor ticked "updates on WhatsApp": their own consent to utility messages about this enquiry (recorded by services/whatsapp)
     website: str = Field(default="", max_length=200)  # honeypot
     client_ip: str | None = Field(default=None, max_length=64)

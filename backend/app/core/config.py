@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     whatsapp_graph_base_url: str = "https://graph.facebook.com"  # WHATSAPP_GRAPH_BASE_URL (tests and local development point this at a mock)
     whatsapp_event_retention_days: int = 30  # WHATSAPP_EVENT_RETENTION_DAYS: processed webhook events are deleted after this long
     whatsapp_connect_state_minutes: int = 15  # how long a "Connect WhatsApp" attempt stays valid
+    # Sending limits (Phase 2). They protect a business's number and quality rating; Meta's own tier limits still apply on top.
+    whatsapp_send_per_minute: int = 60  # WHATSAPP_SEND_PER_MINUTE: messages one business may send per minute
+    whatsapp_daily_cap: int = 1000  # WHATSAPP_DAILY_CAP: messages one business may send per day
+    whatsapp_marketing_gap_hours: int = 72  # WHATSAPP_MARKETING_GAP_HOURS: the least time between two marketing messages to the same person
+    whatsapp_review_gap_days: int = 30  # WHATSAPP_REVIEW_GAP_DAYS: the least time between two review requests to the same person
+    whatsapp_send_max_attempts: int = 5  # WHATSAPP_SEND_MAX_ATTEMPTS: a failing automation send is retried with growing delays, then marked failed (the dead letter)
+    whatsapp_campaign_batch: int = 40  # WHATSAPP_CAMPAIGN_BATCH: recipients one campaign sends per worker pass
 
     # Google OAuth / Business Profile (customers connect their OWN accounts via this app).
     google_client_id: str = ""

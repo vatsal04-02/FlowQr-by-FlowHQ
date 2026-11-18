@@ -9,7 +9,10 @@ from app.core.config import settings
 from app.core.deps import AuthContext, require_platform_admin
 from app.core.rate_limit import client_ip
 from app.models import Tenant
-from app.services.whatsapp import WaError, addons, connection, consent, rules
+from datetime import date
+from decimal import Decimal
+
+from app.services.whatsapp import WaError, addons, connection, consent, pricing, rules
 
 router = APIRouter(prefix="/admin", tags=["admin-whatsapp"])
 
@@ -43,3 +46,28 @@ def set_addon(tenant_id: uuid.UUID, body: AddonIn, request: Request, ctx: AuthCo
         ctx.db.rollback()
         raise HTTPException(status_code=exc.status, detail=exc.detail())
     return {"addon": addons.tier(addons.active_addon(ctx.db, t.id))}
+
+
+class RateIn(BaseModel):
+    category: str = Field(max_length=16)
+    rate: Decimal = Field(ge=0, le=1000)
+    effective_from: date
+    source: str = Field(min_length=10, max_length=300)
+    verified: bool = False
+
+
+@router.get("/whatsapp/rates")
+def rates(ctx: AuthContext = Depends(require_platform_admin)):
+    return {"items": pricing.list_rates(ctx.db), "note": pricing.NOTE}
+
+
+@router.post("/whatsapp/rates", status_code=201)
+def add_rate(body: RateIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    """Add a dated Meta rate (rates are never edited: a change is a new row with a new effective date)."""
+    try:
+        row = pricing.add_rate(ctx.db, ctx.user, category=body.category, rate=body.rate, effective_from=body.effective_from, source=body.source, verified=body.verified, ip=client_ip(request))
+        ctx.db.commit()
+    except WaError as exc:
+        ctx.db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.detail())
+    return pricing.serialize(row)

@@ -63,6 +63,8 @@ export const DESTS: Dest[] = [
     { href: "/whatsapp/connect", label: "Connect" },
     { href: "/whatsapp/contacts", label: "Customers" },
     { href: "/whatsapp/automations", label: "Automations" },
+    { href: "/whatsapp/campaigns", label: "Offers" },
+    { href: "/whatsapp/messages", label: "Messages" },
   ] },
   { id: "assistant", href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph, group: "assistant", children: [
     { href: "/ai/today", label: "Today" },

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { automationStatus, connectionWords, consentWords, csvPreview, nextStep, parseSignupMessage } from "../src/lib/whatsapp.ts";
+import { AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -86,4 +86,53 @@ test("an automation that is not ready is labelled for what it is", () => {
   assert.equal(automationStatus({ coming_soon: true, available: false }), "Coming soon");
   assert.equal(automationStatus({ coming_soon: false, available: true }), "Ready");
   assert.equal(automationStatus({ coming_soon: false, available: false }), "Not available");
+});
+
+test("money is shown in rupees with two decimals and never invented", () => {
+  assert.equal(rupees("2.59"), "₹2.59");
+  assert.equal(rupees("1234.5"), "₹1,234.50");
+  assert.equal(rupees("0"), "₹0.00");
+  for (const none of [null, undefined, "", "abc"]) assert.equal(rupees(none), "–");
+});
+
+test("every reason a message was not sent reads as a plain sentence", () => {
+  for (const r of ["no_utility_consent", "no_marketing_consent", "opted_out", "too_soon", "template_not_approved", "not_connected", "sending_disabled", "emergency_stop", "contact_deleted", "responded", "no_review_link",
+    "asked_recently", "automation_paused", "campaign_cancelled", "meta_rejected", "meta_unavailable", "rate_limited", "daily_cap", "invalid_variables", "token_expired", "internal_error"]) {
+    const w = reasonWords(r);
+    assert.ok(w.length > 10 && w.endsWith("."), r);
+    assert.ok(!/[_]|meta|api|webhook|token|template/i.test(w), `${r}: ${w}`);
+  }
+  assert.match(reasonWords("gave_up:meta_unavailable"), /tried several times and gave up/);
+  assert.equal(reasonWords("something_new"), "It was not sent.");
+  assert.equal(reasonWords(null), "");
+});
+
+test("who an offer goes to is always limited to people who agreed", () => {
+  for (const a of [undefined, { kind: "all" }, { kind: "tag", tag: "regular" }, { kind: "new", days: 30 }, { kind: "existing", days: 60 }]) assert.match(audienceWords(a), /agreed to receive offers/);
+  assert.match(audienceWords({ kind: "tag", tag: "regular" }), /“regular”/);
+});
+
+test("an offer cannot be approved until everything it needs is in place, and the reasons are plain", () => {
+  const all = { ready: { plan: true, connection: true, template_approved: true, has_recipients: true, sending_on: false } };
+  assert.deepEqual(campaignBlockers(all), []);  // sending being off does not block approval: it just waits
+  const none = campaignBlockers({ ready: { plan: false, connection: false, template_approved: false, has_recipients: false, sending_on: false } });
+  assert.equal(none.length, 4);
+  assert.ok(none.every((b) => b.endsWith(".") && !/api|token|webhook/i.test(b)));
+});
+
+test("every status the server can send has a label and a tone", () => {
+  for (const s of ["draft", "scheduled", "sending", "paused", "done", "cancelled"]) assert.ok(CAMPAIGN_STATUS[s].label && CAMPAIGN_STATUS[s].tone, s);
+  for (const s of ["scheduled", "sending", "sent", "skipped", "failed", "cancelled"]) assert.ok(RUN_STATUS[s].label, s);
+  for (const s of ["queued", "sent", "delivered", "read", "failed"]) assert.ok(MESSAGE_STATUS[s].label, s);
+  for (const s of ["approved", "pending", "rejected", "paused", "disabled"]) assert.ok(TEMPLATE_STATUS[s].label, s);
+  assert.notEqual(MESSAGE_STATUS.delivered.label, MESSAGE_STATUS.read.label);  // delivered is never called read
+});
+
+test("the helper settings use the same limits the server enforces", () => {
+  const r = AUTOMATION_FIELDS.review_followup[0];
+  assert.deepEqual([r.key, r.min, r.max], ["delay_minutes", 5, 10080]);
+  const e = AUTOMATION_FIELDS.enquiry_followup;
+  assert.equal(e.find((f) => f.key === "send_ack").bool, true);
+  const h = e.find((f) => f.key === "follow_up_hours");
+  assert.deepEqual([h.min, h.max], [1, 168]);
 });

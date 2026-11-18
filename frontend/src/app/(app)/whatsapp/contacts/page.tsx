@@ -10,7 +10,7 @@ import { api, apiFile, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { consentWords, csvPreview, CSV_TEMPLATE, SOURCE_WORDS, type WaContact, type WaContacts } from "@/lib/whatsapp";
+import { consentWords, csvPreview, CSV_TEMPLATE, reasonWords, SOURCE_WORDS, type WaContact, type WaContacts } from "@/lib/whatsapp";
 
 const PAGE = 25;
 type Purpose = "marketing" | "utility";
@@ -31,6 +31,12 @@ export default function Customers() {
 
   async function stopOffers(c: WaContact) {
     try { await api(`/whatsapp/contacts/${c.id}/opt-out`, { method: "POST", body: { purpose: "marketing" } }); toast("Done. This customer will not get offers."); void list.reload(); } catch (e) { toast(errorMessage(e)); }
+  }
+  async function visitDone(c: WaContact) {
+    try {
+      const r = await api<{ scheduled: boolean; reason: string }>(`/whatsapp/contacts/${c.id}/visit`, { method: "POST" });
+      toast(r.scheduled ? "Done. A request for honest feedback will go out shortly." : reasonWords(r.reason));
+    } catch (e) { toast(errorMessage(e)); }
   }
   async function doErase() {
     if (!erase) return;
@@ -72,6 +78,7 @@ export default function Customers() {
                 </div>
                 {isAdmin && <div className="flex flex-wrap gap-2">
                   {!c.opted_out && !(c.marketing && c.utility) && <Button size="sm" variant="secondary" onClick={() => setAgree(c)}>Record agreement</Button>}
+                  {c.utility && <Button size="sm" variant="secondary" onClick={() => void visitDone(c)}>Visit done</Button>}
                   {c.marketing && !c.opted_out && <Button size="sm" variant="secondary" onClick={() => void stopOffers(c)}>Stop offers</Button>}
                   <Button size="sm" variant="ghost" onClick={() => setErase(c)}>Delete</Button>
                 </div>}

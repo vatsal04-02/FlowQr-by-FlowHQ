@@ -17,8 +17,9 @@ from app.core.config import settings
 from app.core.deps import TenantContext, get_tenant_context, require_role
 from app.core.rate_limit import client_ip, hit
 from app.models import Role
-from app.models.whatsapp import WhatsAppTemplate
-from app.services.whatsapp import WaError, addons, connection, consent, rules
+from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
+from datetime import datetime as _dt
+from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, pricing, rules, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -228,17 +229,42 @@ def contact_erase(contact_id: uuid.UUID, request: Request, ctx: TenantContext = 
     return Response(status_code=204)
 
 
-# ---- templates and the catalogue
+# ---- templates (the fixed, neutral messages FlowQR submits to WhatsApp for the business)
+class InstallIn(BaseModel):
+    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer"]
+
+
 @router.get("/templates")
 def templates(ctx: TenantContext = Depends(get_tenant_context)):
     _on()
-    rows = ctx.db.scalars(select(WhatsAppTemplate).where(WhatsAppTemplate.tenant_id == ctx.tenant_id).order_by(WhatsAppTemplate.template_name))
-    return [{"id": t.id, "name": t.template_name, "language": t.language, "category": t.category, "status": t.approval_status, "body": t.body_text, "rejection_reason": t.rejection_reason,
-             "synced_at": t.last_synced_at} for t in rows]
+    rows = list(ctx.db.scalars(select(WhatsAppTemplate).where(WhatsAppTemplate.tenant_id == ctx.tenant_id).order_by(WhatsAppTemplate.template_name)))
+    have = {wa_templates.key_of(r.template_name) for r in rows}
+    return {"items": [wa_templates.serialize(t) for t in rows],
+            "available": [{"key": k, "category": v["category"], "body": v["body"], "installed": k in have} for k, v in wa_templates.STANDARD.items()]}
+
+
+@router.post("/templates/sync")
+def templates_sync(request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-template-sync:{ctx.tenant_id}", 30, 3600)
+    return _run(ctx, lambda: wa_templates.sync(ctx.db, ctx.tenant_id, ctx.user.id, client_ip(request)))
+
+
+@router.post("/templates/install")
+def templates_install(body: InstallIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-template-install:{ctx.tenant_id}", 30, 3600)
+    return _run(ctx, lambda: wa_templates.serialize(wa_templates.install(ctx.db, ctx.tenant_id, body.key, ctx.user.id, client_ip(request))))
+
+
+# ---- automations
+class AutomationIn(BaseModel):
+    status: Literal["on", "paused", "off"]
+    config: dict | None = None
 
 
 @router.get("/automations")
-def automations(ctx: TenantContext = Depends(get_tenant_context)):
+def automations_list(ctx: TenantContext = Depends(get_tenant_context)):
     _on()
     c = connection.connected_connection(ctx.db, ctx.tenant_id)
     addon = _addon_info(ctx.db, ctx.tenant_id)
@@ -246,5 +272,118 @@ def automations(ctx: TenantContext = Depends(get_tenant_context)):
     items = []
     for a in rules.CATALOGUE:
         ready = {"connection": c is not None and c.status == "connected", "addon": bool(addon) or not settings.whatsapp_require_addon, "customers": counts["marketing" if a["purpose"] == "marketing" else "utility"] > 0}
-        items.append({**a, "available": False, "coming_soon": True, "ready": ready})
-    return {"items": items, "limit": addon["automation_limit"] if addon else None}
+        item = {**a, "available": bool(a.get("live")), "coming_soon": not a.get("live"), "ready": ready}
+        if a["key"] in automations.DEFAULTS:
+            item["state"] = automations.serialize(ctx.db, ctx.tenant_id, a["key"])
+        if a["key"] == "offers":
+            item["campaigns_allowed"] = campaigns.can_use_campaigns(ctx.db, ctx.tenant_id)
+        items.append(item)
+    return {"items": items, "limit": addon["automation_limit"] if addon else None, "active": automations.active_count(ctx.db, ctx.tenant_id), "sending": automations.sending_allowed()}
+
+
+@router.put("/automations/{key}")
+def automation_set(key: Literal["review_followup", "enquiry_followup"], body: AutomationIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-automation:{ctx.tenant_id}", 60, 3600)
+    return _run(ctx, lambda: automations.set_status(ctx.db, ctx.tenant, ctx.user, key, body.status, body.config, client_ip(request)))
+
+
+@router.get("/automations/{key}/runs")
+def automation_runs(key: Literal["review_followup", "enquiry_followup"], status: Literal["scheduled", "sent", "skipped", "failed", "cancelled"] | None = None, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return automations.list_runs(ctx.db, ctx.tenant_id, key, 50, status)
+
+
+@router.post("/contacts/{contact_id}/visit")
+def contact_visit(contact_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """The owner marks this customer's visit as done: schedules one neutral request for honest feedback (if the helper is on and the customer agreed to visit updates)."""
+    _on()
+    _limit(f"wa-visit:{ctx.tenant_id}", 300, 3600)
+    return _run(ctx, lambda: automations.on_visit_completed(ctx.db, ctx.tenant, consent.get_contact(ctx.db, ctx.tenant_id, contact_id), ctx.user.id))
+
+
+# ---- campaigns (offers)
+class CampaignIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    template_id: uuid.UUID
+    audience: dict = Field(default_factory=lambda: {"kind": "all"})
+    variables: dict = Field(default_factory=dict)
+    scheduled_at: _dt | None = None
+
+
+class CampaignPatch(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    audience: dict | None = None
+    variables: dict | None = None
+    scheduled_at: _dt | None = None
+
+
+class ApproveIn(BaseModel):
+    confirm_recipients: int = Field(ge=0)
+    accept_estimate: bool = False
+
+
+@router.get("/campaigns")
+def campaigns_list(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    rows = ctx.db.scalars(select(WhatsAppCampaign).where(WhatsAppCampaign.tenant_id == ctx.tenant_id).order_by(WhatsAppCampaign.created_at.desc()).limit(100))
+    return {"items": [campaigns.serialize(c) for c in rows], "allowed": campaigns.can_use_campaigns(ctx.db, ctx.tenant_id), "sending": automations.sending_allowed()}
+
+
+@router.post("/campaigns", status_code=201)
+def campaign_create(body: CampaignIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-campaign-create:{ctx.tenant_id}", 60, 3600)
+    return _run(ctx, lambda: campaigns.serialize(campaigns.create(ctx.db, ctx.tenant, ctx.user, name=body.name, template_id=body.template_id, audience=body.audience, variables=body.variables, scheduled_at=body.scheduled_at, ip=client_ip(request))))
+
+
+@router.get("/campaigns/{campaign_id}")
+def campaign_get(campaign_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return _run(ctx, lambda: campaigns.preview(ctx.db, ctx.tenant, campaigns.get(ctx.db, ctx.tenant_id, campaign_id)))
+
+
+@router.patch("/campaigns/{campaign_id}")
+def campaign_patch(campaign_id: uuid.UUID, body: CampaignPatch, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    return _run(ctx, lambda: campaigns.preview(ctx.db, ctx.tenant, campaigns.update(ctx.db, ctx.tenant, campaigns.get(ctx.db, ctx.tenant_id, campaign_id), name=body.name, audience=body.audience,
+                                                                                    variables=body.variables, scheduled_at=body.scheduled_at, set_schedule="scheduled_at" in body.model_fields_set)))
+
+
+@router.post("/campaigns/{campaign_id}/approve")
+def campaign_approve(campaign_id: uuid.UUID, body: ApproveIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """The explicit final approval. It must repeat the recipient count the owner was shown and confirm the estimated WhatsApp charge."""
+    _on()
+    _limit(f"wa-campaign-approve:{ctx.tenant_id}", 60, 3600)
+    return _run(ctx, lambda: campaigns.preview(ctx.db, ctx.tenant, campaigns.approve(ctx.db, ctx.tenant, ctx.user, campaigns.get(ctx.db, ctx.tenant_id, campaign_id), confirm_recipients=body.confirm_recipients,
+                                                                                     accept_estimate=body.accept_estimate, ip=client_ip(request))))
+
+
+@router.post("/campaigns/{campaign_id}/{action}")
+def campaign_action(campaign_id: uuid.UUID, action: Literal["pause", "resume", "cancel"], request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    fn = {"pause": campaigns.pause, "resume": campaigns.resume, "cancel": campaigns.cancel}[action]
+    return _run(ctx, lambda: campaigns.serialize(fn(ctx.db, ctx.tenant, ctx.user, campaigns.get(ctx.db, ctx.tenant_id, campaign_id), client_ip(request))))
+
+
+@router.get("/campaigns/{campaign_id}/results")
+def campaign_results(campaign_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return _run(ctx, lambda: campaigns.results(ctx.db, ctx.tenant_id, campaigns.get(ctx.db, ctx.tenant_id, campaign_id)))
+
+
+# ---- usage and activity
+@router.get("/usage")
+def usage_summary(month: str | None = None, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    out = _run(ctx, lambda: usage.summary(ctx.db, ctx.tenant_id, month))
+    out["rates"] = {c: pricing.estimate(ctx.db, c, 1) for c in ("marketing", "utility")}
+    out["limits"] = {"per_minute": settings.whatsapp_send_per_minute, "per_day": settings.whatsapp_daily_cap}
+    return out
+
+
+@router.get("/messages")
+def message_activity(status: Literal["queued", "sent", "delivered", "read", "failed"] | None = None, campaign_id: uuid.UUID | None = None, limit: int = 50, offset: int = 0, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    total, items = usage.activity(ctx.db, ctx.tenant_id, limit=max(1, min(limit, 200)), offset=max(0, offset), status=status, campaign_id=campaign_id)
+    return {"total": total, "items": items}

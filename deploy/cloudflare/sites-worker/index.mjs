@@ -15,7 +15,7 @@ export const CSP = "default-src 'none'; script-src 'none'; style-src 'self'; img
 const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".webp": "image/webp", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml; charset=utf-8", ".svg": "image/svg+xml" };
 const LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const MAX_FORM_BYTES = 8192;
-const FIELDS = ["name", "phone", "email", "message", "consent", "website"];
+const FIELDS = ["name", "phone", "email", "message", "consent", "whatsapp_ok", "website"];
 
 export function slugFromHost(raw, base) {
   if (typeof raw !== "string" || raw.length === 0 || raw.length > 253 || /[^\x21-\x7e]/.test(raw)) return null;
@@ -118,6 +118,7 @@ async function enquiry(request, env, host, ptr) {
   const body = { host, client_ip: request.headers.get("CF-Connecting-IP") || null };
   for (const k of FIELDS) body[k] = String(form.get(k) ?? "").slice(0, 4000);
   body.consent = form.get("consent") === "yes";
+  body.whatsapp_ok = form.get("whatsapp_ok") === "yes";
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 8000);
   try {

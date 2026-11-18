@@ -49,19 +49,19 @@ ADDON_TIERS = {
 
 # ---- the automation catalogue shown to owners. Plain words; `available` is False in Phase 1 (nothing sends yet).
 CATALOGUE = [
-    {"key": "review_followup", "title": "Get more customer reviews", "purpose": "utility", "phase": 3,
+    {"key": "review_followup", "title": "Get more customer reviews", "purpose": "utility", "phase": 3, "live": True,
      "description": "After a visit, send one neutral message asking the customer to share their honest experience, with your review link.",
      "needs": ["A connected WhatsApp number", "The customer agreed to messages about their visit"]},
-    {"key": "enquiry_followup", "title": "Follow up with enquiries", "purpose": "utility", "phase": 3,
+    {"key": "enquiry_followup", "title": "Follow up with enquiries", "purpose": "utility", "phase": 3, "live": True,
      "description": "When someone contacts your business, send a quick thank-you and, if you have not replied, one gentle follow-up.",
      "needs": ["A connected WhatsApp number", "The customer agreed to messages about their enquiry"]},
-    {"key": "offers", "title": "Send offers to customers", "purpose": "marketing", "phase": 4,
+    {"key": "offers", "title": "Send offers to customers", "purpose": "marketing", "phase": 4, "live": True,
      "description": "Send an offer to customers who agreed to receive updates. You see who will get it and the likely WhatsApp charge before anything is sent, and you approve it first.",
      "needs": ["A connected WhatsApp number", "Customers who agreed to receive offers", "An approved message"]},
-    {"key": "birthday", "title": "Birthday and festival wishes", "purpose": "marketing", "phase": 4,
+    {"key": "birthday", "title": "Birthday and festival wishes", "purpose": "marketing", "phase": 4, "live": False,
      "description": "A short greeting on a customer's special day, only for customers who agreed to receive updates.",
      "needs": ["A connected WhatsApp number", "Customers who agreed to receive offers"]},
-    {"key": "winback", "title": "Bring back customers who stopped visiting", "purpose": "marketing", "phase": 4,
+    {"key": "winback", "title": "Bring back customers who stopped visiting", "purpose": "marketing", "phase": 4, "live": False,
      "description": "Message customers who have not visited for a time you choose, only if they agreed to receive updates.",
      "needs": ["A connected WhatsApp number", "Customers who agreed to receive offers"]},
 ]

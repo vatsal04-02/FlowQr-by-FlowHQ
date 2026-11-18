@@ -175,7 +175,7 @@ test("the form is relayed server to server with the token and nothing of the vis
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "https://api.example.test/api/v1/site-enquiry");
   const sent = JSON.parse(calls[0].init.body);
-  assert.deepEqual(sent, { host: `sharma.${BASE}`, client_ip: "203.0.113.7", name: "Asha Verma", phone: "98765 43210", email: "a@b.example", message: "Do you have a slot?", consent: true, website: "" });
+  assert.deepEqual(sent, { host: `sharma.${BASE}`, client_ip: "203.0.113.7", name: "Asha Verma", phone: "98765 43210", email: "a@b.example", message: "Do you have a slot?", consent: true, whatsapp_ok: false, website: "" });
   const h = calls[0].init.headers;
   assert.deepEqual(Object.keys(h).sort(), ["Content-Type", "X-Sites-Token"]);
   assert.equal(h["X-Sites-Token"], TOKEN);
@@ -240,4 +240,15 @@ test("the Worker contains no credential and no other origin than the API variabl
   assert.ok(!/set-cookie/i.test(src.replace(/\/\/.*$/gm, "")), "the Worker must not set cookies");
   assert.ok(!/request\.headers\.get\(["']cookie["']\)/i.test(src), "the Worker must not read cookies");
   assert.ok(!/x-forwarded-host|x-original-host/i.test(src.replace(/\/\/.*$/gm, "")), "the Worker must not use forwarded host headers");
+});
+
+test("the WhatsApp tick is relayed only when it is exactly yes", async () => {
+  const relayed = async (extra) => {
+    const calls = fakeApi(201);
+    await post(envWith({ pointers: live() }), form(extra), { Origin: `https://sharma.${BASE}` });
+    return JSON.parse(calls[0].init.body).whatsapp_ok;
+  };
+  assert.equal(await relayed({ whatsapp_ok: "yes" }), true);
+  assert.equal(await relayed({ whatsapp_ok: "true" }), false);
+  assert.equal(await relayed({}), false);
 });

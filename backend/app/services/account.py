@@ -61,7 +61,8 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   # the website builder: the business's own website content, hostnames, image metadata, enquiries and publish history (image FILES are added to the ZIP by build_export)
                   "sites", "site_domains", "site_assets", "site_enquiries", "site_revisions",
                   # WhatsApp automation: the connection (never its token), the people, their consents, opt-out hashes, templates, delivery records, the sanitised webhook log and the add-on
-                  "whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons")
+                  "whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
+                  "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 

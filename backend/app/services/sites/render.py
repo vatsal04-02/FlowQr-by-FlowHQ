@@ -198,6 +198,8 @@ def contact_block(ctx: Ctx, sec: dict) -> Raw:
                   el("label", {"class": "hp", "aria-hidden": "true"}, "Leave this empty", el("input", {"name": "website", "tabindex": -1, "autocomplete": "off"})),
                   el("label", {"class": "chk"}, el("input", {"type": "checkbox", "name": "consent", "value": "yes", "required": True}),
                      el("span", None, f"I agree that {b['name']} may contact me about this enquiry and keep my details for {ctx.retention} days. ", el("a", {"href": ctx.href("/privacy/")}, "Privacy notice"), ".")),
+                  el("label", {"class": "chk"}, el("input", {"type": "checkbox", "name": "whatsapp_ok", "value": "yes"}),
+                     el("span", None, f"I would also like updates about this enquiry on WhatsApp from {b['name']}. I can reply STOP at any time.")) if d.get("whatsapp_optin") else None,
                   el("button", {"class": "btn", "type": "button" if ctx.preview else "submit"}, "Send enquiry"),
                   el("p", {"class": "small"}, "Please give a phone number or an email so the business can reply."))
     return section(sid, el("div", {"class": "cols"}, el("div", None, left), form), "s")

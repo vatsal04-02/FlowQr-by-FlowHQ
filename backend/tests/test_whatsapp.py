@@ -940,12 +940,13 @@ def test_a_contact_of_another_business_can_never_pass_the_gate(wa, admin, monkey
 
 
 # ===================================================================== catalogue, export, deletion, config
-def test_the_catalogue_is_plain_language_and_nothing_is_available_yet(wa, admin):
+def test_the_catalogue_is_plain_language_and_only_the_built_helpers_are_available(wa, admin):
     biz = make_business("Cat Clinic")
     r = biz.get("/whatsapp/automations").json()
     titles = [i["title"] for i in r["items"]]
     assert "Get more customer reviews" in titles and "Follow up with enquiries" in titles and "Send offers to customers" in titles
-    assert all(i["available"] is False and i["coming_soon"] is True for i in r["items"]) and r["limit"] is None
+    live = {i["key"] for i in r["items"] if i["available"]}
+    assert live == {"review_followup", "enquiry_followup", "offers"} and all(i["coming_soon"] is (not i["available"]) for i in r["items"]) and r["limit"] is None
     blob = json.dumps(r).lower()
     for jargon in ("webhook", "api", "waba", "token", "phone_number_id", "cloud api"):
         assert jargon not in blob, jargon
@@ -1038,7 +1039,7 @@ def test_the_application_role_has_only_the_database_privileges_it_needs(wa):
     assert not has("whatsapp_suppressions", "UPDATE") and not has("whatsapp_connections", "TRUNCATE") and not has("tenant_addons", "DELETE")
 
 
-def test_the_migration_is_one_step_on_top_of_the_website_builder():
+def test_the_migrations_are_two_steps_on_top_of_the_website_builder():
     from pathlib import Path
 
     from alembic.config import Config
@@ -1046,7 +1047,8 @@ def test_the_migration_is_one_step_on_top_of_the_website_builder():
     cfg = Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0048"] and script.get_revision("0048").down_revision == "0047"
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0048"
+    assert script.get_heads() == ["0049"] and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0049"
     tables = {r[0] for r in owner_query("SELECT tablename FROM pg_tables WHERE tablename LIKE 'whatsapp_%' OR tablename = 'tenant_addons'")}
-    assert tables == {"whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons"}
+    assert tables == {"whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
+                      "whatsapp_rates", "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients"}

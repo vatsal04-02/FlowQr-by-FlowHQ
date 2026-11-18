@@ -191,6 +191,27 @@ def whatsapp_process_event(self, event_id: str):
         db.close()
 
 
+@celery_app.task(name="flowqr.whatsapp_run_due")
+def whatsapp_run_due():
+    """Send what is due: automation runs, then campaign batches. Holds everything (and sends nothing) unless WHATSAPP_ENABLED and WHATSAPP_SENDING_ENABLED are true and the emergency stop is off."""
+    from app.services.whatsapp import automations as wa_automations
+    from app.services.whatsapp import campaigns as wa_campaigns
+
+    if not wa_automations.sending_allowed():
+        return {"held": True}
+    db = system_session()
+    try:
+        out = {"automations": wa_automations.run_due(db), "campaigns": wa_campaigns.run_due(db)}
+        db.commit()
+        return out
+    except Exception:
+        db.rollback()
+        log.exception("whatsapp run_due failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.whatsapp_housekeeping")
 def whatsapp_housekeeping():
     """WhatsApp: re-queue stored events that were never processed, delete old events, re-check connections (expiring tokens). Does nothing unless WHATSAPP_ENABLED."""

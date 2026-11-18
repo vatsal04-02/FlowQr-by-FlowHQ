@@ -4,14 +4,15 @@ delivery records, the webhook event log, and the manually recorded add-on. Nothi
 Every table carries tenant_id with forced row-level security (migration 0048). Access tokens are stored encrypted (Fernet, TOKEN_ENCRYPTION_KEY) in `access_token_enc` and are never returned by an
 API, exported or logged."""
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
-from app.models.base import IdMixin, TimestampMixin
+from app.models.base import IdMixin, TimestampMixin, utcnow
 
 
 def _in(col: str, values) -> str:
@@ -168,6 +169,10 @@ class WhatsAppMessage(IdMixin, TimestampMixin, Base):
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_campaigns.id", ondelete="SET NULL"))
+    run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_automation_runs.id", ondelete="SET NULL"))
+    idempotency_key: Mapped[str | None] = mapped_column(String(200))  # one send per key per business: a retry or a re-run can never send twice
+    est_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))  # the rate in force when it was sent: an ESTIMATE of Meta's charge, not an invoice
 
 
 class WhatsAppWebhookEvent(IdMixin, Base):
@@ -209,3 +214,96 @@ class TenantAddon(IdMixin, TimestampMixin, Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     granted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+AUTOMATION_KEYS = ("review_followup", "enquiry_followup")
+AUTOMATION_STATUSES = ("off", "on", "paused")
+RUN_STATUSES = ("scheduled", "sending", "sent", "skipped", "failed", "cancelled")
+CAMPAIGN_STATUSES = ("draft", "scheduled", "sending", "paused", "done", "cancelled")
+RECIPIENT_STATUSES = ("pending", "sent", "skipped", "failed")
+RATE_CATEGORIES = ("marketing", "utility", "authentication", "service")
+
+
+class WhatsAppRate(IdMixin, Base):
+    """A dated Meta per-message rate. Global data (not per business). Rates change over time and by country, so they live here and never in code; a row is never edited, a new
+    effective date is added. `verified` is false until an administrator has checked the number against Meta's own rate card."""
+
+    __tablename__ = "whatsapp_rates"
+    __table_args__ = (CheckConstraint(_in("category", RATE_CATEGORIES), name="ck_wa_rate_category"), UniqueConstraint("country", "category", "effective_from", name="uq_wa_rate"))
+
+    country: Mapped[str] = mapped_column(String(2))
+    category: Mapped[str] = mapped_column(String(16))
+    rate: Mapped[Decimal] = mapped_column(Numeric(10, 4))
+    currency: Mapped[str] = mapped_column(String(3), default="INR")
+    effective_from: Mapped[date] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(String(300))
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppAutomation(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_automations"
+    __table_args__ = (CheckConstraint(_in("automation_key", AUTOMATION_KEYS), name="ck_wa_auto_key"), CheckConstraint(_in("status", AUTOMATION_STATUSES), name="ck_wa_auto_status"),
+                      UniqueConstraint("tenant_id", "automation_key", name="uq_wa_auto"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    automation_key: Mapped[str] = mapped_column(String(24))
+    status: Mapped[str] = mapped_column(String(8), default="off")
+    config: Mapped[dict] = mapped_column(JSONB, default=dict)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class WhatsAppAutomationRun(IdMixin, TimestampMixin, Base):
+    """One scheduled send caused by one trigger. The idempotency key (automation + trigger + step) is unique: a trigger that fires twice, or a worker that runs twice, sends once."""
+
+    __tablename__ = "whatsapp_automation_runs"
+    __table_args__ = (CheckConstraint(_in("status", RUN_STATUSES), name="ck_wa_run_status"), UniqueConstraint("idempotency_key", name="uq_wa_run_idem"), Index("ix_wa_run_due", "status", "scheduled_at"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    automation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_automations.id", ondelete="CASCADE"))
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="SET NULL"))
+    step: Mapped[str] = mapped_column(String(16))  # request | ack | followup
+    trigger_ref: Mapped[str] = mapped_column(String(120))
+    idempotency_key: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(10), default="scheduled")
+    reason: Mapped[str | None] = mapped_column(String(60))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    context: Mapped[dict] = mapped_column(JSONB, default=dict)  # what the send needs and nothing more (a first name, an enquiry id)
+
+
+class WhatsAppCampaign(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_campaigns"
+    __table_args__ = (CheckConstraint(_in("status", CAMPAIGN_STATUSES), name="ck_wa_campaign_status"), Index("ix_wa_campaign_due", "status", "scheduled_at"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    template_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_templates.id", ondelete="SET NULL"))
+    audience: Mapped[dict] = mapped_column(JSONB, default=dict)
+    variables: Mapped[list] = mapped_column(JSONB, default=list)
+    status: Mapped[str] = mapped_column(String(10), default="draft")
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_recipients: Mapped[int | None] = mapped_column(Integer)
+    approved_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))  # the ESTIMATE the owner saw and approved
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class WhatsAppCampaignRecipient(IdMixin, Base):
+    __tablename__ = "whatsapp_campaign_recipients"
+    __table_args__ = (CheckConstraint(_in("status", RECIPIENT_STATUSES), name="ck_wa_recipient_status"), UniqueConstraint("campaign_id", "contact_id", name="uq_wa_campaign_recipient"),
+                      Index("ix_wa_recipient_pending", "campaign_id", "status"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_campaigns.id", ondelete="CASCADE"))
+    contact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    reason: Mapped[str | None] = mapped_column(String(60))
+    message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_messages.id", ondelete="SET NULL"))

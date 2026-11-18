@@ -15,8 +15,26 @@ export interface WaContact {
   id: string; phone: string; customer_name: string | null; tags: string[]; source: string; created_at: string; marketing: WaConsentInfo | null; utility: WaConsentInfo | null; opted_out: boolean; opted_out_at: string | null;
 }
 export interface WaContacts { total: number; items: WaContact[]; counts: WaStatus["counts"]; wording: { marketing: string; utility: string } }
-export interface WaAutomation { key: string; title: string; description: string; purpose: "marketing" | "utility"; needs: string[]; available: boolean; coming_soon: boolean; ready: { connection: boolean; addon: boolean; customers: boolean } }
-export interface WaAutomations { items: WaAutomation[]; limit: number | null }
+export interface WaChecklist { connected: boolean; templates_installed: boolean; templates_approved: boolean; missing: string[]; waiting: string[]; refused: string[] }
+export interface WaAutomationState { key: string; status: "off" | "on" | "paused"; config: Record<string, number | boolean>; activated_at: string | null; last_run_at: string | null; runs: Record<string, number>; checklist: WaChecklist }
+export interface WaAutomation {
+  key: string; title: string; description: string; purpose: "marketing" | "utility"; needs: string[]; available: boolean; coming_soon: boolean; ready: { connection: boolean; addon: boolean; customers: boolean };
+  state?: WaAutomationState; campaigns_allowed?: boolean;
+}
+export interface WaAutomations { items: WaAutomation[]; limit: number | null; active: number; sending: boolean }
+export interface WaRun { id: string; step: string; status: string; reason: string | null; to: string | null; phone_last4: string | null; scheduled_at: string; executed_at: string | null; attempts: number }
+export interface WaTemplate { id: string; name: string; key: string | null; language: string; category: string; status: string; body: string | null; variables: string[]; rejection_reason: string | null; synced_at: string | null }
+export interface WaTemplates { items: WaTemplate[]; available: { key: string; category: string; body: string; installed: boolean }[] }
+export interface WaEstimate { category: string; count: number; rate: string | null; currency: string | null; amount: string | null; verified: boolean; note: string }
+export interface WaCampaign { id: string; name: string; status: "draft" | "scheduled" | "sending" | "paused" | "done" | "cancelled"; audience: { kind: string; tag?: string; days?: number }; variables: { offer_text?: string }; template_id: string | null;
+  scheduled_at: string | null; approved_at: string | null; approved_recipients: number | null; approved_cost: string | null; started_at: string | null; finished_at: string | null; created_at: string }
+export interface WaCampaignPreview { id: string; name: string; status: WaCampaign["status"]; audience: WaCampaign["audience"]; recipients: number; estimate: WaEstimate; message_preview: string | null; excluded_note: string;
+  ready: { plan: boolean; connection: boolean; template_approved: boolean; has_recipients: boolean; sending_on: boolean }; approved_recipients: number | null; approved_cost: string | null }
+export interface WaCampaignResults { id: string; name: string; status: string; approved_recipients: number | null; approved_estimate: string | null; attempted: number; sent: number; delivered: number; read: number; failed: number;
+  waiting: number; skipped: number; skipped_reasons: Record<string, number>; opted_out_after: number; estimated_meta_cost: string; note: string }
+export interface WaUsage { month: string; totals: { attempted: number; sent: number; delivered: number; read: number; failed: number }; by_category: Record<string, { attempted: number; sent: number; delivered: number; read: number; failed: number; estimated_cost: string }>;
+  estimated_meta_cost: string; currency: string; note: string; delivery_rate: number | null; rates: { marketing: WaEstimate; utility: WaEstimate }; limits: { per_minute: number; per_day: number } }
+export interface WaMessageRow { id: string; to: string | null; phone_last4: string | null; category: string | null; status: string; error_code: string | null; sent_at: string | null; delivered_at: string | null; read_at: string | null; created_at: string }
 export interface SignupStart { app_id: string; config_id: string; graph_version: string; state: string; expires_at: string }
 
 /** How a connection is described to a shop owner: plain words, a tone for the badge, and what to do next. */
@@ -124,3 +142,74 @@ export function csvPreview(text: string, max = 5): { header: string[]; rows: str
   const cut = (l: string) => l.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
   return { header: lines[0] ? cut(lines[0]) : [], rows: lines.slice(1, 1 + max).map(cut), total: Math.max(0, lines.length - 1) };
 }
+
+// ---- Phase 2 and 3: plain words for the helpers, campaigns, costs and messages
+
+/** Money as the owner sees it: rupees with two decimals, or a dash when no rate is known. Always an estimate; the screens say so. */
+export function rupees(v: string | null | undefined): string {
+  if (v === null || v === undefined || v === "") return "–";
+  const n = Number(v);
+  return Number.isFinite(n) ? `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–";
+}
+
+/** Why a message was not sent, in words an owner understands. Unknown codes read as a plain sentence, never a code. */
+export function reasonWords(reason: string | null | undefined): string {
+  const map: Record<string, string> = {
+    no_utility_consent: "They have not agreed to updates about their visit.", no_marketing_consent: "They have not agreed to receive offers.", opted_out: "They asked to stop offers.",
+    too_soon: "They already got an offer very recently.", template_not_approved: "WhatsApp has not approved the message yet.", not_connected: "WhatsApp is not connected.",
+    sending_disabled: "Sending is not switched on yet.", emergency_stop: "Sending is paused for everyone for now.", no_addon: "The WhatsApp add-on is not on.",
+    contact_deleted: "The customer was deleted.", responded: "Someone had already replied to them.", no_review_link: "Your Google review link is missing.", asked_recently: "They were asked recently.",
+    automation_paused: "The helper was paused.", automation_off: "The helper was switched off.", campaign_cancelled: "The campaign was cancelled.", meta_rejected: "WhatsApp did not accept it.",
+    meta_unavailable: "WhatsApp was not reachable. We will try again.", rate_limited: "Waiting for the sending limit.", daily_cap: "The daily limit was reached.", template_missing: "The message is not set up yet.",
+    invalid_variables: "Something in the message was empty.", token_expired: "The WhatsApp connection needs renewing.", internal_error: "Something went wrong. We will try again.",
+  };
+  if (!reason) return "";
+  if (reason.startsWith("gave_up:")) return "We tried several times and gave up. " + (map[reason.slice(8)] ?? "");
+  return map[reason] ?? "It was not sent.";
+}
+
+export const RUN_STATUS: Record<string, { label: string; tone: "green" | "amber" | "gray" | "red" }> = {
+  scheduled: { label: "Waiting to send", tone: "amber" }, sending: { label: "Sending", tone: "amber" }, sent: { label: "Sent", tone: "green" }, skipped: { label: "Not sent", tone: "gray" },
+  failed: { label: "Failed", tone: "red" }, cancelled: { label: "Cancelled", tone: "gray" },
+};
+
+export const CAMPAIGN_STATUS: Record<WaCampaign["status"], { label: string; tone: "green" | "amber" | "gray" | "red" | "blue" }> = {
+  draft: { label: "Draft", tone: "gray" }, scheduled: { label: "Approved, waiting to start", tone: "blue" }, sending: { label: "Sending", tone: "amber" }, paused: { label: "Paused", tone: "amber" },
+  done: { label: "Finished", tone: "green" }, cancelled: { label: "Cancelled", tone: "gray" },
+};
+
+/** Who a campaign goes to, in one line. */
+export function audienceWords(a: WaCampaign["audience"] | undefined): string {
+  if (!a || a.kind === "all") return "Everyone who agreed to receive offers";
+  if (a.kind === "tag") return `Customers in the group “${a.tag}” who agreed to receive offers`;
+  if (a.kind === "new") return `New customers from the last ${a.days} days who agreed to receive offers`;
+  if (a.kind === "existing") return `Customers added more than ${a.days} days ago who agreed to receive offers`;
+  return "Customers who agreed to receive offers";
+}
+
+/** What blocks a campaign from being approved, as a short list of plain sentences. Empty = ready. */
+export function campaignBlockers(p: Pick<WaCampaignPreview, "ready">): string[] {
+  const out: string[] = [];
+  if (!p.ready.plan) out.push("Campaigns are part of the Growth and Pro add-ons.");
+  if (!p.ready.connection) out.push("Connect your WhatsApp number.");
+  if (!p.ready.template_approved) out.push("WhatsApp has not approved the offer message yet.");
+  if (!p.ready.has_recipients) out.push("No customers who agreed to receive offers match this group.");
+  return out;
+}
+
+export const MESSAGE_STATUS: Record<string, { label: string; tone: "green" | "blue" | "gray" | "red" | "amber" }> = {
+  queued: { label: "Preparing", tone: "gray" }, sent: { label: "Sent", tone: "blue" }, delivered: { label: "Delivered", tone: "green" }, read: { label: "Read", tone: "green" }, failed: { label: "Not delivered", tone: "red" },
+};
+
+export const TEMPLATE_STATUS: Record<string, { label: string; tone: "green" | "amber" | "gray" | "red" }> = {
+  approved: { label: "Approved", tone: "green" }, pending: { label: "WhatsApp is reviewing", tone: "amber" }, rejected: { label: "Not approved", tone: "red" }, paused: { label: "Paused by WhatsApp", tone: "amber" }, disabled: { label: "Not available", tone: "gray" },
+};
+
+export const TEMPLATE_TITLES: Record<string, string> = { review_followup: "Review request", enquiry_ack: "Thank you for your enquiry", enquiry_followup: "Enquiry follow-up", offer: "Offer" };
+
+/** The helper's settings in words, with the limits the server enforces. */
+export type AutomationField = { key: string; label: string; bool: true } | { key: string; label: string; unit: string; min: number; max: number };
+export const AUTOMATION_FIELDS: Record<string, AutomationField[]> = {
+  review_followup: [{ key: "delay_minutes", label: "Send the review request after", unit: "minutes", min: 5, max: 10080 }],
+  enquiry_followup: [{ key: "send_ack", label: "Send a thank-you straight away", bool: true }, { key: "follow_up_hours", label: "Follow up if nobody has replied after", unit: "hours", min: 1, max: 168 }],
+};

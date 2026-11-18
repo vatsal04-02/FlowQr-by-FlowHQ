@@ -39,10 +39,10 @@ class MetaClient:
     def _url(self, path: str) -> str:
         return f"{settings.whatsapp_graph_base_url.rstrip('/')}/{settings.whatsapp_graph_version}/{path.lstrip('/')}"
 
-    def _call(self, method: str, path: str, *, token: str | None = None, params: dict | None = None, data: dict | None = None) -> dict:
+    def _call(self, method: str, path: str, *, token: str | None = None, params: dict | None = None, data: dict | None = None, json: dict | None = None) -> dict:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         try:
-            r = self._http.request(method, self._url(path), params=params, data=data, headers=headers)
+            r = self._http.request(method, self._url(path), params=params, data=data, json=json, headers=headers)
         except httpx.HTTPError as exc:  # never include the request (it can carry a secret)
             raise MetaError(f"Could not reach Meta ({type(exc).__name__})", retryable=True) from None
         try:
@@ -76,6 +76,36 @@ class MetaClient:
 
     def unsubscribe_app(self, token: str, waba_id: str) -> None:
         self._call("DELETE", f"{waba_id}/subscribed_apps", token=token)
+
+    # ---- templates and sending (Phase 2)
+    def list_templates(self, token: str, waba_id: str) -> list[dict]:
+        """Every message template of the account, following Meta's paging (bounded)."""
+        out: list[dict] = []
+        params: dict = {"fields": "id,name,language,category,status,components,rejected_reason", "limit": 100}
+        for _ in range(20):
+            body = self._call("GET", f"{waba_id}/message_templates", token=token, params=params)
+            out.extend(t for t in body.get("data", []) if isinstance(t, dict))
+            after = ((body.get("paging") or {}).get("cursors") or {}).get("after")
+            if not after or not (body.get("paging") or {}).get("next"):
+                break
+            params = {**params, "after": after}
+        return out
+
+    def create_template(self, token: str, waba_id: str, template: dict) -> dict:
+        """Submit a template for Meta's approval. The answer carries Meta's id, status and the category Meta decided on."""
+        return self._call("POST", f"{waba_id}/message_templates", token=token, json=template)
+
+    def send_template(self, token: str, phone_number_id: str, to: str, name: str, language: str, parameters: list[str]) -> str:
+        """Send an approved template. Returns Meta's message id (wamid). Only templates are ever sent: never free text."""
+        components = [{"type": "body", "parameters": [{"type": "text", "text": p} for p in parameters]}] if parameters else []
+        body = self._call("POST", f"{phone_number_id}/messages", token=token,
+                          json={"messaging_product": "whatsapp", "recipient_type": "individual", "to": to.lstrip("+"), "type": "template",
+                                "template": {"name": name, "language": {"code": language}, "components": components}})
+        msgs = body.get("messages") or []
+        wamid = msgs[0].get("id") if msgs and isinstance(msgs[0], dict) else None
+        if not wamid:
+            raise MetaError("Meta did not return a message id")
+        return wamid
 
 
 _client: MetaClient | None = None
