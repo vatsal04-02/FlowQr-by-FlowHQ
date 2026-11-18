@@ -13,7 +13,7 @@ export interface Tenant {
 export interface User { id: string; email: string; full_name: string; phone: string | null; picture_url?: string | null; is_platform_admin: boolean; email_verified_at: string | null; has_local_login: boolean; google_linked: boolean }
 export interface Me {
   user: User; memberships: { tenant: Tenant; role: Role }[]; active_tenant_id: string | null; csrf_token: string;
-  integrations: { google_configured: boolean; ai_configured: boolean; public_card_base_url: string };
+  integrations: { google_configured: boolean; ai_configured: boolean; public_card_base_url: string; whatsapp_enabled?: boolean };
 }
 export interface Location {
   id: string; name: string; address_line: string | null; city: string | null; state: string | null; postal_code: string | null;

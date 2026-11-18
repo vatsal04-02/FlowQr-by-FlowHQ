@@ -38,7 +38,8 @@ log = logging.getLogger("flowqr.account")
 
 # Never exported, whatever table they are in.
 SECRET_COLUMNS = {"data", "refresh_token_encrypted", "access_token_encrypted", "access_token_expires_at", "password_hash", "token_hash", "csrf_token",
-                  "visitor_hash", "logo_png", "idempotency_key", "publish_token", "dedupe_key"}
+                  "visitor_hash", "logo_png", "idempotency_key", "publish_token", "dedupe_key",
+                  "access_token_enc", "state_hash"}  # WhatsApp: the encrypted business token and the hashed one-time signup state
 MAX_ROWS = 200_000
 TABLES = [Location, GoogleConnection, GoogleLocation, Review, ReplyDraft, ReplyLog, QRCard, CardAssignment, ReviewCampaign, RetiredCampaignId,
           ReviewSession, ReviewDraft, ReviewEvent, ScanEvent, Subscription, Payment, CardOrder, AuditLog, AIGenerationLog, Invitation,
@@ -58,7 +59,9 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   # and the administrator-handled export / deletion requests for a business that has no owner login (a person's own requests about their business are their data too)
                   "data_requests", "data_request_events",
                   # the website builder: the business's own website content, hostnames, image metadata, enquiries and publish history (image FILES are added to the ZIP by build_export)
-                  "sites", "site_domains", "site_assets", "site_enquiries", "site_revisions")
+                  "sites", "site_domains", "site_assets", "site_enquiries", "site_revisions",
+                  # WhatsApp automation: the connection (never its token), the people, their consents, opt-out hashes, templates, delivery records, the sanitised webhook log and the add-on
+                  "whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 
@@ -148,6 +151,9 @@ def delete_tenant(db: Session, tenant_id: uuid.UUID, *, provider=None) -> dict:
                 log.warning("Google revoke failed during account deletion: %s", type(exc).__name__)
     from app.services.sites import service as sites_svc
 
+    from app.services.whatsapp import connection as wa_connection
+
+    wa_connection.on_tenant_delete(db, tenant_id)  # stops Meta sending this business's events to FlowQR (best effort; never blocks the deletion)
     sites_svc.on_tenant_delete(db, tenant_id)  # takes the website offline and holds its name for 90 days; raises (so nothing is deleted) if the hosting provider cannot remove it
     from app.services.cards import unassign_card
     cards_returned = 0

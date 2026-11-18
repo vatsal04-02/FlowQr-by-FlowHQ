@@ -64,11 +64,11 @@ export function BottomNav({ path, dests, moreOpen, onMore }: { path: string; des
  * The More sheet: everything that is not one of the four main places, in three named groups. It slides up over the page, closes with its button, the backdrop, Escape or by choosing a
  * page, keeps keyboard focus inside while open and returns focus to the More button. Motion respects the reduced-motion setting (MotionConfig in the app shell).
  */
-export function MoreSheet({ open, onClose, role, onSearch, supportEmail }: { open: boolean; onClose: () => void; role: Role | null; onSearch: () => void; supportEmail: string | null | undefined }) {
+export function MoreSheet({ open, onClose, role, whatsapp = false, onSearch, supportEmail }: { open: boolean; onClose: () => void; role: Role | null; whatsapp?: boolean; onSearch: () => void; supportEmail: string | null | undefined }) {
   const panel = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
   const back = useRef<Element | null>(null);
-  const groups = moreFor(role);
+  const groups = moreFor(role, { whatsapp });
 
   useEffect(() => {
     if (!open) return;

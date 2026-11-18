@@ -86,7 +86,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const sub = useFetch<SubscriptionInfo>(tenant ? "/billing/subscription" : null, undefined, { scope: tenant?.id ?? null });
   const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
   const legal = useFetch<{ support_email: string | null }>("/legal/info").data;
-  const dests = useMemo(() => navFor(role), [role]);
+  const waOn = !!me?.integrations.whatsapp_enabled;
+  const dests = useMemo(() => navFor(role, { whatsapp: waOn }), [role, waOn]);
   const counts = useCounts(tenant && tenant.onboarding_completed ? tenant.id : undefined);
   const google = useGoogleHeader(!!tenant && !!tenant.onboarding_completed);
   // the connected Google Business Profile's profile (logo) photo, from the last refresh; null (initials) until the profile has one
@@ -244,7 +245,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
         </main>
       </div>
       <BottomNav path={path} dests={dests} moreOpen={more} onMore={setMore} />
-      <MoreSheet open={more} onClose={() => setMore(false)} role={role} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
+      <MoreSheet open={more} onClose={() => setMore(false)} role={role} whatsapp={waOn} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
       <CommandPalette open={palette} onClose={() => setPalette(false)} dests={dests} />
     </div>
     <Tour open={tour} onClose={() => setTour(false)} />

@@ -1,7 +1,7 @@
 import { CircleHelp } from "lucide-react";
 import type { ComponentType } from "react";
 import { GbpIcon } from "@/components/icons/Gbp";
-import { ActivityGlyph, BillingGlyph, GrowthGlyph, HomeGlyph, LocationsGlyph, ReviewsGlyph, SettingsGlyph, TasksGlyph, TodayGlyph } from "@/components/icons/Nav";
+import { ActivityGlyph, BillingGlyph, GrowthGlyph, HomeGlyph, LocationsGlyph, ReviewsGlyph, SettingsGlyph, TasksGlyph, TodayGlyph, WhatsAppGlyph } from "@/components/icons/Nav";
 import type { Role } from "./types";
 
 /** One of FlowQR's own glyphs (components/icons/Nav.tsx), a brand mark (GBP), or a lucide icon: all take the same props. */
@@ -23,7 +23,9 @@ export type Child = {
   only?: Role[];
 };
 export type Group = "main" | "tools" | "assistant" | "account";
-export type Dest = { id: string; href: string; label: string; short?: string; desc: string; icon: NavIcon; group: Group; children?: Child[]; also?: string[]; only?: Role[] };
+export type Dest = { id: string; href: string; label: string; short?: string; desc: string; icon: NavIcon; group: Group; children?: Child[]; also?: string[]; only?: Role[]; flag?: "whatsapp" };
+/** Server switches that show or hide a destination (me.integrations). A switched-off feature has no menu entry at all. */
+export type NavFlags = { whatsapp?: boolean };
 
 export const GROUP_LABEL: Record<Group, string | null> = { main: null, tools: "Business", assistant: "Assistant", account: "Account" };
 
@@ -56,6 +58,12 @@ export const DESTS: Dest[] = [
     { href: "/gbp/locations", label: "Locations" },
     { href: "/overview/locations", label: "Compare" },
   ] },
+  { id: "whatsapp", href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, group: "tools", flag: "whatsapp", children: [
+    { href: "/whatsapp", label: "Overview" },
+    { href: "/whatsapp/connect", label: "Connect" },
+    { href: "/whatsapp/contacts", label: "Customers" },
+    { href: "/whatsapp/automations", label: "Automations" },
+  ] },
   { id: "assistant", href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph, group: "assistant", children: [
     { href: "/ai/today", label: "Today" },
     { href: "/ai/automations", label: "Helpers" },
@@ -87,9 +95,12 @@ export const DESTS: Dest[] = [
 /** The four destinations on the phone's bottom bar, in order. The fifth, More, opens the sheet below. */
 export const BOTTOM_IDS = ["home", "reviews", "seo", "growth"] as const;
 
-export type MoreItem = { href: string; label: string; desc: string; icon: NavIcon; only?: Role[]; help?: boolean };
+export type MoreItem = { href: string; label: string; desc: string; icon: NavIcon; only?: Role[]; help?: boolean; flag?: "whatsapp" };
 export const MORE_GROUPS: { label: string; items: MoreItem[] }[] = [
-  { label: "Business", items: [{ href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: LocationsGlyph }] },
+  { label: "Business", items: [
+    { href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: LocationsGlyph },
+    { href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, flag: "whatsapp" },
+  ] },
   { label: "Assistant", items: [
     { href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph },
     { href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph },
@@ -102,11 +113,11 @@ export const MORE_GROUPS: { label: string; items: MoreItem[] }[] = [
   ] },
 ];
 
-export function navFor(role: Role | null): Dest[] {
+export function navFor(role: Role | null, flags: NavFlags = {}): Dest[] {
   const ok = (only?: Role[]) => !only || (role !== null && only.includes(role));
-  return DESTS.filter((d) => ok(d.only)).map((d) => (d.children ? { ...d, children: d.children.filter((c) => ok(c.only)).map((c) => (c.tabs ? { ...c, tabs: c.tabs.filter((t) => ok(t.only)) } : c)) } : d));
+  return DESTS.filter((d) => ok(d.only) && (!d.flag || flags[d.flag])).map((d) => (d.children ? { ...d, children: d.children.filter((c) => ok(c.only)).map((c) => (c.tabs ? { ...c, tabs: c.tabs.filter((t) => ok(t.only)) } : c)) } : d));
 }
-export const moreFor = (role: Role | null) => MORE_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.only || (role !== null && i.only.includes(role))) }));
+export const moreFor = (role: Role | null, flags: NavFlags = {}) => MORE_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => (!i.only || (role !== null && i.only.includes(role))) && (!i.flag || flags[i.flag])) }));
 
 export type Located = { dest: Dest; child: Child | null; tab: Tab | null; detail: boolean };
 

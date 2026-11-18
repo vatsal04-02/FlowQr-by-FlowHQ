@@ -48,3 +48,6 @@ export const SettingsGlyph = glyph(<><circle cx="15" cy="8" r="2.4" /><circle cx
   <><path d="M4 8h8.6M17.4 8H20M4 16h2.6M11.4 16H20" /><circle cx="15" cy="8" r="2.4" /><circle cx="9" cy="16" r="2.4" /></>);
 
 export const BillingGlyph = glyph(<rect x="3" y="5.5" width="18" height="13" rx="3.5" />, <><rect x="3" y="5.5" width="18" height="13" rx="3.5" /><path d="M3 10h18M6.8 14.6H10" /></>);
+
+const CHAT = "M5.5 4.5h13A2.5 2.5 0 0 1 21 7v7.2a2.5 2.5 0 0 1-2.5 2.5h-6.6L7.6 20.3a.6.6 0 0 1-1-.45V16.7H5.5A2.5 2.5 0 0 1 3 14.2V7a2.5 2.5 0 0 1 2.5-2.5z";
+export const WhatsAppGlyph = glyph(<path d={CHAT} />, <><path d={CHAT} /><path d="M8.4 10.6h7.2M8.4 13.3h4.4" /></>);

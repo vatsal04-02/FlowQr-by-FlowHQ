@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.v1 import (
-    leads, webhooks,
+    leads, webhooks, whatsapp, whatsapp_webhook, admin_whatsapp,
     account, admin, admin_businesses, admin_data_requests, admin_sites, site_public, agent, autonomy_actions, analytics, auth_google, billing, gbp, posts, reports, workspace, auth, cards, go, google, locations, public, qr, review_growth, review_public, reviews, tenants, notifications, photos, request_templates, admin_users, rank, rank_grid, ops, places, seo
 )
 from app.core.config import assert_production_safe, settings
@@ -85,5 +85,5 @@ def ready():
 
 
 API = "/api/v1"
-for module in (ops, leads, notifications, photos, rank, rank_grid, request_templates, admin_users, account, agent, autonomy_actions, posts, reports, workspace, auth, auth_google, tenants, locations, cards, qr, admin, admin_businesses, admin_data_requests, admin_sites, site_public, public, go, review_public, review_growth, google, reviews, analytics, billing, gbp, places, seo, webhooks):
+for module in (ops, leads, notifications, photos, rank, rank_grid, request_templates, admin_users, account, agent, autonomy_actions, posts, reports, workspace, auth, auth_google, tenants, locations, cards, qr, admin, admin_businesses, admin_data_requests, admin_sites, site_public, public, go, review_public, review_growth, google, reviews, analytics, billing, gbp, places, seo, webhooks, whatsapp, whatsapp_webhook, admin_whatsapp):
     app.include_router(module.router, prefix=API)

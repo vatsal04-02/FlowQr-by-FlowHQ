@@ -56,6 +56,22 @@ class Settings(BaseSettings):
     r2_access_key_id: str = ""  # R2_ACCESS_KEY_ID: an R2 token limited to that one bucket (object read and write)
     r2_secret_access_key: str = ""  # R2_SECRET_ACCESS_KEY
 
+    # WhatsApp automation (each business connects its OWN number through Meta Embedded Signup; official Cloud API only). OFF by default: with WHATSAPP_ENABLED=false every WhatsApp route answers
+    # "whatsapp_disabled", the webhook answers 404 and nothing else in FlowQR changes. Phase 1 never sends a message: WHATSAPP_SENDING_ENABLED is reserved for Phase 2 and has no effect yet.
+    # META_APP_ID / META_APP_SECRET (above) are the FlowQR Meta app; docs/WHATSAPP_AUTOMATION.md lists what must exist in the Meta dashboard.
+    whatsapp_enabled: bool = False  # WHATSAPP_ENABLED
+    whatsapp_signup_enabled: bool = False  # WHATSAPP_SIGNUP_ENABLED: lets a business start Embedded Signup (needs Meta credentials)
+    whatsapp_webhook_enabled: bool = False  # WHATSAPP_WEBHOOK_ENABLED: the Meta webhook accepts events
+    whatsapp_sending_enabled: bool = False  # WHATSAPP_SENDING_ENABLED: reserved for Phase 2 (nothing in Phase 1 sends)
+    whatsapp_emergency_stop: bool = False  # WHATSAPP_EMERGENCY_STOP: platform-wide, no WhatsApp message may be sent (also checked by the Phase 2 sender)
+    whatsapp_require_addon: bool = True  # WHATSAPP_REQUIRE_ADDON: a business needs an active add-on (recorded by an administrator) before it can connect a number
+    whatsapp_embedded_signup_config_id: str = ""  # WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID: the Embedded Signup configuration created in the Meta dashboard
+    whatsapp_webhook_verify_token: str = ""  # WHATSAPP_WEBHOOK_VERIFY_TOKEN: the string typed into the Meta dashboard; answers the one-time verification challenge
+    whatsapp_graph_version: str = "v23.0"  # WHATSAPP_GRAPH_VERSION
+    whatsapp_graph_base_url: str = "https://graph.facebook.com"  # WHATSAPP_GRAPH_BASE_URL (tests and local development point this at a mock)
+    whatsapp_event_retention_days: int = 30  # WHATSAPP_EVENT_RETENTION_DAYS: processed webhook events are deleted after this long
+    whatsapp_connect_state_minutes: int = 15  # how long a "Connect WhatsApp" attempt stays valid
+
     # Google OAuth / Business Profile (customers connect their OWN accounts via this app).
     google_client_id: str = ""
     google_client_secret: str = ""
@@ -471,6 +487,17 @@ def config_problems(s: Settings) -> list[str]:
             p.append("Razorpay keys must be removed while BILLING_PROVIDER=cashfree (one payment provider only)")
         if s.cashfree_authorization_paise < 100:
             p.append("CASHFREE_AUTHORIZATION_PAISE cannot be below 100 (Cashfree's minimum authorisation for UPI and cards is Rs 1)")
+    if s.whatsapp_enabled:
+        if not s.token_encryption_key:
+            p.append("TOKEN_ENCRYPTION_KEY is required when WHATSAPP_ENABLED is true (WhatsApp access tokens are stored encrypted)")
+        if s.whatsapp_webhook_enabled and (len(s.whatsapp_webhook_verify_token or "") < 24 or not s.meta_app_secret):
+            p.append("WHATSAPP_WEBHOOK_VERIFY_TOKEN (at least 24 characters) and META_APP_SECRET are required when WHATSAPP_WEBHOOK_ENABLED is true")
+        if s.whatsapp_signup_enabled:
+            for name, v in (("META_APP_ID", s.meta_app_id), ("META_APP_SECRET", s.meta_app_secret), ("WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID", s.whatsapp_embedded_signup_config_id)):
+                if not v:
+                    p.append(f"{name} is required when WHATSAPP_SIGNUP_ENABLED is true")
+        if not s.whatsapp_graph_base_url.startswith("https://"):
+            p.append("WHATSAPP_GRAPH_BASE_URL must be https")
     if s.sites_enabled:
         base = (s.sites_base_domain or "").strip().lower().lstrip(".")
         if not base or "." not in base or base.endswith(".localhost"):

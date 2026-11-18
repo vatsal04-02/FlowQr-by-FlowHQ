@@ -66,6 +66,7 @@ def build_me(db: Session, user: User, sess: AuthSession) -> MeOut:
             "google_configured": settings.google_configured,
             "ai_configured": settings.ai_configured,
             "public_card_base_url": settings.public_card_base_url,
+            "whatsapp_enabled": settings.whatsapp_enabled,
         },
     )
 

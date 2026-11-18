@@ -160,6 +160,63 @@ def retry_failed_replies():
         db.close()
 
 
+@celery_app.task(name="flowqr.whatsapp_process_event", bind=True, max_retries=5)
+def whatsapp_process_event(self, event_id: str):
+    """Process one stored, signature-verified Meta delivery (idempotent). Retries with exponential backoff; after the last attempt the event is marked failed, never silently dropped."""
+    import uuid as _uuid
+
+    from app.core.config import settings
+
+    if not (settings.whatsapp_enabled and settings.whatsapp_webhook_enabled):
+        return {"enabled": False}
+    from app.models.whatsapp import WhatsAppWebhookEvent
+    from app.services.whatsapp import webhook as wa_webhook
+
+    db = system_session()
+    try:
+        out = wa_webhook.process_event(db, _uuid.UUID(event_id))
+        db.commit()
+        return out
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        log.warning("WhatsApp event %s failed (attempt %s): %s", event_id, self.request.retries + 1, type(exc).__name__)
+        if self.request.retries >= self.max_retries:
+            ev = db.get(WhatsAppWebhookEvent, _uuid.UUID(event_id))
+            if ev is not None:
+                ev.status, ev.error = "failed", type(exc).__name__[:200]
+                db.commit()
+            return {"failed": True}
+        raise self.retry(exc=exc, countdown=min(900, 15 * 2 ** self.request.retries))
+    finally:
+        db.close()
+
+
+@celery_app.task(name="flowqr.whatsapp_housekeeping")
+def whatsapp_housekeeping():
+    """WhatsApp: re-queue stored events that were never processed, delete old events, re-check connections (expiring tokens). Does nothing unless WHATSAPP_ENABLED."""
+    from app.core.config import settings
+
+    if not settings.whatsapp_enabled:
+        return {"enabled": False}
+    from app.services.whatsapp import connection as wa_connection
+    from app.services.whatsapp import webhook as wa_webhook
+
+    db = system_session()
+    try:
+        ids = wa_webhook.stale_event_ids(db)
+        out = {"requeued": len(ids), "purged": wa_webhook.purge_old(db), **wa_connection.check_all(db)}
+        db.commit()
+        for i in ids:
+            wa_webhook.enqueue(i)
+        return out
+    except Exception:
+        db.rollback()
+        log.exception("whatsapp housekeeping failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.sites_housekeeping")
 def sites_housekeeping():
     """Websites: expire paid-until dates, suspend sites whose grace period ended or whose business is suspended, delete enquiries past their retention. Does nothing unless SITES_ENABLED."""
