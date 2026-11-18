@@ -8,6 +8,7 @@ import { StripCardArt, StripInsightsArt, StripReplyArt } from "./HomeVisuals";
 import { GoogleG, MButton, SampleTag } from "./kit";
 import { Stars } from "./Mockups";
 import { Rise } from "./motion";
+import { Parallax, ScrollSettle } from "./scroll";
 
 type Home = typeof en.home;
 /** One vertical rhythm for the home sections below the hero: 56px on phones, 80px from md. */
@@ -75,12 +76,12 @@ export function StorySection({ c }: { c: Home["story"] }) {
 
           {/* What they see: a Google-style review panel over a real shopping street */}
           <Rise y={20} blur={false} delay={0.1}>
-            <div className="relative overflow-hidden rounded-[24px] bg-m-navy px-4 py-6 sm:px-6 sm:py-8">
-              <span aria-hidden className="absolute -left-16 -top-16 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,rgba(254,106,5,.45),rgba(254,106,5,0))]" />
-              <span aria-hidden className="absolute -bottom-20 -right-16 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgba(255,178,122,.35),rgba(255,178,122,0))]" />
+            <ScrollSettle><div className="relative overflow-hidden rounded-[24px] bg-m-navy px-4 py-6 sm:px-6 sm:py-8">
+              <Parallax speed={36} className="absolute -left-16 -top-16 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,rgba(254,106,5,.45),rgba(254,106,5,0))]" />
+              <Parallax speed={-30} className="absolute -bottom-20 -right-16 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgba(255,178,122,.35),rgba(255,178,122,0))]" />
               <span aria-hidden className="absolute inset-0 opacity-50 [background-image:radial-gradient(rgba(255,255,255,.16)_1px,transparent_1.2px)] [background-size:20px_20px]" />
               <div className="relative flex justify-center"><ReviewScreenshot /></div>
-            </div>
+            </div></ScrollSettle>
             <p className="mt-3 text-center text-[13px] text-m-muted">Sample data. An illustration of how reviews can look on Google.</p>
           </Rise>
         </div>

@@ -1,5 +1,5 @@
 "use client";
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "motion/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { EASE } from "./motion";
 
@@ -24,15 +24,19 @@ function usePointer() {
 
 export function HeroBackdrop() {
   const { x, y } = usePointer();
-  const far = { x: useTransform(x, (v) => v * -40), y: useTransform(y, (v) => v * -30) };
-  const near = { x: useTransform(x, (v) => v * 70), y: useTransform(y, (v) => v * 50) };
+  // the pointer moves the layers sideways at different speeds; scrolling carries them up at different speeds too (the far glows trail the page, the near ones lead it), and the rings turn slowly
+  const { scrollY } = useScroll();
+  const reduced = useReducedMotion();
+  const far = { x: useTransform(x, (v) => v * -40), y: useTransform([y, scrollY], ([v, s]: number[]) => v * -30 + (reduced ? 0 : s * 0.12)) };
+  const near = { x: useTransform(x, (v) => v * 70), y: useTransform([y, scrollY], ([v, s]: number[]) => v * 50 + (reduced ? 0 : s * -0.1)) };
+  const turn = useTransform(scrollY, [0, 1600], [0, reduced ? 0 : 55]);
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
       <motion.div style={far} className="absolute -left-[10%] -top-[20%] h-[720px] w-[720px] rounded-full bg-[radial-gradient(closest-side,rgba(254,106,5,.20),rgba(254,106,5,0))]" />
       <motion.div style={near} className="absolute -right-[8%] top-[18%] h-[640px] w-[640px] rounded-full bg-[radial-gradient(closest-side,rgba(255,178,122,.32),rgba(255,178,122,0))]" />
       <motion.div style={far} className="absolute left-[30%] top-[55%] h-[560px] w-[560px] rounded-full bg-[radial-gradient(closest-side,rgba(255,227,204,.75),rgba(255,227,204,0))]" />
       <div className="absolute inset-0 opacity-[.55] [background-image:radial-gradient(rgba(11,15,46,.14)_1px,transparent_1.2px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_45%,#000_30%,transparent_80%)]" />
-      <motion.svg style={near} viewBox="0 0 600 600" className="absolute left-1/2 top-[38%] h-[900px] w-[900px] -translate-x-1/2 -translate-y-1/2 opacity-[.5]">
+      <motion.svg style={{ ...near, rotate: turn }} viewBox="0 0 600 600" className="absolute left-1/2 top-[38%] h-[900px] w-[900px] -translate-x-1/2 -translate-y-1/2 opacity-[.5]">
         {[290, 230, 170].map((r) => <circle key={r} cx="300" cy="300" r={r} fill="none" stroke="rgba(254,106,5,.10)" strokeWidth="1.2" />)}
       </motion.svg>
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-m-bg" />

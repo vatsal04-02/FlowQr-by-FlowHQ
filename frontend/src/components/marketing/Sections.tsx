@@ -9,6 +9,7 @@ import { Accent, Chip, MButton, SectionHead } from "./kit";
 import { TrialNote } from "./TrialNote";
 import { HeroBackdrop } from "./Depth";
 import { EASE, Rise } from "./motion";
+import { Draw, PopIn } from "./scroll";
 
 /* ======================================================================= ScrollStatement (05)
    Each word goes from --muted-2 to --ink as it crosses ~60% of the viewport. `{chip}` in the text places the inline icon chip. */
@@ -53,9 +54,9 @@ export function HowItWorks({ title, sub, steps, art }: { title: string; sub?: st
               </div>
               {i < steps.length - 1 && (
                 <>
-                  <span aria-hidden className="absolute left-full top-[92px] hidden h-0 w-8 border-t-2 border-dashed border-m-accent md:block" />
-                  <span aria-hidden className="absolute left-full top-[92px] z-10 ml-[2px] hidden h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-m-accent text-m-ink md:grid"><ArrowRight className="h-4 w-4" strokeWidth={2} /></span>
-                  <span aria-hidden className="absolute left-1/2 top-full h-8 w-0 -translate-x-1/2 border-l-2 border-dashed border-m-accent md:hidden" />
+                  <Draw delay={0.5 + i * 0.12} className="absolute left-full top-[92px] hidden h-0 w-8 border-t-2 border-dashed border-m-accent md:block" />
+                  <PopIn delay={0.8 + i * 0.12} className="absolute left-full top-[92px] z-10 ml-[2px] hidden h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-m-accent text-m-ink md:grid"><ArrowRight className="h-4 w-4" strokeWidth={2} /></PopIn>
+                  <Draw vertical delay={0.5 + i * 0.12} className="absolute left-1/2 top-full h-8 w-0 -translate-x-1/2 border-l-2 border-dashed border-m-accent md:hidden" />
                 </>
               )}
             </Rise>

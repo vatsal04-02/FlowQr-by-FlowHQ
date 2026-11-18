@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter_Tight } from "next/font/google";
 import { FooterCards } from "@/components/marketing/FooterCards";
 import { Nav } from "@/components/marketing/Nav";
+import { ScrollProgress } from "@/components/marketing/scroll";
 import { TrialBanner } from "@/components/marketing/TrialBanner";
 import { SITE_URL } from "@/lib/site";
 
@@ -17,6 +18,7 @@ export const metadata: Metadata = {
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={`${tight.variable} mkt min-h-dvh overflow-x-clip`}>
+      <ScrollProgress />
       <TrialBanner />
       <Nav />
       <main id="content">{children}</main>
