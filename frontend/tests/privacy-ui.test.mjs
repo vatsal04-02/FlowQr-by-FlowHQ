@@ -30,7 +30,9 @@ test("the notice is on BOTH customer pages, only where AI help is offered, and i
 });
 
 test("sign-up: the 18+ declaration is unchecked by default, required, English only, and sent to the server", () => {
-  const page = src("app/(auth)/register/page.tsx");
+  // the form lives in components/auth/RegisterForm.tsx (shared by /register and the pricing popup); the page itself must not grow a second copy
+  const page = src("components/auth/RegisterForm.tsx");
+  assert.ok(!src("app/(auth)/register/page.tsx").includes("age_confirmed"), "the page uses the shared form, it has no copy of its own");
   assert.match(page, /const \[age, setAge\] = useState\(false\)/, "starts unchecked");
   assert.doesNotMatch(page, /defaultChecked/);
   assert.ok(page.includes("I confirm that I am 18 years of age or older."));
