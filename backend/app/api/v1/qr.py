@@ -95,7 +95,7 @@ def poster_file(url: str, fmt: str, *, scale: int = 1, size: str = "ref") -> byt
 def poster_response(url: str, fmt: str, filename: str, *, scale: int = 1, size: str = "ref") -> Response:
     """Download of one poster. In staging/production a non-permanent public address blocks it; elsewhere it is allowed (so the owner can
     try it out) and flagged with a header and a note the UI shows."""
-    problem = print_blocker()
+    problem = permanent_url_problem(url)  # judged on the address this poster actually encodes (a card's, or a campaign's), not only on the card base
     if problem and settings.hardened:
         raise HTTPException(status_code=409, detail={"code": "print_domain_not_permanent", "message": problem})
     body = poster_file(url, fmt, scale=scale, size=size)
