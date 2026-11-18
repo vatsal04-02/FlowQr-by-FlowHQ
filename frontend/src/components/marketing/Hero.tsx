@@ -21,7 +21,7 @@ export function Hero({ line1, line2, actions, center, left, chips, sub, leftNode
         {kicker && <Rise className={clsx("flex justify-center", flow ? "mb-4" : "mb-6")}>{kicker}</Rise>}
         <h1 className={clsx("t-display mx-auto text-m-ink", !flow && "max-w-[900px]", flow && "max-w-[980px] max-sm:!text-[length:min(8.7vw,38px)] max-sm:!leading-[1.08] sm:!text-[clamp(30px,4.9vw,46px)] sm:!leading-[1.08] sm:!tracking-[-.035em] lg:!text-[clamp(40px,3.7vw,54px)]")}>
           <BlurWords as="div" text={line1} />
-          <BlurWords as="div" text={line2} delay={0.18} className="text-m-accentText" />
+          {line2 && <BlurWords as="div" text={line2} delay={0.18} className="text-m-accentText" />}
         </h1>
         {sub && <Rise delay={0.3}><p className={clsx("mx-auto text-balance text-[17px] leading-relaxed text-m-ink2 md:text-[19px]", flow ? "mt-4 max-w-[640px] lg:max-w-[860px]" : "mt-6 max-w-[640px]")}>{sub}</p></Rise>}
         {actions && <Rise delay={0.35} className={clsx("flex flex-wrap items-center justify-center gap-2.5", flow ? "mt-5" : "mt-7")}>{actions}</Rise>}

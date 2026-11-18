@@ -55,11 +55,7 @@ export function HeroHub({ note }: { note: string }) {
 
       {/* Phones */}
       <div className="mx-auto max-w-[420px] md:hidden">
-        <div className="flex flex-col items-center">
-          <GoogleG size={88} className="shadow-[var(--shadow-float)]" />
-          <p className="mt-3 text-[13px] font-medium text-m-ink2">Google Business Profile</p>
-        </div>
-        <ul className="mt-5 grid grid-cols-2 gap-2.5">{ITEMS.map((it, i) => <li key={it[1]} className="flex justify-center"><Pill item={it} i={i} /></li>)}</ul>
+        <ul className="grid grid-cols-2 gap-2.5">{ITEMS.map((it, i) => <li key={it[1]} className="flex justify-center"><Pill item={it} i={i} /></li>)}</ul>
       </div>
       <p className="mt-7 text-center text-[14px] text-m-muted md:mt-6">{note}</p>
     </div>
