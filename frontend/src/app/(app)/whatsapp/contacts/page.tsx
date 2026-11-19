@@ -38,8 +38,9 @@ export default function Customers() {
   }
   async function visitDone(c: WaContact) {
     try {
-      const r = await api<{ scheduled: boolean; reason: string }>(`/whatsapp/contacts/${c.id}/visit`, { method: "POST" });
-      toast(r.scheduled ? "Done. A request for honest feedback will go out shortly." : reasonWords(r.reason));
+      const r = await api<{ visit_recorded?: boolean; scheduled: boolean; reason: string }>(`/whatsapp/contacts/${c.id}/visit`, { method: "POST" });
+      toast(r.scheduled ? "Visit saved. A request for honest feedback will go out shortly." : `Visit saved. ${r.reason === "automation_off" ? "No review request was sent because that helper is off." : reasonWords(r.reason)}`);
+      void list.reload();
     } catch (e) { toast(errorMessage(e)); }
   }
   async function doErase() {
@@ -78,12 +79,12 @@ export default function Customers() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-ink">{c.customer_name ?? "No name"} <span className="ml-1 font-normal tabular-nums text-ink-500">{c.phone}</span></p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><Badge tone={w.tone}>{w.label}</Badge>{c.occasion && <Badge tone="blue">Greetings</Badge>}{c.birth_day && c.birth_month ? <Badge>Birthday {birthdayWords(c.birth_day, c.birth_month)}</Badge> : null}{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}{manyLocs && locName(c.location_id) && <Badge tone="blue">{locName(c.location_id)}</Badge>}<span>{SOURCE_WORDS[c.source] ?? c.source} · {fmtDate(c.created_at)}</span></p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><Badge tone={w.tone}>{w.label}</Badge>{c.occasion && <Badge tone="blue">Greetings</Badge>}{c.birth_day && c.birth_month ? <Badge>Birthday {birthdayWords(c.birth_day, c.birth_month)}</Badge> : null}{c.last_visit_at ? <Badge>Last visit {fmtDate(c.last_visit_at)}</Badge> : null}{c.last_replied_at ? <Badge>Wrote {fmtDate(c.last_replied_at)}</Badge> : null}{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}{manyLocs && locName(c.location_id) && <Badge tone="blue">{locName(c.location_id)}</Badge>}<span>{SOURCE_WORDS[c.source] ?? c.source} · {fmtDate(c.created_at)}</span></p>
                   {c.opted_out && c.opted_out_at && <p className="mt-1 text-[13px] text-neg">Asked to stop offers on {fmtDate(c.opted_out_at)}. Only the customer can start them again.</p>}
                 </div>
                 {isAdmin && <div className="flex flex-wrap gap-2">
                   {!c.opted_out && !(c.marketing && c.utility && c.occasion) && <Button size="sm" variant="secondary" onClick={() => setAgree(c)}>Record agreement</Button>}
-                  {c.utility && <Button size="sm" variant="secondary" onClick={() => void visitDone(c)}>Visit done</Button>}
+                  <Button size="sm" variant="secondary" onClick={() => void visitDone(c)}>Visit done</Button>
                   {c.marketing && !c.opted_out && <Button size="sm" variant="secondary" onClick={() => void stopOffers(c)}>Stop offers</Button>}
                   <Button size="sm" variant="ghost" onClick={() => setErase(c)}>Delete</Button>
                 </div>}

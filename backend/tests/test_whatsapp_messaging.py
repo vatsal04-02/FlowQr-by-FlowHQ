@@ -454,10 +454,12 @@ def test_a_visit_schedules_one_neutral_request_and_it_is_sent_after_the_delay(wm
 def test_a_visit_is_refused_politely_when_it_should_not_send(wm, admin):
     biz = ready_biz(admin, "Visit Clinic")
     c = add_contact(biz, "98765 62010", utility=True, **OWNER)
-    assert biz.post(f"/whatsapp/contacts/{c['id']}/visit").json()["detail"]["code"] == "automation_off"
+    off = biz.post(f"/whatsapp/contacts/{c['id']}/visit")  # with the helper off nothing is scheduled, but the visit itself is now saved (win-back audiences use it)
+    assert off.status_code == 200 and off.json() == {"visit_recorded": True, "scheduled": False, "reason": "automation_off"}
+    assert owner_query("SELECT last_visit_at IS NOT NULL FROM whatsapp_contacts WHERE id = :i", i=c["id"])[0][0] is True and tick(biz.tenant_id, 90)["automations"]["executed"] == 0
     biz.put("/whatsapp/automations/review_followup", json={"status": "on"})
     nobody = add_contact(biz, "98765 62011")
-    assert biz.post(f"/whatsapp/contacts/{nobody['id']}/visit").json() == {"scheduled": False, "reason": "no_utility_consent"}
+    assert biz.post(f"/whatsapp/contacts/{nobody['id']}/visit").json() == {"visit_recorded": True, "scheduled": False, "reason": "no_utility_consent"}
     assert biz.post(f"/whatsapp/contacts/{c['id']}/visit").json()["scheduled"] is True
     again = biz.post(f"/whatsapp/contacts/{c['id']}/visit").json()
     assert again["scheduled"] is False and again["reason"] == "asked_recently"  # never twice in WHATSAPP_REVIEW_GAP_DAYS

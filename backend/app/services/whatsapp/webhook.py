@@ -73,7 +73,7 @@ def sanitize(payload: dict) -> dict | None:
                 if isinstance(m, dict) and m.get("from"):
                     text = (m.get("text") or {}).get("body") if m.get("type") == "text" and isinstance(m.get("text"), dict) else None
                     keep = isinstance(text, str) and (len(text) <= 64 or (len(text) <= 240 and CODE_FORM.search(text)))  # an opt-in message carries a code; anything else long is not kept
-                    item["messages"].append({"from": _digits(m["from"]), "id": str(m.get("id", ""))[:120], "type": str(m.get("type", ""))[:16], "text": text if keep else None})
+                    item["messages"].append({"from": _digits(m["from"]), "id": str(m.get("id", ""))[:120], "type": str(m.get("type", ""))[:16], "text": text if keep else None, "timestamp": str(m.get("timestamp", ""))[:12]})
             if item["field"] == "account_update":
                 item["event"] = str(v.get("event", ""))[:40]
             items.append(item)
@@ -179,12 +179,15 @@ def process_event(db: Session, event_id: uuid.UUID) -> dict:
                 joined = optin.handle_inbound(db, tenant, "+" + m["from"], m.get("text"), m.get("id") or "")
                 if joined:
                     out["opt_ins"] = out.get("opt_ins", 0) + 1
+                elif consent.note_reply(db, tenant, "+" + m["from"], _when(m.get("timestamp"))):  # an ordinary message from a known customer: remember WHEN, never what
+                    out["replies"] = out.get("replies", 0) + 1
         if item.get("field") == "account_update" and item.get("event") in ATTENTION_EVENTS:
             conn.status, conn.attention_reason = "needs_attention", "Meta reported a problem with your WhatsApp account. Open WhatsApp Manager to see why."
             out["attention"] += 1
     ev.tenant_id = next(iter(tenants)) if len(tenants) == 1 else None  # a body that spans several businesses stays unattributed; each item was handled under its own tenant
     ev.status = "processed" if tenants else "ignored"
     ev.processed_at, ev.error = utcnow(), None
+    ev.payload = {"items": [{**it, "messages": [{**mm, "text": None} for mm in it.get("messages", [])]} for it in (ev.payload or {}).get("items", [])]}  # the text was only needed to recognise STOP and opt-ins: once handled it is gone
     return out
 
 

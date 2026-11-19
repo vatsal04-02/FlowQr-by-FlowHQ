@@ -525,11 +525,12 @@ def test_the_export_carries_birth_day_month_and_the_greeting_consent_and_deletio
     person(biz, "98765 51002", occasion=False, utility=True, name="Ravi")
     lines = biz.get("/whatsapp/contacts/export").text.splitlines()
     assert lines[0].startswith("phone,name,tags,marketing_consent_since,marketing_consent_source,utility_consent_since,utility_consent_source,opted_out_of_marketing,source,added")
-    assert lines[0].endswith("occasion_consent_since,occasion_consent_source,birth_day,birth_month")
-    asha = next(ln for ln in lines if "Asha" in ln).split(",")
-    assert asha[-4] != "" and asha[-3] == "owner_entry" and asha[-2:] == ["14", "3"]
-    ravi = next(ln for ln in lines if "Ravi" in ln).split(",")
-    assert ravi[-4:] == ["", "", "", ""]
+    assert "occasion_consent_since,occasion_consent_source,birth_day,birth_month" in lines[0]
+    hdr = lines[0].split(",")
+    asha = dict(zip(hdr, next(ln for ln in lines if "Asha" in ln).split(",")))
+    assert asha["occasion_consent_since"] != "" and asha["occasion_consent_source"] == "owner_entry" and (asha["birth_day"], asha["birth_month"]) == ("14", "3")
+    ravi = dict(zip(hdr, next(ln for ln in lines if "Ravi" in ln).split(",")))
+    assert [ravi[k] for k in ("occasion_consent_since", "occasion_consent_source", "birth_day", "birth_month")] == ["", "", "", ""]
     assert biz.delete(f"/whatsapp/contacts/{a['id']}").status_code == 204
     assert owner_query("SELECT count(*) FROM whatsapp_contacts WHERE id = :i", i=a["id"])[0][0] == 0
     assert owner_query("SELECT count(*) FROM whatsapp_consents WHERE contact_id = :i", i=a["id"])[0][0] == 0

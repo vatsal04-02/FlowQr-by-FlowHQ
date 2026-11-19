@@ -266,6 +266,22 @@ def set_birthday(db: Session, contact: WhatsAppContact, day, month, *, attested:
     audit(db, action="whatsapp.birthday_set", tenant_id=contact.tenant_id, user_id=user_id, entity_type="whatsapp_contact", entity_id=contact.id, ip=ip)  # the date itself is not written to the audit log
 
 
+def mark_visit(db: Session, contact: WhatsAppContact, now: datetime | None = None) -> None:
+    """The owner marked a visit as done. Recorded whether or not any helper is on: a visit is a fact about the customer, and win-back audiences use it."""
+    contact.last_visit_at = now or utcnow()
+
+
+def note_reply(db: Session, tenant: Tenant, phone: str, when: datetime | None = None) -> bool:
+    """A customer wrote to the business. Only the time is kept: no message text, nothing about what was said. A STOP is never a reply (the caller handles STOP first). Never creates a customer."""
+    c = find_by_phone(db, tenant.id, phone)
+    if c is None:
+        return False
+    when = when or utcnow()
+    if c.last_replied_at is None or when > c.last_replied_at:
+        c.last_replied_at = when
+    return True
+
+
 def erase_contact(db: Session, tenant: Tenant, contact: WhatsAppContact, user_id: uuid.UUID | None, ip: str | None = None) -> None:
     """Delete the person (number, name, tags, consent records). An opted-out number stays on the suppression list as a keyed hash so it cannot be re-added and messaged."""
     if contact.marketing_opted_out_at is not None:
@@ -290,7 +306,7 @@ def serialize(c: WhatsAppContact, consents: dict | None = None) -> dict:
     consents = consents or {"marketing": None, "utility": None, "occasion": None}
     return {"id": c.id, "phone": c.phone, "customer_name": c.customer_name, "tags": c.tags or [], "location_id": c.location_id, "source": c.source, "created_at": c.created_at,
             "marketing": consents.get("marketing"), "utility": consents.get("utility"), "occasion": consents.get("occasion"), "opted_out": c.marketing_opted_out_at is not None, "opted_out_at": c.marketing_opted_out_at,
-            "birth_day": c.birth_day, "birth_month": c.birth_month}
+            "birth_day": c.birth_day, "birth_month": c.birth_month, "last_visit_at": c.last_visit_at, "last_replied_at": c.last_replied_at, "last_enquiry_at": c.last_enquiry_at}
 
 
 def list_contacts(db: Session, tenant_id: uuid.UUID, *, search: str | None, consent: str | None, limit: int, offset: int, location_id: uuid.UUID | None = None) -> tuple[int, list[dict]]:
@@ -337,14 +353,15 @@ def export_csv(db: Session, tenant_id: uuid.UUID) -> str:
     out = io.StringIO()
     w = csv.writer(out)
     w.writerow(["phone", "name", "tags", "marketing_consent_since", "marketing_consent_source", "utility_consent_since", "utility_consent_source", "opted_out_of_marketing", "source", "added",
-                "occasion_consent_since", "occasion_consent_source", "birth_day", "birth_month"])
+                "occasion_consent_since", "occasion_consent_source", "birth_day", "birth_month", "last_visit_at", "last_enquiry_at", "last_replied_at"])
     rows = list(db.scalars(select(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id).order_by(WhatsAppContact.created_at)))
     cm = consent_map(db, [r.id for r in rows])
     for r in rows:
         m, u, o = cm[r.id]["marketing"], cm[r.id]["utility"], cm[r.id]["occasion"]
         w.writerow([r.phone, _cell(r.customer_name), _cell("; ".join(r.tags or [])), m["since"].isoformat() if m else "", m["source"] if m else "", u["since"].isoformat() if u else "", u["source"] if u else "",
                     r.marketing_opted_out_at.isoformat() if r.marketing_opted_out_at else "", r.source, r.created_at.isoformat(),
-                    o["since"].isoformat() if o else "", o["source"] if o else "", r.birth_day or "", r.birth_month or ""])
+                    o["since"].isoformat() if o else "", o["source"] if o else "", r.birth_day or "", r.birth_month or "",
+                    r.last_visit_at.isoformat() if r.last_visit_at else "", r.last_enquiry_at.isoformat() if r.last_enquiry_at else "", r.last_replied_at.isoformat() if r.last_replied_at else ""])
     return out.getvalue()
 
 

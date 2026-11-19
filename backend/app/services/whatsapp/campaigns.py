@@ -24,14 +24,14 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.config import settings
 from app.models import Tenant, User
 from app.models.base import utcnow
-from app.models.whatsapp import WhatsAppCampaign, WhatsAppCampaignRecipient, WhatsAppConsent, WhatsAppContact, WhatsAppMessage, WhatsAppTemplate
+from app.models.whatsapp import WhatsAppCampaign, WhatsAppCampaignRecipient, WhatsAppConsent, WhatsAppContact, WhatsAppLinkClick, WhatsAppMessage, WhatsAppTemplate
 from app.services.audit import audit
 from app.services.whatsapp import WaError, addons, automations, connection, consent, pricing, sender, templates, usage
 
@@ -39,7 +39,8 @@ log = logging.getLogger("flowqr.whatsapp.campaigns")
 IST = ZoneInfo("Asia/Kolkata")
 KINDS = ("all", "tag", "new", "existing")
 SOURCES = ("customer_name", "business_name", "text")
-ADVANCED_KEYS = ("tags_any", "tags_all", "exclude_tags", "location_id", "not_messaged_days", "never_messaged")
+ADVANCED_KEYS = ("tags_any", "tags_all", "exclude_tags", "location_id", "not_messaged_days", "never_messaged", "engaged", "engaged_days", "no_engagement_last_offers", "winback_days")
+ENGAGED = ("read", "replied", "clicked", "delivered_not_read")
 MAX_TEXT = 200
 MAX_OFFER = 120
 MAX_AHEAD_DAYS = 90
@@ -128,7 +129,7 @@ def clean_audience(raw: dict | None, level: str = "basic") -> dict:
     extra = {k: a[k] for k in ADVANCED_KEYS if k in a and not _empty(a[k])}
     if extra:
         if level != "advanced":
-            raise WaError(402, "plan_required", "Choosing by location, several groups or how recently someone got an offer is part of the Pro add-on.")
+            raise WaError(402, "plan_required", "Choosing by location, several groups, how recently someone got an offer, or by engagement and win-back is part of the Pro add-on.")
         for k, label in (("tags_any", "groups"), ("tags_all", "groups"), ("exclude_tags", "groups")):
             if k in extra:
                 out[k] = _names(extra[k], label)
@@ -144,13 +145,29 @@ def clean_audience(raw: dict | None, level: str = "basic") -> dict:
             out["not_messaged_days"] = d
         if extra.get("never_messaged") is True:
             out["never_messaged"] = True
+        if "engaged" in extra:
+            if extra["engaged"] not in ENGAGED:
+                raise WaError(422, "invalid_audience", "Choose who read, replied, clicked, or had a message delivered but not read.")
+            d = extra.get("engaged_days", 30)
+            if isinstance(d, bool) or not isinstance(d, int) or not 1 <= d <= 365:
+                raise WaError(422, "invalid_audience", "Choose between 1 and 365 days.")
+            out["engaged"], out["engaged_days"] = extra["engaged"], d
+        if "no_engagement_last_offers" in extra:
+            n = extra["no_engagement_last_offers"]
+            if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 10:
+                raise WaError(422, "invalid_audience", "Choose between 1 and 10 offers.")
+            out["no_engagement_last_offers"] = n
+        if "winback_days" in extra:
+            w = extra["winback_days"]
+            if isinstance(w, bool) or not isinstance(w, int) or not 1 <= w <= 365:
+                raise WaError(422, "invalid_audience", "Choose between 1 and 365 days.")
+            out["winback_days"] = w
     return out
 
 
-def audience_query(tenant_id: uuid.UUID, audience: dict, now: datetime | None = None):
-    now = now or utcnow()
-    q = select(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id, WhatsAppContact.marketing_opted_out_at.is_(None),
-                                      WhatsAppContact.id.in_(select(WhatsAppConsent.contact_id).where(WhatsAppConsent.tenant_id == tenant_id, WhatsAppConsent.purpose == "marketing", WhatsAppConsent.revoked_at.is_(None))))
+def _filtered(tenant_id: uuid.UUID, audience: dict, now: datetime):
+    """Everyone the audience's CHOICES pick out, before consent and opt-outs are applied (so the preview can say how many were left out and why)."""
+    q = select(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id)
     k = audience.get("kind", "all")
     if k == "tag":
         q = q.where(WhatsAppContact.tags.contains([audience["tag"]]))
@@ -171,7 +188,84 @@ def audience_query(tenant_id: uuid.UUID, audience: dict, now: datetime | None = 
         q = q.where(~WhatsAppContact.id.in_(got.where(WhatsAppMessage.created_at >= now - timedelta(days=audience["not_messaged_days"]))))
     if audience.get("never_messaged"):
         q = q.where(~WhatsAppContact.id.in_(got))
+    return _engagement(q, tenant_id, audience, now)
+
+
+def _engagement(q, tenant_id: uuid.UUID, audience: dict, now: datetime):
+    """Engagement and win-back choices (Pro). Timestamps only: a message's read and delivered times, the time a customer last wrote, link clicks, visits. Nothing about what anyone said."""
+    M, C = WhatsAppMessage, WhatsAppContact
+    out = (M.tenant_id == tenant_id, M.direction == "outbound", M.contact_id.is_not(None))
+    kind = audience.get("engaged")
+    if kind:
+        cut = now - timedelta(days=audience["engaged_days"])
+        read = select(M.contact_id).where(*out, M.read_at >= cut)
+        if kind == "read":
+            q = q.where(C.id.in_(read))  # only customers who have read receipts on can ever be counted here
+        elif kind == "replied":
+            q = q.where(C.last_replied_at >= cut)
+        elif kind == "clicked":
+            q = q.where(C.id.in_(select(WhatsAppLinkClick.contact_id).where(WhatsAppLinkClick.tenant_id == tenant_id, WhatsAppLinkClick.contact_id.is_not(None), WhatsAppLinkClick.clicked_at >= cut)))
+        elif kind == "delivered_not_read":  # delivered, and not read: this includes people who simply have read receipts turned off
+            q = q.where(C.id.in_(select(M.contact_id).where(*out, M.delivered_at >= cut)), ~C.id.in_(read))
+    n = audience.get("no_engagement_last_offers")
+    if n:
+        # an "offer" here is a campaign message that reached the phone. For each customer take the last N of them; the customer qualifies if they had N, read none, and did not reply or click since the oldest of the N.
+        ranked = select(M.contact_id.label("cid"), M.read_at.label("read_at"), M.created_at.label("at"),
+                        func.row_number().over(partition_by=M.contact_id, order_by=M.created_at.desc()).label("rn")).where(
+            *out, M.category == "marketing", M.campaign_id.is_not(None), M.delivery_status.in_(("delivered", "read"))).subquery()
+        last_n = select(ranked.c.cid.label("cid"), func.min(ranked.c.at).label("oldest")).where(ranked.c.rn <= n).group_by(ranked.c.cid).having(func.count() == n, func.count(ranked.c.read_at) == 0).subquery()
+        c2 = aliased(WhatsAppContact)
+        clicked = exists().where(WhatsAppLinkClick.contact_id == last_n.c.cid, WhatsAppLinkClick.clicked_at >= last_n.c.oldest)
+        q = q.where(C.id.in_(select(last_n.c.cid).join(c2, c2.id == last_n.c.cid).where(or_(c2.last_replied_at.is_(None), c2.last_replied_at < last_n.c.oldest), ~clicked)))
+    w = audience.get("winback_days")
+    if w:
+        cut = now - timedelta(days=w)
+        c3 = aliased(WhatsAppContact)
+        visits_marked = exists().where(c3.tenant_id == tenant_id, c3.last_visit_at.is_not(None))  # if no visit was ever marked, "not visited" cannot be judged: fall back to "not messaged"
+        q = q.where(C.created_at < cut,  # a customer added inside the window has had no chance to be away
+                    ~C.id.in_(select(M.contact_id).where(*out, M.delivery_status != "failed", M.created_at >= cut)),  # any message counts: offers, updates, greetings
+                    or_(~visits_marked, C.last_visit_at.is_(None), C.last_visit_at < cut),
+                    or_(C.last_enquiry_at.is_(None), C.last_enquiry_at < cut))
     return q
+
+
+def audience_query(tenant_id: uuid.UUID, audience: dict, now: datetime | None = None):
+    now = now or utcnow()
+    return _filtered(tenant_id, audience, now).where(WhatsAppContact.marketing_opted_out_at.is_(None),
+                                                      WhatsAppContact.id.in_(select(WhatsAppConsent.contact_id).where(WhatsAppConsent.tenant_id == tenant_id, WhatsAppConsent.purpose == "marketing", WhatsAppConsent.revoked_at.is_(None))))
+
+
+def exclusions(db: Session, tenant_id: uuid.UUID, audience: dict, now: datetime | None = None) -> dict:
+    """Of the customers the choices pick out, how many are left out because they asked to stop offers, or never agreed to receive them."""
+    now = now or utcnow()
+    f = _filtered(tenant_id, audience, now).subquery()
+    matching = db.scalar(select(func.count()).select_from(f)) or 0
+    opted = db.scalar(select(func.count()).select_from(f).where(f.c.marketing_opted_out_at.is_not(None))) or 0
+    agreed = select(WhatsAppConsent.contact_id).where(WhatsAppConsent.tenant_id == tenant_id, WhatsAppConsent.purpose == "marketing", WhatsAppConsent.revoked_at.is_(None))
+    no_consent = db.scalar(select(func.count()).select_from(f).where(f.c.marketing_opted_out_at.is_(None), ~f.c.id.in_(agreed))) or 0
+    return {"matching": matching, "opted_out": opted, "no_consent": no_consent}
+
+
+def audience_notes(db: Session, tenant_id: uuid.UUID, audience: dict) -> list[dict]:
+    """The limits of the choices made, in plain words, shown beside the count."""
+    notes: list[dict] = []
+    kind = audience.get("engaged")
+    if kind == "read":
+        notes.append({"key": "read", "text": "Read only counts customers who have read receipts turned on."})
+    if kind == "delivered_not_read":
+        notes.append({"key": "delivered_not_read", "text": "Delivered but not read may include people with read receipts turned off. It does not show whether they saw the message."})
+    if kind == "clicked" or audience.get("no_engagement_last_offers"):
+        notes.append({"key": "clicked", "text": "Link clicks only have data from the time link click counting was switched on (Pro). Before that, nobody can show up as having clicked."})
+    if audience.get("no_engagement_last_offers"):
+        notes.append({"key": "offers", "text": f"Only customers who were sent at least {audience['no_engagement_last_offers']} offers that reached their phone are counted, and read receipts must be on to see a read."})
+    if audience.get("winback_days"):
+        marked = db.scalar(select(WhatsAppContact.id).where(WhatsAppContact.tenant_id == tenant_id, WhatsAppContact.last_visit_at.is_not(None)).limit(1)) is not None
+        d = audience["winback_days"]
+        if marked:
+            notes.append({"key": "winback_visits", "basis": "visits", "text": f"Customers you have not marked as visited, not had an enquiry from, and not messaged in the last {d} days. Any message counts, including greetings. Only visits you marked can be known."})
+        else:
+            notes.append({"key": "winback_messages_only", "basis": "messages_only", "text": f"You have not marked any visits yet, so this uses messages only: customers you have not messaged in the last {d} days (any message counts, including greetings). Mark visits on the Customers page to use them too."})
+    return notes
 
 
 def audience_count(db: Session, tenant_id: uuid.UUID, audience: dict) -> int:
@@ -327,6 +421,7 @@ def preview(db: Session, tenant: Tenant, c: WhatsAppCampaign, now: datetime | No
     now = now or utcnow()
     t = db.get(WhatsAppTemplate, c.template_id) if c.template_id else None
     n = audience_count(db, tenant.id, c.audience)
+    left_out = exclusions(db, tenant.id, c.audience, now)
     est = pricing.estimate(db, "marketing", n) if c.status == "draft" or c.approved_at is None else approved_estimate(c)  # once approved the owner's estimate never moves
     conn = connection.connected_connection(db, tenant.id)
     ready = {"plan": can_use_campaigns(db, tenant.id), "connection": bool(conn and conn.status == "connected"), "template_approved": bool(t and t.approval_status == "approved"), "has_recipients": n > 0,
@@ -337,7 +432,8 @@ def preview(db: Session, tenant: Tenant, c: WhatsAppCampaign, now: datetime | No
     return {"id": c.id, "name": c.name, "status": c.status, "audience": c.audience, "recipients": n, "estimate": est, "message_preview": text, "ready": ready, "approved_recipients": c.approved_recipients,
             "approved_cost": _money(c.approved_cost), "scheduled_at": c.scheduled_at, "variables": c.variables, "template_id": c.template_id, "segmentation": segmentation_level(db, tenant.id),
             "window": window_info(now), "starts_at": starts, "waits_for_hours": starts > want, "estimated_minutes": math.ceil(n / max(1, settings.whatsapp_campaign_batch)) if n else 0,
-            "excluded_note": "Only customers who agreed to receive offers and have not asked to stop are counted."}
+            "excluded_note": "Only customers who agreed to receive offers and have not asked to stop are counted.",
+            "matching": left_out["matching"], "excluded": {"no_consent": left_out["no_consent"], "opted_out": left_out["opted_out"]}, "audience_notes": audience_notes(db, tenant.id, c.audience)}
 
 
 def approve(db: Session, tenant: Tenant, user: User, c: WhatsAppCampaign, *, confirm_recipients: int, accept_estimate: bool, ip: str | None = None, now: datetime | None = None) -> WhatsAppCampaign:
@@ -364,6 +460,7 @@ def approve(db: Session, tenant: Tenant, user: User, c: WhatsAppCampaign, *, con
     c.status = "scheduled"
     if c.scheduled_at is None or c.scheduled_at < now:
         c.scheduled_at = now
+    _fix_list(db, c, now)
     audit(db, action="whatsapp.campaign_approve", tenant_id=tenant.id, user_id=user.id, entity_type="whatsapp_campaign", entity_id=c.id,
           meta={"recipients": p["recipients"], "estimate": p["estimate"]["amount"], "verified_rate": p["estimate"]["verified"], "starts_at": p["starts_at"].isoformat()}, ip=ip)
     return c
@@ -462,8 +559,21 @@ def serialize(c: WhatsAppCampaign) -> dict:
 
 
 # ---- the worker
+def _fix_list(db: Session, c: WhatsAppCampaign, now: datetime) -> int:
+    """Fix the recipient list at the moment of approval: exactly the customers the owner was shown, at most the approved number. From here on the single send gate decides about each one at the moment of
+    sending, so anyone who opts out or loses consent after approval is skipped, with the reason, and counted as skipped in the results."""
+    if db.scalar(select(WhatsAppCampaignRecipient.id).where(WhatsAppCampaignRecipient.campaign_id == c.id).limit(1)) is not None:
+        return 0
+    ids = list(db.scalars(audience_query(c.tenant_id, c.audience, now).with_only_columns(WhatsAppContact.id).order_by(WhatsAppContact.created_at).limit(c.approved_recipients or 0)))
+    if ids:
+        db.execute(pg_insert(WhatsAppCampaignRecipient).values([{"id": uuid.uuid4(), "tenant_id": c.tenant_id, "campaign_id": c.id, "contact_id": i, "status": "pending"} for i in ids]).on_conflict_do_nothing(constraint="uq_wa_campaign_recipient"))
+    return len(ids)
+
+
 def _materialize(db: Session, c: WhatsAppCampaign) -> int:
-    """Fix the recipient list at the moment sending starts: whoever is eligible now, at most the approved number."""
+    """A campaign approved before lists were fixed at approval has none yet: fix it when sending starts (whoever is eligible now, at most the approved number). Otherwise the approved list stands."""
+    if db.scalar(select(WhatsAppCampaignRecipient.id).where(WhatsAppCampaignRecipient.campaign_id == c.id).limit(1)) is not None:
+        return 0
     ids = list(db.scalars(audience_query(c.tenant_id, c.audience).with_only_columns(WhatsAppContact.id).order_by(WhatsAppContact.created_at).limit(c.approved_recipients or 0)))
     if ids:
         db.execute(pg_insert(WhatsAppCampaignRecipient).values([{"id": uuid.uuid4(), "tenant_id": c.tenant_id, "campaign_id": c.id, "contact_id": i, "status": "pending"} for i in ids]).on_conflict_do_nothing(constraint="uq_wa_campaign_recipient"))

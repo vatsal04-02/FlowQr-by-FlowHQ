@@ -84,6 +84,9 @@ class WhatsAppContact(IdMixin, TimestampMixin, Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     marketing_opted_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set by an opt-out; cleared only by a customer-originated new consent
     location_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"))  # optional: which branch this customer belongs to (location-specific offers)
+    last_replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when the customer last wrote to the business (not STOP). A time only: no message text is kept
+    last_visit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when the owner last marked a visit as done
+    last_enquiry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when this customer last sent a website enquiry that came with a WhatsApp agreement
     birth_day: Mapped[int | None] = mapped_column(SmallInteger)  # optional birth day and month, never a year; used only for a birthday greeting the customer agreed to
     birth_month: Mapped[int | None] = mapped_column(SmallInteger)
 

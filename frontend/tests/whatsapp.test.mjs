@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -289,4 +289,34 @@ test("the review helper offers to count link clicks as a yes or no setting", () 
   const f = AUTOMATION_FIELDS.review_followup.find((x) => x.key === "track_clicks");
   assert.ok(f && f.bool === true);
   assert.match(f.label, /Pro/);
+});
+
+test("the engagement choices carry their limits and never call anyone ignored", () => {
+  assert.deepEqual(ENGAGED_CHOICES.map((c) => c.value), ["read", "replied", "clicked", "delivered_not_read"]);
+  const dnr = ENGAGED_CHOICES.find((c) => c.value === "delivered_not_read");
+  assert.match(dnr.label, /may include people with read receipts turned off/);
+  assert.match(engagedNote("clicked"), /only has data from the time link click counting was switched on/i);
+  assert.match(engagedNote("read"), /read receipts turned on/);
+  assert.match(engagedNote("replied"), /STOP is never counted/);
+  assert.match(WINBACK_NOTE, /only visits you marked/i);
+  assert.match(WINBACK_NOTE, /uses messages only/);
+  for (const c of ENGAGED_CHOICES) assert.doesNotMatch(c.label + c.note, /ignor/i, c.value);
+  assert.doesNotMatch(WINBACK_NOTE, /ignor/i);
+  assert.equal(engagedNote(""), "");
+});
+
+test("an engagement or win-back audience is described in one plain sentence", () => {
+  assert.match(aSentence({ kind: "all", engaged: "read", engaged_days: 14 }), /who read a message in the last 14 days/);
+  assert.match(aSentence({ kind: "all", engaged: "delivered_not_read" }), /had a message delivered but not read in the last 30 days/);
+  assert.match(aSentence({ kind: "all", no_engagement_last_offers: 3 }), /did not read, reply to or click their last 3 offers/);
+  assert.match(aSentence({ kind: "all", no_engagement_last_offers: 1 }), /last 1 offer$/);
+  assert.match(aSentence({ kind: "all", winback_days: 60 }), /not visited or been messaged in the last 60 days/);
+  assert.doesNotMatch(aSentence({ kind: "all", engaged: "delivered_not_read" }), /ignor/i);
+});
+
+test("what a preview left out is told in words", () => {
+  assert.equal(leftOutWords(undefined), "");
+  assert.equal(leftOutWords({ no_consent: 0, opted_out: 0 }), "");
+  assert.equal(leftOutWords({ no_consent: 2, opted_out: 1 }), "Left out: 1 asked to stop offers and 2 never agreed to receive offers.");
+  assert.equal(leftOutWords({ no_consent: 0, opted_out: 4 }), "Left out: 4 asked to stop offers.");
 });

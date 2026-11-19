@@ -11,8 +11,8 @@ import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
 import {
-  audienceSentence, barPercent, blankLabel, campaignBlockers, CAMPAIGN_STATUS, fromIstInput, offerChoices, percent, reasonWords, rupees, toIstInput, windowSentence,
-  type WaAudience, type WaCampaign, type WaCampaignPreview, type WaCampaignResults, type WaCompareRow, type WaMapping, type WaStatus, type WaTemplates, type WaVariables,
+  audienceSentence, barPercent, blankLabel, campaignBlockers, CAMPAIGN_STATUS, ENGAGED_CHOICES, engagedNote, fromIstInput, leftOutWords, offerChoices, percent, reasonWords, rupees, toIstInput, WINBACK_NOTE, windowSentence,
+  type WaAudience, type WaEngaged, type WaCampaign, type WaCampaignPreview, type WaCampaignResults, type WaCompareRow, type WaMapping, type WaStatus, type WaTemplates, type WaVariables,
 } from "@/lib/whatsapp";
 
 const OFFER_MAX = 120;
@@ -85,7 +85,7 @@ function NewOffer({ choices, onClose, onDone }: { choices: WaTemplates["items"];
   const st = useFetch<WaStatus>("/whatsapp/status");
   const locs = useFetch<{ id: string; name: string }[]>("/locations");
   const [f, setF] = useState({ name: "", templateId: choices.find((t) => t.key === "offer")?.id ?? choices[0]?.id ?? "", offer: "", kind: "all", tag: "", days: "30", when: "now", at: "",
-    tagsAny: "", tagsAll: "", exclude: "", location: "", notDays: "", never: false });
+    tagsAny: "", tagsAll: "", exclude: "", location: "", notDays: "", never: false, engaged: "", engagedDays: "30", offersN: "", winback: "" });
   const t = choices.find((c) => c.id === f.templateId);
   const isOffer = t?.key === "offer";
   const blanks = isOffer ? 0 : Math.max(t?.variables.length ?? 0, (t?.body?.match(/\{\{\d+\}\}/g) ?? []).length);
@@ -102,6 +102,9 @@ function NewOffer({ choices, onClose, onDone }: { choices: WaTemplates["items"];
     if (f.location) aud.location_id = f.location;
     if (f.notDays) aud.not_messaged_days = Number(f.notDays);
     if (f.never) aud.never_messaged = true;
+    if (f.engaged) { aud.engaged = f.engaged as WaEngaged; aud.engaged_days = Number(f.engagedDays) || 30; }
+    if (f.offersN) aud.no_engagement_last_offers = Number(f.offersN);
+    if (f.winback) aud.winback_days = Number(f.winback);
   }
   const variables: WaVariables = isOffer ? { offer_text: f.offer.trim() } : { mapping: m.map((x) => (x.source === "text" ? { source: "text", value: (x.value ?? "").trim() } : { source: x.source })) };
   const messageOk = isOffer ? f.offer.trim().length >= 5 && f.offer.length <= OFFER_MAX : m.every((x) => x.source !== "text" || (x.value ?? "").trim().length > 0);
@@ -141,6 +144,14 @@ function NewOffer({ choices, onClose, onDone }: { choices: WaTemplates["items"];
               <Input label="Leave out these groups" value={f.exclude} onChange={(e) => setF({ ...f, exclude: e.target.value })} hint="Separate with commas." />
               <Input label="Only customers who have not had an offer in the last (days)" type="number" min={1} max={365} value={f.notDays} onChange={(e) => setF({ ...f, notDays: e.target.value })} />
               <label className="flex items-center gap-2 text-sm text-ink-700"><input type="checkbox" checked={f.never} onChange={(e) => setF({ ...f, never: e.target.checked })} className="h-4 w-4 accent-[#BD3E1B]" />Only customers who have never had an offer</label>
+              <div className="space-y-3 border-t border-line pt-3" data-testid="engagement-choices">
+                <p className="text-sm font-semibold text-ink">Engagement and win-back</p>
+                <Select label="Customers who" value={f.engaged} onChange={(e) => setF({ ...f, engaged: e.target.value })} hint={engagedNote(f.engaged as WaEngaged | "")}><option value="">Any</option>{ENGAGED_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</Select>
+                {f.engaged && <Input label="In the last (days)" type="number" min={1} max={365} value={f.engagedDays} onChange={(e) => setF({ ...f, engagedDays: e.target.value })} />}
+                <Input label="Did not read, reply to or click their last (offers)" type="number" min={1} max={10} value={f.offersN} onChange={(e) => setF({ ...f, offersN: e.target.value })} hint="Only customers who were sent at least this many offers that reached their phone. Read receipts must be on to see a read." />
+                <Input label="Win back: not visited or messaged in the last (days)" type="number" min={1} max={365} value={f.winback} onChange={(e) => setF({ ...f, winback: e.target.value })} hint={WINBACK_NOTE} />
+                <p className="text-[12px] text-ink-500">These only choose who the offer is for. It is still an ordinary offer: customers must have agreed to offers, anyone who replied STOP is left out, and you approve the exact number first.</p>
+              </div>
             </div>
           </details>
         ) : <p className="text-[13px] text-ink-500">Choosing by location, several groups or how recently someone got an offer is part of the Pro add-on.</p>}
@@ -214,6 +225,8 @@ function OfferDetail({ id, canEdit, onClose, onDuplicate }: { id: string; canEdi
             <div className="rounded-2xl bg-surface-2 p-4"><p className="text-[13px] text-ink-500">Likely WhatsApp charge</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{rupees(p.status === "draft" ? p.estimate.amount : p.approved_cost ?? p.estimate.amount)}</p></div>
           </div>
           <p className="text-[13px] text-ink-500">{p.estimate.note} {p.excluded_note}</p>
+          {leftOutWords(p.excluded) && <p className="text-[13px] font-semibold text-ink-700" data-testid="left-out">{leftOutWords(p.excluded)}</p>}
+          {(p.audience_notes ?? []).map((n) => <p key={n.key} className="text-[13px] text-ink-500" data-testid={`note-${n.key}`}>{n.text}</p>)}
           {["draft", "scheduled", "paused"].includes(p.status) && (
             <div className="rounded-2xl border border-line p-4 text-[13px] text-ink-700">
               <p><b>{p.scheduled_at ? `Starts ${fmtDate(p.scheduled_at)}` : "Starts as soon as it is approved"}.</b> {p.waits_for_hours ? `That is outside sending hours, so it will start at ${new Date(p.starts_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })}.` : ""} {windowSentence(p.window)}</p>

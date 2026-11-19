@@ -13,7 +13,7 @@ export interface WaStatus {
 export interface WaConsentInfo { since: string; source: string; wording_version: string }
 export interface WaContact {
   id: string; phone: string; customer_name: string | null; tags: string[]; location_id?: string | null; source: string; created_at: string; marketing: WaConsentInfo | null; utility: WaConsentInfo | null; opted_out: boolean; opted_out_at: string | null;
-  occasion?: WaConsentInfo | null; birth_day?: number | null; birth_month?: number | null;
+  occasion?: WaConsentInfo | null; birth_day?: number | null; birth_month?: number | null; last_visit_at?: string | null; last_replied_at?: string | null; last_enquiry_at?: string | null;
 }
 export interface WaContacts { total: number; items: WaContact[]; counts: WaStatus["counts"]; wording: { marketing: string; utility: string; occasion?: string } }
 export interface WaChecklist { connected: boolean; templates_installed: boolean; templates_approved: boolean; missing: string[]; waiting: string[]; refused: string[] }
@@ -27,7 +27,9 @@ export interface WaRun { id: string; step: string; status: string; reason: strin
 export interface WaTemplate { id: string; name: string; key: string | null; language: string; category: string; status: string; body: string | null; variables: string[]; rejection_reason: string | null; synced_at: string | null; simple?: boolean }
 export interface WaTemplates { items: WaTemplate[]; available: { key: string; category: string; body: string; installed: boolean }[] }
 export interface WaEstimate { category: string; count: number; rate: string | null; currency: string | null; amount: string | null; verified: boolean; note: string; warning?: string | null; free_included?: number; billable?: number; effective_from?: string | null }
-export type WaAudience = { kind: string; tag?: string; days?: number; tags_any?: string[]; tags_all?: string[]; exclude_tags?: string[]; location_id?: string; not_messaged_days?: number; never_messaged?: boolean };
+export type WaEngaged = "read" | "replied" | "clicked" | "delivered_not_read";
+export type WaAudience = { kind: string; tag?: string; days?: number; tags_any?: string[]; tags_all?: string[]; exclude_tags?: string[]; location_id?: string; not_messaged_days?: number; never_messaged?: boolean;
+  engaged?: WaEngaged; engaged_days?: number; no_engagement_last_offers?: number; winback_days?: number };
 export type WaMapping = { source: "customer_name" | "business_name" | "text"; value?: string };
 export type WaVariables = { offer_text?: string; mapping?: WaMapping[] };
 export interface WaCampaign { id: string; name: string; status: "draft" | "scheduled" | "sending" | "paused" | "done" | "cancelled"; audience: WaAudience; variables: WaVariables; template_id: string | null;
@@ -35,7 +37,8 @@ export interface WaCampaign { id: string; name: string; status: "draft" | "sched
 export interface WaWindow { start: number; end: number; timezone: string; open_now: boolean; always: boolean }
 export interface WaCampaignPreview { id: string; name: string; status: WaCampaign["status"]; audience: WaCampaign["audience"]; recipients: number; estimate: WaEstimate; message_preview: string | null; excluded_note: string;
   ready: { plan: boolean; connection: boolean; template_approved: boolean; has_recipients: boolean; sending_on: boolean }; approved_recipients: number | null; approved_cost: string | null;
-  scheduled_at: string | null; variables: WaVariables; template_id: string | null; segmentation: "none" | "basic" | "advanced"; window: WaWindow; starts_at: string; waits_for_hours: boolean; estimated_minutes: number }
+  scheduled_at: string | null; variables: WaVariables; template_id: string | null; segmentation: "none" | "basic" | "advanced"; window: WaWindow; starts_at: string; waits_for_hours: boolean; estimated_minutes: number;
+  matching?: number; excluded?: { no_consent: number; opted_out: number }; audience_notes?: { key: string; text: string; basis?: string }[] }
 export interface WaDay { date: string; sent: number; delivered: number; read: number; failed: number }
 export interface WaCompareRow { id: string; name: string; status: string; approved_recipients: number | null; sent: number; delivered: number; read: number; failed: number; delivery_rate: number | null; read_rate: number | null;
   opted_out_after: number; estimated_meta_cost: string; approved_estimate: string | null; started_at: string | null }
@@ -271,6 +274,9 @@ export function audienceSentence(a: WaAudience | undefined, locationName?: (id: 
   if (a.location_id) extra.push(`at ${locationName?.(a.location_id) ?? "one location"}`);
   if (a.not_messaged_days) extra.push(`who have not had an offer in the last ${a.not_messaged_days} days`);
   if (a.never_messaged) extra.push("who have never had an offer");
+  if (a.engaged) extra.push(`${ENGAGED_SENTENCE[a.engaged]} in the last ${a.engaged_days ?? 30} days`);
+  if (a.no_engagement_last_offers) extra.push(`who did not read, reply to or click their last ${a.no_engagement_last_offers} offer${a.no_engagement_last_offers === 1 ? "" : "s"}`);
+  if (a.winback_days) extra.push(`who have not visited or been messaged in the last ${a.winback_days} days`);
   return extra.length ? `${base}, ${extra.join(", ")}` : base;
 }
 
@@ -414,4 +420,26 @@ export interface WaLinkSummary { enabled: boolean; link_clicked: number; message
 export const LINK_CLICKED = "Link clicked";
 export function linkClickWords(at: string | null | undefined): string {
   return at ? LINK_CLICKED : "";
+}
+
+// ---- engagement and win-back audiences (Pro). They only choose WHO an ordinary offer is for.
+const ENGAGED_SENTENCE: Record<WaEngaged, string> = { read: "who read a message", replied: "who wrote to you", clicked: "who opened a tracked link", delivered_not_read: "who had a message delivered but not read" };
+export const ENGAGED_CHOICES: { value: WaEngaged; label: string; note: string }[] = [
+  { value: "read", label: "Read a message", note: "Only counts customers who have read receipts turned on." },
+  { value: "replied", label: "Wrote to you", note: "A STOP is never counted as writing to you. Only the time is kept, never what they said." },
+  { value: "clicked", label: "Opened a tracked link", note: "Only has data from the time link click counting was switched on (Pro). Before that, nobody can show up here." },
+  { value: "delivered_not_read", label: "Delivered but not read (may include people with read receipts turned off)", note: "This does not show whether they saw the message." },
+];
+export const WINBACK_NOTE = "Not visited counts only visits you marked on the Customers page. If you have not marked any, this uses messages only: customers you have not messaged for that long. Any message counts, including greetings.";
+/** The one-line limit shown beside an engagement choice. */
+export function engagedNote(v: WaEngaged | ""): string {
+  return ENGAGED_CHOICES.find((c) => c.value === v)?.note ?? "";
+}
+/** How many customers a preview left out, in a sentence for the owner. */
+export function leftOutWords(x: { no_consent: number; opted_out: number } | undefined): string {
+  if (!x || (x.no_consent === 0 && x.opted_out === 0)) return "";
+  const bits: string[] = [];
+  if (x.opted_out) bits.push(`${x.opted_out} asked to stop offers`);
+  if (x.no_consent) bits.push(`${x.no_consent} never agreed to receive offers`);
+  return `Left out: ${bits.join(" and ")}.`;
 }

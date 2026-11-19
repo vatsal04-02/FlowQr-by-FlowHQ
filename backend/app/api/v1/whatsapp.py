@@ -422,7 +422,17 @@ def contact_visit(contact_id: uuid.UUID, request: Request, ctx: TenantContext = 
     """The owner marks this customer's visit as done: schedules one neutral request for honest feedback (if the helper is on and the customer agreed to visit updates)."""
     _on()
     _limit(f"wa-visit:{ctx.tenant_id}", 300, 3600)
-    return _run(ctx, lambda: automations.on_visit_completed(ctx.db, ctx.tenant, consent.get_contact(ctx.db, ctx.tenant_id, contact_id), ctx.user.id))
+    def go():
+        c = consent.get_contact(ctx.db, ctx.tenant_id, contact_id)
+        consent.mark_visit(ctx.db, c)  # recorded whatever happens next: win-back audiences use it
+        try:
+            out = automations.on_visit_completed(ctx.db, ctx.tenant, c, ctx.user.id)
+        except WaError as exc:
+            if exc.code != "automation_off":
+                raise
+            out = {"scheduled": False, "reason": "automation_off"}  # the visit is saved; there is just no review request to send
+        return {"visit_recorded": True, **out}
+    return _run(ctx, go)
 
 
 # ---- campaigns (offers)

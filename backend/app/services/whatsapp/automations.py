@@ -170,6 +170,7 @@ def on_enquiry(db: Session, tenant_id: uuid.UUID, enquiry: SiteEnquiry, whatsapp
     except WaError:
         return {"scheduled": 0}
     contact, _ = consent.create_contact(db, tenant, phone=phone, name=enquiry.name, tags=["website enquiry"], source="website_form", user_id=None)
+    contact.last_enquiry_at = now
     consent.grant(db, tenant, contact, "utility", "website_form")  # the visitor ticked the box on the site: their own act
     if a is None or a.status != "on":
         return {"scheduled": 0, "consent_recorded": True}
