@@ -86,9 +86,9 @@ def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, templat
     token = connection._token_of(conn)  # noqa: SLF001
     if not token:
         return _skip("not_connected")
-    rate = pricing.rate_for(db, purpose)
+    est = pricing.est_rate_for_send(db, tenant.id, purpose)
     msg = WhatsAppMessage(tenant_id=tenant.id, connection_id=conn.id, contact_id=contact.id, phone_number_id=conn.phone_number_id, direction="outbound", category=purpose, template_id=template.id,
-                          delivery_status="queued", idempotency_key=idem_key, run_id=run_id, campaign_id=campaign_id, est_rate=rate.rate if rate else None, kind=kind)
+                          delivery_status="queued", idempotency_key=idem_key, run_id=run_id, campaign_id=campaign_id, est_rate=est, kind=kind)
     try:
         with db.begin_nested():
             db.add(msg)

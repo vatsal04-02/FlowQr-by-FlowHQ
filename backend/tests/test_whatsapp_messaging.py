@@ -209,7 +209,8 @@ def test_rates_are_dated_data_the_newest_in_force_applies_and_nothing_is_edited(
         assert r is not None and r.verified is False and "UNVERIFIED" in r.source  # the seed is an unverified estimate
     assert admin.post("/admin/whatsapp/rates", json={"category": "marketing", "rate": "0.9000", "effective_from": "2026-12-01", "source": "Meta India rate card, effective 1 Dec 2026", "verified": True}).status_code == 201
     with svc_db(uuid.uuid4()) as db:
-        assert pricing.rate_for(db, "marketing", date(2026, 11, 30)).rate == Decimal("0.8631")  # the older rate still applies before the new date
+        assert pricing.rate_for(db, "marketing", date(2026, 11, 30)).rate == Decimal("1.0900")  # the October 2026 rate still applies before the new date
+        assert pricing.rate_for(db, "marketing", date(2026, 9, 30)).rate == Decimal("0.8631")  # and the January row is still there as history
         assert pricing.rate_for(db, "marketing", date(2026, 12, 1)).rate == Decimal("0.9000") and pricing.rate_for(db, "marketing", date(2026, 12, 1)).verified is True
     dup = admin.post("/admin/whatsapp/rates", json={"category": "marketing", "rate": "0.95", "effective_from": "2026-12-01", "source": "Meta India rate card, effective 1 Dec 2026"})
     assert dup.status_code == 409 and dup.json()["detail"]["code"] == "rate_exists"
@@ -219,15 +220,16 @@ def test_rates_are_dated_data_the_newest_in_force_applies_and_nothing_is_edited(
     biz = make_business("Rate Owner")
     assert biz.post("/admin/whatsapp/rates", json={"category": "utility", "rate": "0.1", "effective_from": "2027-02-01", "source": "Meta India rate card"}).status_code == 403
     assert admin.get("/admin/whatsapp/rates").json()["items"][0]["verified"] in (True, False)
+    owner_exec("DELETE FROM whatsapp_rate_verifications WHERE rate_id IN (SELECT id FROM whatsapp_rates WHERE effective_from = '2026-12-01')")
     owner_exec("DELETE FROM whatsapp_rates WHERE effective_from = '2026-12-01'")  # keep the shared table as the migration left it
 
 
 def test_an_estimate_is_labelled_and_claims_nothing_without_a_rate(wm, admin):
     with svc_db(uuid.uuid4()) as db:
         e = pricing.estimate(db, "marketing", 250, date(2026, 11, 20))
-        assert e["amount"] == "215.78" and e["rate"] == "0.8631" and e["currency"] == "INR" and e["verified"] is False
+        assert e["amount"] == "272.50" and e["rate"] == "1.0900" and e["currency"] == "INR" and e["verified"] is False
         assert "estimate" in e["note"].lower() and "not a bill" in e["note"].lower() and "not been checked" in e["note"]
-        assert pricing.estimate(db, "utility", 100, date(2026, 11, 20))["amount"] == "11.50"
+        assert pricing.estimate(db, "utility", 100, date(2026, 11, 20))["amount"] == "14.50"
         none = pricing.estimate(db, "marketing", 10, date(2020, 1, 1))  # before any rate was in force
         assert none["amount"] is None and none["rate"] is None and "No rate is set" in none["note"]
 
@@ -249,7 +251,7 @@ def test_a_send_goes_out_as_an_approved_template_and_is_recorded(wm, admin):
     assert [p["text"] for p in body["template"]["components"][0]["parameters"]] == ["Meera", "Send Clinic", "https://g.page/r/abc/review"]
     assert "text" not in body and "body" not in body  # never free text
     row = messages(biz.tenant_id)[0]
-    assert row[0] == "utility" and row[1] == "sent" and row[3].startswith("wamid.") and row[4] == Decimal("0.1150")
+    assert row[0] == "utility" and row[1] == "sent" and row[3].startswith("wamid.") and row[4] == Decimal("0.1450")
 
 
 def test_every_refusal_has_a_stable_reason_and_sends_nothing(wm, admin, monkeypatch):
@@ -368,8 +370,8 @@ def test_usage_keeps_sent_delivered_and_read_apart_and_estimates_only_delivered(
     u = biz.get("/whatsapp/usage").json()
     t = u["totals"]
     assert (t["attempted"], t["sent"], t["delivered"], t["read"], t["failed"]) == (5, 4, 2, 1, 1)  # delivered is not read
-    assert u["by_category"]["utility"]["estimated_cost"] == "0.23" and u["estimated_meta_cost"] == "0.23" and u["delivery_rate"] == 50  # 2 delivered x 0.115
-    assert "not a bill" in u["note"].lower() and u["rates"]["marketing"]["rate"] == "0.8631" and u["limits"]["per_day"] == settings.whatsapp_daily_cap
+    assert u["by_category"]["utility"]["estimated_cost"] == "0.29" and u["estimated_meta_cost"] == "0.29" and u["delivery_rate"] == 50  # 2 delivered x 0.145
+    assert "not a bill" in u["note"].lower() and u["rates"]["marketing"]["rate"] == "1.0900" and u["limits"]["per_day"] == settings.whatsapp_daily_cap
     assert biz.get("/whatsapp/usage", params={"month": "2020-01"}).json()["totals"]["attempted"] == 0
     assert biz.get("/whatsapp/usage", params={"month": "nope"}).status_code == 422
     other = make_business("Usage Other")
@@ -677,7 +679,7 @@ def test_the_preview_counts_only_people_who_agreed_to_offers_and_estimates_the_c
     biz.post(f"/whatsapp/contacts/{stop['id']}/opt-out", json={"purpose": "marketing"})
     c = draft(biz)
     p = biz.get(f"/whatsapp/campaigns/{c['id']}").json()
-    assert p["recipients"] == 3 and p["estimate"]["amount"] == "2.59" and p["estimate"]["count"] == 3 and p["estimate"]["verified"] is False  # 3 x 0.8631
+    assert p["recipients"] == 3 and p["estimate"]["amount"] == "3.27" and p["estimate"]["count"] == 3 and p["estimate"]["verified"] is False  # 3 x 1.09
     assert "estimate" in p["estimate"]["note"].lower() and "not a bill" in p["estimate"]["note"].lower()
     assert p["message_preview"] == "Hi Cust, Preview Camp has an offer for you: 10% off all sessions this week. Reply STOP to stop receiving offers."
     assert p["ready"] == {"plan": True, "connection": True, "template_approved": True, "has_recipients": True, "sending_on": True} and p["status"] == "draft"
@@ -706,9 +708,9 @@ def test_nothing_is_sent_without_the_explicit_approval_and_approval_is_bound_to_
     assert approve(biz, c["id"], 0).status_code in (409, 422)
     assert wm.sent == []
     ok = approve(biz, c["id"], 3)
-    assert ok.status_code == 200 and ok.json()["status"] == "scheduled" and ok.json()["approved_recipients"] == 3 and ok.json()["approved_cost"] == "2.59"
+    assert ok.status_code == 200 and ok.json()["status"] == "scheduled" and ok.json()["approved_recipients"] == 3 and ok.json()["approved_cost"] == "3.27"
     a = owner_query("SELECT metadata FROM audit_logs WHERE tenant_id = :t AND action = 'whatsapp.campaign_approve'", t=biz.tenant_id)[0][0]
-    assert a["recipients"] == 3 and a["estimate"] == "2.59"
+    assert a["recipients"] == 3 and a["estimate"] == "3.27"
 
 
 def test_an_approval_is_refused_when_the_audience_changed_since_it_was_shown(wm, admin):
@@ -828,7 +830,7 @@ def test_results_report_what_whatsapp_reports_and_claim_no_sales(wm, admin):
     process(base.event_id_for(stop))
     r = biz.get(f"/whatsapp/campaigns/{c['id']}/results").json()
     assert (r["attempted"], r["sent"], r["delivered"], r["read"], r["failed"]) == (4, 4, 3, 1, 0) and r["opted_out_after"] == 1  # delivered is not read
-    assert r["approved_recipients"] == 4 and r["approved_estimate"] == "3.45" and r["estimated_meta_cost"] == "2.59"  # approved estimate vs what was actually delivered
+    assert r["approved_recipients"] == 4 and r["approved_estimate"] == "4.36" and r["estimated_meta_cost"] == "3.27"  # approved estimate vs what was actually delivered
     note = r["note"].lower()
     assert "cannot tell you how many sales" in note and "not a bill" in note
     for claim in ("conversion", "revenue", "roi"):

@@ -208,6 +208,7 @@ function OfferDetail({ id, canEdit, onClose, onDuplicate }: { id: string; canEdi
           {err && <Alert tone="error">{err}</Alert>}
           <div className="flex flex-wrap items-center gap-2"><Badge tone={CAMPAIGN_STATUS[p.status].tone}>{CAMPAIGN_STATUS[p.status].label}</Badge><span className="text-ink-500">{audienceSentence(p.audience, locName)}</span></div>
           {p.message_preview && <div><p className="mb-1 text-[13px] font-semibold text-ink-500">What customers will read</p><p className="rounded-2xl bg-surface-2 p-4 text-ink">{p.message_preview}</p></div>}
+          {p.estimate.warning && <Alert tone="warning" title="Prices not checked yet">{p.estimate.warning}</Alert>}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-surface-2 p-4"><p className="text-[13px] text-ink-500">Customers who will get it</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{p.status === "draft" || p.status === "paused" ? p.recipients : p.approved_recipients ?? p.recipients}</p></div>
             <div className="rounded-2xl bg-surface-2 p-4"><p className="text-[13px] text-ink-500">Likely WhatsApp charge</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{rupees(p.status === "draft" ? p.estimate.amount : p.approved_cost ?? p.estimate.amount)}</p></div>

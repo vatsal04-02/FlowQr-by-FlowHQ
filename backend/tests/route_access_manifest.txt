@@ -123,6 +123,7 @@ platform-admin	GET	/api/v1/admin/webhooks
 platform-admin	POST	/api/v1/admin/webhooks/{event_id}/reprocess
 platform-admin	GET	/api/v1/admin/whatsapp/rates
 platform-admin	POST	/api/v1/admin/whatsapp/rates
+platform-admin	POST	/api/v1/admin/whatsapp/rates/{rate_id}/verification
 platform-admin	GET	/api/v1/admin/work-queue
 member	GET	/api/v1/agent/actions
 role-admin	POST	/api/v1/agent/actions

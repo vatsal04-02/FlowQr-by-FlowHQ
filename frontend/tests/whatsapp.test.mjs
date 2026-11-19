@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -231,4 +231,22 @@ test("the thank-you message state is told plainly", () => {
   assert.equal(confirmWords("approved").tone, "green");
   assert.equal(confirmWords("pending").tone, "amber");
   assert.equal(confirmWords("rejected").tone, "red");
+});
+
+test("a price is Verified only when its latest check says so, and otherwise it is plainly UNVERIFIED", () => {
+  assert.deepEqual(rateStatus({ verified: true }), { label: "Verified", tone: "green" });
+  assert.deepEqual(rateStatus({ verified: false }), { label: "UNVERIFIED", tone: "amber" });
+});
+
+test("a typed price is a plain rupee amount", () => {
+  for (const ok of ["1.09", "0.145", "0", "999.9999", " 0.8631 "]) assert.equal(rateProblem(ok), null, ok);
+  for (const bad of ["", "abc", "-1", "1,09", "1.23456", "10000", "1e3", "Rs 1"]) assert.notEqual(rateProblem(bad), null, bad);
+});
+
+test("the four Meta categories and the free allowance have plain words", () => {
+  assert.deepEqual(RATE_CATEGORIES.map((c) => c.value), ["marketing", "utility", "authentication", "service"]);
+  assert.equal(categoryLabel("service"), "Service (replies inside 24 hours)");
+  assert.equal(categoryLabel("other"), "other");
+  assert.equal(freeAllowanceWords(1000), "First 1,000 free per number each month");
+  assert.equal(freeAllowanceWords(0), "No free allowance");
 });

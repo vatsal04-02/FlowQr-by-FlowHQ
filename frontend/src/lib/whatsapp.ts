@@ -25,7 +25,7 @@ export interface WaAutomations { items: WaAutomation[]; limit: number | null; ac
 export interface WaRun { id: string; step: string; status: string; reason: string | null; to: string | null; phone_last4: string | null; scheduled_at: string; executed_at: string | null; attempts: number }
 export interface WaTemplate { id: string; name: string; key: string | null; language: string; category: string; status: string; body: string | null; variables: string[]; rejection_reason: string | null; synced_at: string | null; simple?: boolean }
 export interface WaTemplates { items: WaTemplate[]; available: { key: string; category: string; body: string; installed: boolean }[] }
-export interface WaEstimate { category: string; count: number; rate: string | null; currency: string | null; amount: string | null; verified: boolean; note: string }
+export interface WaEstimate { category: string; count: number; rate: string | null; currency: string | null; amount: string | null; verified: boolean; note: string; warning?: string | null; free_included?: number; billable?: number }
 export type WaAudience = { kind: string; tag?: string; days?: number; tags_any?: string[]; tags_all?: string[]; exclude_tags?: string[]; location_id?: string; not_messaged_days?: number; never_messaged?: boolean };
 export type WaMapping = { source: "customer_name" | "business_name" | "text"; value?: string };
 export type WaVariables = { offer_text?: string; mapping?: WaMapping[] };
@@ -41,7 +41,7 @@ export interface WaCompareRow { id: string; name: string; status: string; approv
 export interface WaCampaignResults { id: string; name: string; status: string; approved_recipients: number | null; approved_estimate: string | null; attempted: number; sent: number; delivered: number; read: number; failed: number;
   waiting: number; skipped: number; skipped_reasons: Record<string, number>; opted_out_after: number; estimated_meta_cost: string; note: string; delivery_rate: number | null; read_rate: number | null; timeline: WaDay[] }
 export interface WaUsage { month: string; totals: { attempted: number; sent: number; delivered: number; read: number; failed: number }; by_category: Record<string, { attempted: number; sent: number; delivered: number; read: number; failed: number; estimated_cost: string }>;
-  estimated_meta_cost: string; currency: string; note: string; delivery_rate: number | null; rates: { marketing: WaEstimate; utility: WaEstimate }; limits: { per_minute: number; per_day: number } }
+  estimated_meta_cost: string; currency: string; note: string; delivery_rate: number | null; rates: { marketing: WaEstimate; utility: WaEstimate }; limits: { per_minute: number; per_day: number }; price_warning?: string | null }
 export interface WaMessageRow { id: string; to: string | null; phone_last4: string | null; category: string | null; status: string; error_code: string | null; sent_at: string | null; delivered_at: string | null; read_at: string | null; created_at: string }
 export interface SignupStart { app_id: string; config_id: string; graph_version: string; state: string; expires_at: string }
 
@@ -348,4 +348,28 @@ export function currentStep(s: Pick<WaSetup, "steps">): WaStep | null {
 export function stepOpen(step: WaStep, current: WaStep | null, openKey: string | null): boolean {
   if (openKey === step.key) return true;
   return current?.key === step.key && step.state !== "blocked";
+}
+
+/** Meta's per-message prices as an administrator sees them: dated rows that are never overwritten, each with its latest check. */
+export type RateCategory = "marketing" | "utility" | "authentication" | "service";
+export const RATE_CATEGORIES: { value: RateCategory; label: string }[] = [
+  { value: "marketing", label: "Marketing (offers)" }, { value: "utility", label: "Utility (visit and enquiry updates)" },
+  { value: "authentication", label: "Authentication (one-time codes)" }, { value: "service", label: "Service (replies inside 24 hours)" },
+];
+export interface WaRateCheck { verified: boolean; note: string; at: string; by: string | null }
+export interface WaRate { id: string; country: string; category: RateCategory; rate: string; currency: string; effective_from: string; source: string; verified: boolean; free_per_number_month: number; verification: WaRateCheck | null; in_force?: boolean }
+export interface WaRates { items: WaRate[]; note: string; unverified_in_use: RateCategory[] }
+export const categoryLabel = (c: string) => RATE_CATEGORIES.find((x) => x.value === c)?.label ?? c;
+/** The one word shown for a price: Verified only when the latest check says it matches Meta's own rate card. */
+export function rateStatus(r: Pick<WaRate, "verified">): { label: string; tone: "green" | "amber" } {
+  return r.verified ? { label: "Verified", tone: "green" } : { label: "UNVERIFIED", tone: "amber" };
+}
+/** The free allowance in words, or nothing when there is none. */
+export function freeAllowanceWords(n: number): string {
+  return n > 0 ? `First ${n.toLocaleString("en-IN")} free per number each month` : "No free allowance";
+}
+/** A rate typed by an administrator: a plain number from 0 to 1000 with up to four decimals. */
+export function rateProblem(raw: string): string | null {
+  if (!/^\d{1,4}(\.\d{1,4})?$/.test(raw.trim())) return "Enter the price in rupees, like 1.09 or 0.145.";
+  return Number(raw) > 1000 ? "That price is not realistic." : null;
 }

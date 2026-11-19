@@ -232,7 +232,8 @@ class WhatsAppRate(IdMixin, Base):
     effective date is added. `verified` is false until an administrator has checked the number against Meta's own rate card."""
 
     __tablename__ = "whatsapp_rates"
-    __table_args__ = (CheckConstraint(_in("category", RATE_CATEGORIES), name="ck_wa_rate_category"), UniqueConstraint("country", "category", "effective_from", name="uq_wa_rate"))
+    __table_args__ = (CheckConstraint(_in("category", RATE_CATEGORIES), name="ck_wa_rate_category"), CheckConstraint("free_per_number_month >= 0", name="ck_wa_rate_free"),
+                      UniqueConstraint("country", "category", "effective_from", name="uq_wa_rate"))
 
     country: Mapped[str] = mapped_column(String(2))
     category: Mapped[str] = mapped_column(String(16))
@@ -240,8 +241,21 @@ class WhatsAppRate(IdMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     effective_from: Mapped[date] = mapped_column(Date)
     source: Mapped[str] = mapped_column(String(300))
-    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)  # as written with the row; the price screen shows the LATEST WhatsAppRateVerification instead
+    free_per_number_month: Mapped[int] = mapped_column(Integer, default=0)  # messages of this category Meta gives free per number per month (0 = none)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppRateVerification(IdMixin, Base):
+    """Append-only: an administrator's check of one rate row against Meta's own rate card. The rate row is never touched; the newest check for a row is the one that counts."""
+
+    __tablename__ = "whatsapp_rate_verifications"
+
+    rate_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_rates.id", ondelete="RESTRICT"))
+    verified: Mapped[bool] = mapped_column(Boolean)
+    note: Mapped[str] = mapped_column(String(300))
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

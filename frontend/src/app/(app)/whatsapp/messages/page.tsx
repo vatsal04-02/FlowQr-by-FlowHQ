@@ -55,6 +55,7 @@ export default function Messages() {
           {usage.error && <Alert tone="error">{usage.error}</Alert>}
           {!u ? <Skeleton className="h-24" /> : (
             <div className="space-y-3">
+              {u.price_warning && <Alert tone="warning" title="Prices not checked yet">{u.price_warning}</Alert>}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {([["Tried to send", u.totals.attempted], ["Sent", u.totals.sent], ["Delivered", u.totals.delivered], ["Read", u.totals.read], ["Not delivered", u.totals.failed]] as [string, number][]).map(([l, v]) => <div key={l} className="rounded-2xl bg-surface-2 p-4"><p className="text-[13px] text-ink-500">{l}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{v}</p></div>)}
               </div>

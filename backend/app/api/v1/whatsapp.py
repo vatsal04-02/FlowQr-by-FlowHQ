@@ -508,6 +508,7 @@ def usage_summary(month: str | None = None, ctx: TenantContext = Depends(get_ten
     _on()
     out = _run(ctx, lambda: usage.summary(ctx.db, ctx.tenant_id, month))
     out["rates"] = {c: pricing.estimate(ctx.db, c, 1) for c in ("marketing", "utility")}
+    out["price_warning"] = pricing.WARNING if pricing.unverified_in_use(ctx.db) else None  # shown above every cost figure while the price in use is unverified
     out["limits"] = {"per_minute": settings.whatsapp_send_per_minute, "per_day": settings.whatsapp_daily_cap}
     return out
 
