@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, pricing, rules, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -231,6 +231,37 @@ def contact_erase(contact_id: uuid.UUID, request: Request, ctx: TenantContext = 
         consent.erase_contact(ctx.db, ctx.tenant, consent.get_contact(ctx.db, ctx.tenant_id, contact_id), ctx.user.id, client_ip(request))
     _run(ctx, go)
     return Response(status_code=204)
+
+
+# ---- first-run set-up: the guided path from nothing to the first helper
+class PrepareIn(BaseModel):
+    include_offer: bool = False
+
+
+class TestMessageIn(BaseModel):
+    phone: str = Field(min_length=5, max_length=24)
+    own_number: bool = False
+
+
+@router.get("/setup")
+def setup_status(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return wa_setup.status(ctx.db, ctx.tenant)
+
+
+@router.post("/setup/prepare-messages")
+def setup_prepare(body: PrepareIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """One click: submit the standard messages the helpers use to WhatsApp for approval (safe to repeat)."""
+    _on()
+    _limit(f"wa-template-install:{ctx.tenant_id}", 30, 3600)
+    return _run(ctx, lambda: wa_setup.prepare_messages(ctx.db, ctx.tenant_id, ctx.user.id, client_ip(request), body.include_offer))
+
+
+@router.post("/setup/test-message")
+def setup_test(body: TestMessageIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """A test message to the owner's OWN number, through the normal sender and gate."""
+    _on()
+    return _run(ctx, lambda: wa_setup.send_test(ctx.db, ctx.tenant, ctx.user, phone=body.phone, own_number=body.own_number, ip=client_ip(request)), commit_on_error=True)  # a failed try is kept: the checklist says so
 
 
 # ---- templates (the fixed, neutral messages FlowQR submits to WhatsApp for the business)

@@ -1,6 +1,6 @@
-# WhatsApp Automation: Phases 1 to 4
+# WhatsApp Automation: Phases 1 to 5
 
-Status: **Phases 1, 2, 3 and 4 are implemented in the repository and tested locally; not deployed; every flag OFF by default.** Phases 2 and 3 are described in the section "Phases 2 and 3" and Phase 4 in "Phase 4" below; the rest of this document describes Phase 1. No real Meta account, number, customer or message has been involved. Nothing in this document has been applied to production.
+Status: **Phases 1 to 5 are implemented in the repository and tested locally; not deployed; every flag OFF by default.** Phases 2 and 3 are described in the section "Phases 2 and 3" Phase 4 in "Phase 4" and Phase 5 in "Phase 5" below; the rest of this document describes Phase 1. No real Meta account, number, customer or message has been involved. Nothing in this document has been applied to production.
 
 Branch `feature/whatsapp-automation`, migrations **0048** (Phase 1, parent 0047) **0049** (Phases 2 and 3, parent 0048) and **0050** (Phase 4, parent 0049). Official Meta WhatsApp Cloud API only: no WhatsApp Web automation, no unofficial libraries.
 
@@ -152,3 +152,15 @@ Migration **0050** (parent 0049, single head): `whatsapp_contacts.location_id` (
 - **Screens.** The Offers page gains message choice with blank-filling, "More ways to choose (Pro)", a start-time picker, a sending-hours explanation, change start time, make a copy, download results, a day-by-day bar chart with the numbers written out (not colour-only) and a comparison table; Customers gain an optional location and a location filter.
 
 Remaining after Phase 4: Phase 5 (first-run connection wizard, a guided test message, activation checklist), the QR review page opt-in, birthday and win-back, click tracking, an administrator screen for Meta rates, and everything that needs real Meta credentials and approval.
+
+## Phase 5 (first-run set-up)
+
+No migration (the checklist is derived from existing records). Still local only; the test message goes through the same gate as every message, so nothing sends unless sending is switched on.
+
+- **A six-step checklist** (`GET /api/v1/whatsapp/setup`, `services/whatsapp/setup.py`), each step computed from real records, never from a box the owner ticks: **plan** (the add-on is on), **connect** (the number is connected and healthy), **messages** (WhatsApp approved the standard messages), **customers** (at least one customer agreed to visit updates), **test** (a test message to the owner's own number was accepted), **helper** (at least one helper is on). Each step reports `done`, `todo`, `waiting` (nothing for the owner to do: for example WhatsApp is reviewing a message, or FlowQR has not finished its Meta set-up, or sending is not switched on yet) or `blocked` (an earlier step comes first), with a sentence in plain words. The Overview shows the progress; the new **Set up** screen walks the owner through it and picks up where they left off.
+- **One click to prepare the messages** (`POST /setup/prepare-messages`): submits the messages the helpers use (review request, enquiry thank-you, enquiry follow-up; the offer message on request) to WhatsApp for approval. Safe to repeat.
+- **Test message** (`POST /setup/test-message`): sends the enquiry thank-you to the owner's own number so they see exactly what customers receive. The owner must confirm the number is their own; that records a visit-updates consent for that number, written by the owner about themselves (source `owner_entry`, with an explicit note, never offers). It uses the normal sender and gate (consent, approved template, limits, emergency stop), is idempotent within a minute, limited to five an hour, counted in usage like any other message, audited, and a failed try is kept so the checklist can say "your last try did not go through". The screen follows delivery (sent, delivered, read) for a short while.
+- **Recommended helpers** for the kind of business (clinic, salon and gym: reviews and enquiries; restaurant and shops: offers and reviews; trades and professionals: enquiries and reviews), as a suggestion the owner can ignore.
+- **Add yourself as the first customer** inside the wizard (with the "this person agreed" confirmation and a note on how they agreed), and **switch on the first helper** from the recommended cards.
+
+Remaining after Phase 5: the QR review page opt-in (a product decision: that page does not collect a phone number today), birthday and win-back, click tracking, an administrator screen for dated Meta rates, and everything that needs real Meta credentials and approval (Tech Provider status, Embedded Signup configuration, template approvals, India rates, coexistence eligibility).

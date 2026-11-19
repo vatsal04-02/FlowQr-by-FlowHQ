@@ -278,3 +278,44 @@ export function barPercent(n: number, max: number): number {
 export function percent(v: number | null | undefined): string {
   return v === null || v === undefined ? "–" : `${v}%`;
 }
+
+// ---- Phase 5: first-run set-up
+
+export type StepState = "done" | "todo" | "waiting" | "blocked";
+export interface WaStep { key: "plan" | "connect" | "messages" | "customers" | "test" | "helper"; title: string; body: string; state: StepState; action: string;
+  missing?: string[]; pending?: string[]; refused?: string[]; recommended?: string[]; test?: { status: string; sent_at: string | null; delivered_at: string | null } }
+export interface WaSetup { steps: WaStep[]; done: number; total: number; complete: boolean; next: WaStep["key"] | null; sending: boolean; recommended: { helpers: string[]; why: string };
+  last_test: { status: string; sent_at: string | null; delivered_at: string | null } | null }
+
+export const STEP_STATE: Record<StepState, { label: string; tone: "green" | "amber" | "gray" | "blue" }> = {
+  done: { label: "Done", tone: "green" }, todo: { label: "Your turn", tone: "blue" }, waiting: { label: "Waiting", tone: "amber" }, blocked: { label: "Not yet", tone: "gray" },
+};
+
+export const HELPER_TITLES: Record<string, string> = { review_followup: "Get more customer reviews", enquiry_followup: "Follow up with enquiries", offers: "Send offers to customers" };
+
+/** "3 of 6 steps done", or a finished message. */
+export function setupProgress(s: Pick<WaSetup, "done" | "total" | "complete">): string {
+  return s.complete ? "You are all set up." : `${s.done} of ${s.total} steps done`;
+}
+
+/** A width for the progress bar, 0 to 100. */
+export function setupPercent(s: Pick<WaSetup, "done" | "total">): number {
+  return s.total <= 0 ? 0 : Math.round((s.done * 100) / s.total);
+}
+
+/** Whether a typed number looks like a mobile number worth sending to the server (the server decides for real). */
+export function looksLikeMobile(v: string): boolean {
+  const d = v.replace(/\D/g, "");
+  return d.length === 10 || (d.length === 12 && d.startsWith("91")) || (d.length >= 11 && d.length <= 15 && v.trim().startsWith("+"));
+}
+
+/** The step the owner should work on now, or null when everything is done. */
+export function currentStep(s: Pick<WaSetup, "steps">): WaStep | null {
+  return s.steps.find((x) => x.state !== "done") ?? null;
+}
+
+/** A step is open (its controls are shown) when it is the one to work on, or when the owner opened it. Done and not-yet steps stay closed. */
+export function stepOpen(step: WaStep, current: WaStep | null, openKey: string | null): boolean {
+  if (openKey === step.key) return true;
+  return current?.key === step.key && step.state !== "blocked";
+}

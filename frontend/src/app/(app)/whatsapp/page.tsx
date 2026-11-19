@@ -3,28 +3,36 @@ import { MessageCircle, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { LinkButton } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton, Stat } from "@/components/ui/Card";
-import { connectionWords, nextStep, type WaAutomations, type WaStatus } from "@/lib/whatsapp";
+import { connectionWords, currentStep, setupPercent, setupProgress, type WaAutomations, type WaSetup, type WaStatus } from "@/lib/whatsapp";
 import { useFetch } from "@/lib/use-api";
 
 /** WhatsApp overview. Everything here is in plain words: where the set-up stands, what to do next, who has agreed to hear from you. Nothing has been sent from here yet. */
 export default function WhatsAppOverview() {
   const st = useFetch<WaStatus>("/whatsapp/status");
   const au = useFetch<WaAutomations>("/whatsapp/automations");
+  const su = useFetch<WaSetup>("/whatsapp/setup");
   const s = st.data;
   const conn = connectionWords(s?.connection ?? null);
-  const step = s ? nextStep(s) : null;
+  const setup = su.data;
+  const step = setup ? currentStep(setup) : null;
   return (
     <>
       <PageHeader title="WhatsApp" subtitle="Remind customers, ask for reviews and send offers, only to people who agreed to hear from you." />
       {st.error && <Alert tone="error">{st.error}</Alert>}
       {!s ? <Skeleton className="h-72" /> : (
         <div className="space-y-4">
-          {step && (
+          {setup && (
             <Card>
-              <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-500">Your next step</p>
-              <h2 className="mt-1 text-xl font-semibold text-ink">{step.title}</h2>
-              <p className="mt-1 max-w-2xl text-sm text-ink-700">{step.body}</p>
-              <div className="mt-4"><LinkButton href={step.href} variant="brand">{step.cta}</LinkButton></div>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-500">{setup.complete ? "Set-up" : "Your next step"}</p>
+                  <h2 className="mt-1 text-xl font-semibold text-ink">{step ? step.title : "You are all set up"}</h2>
+                  <p className="mt-1 max-w-2xl text-sm text-ink-700">{step ? step.body : "Your number is connected, your messages are approved, and a helper is on."}</p>
+                </div>
+                <span className="text-[13px] font-semibold text-ink-500">{setupProgress(setup)}</span>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-surface-3" role="progressbar" aria-valuemin={0} aria-valuemax={setup.total} aria-valuenow={setup.done} aria-label="Set-up progress"><div className="h-2 rounded-full bg-brand-700" style={{ width: `${setupPercent(setup)}%` }} /></div>
+              <div className="mt-4"><LinkButton href="/whatsapp/setup" variant={setup.complete ? "secondary" : "brand"}>{setup.complete ? "Review set-up" : step?.state === "waiting" ? "See where things stand" : "Continue set-up"}</LinkButton></div>
             </Card>
           )}
           <div className="grid gap-4 lg:grid-cols-3">

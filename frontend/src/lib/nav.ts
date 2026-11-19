@@ -60,6 +60,7 @@ export const DESTS: Dest[] = [
   ] },
   { id: "whatsapp", href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, group: "tools", flag: "whatsapp", children: [
     { href: "/whatsapp", label: "Overview" },
+    { href: "/whatsapp/setup", label: "Set up" },
     { href: "/whatsapp/connect", label: "Connect" },
     { href: "/whatsapp/contacts", label: "Customers" },
     { href: "/whatsapp/automations", label: "Automations" },

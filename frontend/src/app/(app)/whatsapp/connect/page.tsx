@@ -8,7 +8,8 @@ import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/use-api";
-import { connectionWords, launchEmbeddedSignup, type SignupStart, type WaConnection, type WaStatus } from "@/lib/whatsapp";
+import { connectWhatsApp } from "@/lib/whatsapp-connect";
+import { connectionWords, type WaStatus } from "@/lib/whatsapp";
 
 /** Connect your WhatsApp: Meta's own sign-up window opens, you choose your number, FlowQR keeps the connection safe on its server. No password or key is ever typed here or shown here. */
 export default function ConnectWhatsApp() {
@@ -26,9 +27,7 @@ export default function ConnectWhatsApp() {
   async function connect() {
     setBusy("connect"); setErr(null);
     try {
-      const start = await api<SignupStart>("/whatsapp/connect/start", { method: "POST" });
-      const got = await launchEmbeddedSignup(start);
-      await api<WaConnection>("/whatsapp/connect/complete", { method: "POST", body: { state: start.state, code: got.code, waba_id: got.waba_id, phone_number_id: got.phone_number_id } });
+      await connectWhatsApp();
       toast("WhatsApp is connected.");
     } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(null); void st.reload(); }

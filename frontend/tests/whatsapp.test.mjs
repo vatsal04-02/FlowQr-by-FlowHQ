@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -174,4 +174,42 @@ test("chart bars and rates never invent a number", () => {
   assert.equal(percent(undefined), "–");
   assert.equal(percent(0), "0%");
   assert.equal(percent(75), "75%");
+});
+
+const mkStep = (key, state) => ({ key, title: key, body: "b", state, action: "x" });
+const mkSetup = (states) => ({ steps: ["plan", "connect", "messages", "customers", "test", "helper"].map((k, i) => mkStep(k, states[i])), done: states.filter((x) => x === "done").length, total: 6, complete: states.every((x) => x === "done") });
+
+test("progress is told in words and a bar that never lies", () => {
+  assert.equal(setupProgress(mkSetup(["done", "done", "todo", "todo", "blocked", "blocked"])), "2 of 6 steps done");
+  assert.equal(setupProgress(mkSetup(Array(6).fill("done"))), "You are all set up.");
+  assert.equal(setupPercent(mkSetup(["done", "done", "done", "todo", "todo", "todo"])), 50);
+  assert.equal(setupPercent({ done: 0, total: 0 }), 0);
+  assert.equal(setupPercent(mkSetup(Array(6).fill("done"))), 100);
+});
+
+test("the step to work on is the first one that is not done, even when it has to wait", () => {
+  assert.equal(currentStep(mkSetup(["done", "done", "waiting", "todo", "blocked", "blocked"])).key, "messages");
+  assert.equal(currentStep(mkSetup(["blocked", "blocked", "blocked", "todo", "blocked", "blocked"])).key, "plan");
+  assert.equal(currentStep(mkSetup(Array(6).fill("done"))), null);
+});
+
+test("a step opens when it is the current one or the owner opened it, but a not-yet step stays closed", () => {
+  const s = mkSetup(["done", "todo", "blocked", "todo", "blocked", "blocked"]);
+  const cur = currentStep(s);
+  assert.equal(stepOpen(s.steps[1], cur, null), true);   // the current step
+  assert.equal(stepOpen(s.steps[0], cur, null), false);  // a finished step is closed
+  assert.equal(stepOpen(s.steps[3], cur, null), false);  // a later step is closed
+  assert.equal(stepOpen(s.steps[0], cur, "plan"), true); // the owner opened it
+  const blockedCurrent = mkSetup(["blocked", "blocked", "blocked", "todo", "blocked", "blocked"]);
+  assert.equal(stepOpen(blockedCurrent.steps[0], currentStep(blockedCurrent), null), false); // a blocked step does not open by itself
+});
+
+test("every set-up state has a plain label", () => {
+  for (const k of ["done", "todo", "waiting", "blocked"]) assert.ok(STEP_STATE[k].label && STEP_STATE[k].tone, k);
+  assert.deepEqual(Object.keys(HELPER_TITLES).sort(), ["enquiry_followup", "offers", "review_followup"]);
+});
+
+test("a number worth sending to the server looks like an Indian mobile number or an international one", () => {
+  for (const ok of ["98765 43210", "9876543210", "+91 98765 43210", "919876543210", "+44 7911 123456"]) assert.equal(looksLikeMobile(ok), true, ok);
+  for (const bad of ["", "12345", "abcdefghij", "98765", "0000", "123456789"]) assert.equal(looksLikeMobile(bad), false, bad);
 });
