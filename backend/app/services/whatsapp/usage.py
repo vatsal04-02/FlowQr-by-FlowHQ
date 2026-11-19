@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.base import utcnow
 from app.models.whatsapp import WhatsAppContact, WhatsAppMessage
-from app.services.whatsapp import WaError, pricing
+from app.services.whatsapp import WaError, links, pricing
 
 RANK = {"queued": 0, "sent": 1, "delivered": 2, "read": 3}
 
@@ -56,7 +56,7 @@ def summary(db: Session, tenant_id: uuid.UUID, month: str | None = None) -> dict
     total = {k: sum(v[k] for v in by.values()) for k in ("attempted", "sent", "delivered", "read", "failed")}
     cost = sum((v["estimated_cost"] for v in by.values()), Decimal(0))
     return {"month": label, "by_category": {k: {**{kk: vv for kk, vv in v.items() if kk != "estimated_cost"}, "estimated_cost": str(v["estimated_cost"].quantize(Decimal("0.01")))} for k, v in by.items()}, "totals": total,
-            "estimated_meta_cost": str(cost.quantize(Decimal("0.01"))), "currency": "INR", "note": pricing.NOTE,
+            "estimated_meta_cost": str(cost.quantize(Decimal("0.01"))), "currency": "INR", "note": pricing.NOTE, "links": links.summary(db, tenant_id, start, end),
             "delivery_rate": round(total["delivered"] * 100 / total["sent"]) if total["sent"] else None}
 
 
@@ -68,5 +68,22 @@ def activity(db: Session, tenant_id: uuid.UUID, *, limit: int = 50, offset: int 
         q = q.where(WhatsAppMessage.campaign_id == campaign_id)
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     rows = db.execute(q.order_by(WhatsAppMessage.created_at.desc()).limit(limit).offset(offset)).all()
+    clicks = links.clicked_at_for(db, tenant_id, [m.id for m, _ in rows])
     return total, [{"id": m.id, "to": (c.customer_name if c and c.customer_name else None), "phone_last4": c.phone[-4:] if c else None, "category": m.category, "status": m.delivery_status,
-                    "error_code": m.error_code, "sent_at": m.sent_at, "delivered_at": m.delivered_at, "read_at": m.read_at, "created_at": m.created_at, "campaign_id": m.campaign_id} for m, c in rows]
+                    "error_code": m.error_code, "sent_at": m.sent_at, "delivered_at": m.delivered_at, "read_at": m.read_at, "created_at": m.created_at, "campaign_id": m.campaign_id,
+                    "link_clicked_at": clicks.get(m.id)} for m, c in rows]
+
+
+def export_csv(db: Session, tenant_id: uuid.UUID, limit: int = 5000) -> str:
+    """The business's own message log for its records: when, to whom (last four digits only), what kind, what happened, and whether the link in it was clicked. "link_clicked" never means a review was left."""
+    import csv
+    import io
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["sent_at", "customer", "phone_last4", "category", "status", "delivered_at", "read_at", "link_clicked", "link_clicked_at"])
+    _, rows = activity(db, tenant_id, limit=limit, offset=0)
+    for r in rows:
+        w.writerow([r["sent_at"].isoformat() if r["sent_at"] else "", ("'" + r["to"]) if r["to"] and r["to"][:1] in ("=", "+", "-", "@") else (r["to"] or ""), r["phone_last4"] or "", r["category"] or "", r["status"],
+                    r["delivered_at"].isoformat() if r["delivered_at"] else "", r["read_at"].isoformat() if r["read_at"] else "", "yes" if r["link_clicked_at"] else "no",
+                    r["link_clicked_at"].isoformat() if r["link_clicked_at"] else ""])
+    return out.getvalue()

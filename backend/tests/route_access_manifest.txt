@@ -267,6 +267,7 @@ role-admin	PUT	/api/v1/google/connections/{connection_id}/selection
 member	GET	/api/v1/google/status
 role-admin	POST	/api/v1/google/sync
 signed-in	POST	/api/v1/invitations/accept
+public-bypass-db	GET	/api/v1/l/{token}
 public	GET	/api/v1/legal/info
 member	GET	/api/v1/locations
 role-admin	POST	/api/v1/locations
@@ -395,6 +396,7 @@ role-admin	POST	/api/v1/whatsapp/contacts/{contact_id}/consent
 role-admin	POST	/api/v1/whatsapp/contacts/{contact_id}/opt-out
 role-admin	POST	/api/v1/whatsapp/contacts/{contact_id}/visit
 member	GET	/api/v1/whatsapp/messages
+role-admin	GET	/api/v1/whatsapp/messages/export
 member	GET	/api/v1/whatsapp/occasions
 role-admin	PUT	/api/v1/whatsapp/occasions/festivals/{festival_id}
 member	GET	/api/v1/whatsapp/optin

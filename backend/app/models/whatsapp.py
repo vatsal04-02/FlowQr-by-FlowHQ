@@ -386,3 +386,32 @@ class WhatsAppFestivalOptin(IdMixin, TimestampMixin, Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     festival_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_festivals.id", ondelete="CASCADE"))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class WhatsAppLink(IdMixin, Base):
+    """A tracked review link: a long random token that always leads to ONE fixed destination chosen when the link was made (the business's own review page). Nothing in a request can change where it
+    goes. It belongs to the business and dies only with it: deleting the message or the customer it was sent to does not break the link for whoever still holds it."""
+
+    __tablename__ = "whatsapp_links"
+    __table_args__ = (UniqueConstraint("token", name="uq_wa_link_token"), UniqueConstraint("tenant_id", "idem_key", name="uq_wa_link_idem"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(64))
+    destination: Mapped[str] = mapped_column(String(500))
+    idem_key: Mapped[str | None] = mapped_column(String(200))  # one link per send: a retry reuses it
+    message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_messages.id", ondelete="SET NULL"))
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppLinkClick(IdMixin, Base):
+    """One counted click: which link, which customer and message, and when. Nothing else: no address, no browser, no place. Deleted with the customer, and with the business."""
+
+    __tablename__ = "whatsapp_link_clicks"
+    __table_args__ = (Index("ix_wa_click_link_time", "link_id", "clicked_at"), Index("ix_wa_click_tenant_time", "tenant_id", "clicked_at"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    link_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_links.id", ondelete="CASCADE"))
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="CASCADE"))
+    message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_messages.id", ondelete="SET NULL"))
+    clicked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

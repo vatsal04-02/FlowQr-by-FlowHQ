@@ -543,6 +543,15 @@ def usage_summary(month: str | None = None, ctx: TenantContext = Depends(get_ten
     return out
 
 
+@router.get("/messages/export")
+def messages_export(request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    from app.services.audit import audit
+    audit(ctx.db, action="whatsapp.messages_export", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="whatsapp_message", ip=client_ip(request))
+    ctx.db.commit()
+    return Response(usage.export_csv(ctx.db, ctx.tenant_id), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="whatsapp-messages.csv"', "Cache-Control": "no-store"})
+
+
 @router.get("/messages")
 def message_activity(status: Literal["queued", "sent", "delivered", "read", "failed"] | None = None, campaign_id: uuid.UUID | None = None, limit: int = 50, offset: int = 0, ctx: TenantContext = Depends(get_tenant_context)):
     _on()

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -275,4 +275,18 @@ test("greeting helpers choose an hour from 9 to 20 and refusals read as plain se
   }
   for (const code of ["no_occasion_consent", "greeting_too_soon", "outside_hours", "day_passed", "plan_required"]) assert.match(reasonWords(code), /[a-z]{4,}/, code);
   assert.match(reasonWords("outside_hours"), /9 am and 9 pm/);
+});
+
+test("a link click is only ever called link clicked", () => {
+  assert.equal(LINK_CLICKED, "Link clicked");
+  assert.equal(linkClickWords("2026-11-19T10:00:00Z"), "Link clicked");
+  assert.equal(linkClickWords(null), "");
+  assert.equal(linkClickWords(undefined), "");
+  assert.doesNotMatch(LINK_CLICKED + linkClickWords("x"), /review|rating|star|left|sale/i);
+});
+
+test("the review helper offers to count link clicks as a yes or no setting", () => {
+  const f = AUTOMATION_FIELDS.review_followup.find((x) => x.key === "track_clicks");
+  assert.ok(f && f.bool === true);
+  assert.match(f.label, /Pro/);
 });

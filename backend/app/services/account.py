@@ -64,7 +64,7 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   "whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
                   "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients",
                   # opt-in without a phone number on the page: the business's code and settings, and its opt-in keywords
-                  "whatsapp_optin_settings", "whatsapp_optin_keywords", "whatsapp_festival_optins")
+                  "whatsapp_optin_settings", "whatsapp_optin_keywords", "whatsapp_festival_optins", "whatsapp_links", "whatsapp_link_clicks")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 

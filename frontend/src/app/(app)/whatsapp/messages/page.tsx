@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
-import { api, errorMessage } from "@/lib/api";
+import { api, apiFile, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { MESSAGE_STATUS, rupees, TEMPLATE_STATUS, TEMPLATE_TITLES, type WaMessageRow, type WaTemplates, type WaUsage } from "@/lib/whatsapp";
+import { LINK_CLICKED, linkClickWords, MESSAGE_STATUS, rupees, TEMPLATE_STATUS, TEMPLATE_TITLES, type WaMessageRow, type WaTemplates, type WaUsage } from "@/lib/whatsapp";
 
 /** Your messages, what was sent and what it probably cost. Costs are always estimates and WhatsApp's charge is separate from FlowQR's fee. */
 export default function Messages() {
@@ -21,6 +21,12 @@ export default function Messages() {
   const act = useFetch<{ total: number; items: WaMessageRow[] }>("/whatsapp/messages", { status, limit: 25 });
   const [busy, setBusy] = useState<string | null>(null);
 
+  async function exportMessages() {
+    try {
+      const { blob } = await apiFile("/whatsapp/messages/export");
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "whatsapp-messages.csv"; a.click(); URL.revokeObjectURL(url);
+    } catch (e) { toast(errorMessage(e)); }
+  }
   async function sync() {
     setBusy("sync");
     try { await api("/whatsapp/templates/sync", { method: "POST" }); await tpl.reload(); toast("Checked with WhatsApp."); } catch (e) { toast(errorMessage(e)); } finally { setBusy(null); }
@@ -60,6 +66,18 @@ export default function Messages() {
                 {([["Tried to send", u.totals.attempted], ["Sent", u.totals.sent], ["Delivered", u.totals.delivered], ["Read", u.totals.read], ["Not delivered", u.totals.failed]] as [string, number][]).map(([l, v]) => <div key={l} className="rounded-2xl bg-surface-2 p-4"><p className="text-[13px] text-ink-500">{l}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{v}</p></div>)}
               </div>
               <div className="rounded-2xl bg-surface-2 p-4"><p className="text-[13px] text-ink-500">Likely WhatsApp charge so far</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{rupees(u.estimated_meta_cost)}</p>{u.delivery_rate !== null && <p className="mt-1 text-[13px] text-ink-500">{u.delivery_rate}% of sent messages were delivered.</p>}</div>
+              {u.links?.enabled && (
+                <div className="rounded-2xl bg-surface-2 p-4" data-testid="link-clicks">
+                  <p className="text-[13px] text-ink-500">{LINK_CLICKED}</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{u.links.link_clicked}</p>
+                  <p className="text-[13px] text-ink-500">{u.links.messages_with_a_click} message{u.links.messages_with_a_click === 1 ? "" : "s"} had its link opened this month.</p>
+                  {u.links.by_day.length > 0 && <ul className="mt-2 space-y-1" aria-label="Link clicks by day">{u.links.by_day.map((d) => {
+                    const max = Math.max(...u.links!.by_day.map((x) => x.clicks));
+                    return <li key={d.date} className="flex items-center gap-2 text-[13px]"><span className="w-24 shrink-0 text-ink-500">{fmtDate(d.date)}</span><span className="h-2 rounded-full bg-brand-500" style={{ width: `${Math.max(6, Math.round((d.clicks / max) * 160))}px` }} aria-hidden /><span className="tabular-nums text-ink-700">{d.clicks}</span></li>;
+                  })}</ul>}
+                  <p className="mt-2 text-[12px] text-ink-500">{u.links.note}</p>
+                </div>
+              )}
               <p className="text-[13px] text-ink-500">{u.note} “Read” counts only customers who allow read receipts. Delivered is not the same as read.</p>
               <p className="text-[13px] text-ink-500">Rough price per delivered message: offers {rupees(u.rates.marketing.rate)}, other messages {rupees(u.rates.utility.rate)}. {u.rates.marketing.verified ? "" : "These prices have not been checked against WhatsApp's own price list yet."}</p>
             </div>
@@ -67,12 +85,12 @@ export default function Messages() {
         </Card>
 
         <Card>
-          <CardHeader title="Recent messages" action={<select aria-label="Show" value={status} onChange={(e) => setStatus(e.target.value)} className="min-h-10 rounded-xl border border-ink-200 px-3 text-sm"><option value="">All</option><option value="delivered">Delivered</option><option value="read">Read</option><option value="failed">Not delivered</option></select>} />
+          <CardHeader title="Recent messages" action={<span className="flex items-center gap-2">{isAdmin && <Button variant="secondary" size="sm" onClick={() => void exportMessages()}>Download messages</Button>}<select aria-label="Show" value={status} onChange={(e) => setStatus(e.target.value)} className="min-h-10 rounded-xl border border-ink-200 px-3 text-sm"><option value="">All</option><option value="delivered">Delivered</option><option value="read">Read</option><option value="failed">Not delivered</option></select></span>} />
           {!act.data ? <Skeleton className="h-24" /> : act.data.items.length === 0 ? <EmptyState title="Nothing sent yet">Messages appear here once your helpers or offers start sending.</EmptyState> : (
             <ul className="divide-y divide-ink-100 text-sm">{act.data.items.map((m) => (
               <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                 <span className="text-ink-700">{m.to ?? "A customer"}{m.phone_last4 ? <span className="text-ink-400"> · …{m.phone_last4}</span> : null} <span className="text-ink-400">{m.category === "marketing" ? "Offer" : "Update"}</span></span>
-                <span className="flex items-center gap-2"><Badge tone={MESSAGE_STATUS[m.status]?.tone ?? "gray"}>{MESSAGE_STATUS[m.status]?.label ?? m.status}</Badge><span className="text-[13px] text-ink-400">{fmtDate(m.sent_at ?? m.created_at)}</span></span>
+                <span className="flex items-center gap-2"><Badge tone={MESSAGE_STATUS[m.status]?.tone ?? "gray"}>{MESSAGE_STATUS[m.status]?.label ?? m.status}</Badge>{m.link_clicked_at && <Badge tone="blue">{linkClickWords(m.link_clicked_at)}</Badge>}<span className="text-[13px] text-ink-400">{fmtDate(m.sent_at ?? m.created_at)}</span></span>
               </li>))}</ul>
           )}
         </Card>

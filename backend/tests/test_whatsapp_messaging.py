@@ -401,7 +401,7 @@ def test_an_automation_needs_the_addon_a_connection_and_approved_messages(wm, ad
     wm.templates["flowqr_review_followup_en"]["status"] = "APPROVED"
     biz.post("/whatsapp/templates/sync")
     on = biz.put("/whatsapp/automations/review_followup", json={"status": "on"})
-    assert on.status_code == 200 and on.json()["status"] == "on" and on.json()["config"] == {"delay_minutes": 60}
+    assert on.status_code == 200 and on.json()["status"] == "on" and on.json()["config"] == {"delay_minutes": 60, "track_clicks": False}
 
 
 def test_the_addon_limits_how_many_automations_can_be_on(wm, admin, monkeypatch):

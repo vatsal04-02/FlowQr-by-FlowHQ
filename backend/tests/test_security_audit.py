@@ -28,6 +28,7 @@ from tests.test_location_permissions import invite
 PUBLIC_PREFIXES = (
     "/api/health", "/api/ready", "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/password-reset", "/api/v1/auth/verify-email", "/api/v1/auth/google",
     "/api/v1/invitations/accept", "/api/v1/public/", "/api/v1/go/",  # go: the QR/NFC redirect door, public like /public/c (rate limited, 404 for unknown codes, destination only from the database)
+    "/api/v1/l/",  # l: the tracked-review-link door (rate limited per visitor and per link, 404 for unknown tokens, no parameter accepted, destination only from the database)
      "/api/v1/r/", "/api/v1/review-public", "/api/v1/billing/razorpay/webhook", "/api/v1/google/callback",
     "/api/v1/legal", "/api/v1/leads", "/api/v1/billing/plans",
     "/api/v1/account/me/deletion/confirm",  # POST: the emailed single-use link for deleting one's own account; proves the mailbox like a password reset, rate-limited per IP, one answer for every failure

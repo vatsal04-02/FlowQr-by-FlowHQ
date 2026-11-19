@@ -93,6 +93,7 @@ def test_the_application_can_never_edit_or_delete_a_rate_or_a_check():
 # ===================================================================== verification is a separate, append-only record
 def test_a_check_is_a_separate_record_and_the_screen_shows_the_latest_one(admin):
     row = in_force(admin, "marketing")
+    audited_before = owner_query("SELECT count(*) FROM audit_logs WHERE action = 'admin.whatsapp_rate_verification' AND entity_id::text = :i", i=str(row["id"]))[0][0]  # the audit log is append-only, so count what this test adds
     r = admin.post(f"/admin/whatsapp/rates/{row['id']}/verification", json={"verified": True, "note": "Matches Meta's India rate card, page dated 1 Oct 2026"})
     assert r.status_code == 201 and r.json()["verified"] is True
     shown = in_force(admin, "marketing")
@@ -101,7 +102,7 @@ def test_a_check_is_a_separate_record_and_the_screen_shows_the_latest_one(admin)
     admin.post(f"/admin/whatsapp/rates/{row['id']}/verification", json={"verified": False, "note": "Meta changed its page, needs another look"})
     assert in_force(admin, "marketing")["verified"] is False  # the newest check wins
     assert owner_query("SELECT count(*) FROM whatsapp_rate_verifications WHERE rate_id = :i", i=row["id"])[0][0] == 2  # and the earlier one is kept
-    assert owner_query("SELECT count(*) FROM audit_logs WHERE action = 'admin.whatsapp_rate_verification' AND entity_id::text = :i", i=str(row["id"]))[0][0] == 2
+    assert owner_query("SELECT count(*) FROM audit_logs WHERE action = 'admin.whatsapp_rate_verification' AND entity_id::text = :i", i=str(row["id"]))[0][0] - audited_before == 2
 
 
 def test_a_check_needs_a_note_and_a_real_rate(admin):

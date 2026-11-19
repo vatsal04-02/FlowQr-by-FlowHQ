@@ -1,6 +1,6 @@
 # WhatsApp: things only a person can check with Meta
 
-FlowQR's tests use a mock of Meta. They prove FlowQR behaves correctly **given** what Meta is assumed to do. They do **not** prove what Meta really does. The five checks below need a real Meta account, real approvals and real traffic, so they are for a person to do and record. **None of them has been done. Nothing here is a result.** Fill in each "Result" box yourself, with the date, and do not tick a box you have not seen with your own eyes.
+FlowQR's tests use a mock of Meta. They prove FlowQR behaves correctly **given** what Meta is assumed to do. They do **not** prove what Meta really does. The six checks below need a real Meta account, real approvals and real traffic, so they are for a person to do and record. **None of them has been done. Nothing here is a result.** Fill in each "Result" box yourself, with the date, and do not tick a box you have not seen with your own eyes.
 
 Until a check is done, keep the matching WhatsApp flags off (`WHATSAPP_SENDING_ENABLED`, `WHATSAPP_WEBHOOK_ENABLED`, `WHATSAPP_SIGNUP_ENABLED`) in production.
 
@@ -68,4 +68,21 @@ Result: ______________________  Date: ____________
 
 ---
 
-When all five are done and recorded, the flags can be considered for switching on for one test business first, then widened. Until then FlowQR is built, tested against a mock, and safe by default, but **unproven against the real Meta**.
+## 6. A template whose link is not the business's own domain
+**Why it matters:** with click tracking on (Pro), the review request carries a FlowQR link (`https://api.flowqr.site/api/v1/l/...`) in the message, not the business's own Google review link. Meta looks at the domains links point to. A link on a domain that is not the sender's own may be treated differently: the template could be refused, held back for longer, or given a different category (marketing instead of utility), which changes the price (about seven times) and who may be messaged.
+
+**Do:** with a real test business on the Pro add-on, send for approval the review request exactly as FlowQR sends it with a tracked link (and, to compare, with the plain Google review link). Record: whether Meta approved each one, how long it took, which **category** Meta assigned to each, and any warning or rejection reason. Also check whether the template's sample link (an example in the template) needs to be on the same domain as the live links, and whether using a separate short domain (see "Moving tracked links to a separate domain later" in `docs/WHATSAPP_AUTOMATION.md`) changes the answer.
+
+**Record:**
+
+| Message | Approved or refused | Category Meta assigned | Time to decide | Notes or reason |
+|---|---|---|---|---|
+| review request, plain Google link | | | | |
+| review request, FlowQR link on api.flowqr.site | | | | |
+| review request, FlowQR link on a separate short domain (if tried) | | | | |
+
+Result: ______________________  Date: ____________
+
+---
+
+When all six are done and recorded, the flags can be considered for switching on for one test business first, then widened. Until then FlowQR is built, tested against a mock, and safe by default, but **unproven against the real Meta**.

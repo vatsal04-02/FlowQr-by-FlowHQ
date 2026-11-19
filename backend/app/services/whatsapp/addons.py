@@ -32,6 +32,15 @@ def occasions_allowed(db: Session, tenant_id: uuid.UUID) -> bool:
     return bool(t and t.get("occasions"))
 
 
+def click_tracking_allowed(db: Session, tenant_id: uuid.UUID) -> bool:
+    """Counting link clicks is part of the Pro add-on only."""
+    from app.core.config import settings
+    if not settings.whatsapp_require_addon:
+        return True
+    t = tier(active_addon(db, tenant_id))
+    return bool(t and t.get("click_tracking"))
+
+
 def set_addon(db: Session, admin: User, tenant: Tenant, addon_key: str | None, reason: str, ip: str | None = None) -> TenantAddon | None:
     """Switch a business's WhatsApp tier (or turn it off with None). Every change needs a written reason and is audited. Ending an add-on never deletes the business's contacts, consents or
     messages; it only stops new connections and (in later phases) new sends."""

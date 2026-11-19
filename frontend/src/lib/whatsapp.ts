@@ -42,8 +42,8 @@ export interface WaCompareRow { id: string; name: string; status: string; approv
 export interface WaCampaignResults { id: string; name: string; status: string; approved_recipients: number | null; approved_estimate: string | null; attempted: number; sent: number; delivered: number; read: number; failed: number;
   waiting: number; skipped: number; skipped_reasons: Record<string, number>; opted_out_after: number; estimated_meta_cost: string; note: string; delivery_rate: number | null; read_rate: number | null; timeline: WaDay[] }
 export interface WaUsage { month: string; totals: { attempted: number; sent: number; delivered: number; read: number; failed: number }; by_category: Record<string, { attempted: number; sent: number; delivered: number; read: number; failed: number; estimated_cost: string }>;
-  estimated_meta_cost: string; currency: string; note: string; delivery_rate: number | null; rates: { marketing: WaEstimate; utility: WaEstimate }; limits: { per_minute: number; per_day: number }; price_warning?: string | null }
-export interface WaMessageRow { id: string; to: string | null; phone_last4: string | null; category: string | null; status: string; error_code: string | null; sent_at: string | null; delivered_at: string | null; read_at: string | null; created_at: string }
+  estimated_meta_cost: string; currency: string; note: string; delivery_rate: number | null; rates: { marketing: WaEstimate; utility: WaEstimate }; limits: { per_minute: number; per_day: number }; price_warning?: string | null; links?: WaLinkSummary }
+export interface WaMessageRow { link_clicked_at?: string | null; id: string; to: string | null; phone_last4: string | null; category: string | null; status: string; error_code: string | null; sent_at: string | null; delivered_at: string | null; read_at: string | null; created_at: string }
 export interface SignupStart { app_id: string; config_id: string; graph_version: string; state: string; expires_at: string }
 
 /** How a connection is described to a shop owner: plain words, a tone for the badge, and what to do next. */
@@ -252,7 +252,7 @@ export const TEMPLATE_TITLES: Record<string, string> = { review_followup: "Revie
 /** The helper's settings in words, with the limits the server enforces. */
 export type AutomationField = { key: string; label: string; bool: true } | { key: string; label: string; unit: string; min: number; max: number };
 export const AUTOMATION_FIELDS: Record<string, AutomationField[]> = {
-  review_followup: [{ key: "delay_minutes", label: "Send the review request after", unit: "minutes", min: 5, max: 10080 }],
+  review_followup: [{ key: "delay_minutes", label: "Send the review request after", unit: "minutes", min: 5, max: 10080 }, { key: "track_clicks", label: "Count when a customer opens the review link (Pro plan)", bool: true }],
   enquiry_followup: [{ key: "send_ack", label: "Send a thank-you straight away", bool: true }, { key: "follow_up_hours", label: "Follow up if nobody has replied after", unit: "hours", min: 1, max: 168 }],
   birthday: [{ key: "send_hour", label: "Send the greeting at", unit: "o'clock, India time (9 to 20)", min: 9, max: 20 }],
   festival: [{ key: "send_hour", label: "Send the greeting at", unit: "o'clock, India time (9 to 20)", min: 9, max: 20 }],
@@ -406,4 +406,12 @@ export function greetingKindWords(g: Pick<WaGreetingKind, "submitted" | "categor
   if (!g.submitted) return { label: "Not sent to WhatsApp yet", tone: "gray" };
   if (!g.category_known) return { label: "Category not confirmed yet", tone: "amber" };
   return g.category === "marketing" ? { label: "Marketing message", tone: "amber" } : { label: "Update message", tone: "green" };
+}
+
+// ---- tracked review links (Pro): "link clicked", never "review left"
+export interface WaLinkSummary { enabled: boolean; link_clicked: number; messages_with_a_click: number; by_day: { date: string; clicks: number }[]; note: string }
+/** What a link click is called on every screen. A click means the link was opened; it never means a review was left, and it carries no rating. */
+export const LINK_CLICKED = "Link clicked";
+export function linkClickWords(at: string | null | undefined): string {
+  return at ? LINK_CLICKED : "";
 }

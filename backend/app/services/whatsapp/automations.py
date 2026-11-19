@@ -24,12 +24,12 @@ from app.models.base import utcnow
 from app.models.sites import SiteEnquiry
 from app.models.whatsapp import WhatsAppAutomation, WhatsAppAutomationRun, WhatsAppContact
 from app.services.audit import audit
-from app.services.whatsapp import WaError, addons, connection, consent, sender, templates
+from app.services.whatsapp import WaError, addons, connection, consent, links, sender, templates
 
 log = logging.getLogger("flowqr.whatsapp.automations")
 IST = ZoneInfo("Asia/Kolkata")
 
-DEFAULTS = {"review_followup": {"delay_minutes": 60}, "enquiry_followup": {"send_ack": True, "ack_delay_minutes": 2, "follow_up_hours": 24}, "birthday": {"send_hour": 10}, "festival": {"send_hour": 10}}
+DEFAULTS = {"review_followup": {"delay_minutes": 60, "track_clicks": False}, "enquiry_followup": {"send_ack": True, "ack_delay_minutes": 2, "follow_up_hours": 24}, "birthday": {"send_hour": 10}, "festival": {"send_hour": 10}}
 NEEDS = {"review_followup": ("review_followup",), "enquiry_followup": ("enquiry_ack", "enquiry_followup"), "birthday": ("occasion_birthday",), "festival": ("occasion_festival",)}
 OCCASION_KEYS = ("birthday", "festival")  # greetings: Growth and Pro only, their own consent, 9 am to 9 pm India time
 STEP_TEMPLATE = {"request": "review_followup", "ack": "enquiry_ack", "followup": "enquiry_followup"}
@@ -83,6 +83,8 @@ def set_status(db: Session, tenant: Tenant, user: User, key: str, status: str, c
         raise WaError(422, "invalid_status", "Choose on, paused or off.")
     a = get(db, tenant.id, key)
     cfg = clean_config(key, config) if config is not None else (a.config if a else dict(DEFAULTS[key]))
+    if cfg.get("track_clicks") and not addons.click_tracking_allowed(db, tenant.id):
+        raise WaError(402, "plan_required", "Counting link clicks is part of the Pro add-on.")
     if status == "on" and (a is None or a.status != "on"):
         if key in OCCASION_KEYS and not addons.occasions_allowed(db, tenant.id):
             raise WaError(402, "plan_required", "Birthday and festival wishes are part of the Growth and Pro add-ons.")
@@ -213,15 +215,20 @@ def execute_run(db: Session, run: WhatsAppAutomationRun, now: datetime | None = 
         _finish(run, "failed", "template_missing", now)
         return "failed"
     name = run.context.get("first_name") or templates.first_name(contact.customer_name)
+    tracked = None
     if run.step == "request":
         link = _review_link(db, tenant.id)
         if not link:
             _finish(run, "skipped", "no_review_link", now)
             return "skipped"
-        variables = [name, tenant.name, link]
+        if a.config.get("track_clicks") and addons.click_tracking_allowed(db, tenant.id):  # Pro: the link goes through FlowQR so a click can be counted; it still leads to the same review page
+            tracked = links.get_or_create(db, tenant.id, link, f"run:{run.idempotency_key}", contact.id)
+        variables = [name, tenant.name, links.url_for(tracked.token) if tracked else link]
     else:
         variables = [name, tenant.name]
     res = sender.send_template(db, tenant, contact, row, variables, idem_key=f"run:{run.idempotency_key}", run_id=run.id)
+    if tracked is not None and res.message_id is not None and tracked.message_id is None:
+        tracked.message_id = res.message_id
     return _apply(run, a, res, now)
 
 

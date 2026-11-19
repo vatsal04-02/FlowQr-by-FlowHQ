@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     whatsapp_daily_cap: int = 1000  # WHATSAPP_DAILY_CAP: messages one business may send per day
     whatsapp_marketing_gap_hours: int = 72  # WHATSAPP_MARKETING_GAP_HOURS: the least time between two marketing messages to the same person
     whatsapp_review_gap_days: int = 30  # WHATSAPP_REVIEW_GAP_DAYS: the least time between two review requests to the same person
+    whatsapp_link_base_url: str = "https://api.flowqr.site/api/v1/l"  # WHATSAPP_LINK_BASE_URL: where tracked review links point (for now the API host; a separate short domain can replace it later, see docs)
+    whatsapp_link_dedupe_seconds: int = 60  # repeat opens of one link inside this many seconds count as one click
     whatsapp_occasion_gap_days: int = 14  # WHATSAPP_OCCASION_GAP_DAYS: the least time between two birthday or festival greetings to the same person (greetings are not offers: the offer gap does not apply to them)
     whatsapp_send_max_attempts: int = 5  # WHATSAPP_SEND_MAX_ATTEMPTS: a failing automation send is retried with growing delays, then marked failed (the dead letter)
     whatsapp_campaign_batch: int = 40  # WHATSAPP_CAMPAIGN_BATCH: recipients one campaign sends per worker pass
@@ -194,6 +196,8 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     rl_auth_per_minute: int = 10
     rl_public_scan_per_minute: int = 60
+    rl_link_per_ip_per_minute: int = 60  # tracked-link redirects: per visitor (the address is hashed, never stored) and per link
+    rl_link_per_token_per_minute: int = 30
     rl_public_ai_per_10min: int = 6
 
     # Bootstrap: comma separated emails that become platform admins on registration.

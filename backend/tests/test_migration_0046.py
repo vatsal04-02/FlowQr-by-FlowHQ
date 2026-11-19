@@ -25,12 +25,12 @@ def test_every_existing_business_stays_self_service_and_downgrade_round_trips_wi
         assert owner_query("SELECT count(*), md5(string_agg(id::text || name || slug, ',' ORDER BY id::text)) FROM tenants")[0] == before
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0053"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0054"
     assert owner_query("SELECT count(*) FROM tenants WHERE origin <> 'self_service'")[0][0] == 0  # none of the pre-existing businesses was marked admin-created
     assert biz.tenant_id
 
 
-def test_the_chain_is_one_linear_line_ending_at_0053_and_0046_hangs_off_0045():
+def test_the_chain_is_one_linear_line_ending_at_0054_and_0046_hangs_off_0045():
     """Numbering and dependencies: exactly one head, no branch, every revision has exactly one parent, and 0046 follows 0045 directly."""
     from pathlib import Path
 
@@ -40,11 +40,11 @@ def test_the_chain_is_one_linear_line_ending_at_0053_and_0046_hangs_off_0045():
     cfg = Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0053"]
+    assert script.get_heads() == ["0054"]
     revs = list(script.walk_revisions())
     assert all(isinstance(r.down_revision, (str, type(None))) for r in revs), "a merge or branch point appeared"
     assert sum(1 for r in revs if r.down_revision is None) == 1  # a single base
-    assert script.get_revision("0046").down_revision == "0045" and script.get_revision("0047").down_revision == "0046" and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0053").down_revision == "0052" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
+    assert script.get_revision("0046").down_revision == "0045" and script.get_revision("0047").down_revision == "0046" and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0054").down_revision == "0053" and script.get_revision("0053").down_revision == "0052" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
     ids = [r.revision for r in revs]
     assert len(ids) == len(set(ids))  # no revision number is used twice
 
