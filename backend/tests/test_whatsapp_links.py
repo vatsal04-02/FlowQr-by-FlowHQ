@@ -345,3 +345,55 @@ def test_the_route_is_in_the_manifest_and_the_tables_exist_with_the_right_rules(
         assert owner_query("SELECT has_table_privilege(:r, :t, 'INSERT')", r=role, t=f"public.{t}")[0][0] is True
     assert "CASCADE" in "".join(r[0] for r in owner_query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'whatsapp_link_clicks'::regclass AND contype = 'f' AND pg_get_constraintdef(oid) LIKE '%whatsapp_contacts%'"))
     assert "SET NULL" in "".join(r[0] for r in owner_query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'whatsapp_links'::regclass AND contype = 'f' AND pg_get_constraintdef(oid) LIKE '%whatsapp_messages%'"))
+
+
+# ===================================================================== the visitor counters: short-lived, hashed, never in a table
+def test_the_redis_counters_expire_within_a_minute_and_hold_only_a_hash(monkeypatch):
+    from app.core import rate_limit
+
+    class FakePipe:
+        def __init__(self, store): self.store, self.ops = store, []
+        def incr(self, k): self.ops.append(("incr", k)); return self
+        def expire(self, k, t): self.ops.append(("expire", k, t)); return self
+        def execute(self):
+            for op in self.ops:
+                self.store.append(op)
+            return [1, True]
+
+    class FakeRedis:
+        def __init__(self): self.log = []
+        def pipeline(self): return FakePipe(self.log)
+
+    fake = FakeRedis()
+    monkeypatch.setattr(rate_limit, "_redis", fake)
+    monkeypatch.setattr(settings, "rate_limit_enabled", True)
+    with TestClient(app, base_url="http://testserver") as c:
+        c.get(f"/api/v1/l/{links.new_token()}", headers={"User-Agent": BROWSER})
+    expires = [op for op in fake.log if op[0] == "expire"]
+    assert len(expires) == 2 and all(op[2] <= 61 for op in expires)  # gone within a minute
+    assert all(re.fullmatch(r"rl:wa-link-(ip|token):[0-9a-f]{24}:\d+", op[1]) for op in fake.log if op[0] == "incr")  # a hash and a time window, never the address
+
+
+def test_the_in_memory_fallback_forgets_finished_counters(monkeypatch):
+    import time
+
+    from app.core import rate_limit
+    monkeypatch.setattr(rate_limit, "_get_redis", lambda: None)
+    monkeypatch.setattr(settings, "rate_limit_enabled", True)
+    rate_limit.reset_memory_limits()
+    old = time.time() - 300
+    rate_limit._memory["wa-link-ip:stale"] = (3, old)
+    rate_limit._windows["wa-link-ip:stale"] = 60
+    rate_limit._memory["wa-link-ip:fresh"] = (1, time.time())
+    rate_limit._windows["wa-link-ip:fresh"] = 60
+    monkeypatch.setattr(rate_limit, "_last_sweep", 0.0)
+    assert rate_limit.hit("wa-link-ip:another", 5, 60) is True
+    assert "wa-link-ip:stale" not in rate_limit._memory and "wa-link-ip:stale" not in rate_limit._windows  # the finished window was swept
+    assert "wa-link-ip:fresh" in rate_limit._memory and "wa-link-ip:another" in rate_limit._memory  # live ones stay
+    rate_limit.reset_memory_limits()
+
+
+def test_no_table_holds_a_visitor_counter_or_address():
+    """The counters live only in Redis (or process memory). Nothing in the link tables, the audit log or the webhook log can hold a visitor's address."""
+    tables = owner_query("SELECT table_name FROM information_schema.columns WHERE column_name IN ('ip', 'ip_address', 'client_ip', 'user_agent', 'ua', 'visitor_hash', 'remote_addr') AND table_schema = 'public' AND table_name LIKE 'whatsapp\\_%'")
+    assert tables == []

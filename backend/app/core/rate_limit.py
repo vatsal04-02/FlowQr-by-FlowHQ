@@ -7,6 +7,8 @@ from fastapi import HTTPException, Request
 from app.core.config import settings
 
 _memory: dict[str, tuple[int, float]] = defaultdict(lambda: (0, 0.0))
+_windows: dict[str, int] = {}  # each in-memory counter's window, so a finished one can be swept away
+_last_sweep = 0.0
 _redis = None
 _redis_failed_at = 0.0
 
@@ -31,6 +33,19 @@ def _get_redis():
 
 def reset_memory_limits() -> None:
     _memory.clear()
+    _windows.clear()
+
+
+def _sweep(now: float) -> None:
+    """Forget in-memory counters whose window is over (at most once a minute), so a counter never outlives its window by more than a minute. Redis counters expire by themselves."""
+    global _last_sweep
+    if now - _last_sweep < 60:
+        return
+    _last_sweep = now
+    for k, (_, start) in list(_memory.items()):
+        if now - start >= _windows.get(k, 60):
+            _memory.pop(k, None)
+            _windows.pop(k, None)
 
 
 def hit(key: str, limit: int, window_seconds: int) -> bool:
@@ -54,6 +69,8 @@ def hit(key: str, limit: int, window_seconds: int) -> bool:
         count, start = 0, now
     count += 1
     _memory[key] = (count, start)
+    _windows[key] = window_seconds
+    _sweep(now)
     return count <= limit
 
 
