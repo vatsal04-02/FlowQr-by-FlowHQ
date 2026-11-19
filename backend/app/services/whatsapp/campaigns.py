@@ -311,11 +311,23 @@ def _sample_name(db: Session, tenant_id: uuid.UUID, audience: dict) -> str | Non
     return first.customer_name if first else "Asha"
 
 
+def approved_estimate(c: WhatsAppCampaign) -> dict:
+    """The estimate the owner approved, exactly as it was, labelled with the price date it used. New prices never change it. An offer approved before price dates were kept says so and is shown as unverified."""
+    p = c.approved_price or {}
+    ok = bool(p.get("verified"))
+    when = p.get("effective_from")
+    label = f"This estimate was fixed when you approved the offer, using the price dated {when}. Newer prices apply only to new estimates." if when else \
+        "This estimate was fixed when you approved the offer. The date of the price it used was not recorded. Newer prices apply only to new estimates."
+    return {"category": "marketing", "count": c.approved_recipients or 0, "rate": p.get("rate"), "currency": "INR", "amount": str(_money(c.approved_cost)) if c.approved_cost is not None else None, "verified": ok,
+            "rate_source": p.get("source"), "effective_from": when, "free_included": 0, "billable": c.approved_recipients or 0, "fixed_at_approval": True,
+            "warning": None if ok else pricing.WARNING, "note": pricing.NOTE + " " + label}
+
+
 def preview(db: Session, tenant: Tenant, c: WhatsAppCampaign, now: datetime | None = None) -> dict:
     now = now or utcnow()
     t = db.get(WhatsAppTemplate, c.template_id) if c.template_id else None
     n = audience_count(db, tenant.id, c.audience)
-    est = pricing.estimate(db, "marketing", n)
+    est = pricing.estimate(db, "marketing", n) if c.status == "draft" or c.approved_at is None else approved_estimate(c)  # once approved the owner's estimate never moves
     conn = connection.connected_connection(db, tenant.id)
     ready = {"plan": can_use_campaigns(db, tenant.id), "connection": bool(conn and conn.status == "connected"), "template_approved": bool(t and t.approval_status == "approved"), "has_recipients": n > 0,
              "sending_on": automations.sending_allowed()}
@@ -348,6 +360,7 @@ def approve(db: Session, tenant: Tenant, user: User, c: WhatsAppCampaign, *, con
         raise WaError(409, "recipients_changed", f"The number of customers changed from {confirm_recipients} to {p['recipients']}. Please review and approve again.")
     c.approved_by, c.approved_at, c.approved_recipients = user.id, now, p["recipients"]
     c.approved_cost = Decimal(p["estimate"]["amount"]) if p["estimate"]["amount"] is not None else None
+    c.approved_price = {"rate": p["estimate"]["rate"], "effective_from": p["estimate"]["effective_from"], "verified": p["estimate"]["verified"], "source": p["estimate"]["rate_source"]}
     c.status = "scheduled"
     if c.scheduled_at is None or c.scheduled_at < now:
         c.scheduled_at = now
@@ -407,7 +420,7 @@ def results(db: Session, tenant_id: uuid.UUID, c: WhatsAppCampaign) -> dict:
         opted = db.scalar(select(func.count()).select_from(WhatsAppCampaignRecipient).join(WhatsAppContact, WhatsAppContact.id == WhatsAppCampaignRecipient.contact_id).where(
             WhatsAppCampaignRecipient.campaign_id == c.id, WhatsAppContact.marketing_opted_out_at >= c.started_at)) or 0
     skipped_reasons = dict(db.execute(select(WhatsAppCampaignRecipient.reason, func.count()).where(WhatsAppCampaignRecipient.campaign_id == c.id, WhatsAppCampaignRecipient.status == "skipped").group_by(WhatsAppCampaignRecipient.reason)).all())
-    return {"id": c.id, "name": c.name, "status": c.status, "approved_recipients": c.approved_recipients, "approved_estimate": _money(c.approved_cost),
+    return {"id": c.id, "name": c.name, "status": c.status, "approved_recipients": c.approved_recipients, "approved_estimate": _money(c.approved_cost), "approved_price_date": (c.approved_price or {}).get("effective_from"),
             "attempted": m["attempted"], "sent": m["sent"], "delivered": m["delivered"], "read": m["read"], "failed": m["failed"], "waiting": rec.get("pending", 0), "skipped": rec.get("skipped", 0),
             "skipped_reasons": skipped_reasons, "opted_out_after": opted, "estimated_meta_cost": str(m["estimated_cost"].quantize(Decimal("0.01"))), "started_at": c.started_at, "finished_at": c.finished_at,
             "delivery_rate": round(m["delivered"] * 100 / m["sent"]) if m["sent"] else None, "read_rate": round(m["read"] * 100 / m["delivered"]) if m["delivered"] else None,

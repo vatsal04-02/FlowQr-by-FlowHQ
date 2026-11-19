@@ -8,8 +8,10 @@ Additive only. Production must be at 0051 first.
 * whatsapp_rates.free_per_number_month   how many messages of that category Meta gives free per number per month (0 = none). Rate rows are still never edited; this is part of a row when it is written.
 * whatsapp_rate_verifications            append-only: who checked a rate row against Meta's own rate card, when, what they decided (verified or not) and a note. The rate row itself is never touched.
                                          The price screen shows the LATEST check for each row. The app role can read and add, never change or delete.
+* whatsapp_campaigns.approved_price      what the owner was shown when they approved an offer: the rate, the price date it came from and whether it was verified then. Offers keep that estimate;
+                                         only new estimates use newer prices.
 * four starting rows, effective 2026-10-01, all marked UNVERIFIED: India marketing 1.09, utility 0.145, authentication 0.145, service 0.145 (the first 1,000 service messages per number per month are free).
-  They come from the owner's brief and have NOT been checked against Meta's rate card. Older rows stay as history; nothing is overwritten.
+  They come from AiSensy's pricing page, NOT from Meta, and have NOT been checked against Meta's rate card. Older rows stay as history; nothing is overwritten.
 """
 import os
 import uuid
@@ -18,19 +20,21 @@ from decimal import Decimal
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.postgresql import JSONB
 
 revision = "0052"
 down_revision = "0051"
 branch_labels = None
 depends_on = None
 APP_ROLE = os.environ.get("APP_DB_ROLE", "flowqr_app")
-SOURCE = "Starting value from the owner's brief for India, effective 1 Oct 2026. UNVERIFIED: not yet checked against Meta's own rate card."
+SOURCE = "AiSensy pricing page, not Meta, unverified. Starting value for India, effective 1 Oct 2026; not yet checked against Meta's own rate card."
 ROWS = (("marketing", "1.0900", 0), ("utility", "0.1450", 0), ("authentication", "0.1450", 0), ("service", "0.1450", 1000))
 
 
 def upgrade() -> None:
     op.add_column("whatsapp_rates", sa.Column("free_per_number_month", sa.Integer(), nullable=False, server_default="0"))
     op.create_check_constraint("ck_wa_rate_free", "whatsapp_rates", "free_per_number_month >= 0")
+    op.add_column("whatsapp_campaigns", sa.Column("approved_price", JSONB(), nullable=True))
     op.create_table(
         "whatsapp_rate_verifications",
         sa.Column("id", sa.UUID(), nullable=False), sa.Column("rate_id", sa.UUID(), nullable=False), sa.Column("verified", sa.Boolean(), nullable=False),
@@ -52,6 +56,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_column("whatsapp_campaigns", "approved_price")
     op.drop_table("whatsapp_rate_verifications")
     op.execute(f"DELETE FROM whatsapp_rates WHERE country = 'IN' AND effective_from = DATE '2026-10-01' AND source = '{SOURCE.replace(chr(39), chr(39) * 2)}'")
     op.drop_constraint("ck_wa_rate_free", "whatsapp_rates", type_="check")

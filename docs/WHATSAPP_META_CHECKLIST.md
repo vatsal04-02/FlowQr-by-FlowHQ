@@ -26,7 +26,7 @@ Until a check is done, keep the matching WhatsApp flags off (`WHATSAPP_SENDING_E
 | sign-up confirmation (offers) | | | |
 
 ## 2. Real India prices against the price table
-**Why it matters:** every cost figure owners see is an estimate from the table at **WhatsApp prices** (admin). The starting values (India, from 1 Oct 2026: marketing 1.09, utility 0.145, authentication 0.145, service 0.145 with the first 1,000 service messages per number per month free) come from a brief, **not** from Meta's rate card. They are marked UNVERIFIED and owners see a warning until they are checked.
+**Why it matters:** every cost figure owners see is an estimate from the table at **WhatsApp prices** (admin). The starting values (India, from 1 Oct 2026: marketing 1.09, utility 0.145, authentication 0.145, service 0.145 with the first 1,000 service messages per number per month free) come from AiSensy's pricing page (the source note on each row says so), **not** from Meta's rate card. They are marked UNVERIFIED and owners see a warning until they are checked.
 
 **Do:** open Meta's own published rate card for India (and the billing pages of the test account). For each of the four categories compare the rate, the effective date and any free allowance with the table. Where they match, use **Record a check** on that row (the screen keeps every check; it never edits the price). Where they differ, **Add a new price** with the correct number, date and source, then record a check on the new row. Also confirm how Meta bills in practice (per delivered message, and what happens to the free service allowance).
 

@@ -11,7 +11,7 @@ from app.models.base import utcnow
 from app.services.whatsapp import pricing
 from tests.conftest import make_business, owner_exec, owner_query
 from tests.test_whatsapp import OWNER, add_contact, grant_addon, wa  # noqa: F401 - fixtures
-from tests.test_whatsapp_messaging import ready_biz, send, svc_db, wm  # noqa: F401 - fixtures
+from tests.test_whatsapp_messaging import approve, audience, draft, ready_biz, send, svc_db, wm  # noqa: F401 - fixtures
 
 SEED = {"marketing": ("1.0900", 0), "utility": ("0.1450", 0), "authentication": ("0.1450", 0), "service": ("0.1450", 1000)}
 
@@ -44,7 +44,7 @@ def new_row(admin, **kw):
 def test_the_october_2026_india_starting_values_are_loaded_and_marked_unverified(admin):
     rows = owner_query("SELECT category, rate, free_per_number_month, verified, source, currency FROM whatsapp_rates WHERE country = 'IN' AND effective_from = DATE '2026-10-01' ORDER BY category")
     assert {r[0]: (str(r[1]), r[2]) for r in rows} == SEED
-    assert all(r[3] is False and "UNVERIFIED" in r[4] and "not yet checked" in r[4].lower() and r[5] == "INR" for r in rows)
+    assert all(r[3] is False and r[4].startswith("AiSensy pricing page, not Meta, unverified") and "not yet checked against Meta" in r[4] and r[5] == "INR" for r in rows)  # says where the number really came from
     assert owner_query("SELECT count(*) FROM whatsapp_rate_verifications")[0][0] == 0  # nobody has checked them
 
 
@@ -174,3 +174,51 @@ def test_the_new_route_is_in_the_access_manifest_for_platform_administrators_onl
     lines = [ln.split("\t") for ln in open("tests/route_access_manifest.txt", encoding="utf-8").read().splitlines() if "/admin/whatsapp/rates" in ln]
     assert {(m, p): k for k, m, p in lines} == {("GET", "/api/v1/admin/whatsapp/rates"): "platform-admin", ("POST", "/api/v1/admin/whatsapp/rates"): "platform-admin",
                                                  ("POST", "/api/v1/admin/whatsapp/rates/{rate_id}/verification"): "platform-admin"}
+
+
+# ===================================================================== an approved offer keeps the estimate it was approved with
+def test_an_approved_offer_keeps_its_estimate_and_the_price_date_it_used(wm, admin):
+    biz = ready_biz(admin, "Frozen Estimate")
+    audience(biz, 3)
+    c = draft(biz)
+    assert approve(biz, c["id"], 3).status_code == 200
+    stored = owner_query("SELECT approved_price, approved_cost FROM whatsapp_campaigns WHERE id = :i", i=c["id"])[0]
+    assert stored[0] == {"rate": "1.0900", "effective_from": "2026-10-01", "verified": False, "source": stored[0]["source"]} and stored[1] == Decimal("3.2700")
+    new_row(admin, category="marketing", rate="2.0000", free_per_number_month=0)  # a new price takes effect today
+    p = biz.get(f"/whatsapp/campaigns/{c['id']}").json()
+    assert p["estimate"]["amount"] == "3.27" and p["estimate"]["rate"] == "1.0900" and p["estimate"]["effective_from"] == "2026-10-01" and p["estimate"]["fixed_at_approval"] is True
+    assert "price dated 2026-10-01" in p["estimate"]["note"] and "not a bill" in p["estimate"]["note"].lower() and p["estimate"]["warning"]  # unverified when it was approved
+    assert biz.get(f"/whatsapp/campaigns/{c['id']}/results").json()["approved_price_date"] == "2026-10-01"
+    fresh = biz.get(f"/whatsapp/campaigns/{draft(biz)['id']}").json()  # only a NEW estimate uses the new price
+    assert fresh["estimate"]["rate"] == "2.0000" and fresh["estimate"]["amount"] == "6.00" and "fixed_at_approval" not in fresh["estimate"]
+
+
+def test_an_offer_approved_before_price_dates_were_kept_says_so_and_is_shown_as_unverified(wm, admin):
+    biz = ready_biz(admin, "Legacy Estimate")
+    audience(biz, 2)
+    c = draft(biz)
+    assert approve(biz, c["id"], 2).status_code == 200
+    owner_exec("UPDATE whatsapp_campaigns SET approved_price = NULL WHERE id = :i", i=c["id"])
+    e = biz.get(f"/whatsapp/campaigns/{c['id']}").json()["estimate"]
+    assert e["amount"] == "2.18" and e["effective_from"] is None and e["verified"] is False and e["warning"] and "was not recorded" in e["note"]
+    assert biz.get(f"/whatsapp/campaigns/{c['id']}/results").json()["approved_price_date"] is None
+
+
+def test_an_offer_approved_with_a_verified_price_stays_verified_even_if_the_check_changes_later(wm, admin):
+    admin.post(f"/admin/whatsapp/rates/{in_force(admin, 'marketing')['id']}/verification", json={"verified": True, "note": "Matches Meta's India marketing rate, checked today"})
+    biz = ready_biz(admin, "Verified Then")
+    audience(biz, 1)
+    c = draft(biz)
+    assert approve(biz, c["id"], 1).status_code == 200
+    admin.post(f"/admin/whatsapp/rates/{in_force(admin, 'marketing')['id']}/verification", json={"verified": False, "note": "Meta changed its page, rechecking this one"})
+    e = biz.get(f"/whatsapp/campaigns/{c['id']}").json()["estimate"]
+    assert e["verified"] is True and e["warning"] is None  # what was true when the owner approved it
+    assert biz.get(f"/whatsapp/campaigns/{draft(biz)['id']}").json()["estimate"]["verified"] is False  # a new estimate reflects the latest check
+
+
+def test_the_free_allowance_is_applied_but_overage_is_never_guessed(wm, admin):
+    with svc_db(uuid.uuid4()) as db:
+        e = pricing.estimate(db, "service", 1200)
+        assert (e["free_included"], e["billable"], e["amount"]) == (1000, 200, "29.00")  # past the allowance: only the rate on the row, no invented overage tier
+    row = in_force(admin, "service")
+    assert row["rate"] == "0.1450" and row["free_per_number_month"] == 1000

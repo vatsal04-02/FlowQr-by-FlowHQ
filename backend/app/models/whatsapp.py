@@ -308,6 +308,7 @@ class WhatsAppCampaign(IdMixin, TimestampMixin, Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     approved_recipients: Mapped[int | None] = mapped_column(Integer)
     approved_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))  # the ESTIMATE the owner saw and approved
+    approved_price: Mapped[dict | None] = mapped_column(JSONB)  # the price it used: rate, the date that price took effect, and whether it was verified at the time. Fixed at approval.
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
