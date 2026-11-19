@@ -26,7 +26,7 @@ export interface WaAutomations { items: WaAutomation[]; limit: number | null; ac
 export interface WaRun { id: string; step: string; status: string; reason: string | null; to: string | null; phone_last4: string | null; scheduled_at: string; executed_at: string | null; attempts: number }
 export interface WaTemplate { id: string; name: string; key: string | null; language: string; category: string; status: string; body: string | null; variables: string[]; rejection_reason: string | null; synced_at: string | null; simple?: boolean }
 export interface WaTemplates { items: WaTemplate[]; available: { key: string; category: string; body: string; installed: boolean }[] }
-export interface WaEstimate { category: string; count: number; rate: string | null; currency: string | null; amount: string | null; verified: boolean; note: string; warning?: string | null; free_included?: number; billable?: number }
+export interface WaEstimate { category: string; count: number; rate: string | null; currency: string | null; amount: string | null; verified: boolean; note: string; warning?: string | null; free_included?: number; billable?: number; effective_from?: string | null }
 export type WaAudience = { kind: string; tag?: string; days?: number; tags_any?: string[]; tags_all?: string[]; exclude_tags?: string[]; location_id?: string; not_messaged_days?: number; never_messaged?: boolean };
 export type WaMapping = { source: "customer_name" | "business_name" | "text"; value?: string };
 export type WaVariables = { offer_text?: string; mapping?: WaMapping[] };
@@ -384,6 +384,7 @@ export function rateProblem(raw: string): string | null {
 export interface WaGreetingKind {
   key: string; submitted: boolean; status: string | null; category: string | null; category_known: boolean; needs_offers_consent: boolean; warning: string | null; body: string | null;
   audience: { agreed: number; would_receive: number; with_birthday: number; left_out: number }; helper: WaAutomationState;
+  estimate: { category_used: "marketing" | "utility"; per_greeting: WaEstimate; for_everyone_who_would_get_it: WaEstimate };
 }
 export interface WaOccasions {
   allowed: boolean; hours: { start: number; end: number; timezone: string }; gap_days: number; birthday: WaGreetingKind; festival: WaGreetingKind;

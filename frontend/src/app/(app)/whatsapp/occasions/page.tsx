@@ -9,7 +9,7 @@ import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { greetingKindWords, type WaGreetingKind, type WaOccasions } from "@/lib/whatsapp";
+import { greetingKindWords, rupees, type WaGreetingKind, type WaOccasions } from "@/lib/whatsapp";
 
 const STATE = { on: ["green", "On"], paused: ["amber", "Paused"], off: ["gray", "Off"] } as const;
 
@@ -35,6 +35,10 @@ function Greeting({ title, helperKey, g, hours, canEdit, allowed, onChange }: { 
         <div className="rounded-xl bg-surface-2 p-2"><dt className="text-ink-500">Would get it now</dt><dd className="mt-0.5 text-xl font-semibold tabular-nums text-ink">{g.audience.would_receive}</dd></div>
         <div className="rounded-xl bg-surface-2 p-2"><dt className="text-ink-500">{helperKey === "birthday" ? "With a birthday saved" : "Left out for now"}</dt><dd className="mt-0.5 text-xl font-semibold tabular-nums text-ink">{helperKey === "birthday" ? g.audience.with_birthday : g.audience.left_out}</dd></div>
       </dl>
+      <div className="mt-3 rounded-xl bg-surface-2 p-3 text-[13px] text-ink-700" data-testid={`${helperKey}-cost`}>
+        <p><span className="font-semibold text-ink">Likely WhatsApp charge: {rupees(g.estimate.per_greeting.amount)} for each greeting</span> (an estimate{g.estimate.category_used === "marketing" ? ", at the marketing price" : ""}{g.estimate.per_greeting.effective_from ? `, using the price dated ${fmtDate(g.estimate.per_greeting.effective_from)}` : ""}). {g.audience.would_receive > 0 ? `If all ${g.audience.would_receive} who would get it had one: ${rupees(g.estimate.for_everyone_who_would_get_it.amount)}.` : ""} WhatsApp charges this to you, apart from FlowQR's fee.</p>
+        {g.estimate.per_greeting.warning && <p className="mt-1 font-semibold text-amber-700">{g.estimate.per_greeting.warning}</p>}
+      </div>
       {g.body && <p className="mt-3 rounded-xl bg-surface-2 p-3 text-[13px] text-ink-700"><span className="font-semibold text-ink">What customers read: </span>{g.body.replace("{{1}}", "Asha").replace("{{2}}", "your business").replace("{{3}}", "the festival")}</p>}
       {canEdit && allowed && <div className="mt-3 max-w-xs"><Input label="Send at (India time)" type="number" min={hours.start} max={hours.end - 1} value={hour} onChange={(e) => setHour(e.target.value)} hint={`An hour from ${hours.start} to ${hours.end - 1}. Never outside ${hours.start} am to ${hours.end - 12} pm.`} /></div>}
       {err && <div className="mt-3"><Alert tone="warning">{err}</Alert></div>}

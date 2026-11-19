@@ -24,7 +24,7 @@ from app.models import Tenant, User
 from app.models.base import utcnow
 from app.models.whatsapp import WhatsAppAutomation, WhatsAppConsent, WhatsAppContact, WhatsAppFestival, WhatsAppFestivalOptin
 from app.services.audit import audit
-from app.services.whatsapp import WaError, addons, automations, rules, templates
+from app.services.whatsapp import WaError, addons, automations, pricing, rules, templates
 
 log = logging.getLogger("flowqr.whatsapp.occasions")
 IST = ZoneInfo("Asia/Kolkata")
@@ -137,14 +137,22 @@ def audience(db: Session, tenant_id: uuid.UUID, needs_offers: bool) -> dict:
     return {"agreed": agreed, "would_receive": would, "with_birthday": with_birthday, "left_out": agreed - would}
 
 
+def cost(db: Session, state: dict, aud: dict) -> dict:
+    """The likely WhatsApp charge for a greeting, always an estimate and always apart from FlowQR's fee. Marketing price unless WhatsApp has confirmed the greeting is a utility message. Carries the price
+    date and the unverified warning, so the owner sees both when switching the helper on."""
+    cat = "utility" if state["category_known"] and state["category"] == "utility" else "marketing"
+    return {"category_used": cat, "per_greeting": pricing.estimate(db, cat, 1), "for_everyone_who_would_get_it": pricing.estimate(db, cat, aud["would_receive"])}
+
+
 def overview(db: Session, tenant: Tenant, now: datetime | None = None) -> dict:
     today = ist_today(now)
     b, f = template_state(db, tenant.id, "occasion_birthday"), template_state(db, tenant.id, "occasion_festival")
+    ba, fa = audience(db, tenant.id, b["needs_offers_consent"]), audience(db, tenant.id, f["needs_offers_consent"])
     chosen = {o.festival_id: o.enabled for o in db.scalars(select(WhatsAppFestivalOptin).where(WhatsAppFestivalOptin.tenant_id == tenant.id))}
     fests = db.scalars(select(WhatsAppFestival).where(WhatsAppFestival.active.is_(True), WhatsAppFestival.festival_date >= today).order_by(WhatsAppFestival.festival_date)).all()
     return {"allowed": addons.occasions_allowed(db, tenant.id), "hours": {"start": rules.OCCASION_START, "end": rules.OCCASION_END, "timezone": "Asia/Kolkata"}, "gap_days": settings.whatsapp_occasion_gap_days,
-            "birthday": {**b, "audience": audience(db, tenant.id, b["needs_offers_consent"]), "helper": automations.serialize(db, tenant.id, "birthday")},
-            "festival": {**f, "audience": audience(db, tenant.id, f["needs_offers_consent"]), "helper": automations.serialize(db, tenant.id, "festival")},
+            "birthday": {**b, "audience": ba, "estimate": cost(db, b, ba), "helper": automations.serialize(db, tenant.id, "birthday")},
+            "festival": {**f, "audience": fa, "estimate": cost(db, f, fa), "helper": automations.serialize(db, tenant.id, "festival")},
             "festivals": [{"id": x.id, "name": x.name, "date": x.festival_date.isoformat(), "region": x.region, "enabled": bool(chosen.get(x.id, False))} for x in fests],
             "wording": rules.wording_for("occasion", tenant.name), "note": "Greetings are never offers. They are sent only between 9 am and 9 pm India time, at most once every "
             f"{settings.whatsapp_occasion_gap_days} days to the same person, and never to anyone who replied STOP."}

@@ -673,3 +673,27 @@ def test_the_migration_added_the_occasion_pieces(wm):
     role = settings.database_url.split("//")[1].split(":")[0]
     assert owner_query("SELECT has_table_privilege(:r, 'public.whatsapp_festivals', 'DELETE')", r=role)[0][0] is False  # a festival is switched off, never deleted
     assert owner_query("SELECT has_table_privilege(:r, 'public.whatsapp_festivals', 'INSERT')", r=role)[0][0] is True
+
+
+# ===================================================================== the owner sees the likely cost before switching a greeting helper on
+def test_the_owner_sees_the_estimated_cost_labelled_and_unverified_before_switching_a_greeting_on(wm, admin):
+    biz = prep(admin, wm, "Greeting Cost", sync=False)
+    person(biz, "98765 54001", marketing=True)
+    person(biz, "98765 54002", marketing=True)
+    for key in ("birthday", "festival"):
+        e = biz.get("/whatsapp/occasions").json()[key]["estimate"]
+        assert e["category_used"] == "marketing"  # not yet known: the marketing price
+        one, everyone = e["per_greeting"], e["for_everyone_who_would_get_it"]
+        assert one["rate"] == "1.0900" and one["amount"] == "1.09" and one["verified"] is False and one["effective_from"] == "2026-10-01" and one["warning"]
+        assert "not a bill" in one["note"].lower() and "estimate" in one["note"].lower() and "FlowQR's fee is separate" in one["note"]
+        assert everyone["count"] == 2 and everyone["amount"] == "2.18"
+    set_category(biz, "utility", True)  # only once WhatsApp says it is a utility message does the utility price apply
+    assert biz.get("/whatsapp/occasions").json()["birthday"]["estimate"]["per_greeting"]["rate"] == "0.1450"
+    set_category(biz, "marketing", True)
+    admin.post("/admin/whatsapp/rates/" + next(i for i in admin.get("/admin/whatsapp/rates").json()["items"] if i["category"] == "marketing" and i["in_force"])["id"] + "/verification",
+               json={"verified": True, "note": "Matches Meta's India marketing rate, checked today"})
+    try:
+        e = biz.get("/whatsapp/occasions").json()["birthday"]["estimate"]["per_greeting"]
+        assert e["verified"] is True and e["warning"] is None  # the warning goes away once the price in use is checked
+    finally:
+        owner_exec("DELETE FROM whatsapp_rate_verifications")
