@@ -121,6 +121,9 @@ platform-admin	POST	/api/v1/admin/users/{user_id}/send-reset
 platform-admin	POST	/api/v1/admin/users/{user_id}/verify-email
 platform-admin	GET	/api/v1/admin/webhooks
 platform-admin	POST	/api/v1/admin/webhooks/{event_id}/reprocess
+platform-admin	GET	/api/v1/admin/whatsapp/festivals
+platform-admin	POST	/api/v1/admin/whatsapp/festivals
+platform-admin	PATCH	/api/v1/admin/whatsapp/festivals/{festival_id}
 platform-admin	GET	/api/v1/admin/whatsapp/rates
 platform-admin	POST	/api/v1/admin/whatsapp/rates
 platform-admin	POST	/api/v1/admin/whatsapp/rates/{rate_id}/verification
@@ -392,6 +395,8 @@ role-admin	POST	/api/v1/whatsapp/contacts/{contact_id}/consent
 role-admin	POST	/api/v1/whatsapp/contacts/{contact_id}/opt-out
 role-admin	POST	/api/v1/whatsapp/contacts/{contact_id}/visit
 member	GET	/api/v1/whatsapp/messages
+member	GET	/api/v1/whatsapp/occasions
+role-admin	PUT	/api/v1/whatsapp/occasions/festivals/{festival_id}
 member	GET	/api/v1/whatsapp/optin
 role-admin	PUT	/api/v1/whatsapp/optin
 role-admin	POST	/api/v1/whatsapp/optin/keywords

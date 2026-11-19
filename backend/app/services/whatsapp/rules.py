@@ -11,6 +11,7 @@ WORDING_VERSION = "2026-11-19.1"
 WORDINGS = {
     ("marketing", WORDING_VERSION): "I agree to receive offers and updates from {business} on WhatsApp. I can reply STOP at any time to stop them.",
     ("utility", WORDING_VERSION): "I agree to receive messages about my visit, booking or enquiry with {business} on WhatsApp.",
+    ("occasion", WORDING_VERSION): "I agree to receive birthday and festival greetings from {business} on WhatsApp. I can reply STOP at any time to stop them.",
 }
 
 
@@ -79,11 +80,11 @@ def phone_hash(tenant_id: uuid.UUID, phone: str) -> str:
 
 # ---- add-on tiers. Prices are REFERENCE text (nothing is billed from the application). Meta's per-message charges are separate and never included in these.
 ADDON_TIERS = {
-    "whatsapp_starter": {"label": "WhatsApp Starter", "price_inr_month": 299, "automation_limit": 3, "campaigns": False, "segmentation": "none",
+    "whatsapp_starter": {"label": "WhatsApp Starter", "price_inr_month": 299, "automation_limit": 3, "campaigns": False, "occasions": False, "segmentation": "none",
                          "summary": "3 automations: reminders and review follow-ups."},
-    "whatsapp_growth": {"label": "WhatsApp Growth", "price_inr_month": 499, "automation_limit": 8, "campaigns": True, "segmentation": "basic",
+    "whatsapp_growth": {"label": "WhatsApp Growth", "price_inr_month": 499, "automation_limit": 8, "campaigns": True, "occasions": True, "segmentation": "basic",
                         "summary": "8 automations, scheduled campaigns and simple customer groups."},
-    "whatsapp_pro": {"label": "WhatsApp Pro", "price_inr_month": 799, "automation_limit": 15, "campaigns": True, "segmentation": "advanced",
+    "whatsapp_pro": {"label": "WhatsApp Pro", "price_inr_month": 799, "automation_limit": 15, "campaigns": True, "occasions": True, "segmentation": "advanced",
                      "summary": "15 automations, advanced customer groups and campaign results."},
 }
 
@@ -98,10 +99,38 @@ CATALOGUE = [
     {"key": "offers", "title": "Send offers to customers", "purpose": "marketing", "phase": 4, "live": True,
      "description": "Send an offer to customers who agreed to receive updates. You see who will get it and the likely WhatsApp charge before anything is sent, and you approve it first.",
      "needs": ["A connected WhatsApp number", "Customers who agreed to receive offers", "An approved message"]},
-    {"key": "birthday", "title": "Birthday and festival wishes", "purpose": "marketing", "phase": 4, "live": False,
-     "description": "A short greeting on a customer's special day, only for customers who agreed to receive updates.",
-     "needs": ["A connected WhatsApp number", "Customers who agreed to receive offers"]},
+    {"key": "birthday", "title": "Birthday wishes", "purpose": "occasion", "phase": 2, "live": True,
+     "description": "One short, neutral birthday greeting a year, between 9 am and 9 pm India time, only for customers who agreed to occasion greetings. It never contains an offer or discount.",
+     "needs": ["A connected WhatsApp number", "Customers who agreed to birthday and festival greetings and gave their birthday", "An approved greeting message"]},
+    {"key": "festival", "title": "Festival wishes", "purpose": "occasion", "phase": 2, "live": True,
+     "description": "A short greeting on the festivals you choose, between 9 am and 9 pm India time, only for customers who agreed to occasion greetings. It never contains an offer or discount.",
+     "needs": ["A connected WhatsApp number", "Customers who agreed to birthday and festival greetings", "An approved greeting message", "The festivals you want to greet"]},
     {"key": "winback", "title": "Bring back customers who stopped visiting", "purpose": "marketing", "phase": 4, "live": False,
      "description": "Message customers who have not visited for a time you choose, only if they agreed to receive updates.",
      "needs": ["A connected WhatsApp number", "Customers who agreed to receive offers"]},
 ]
+
+
+# ---- occasion greetings (birthday and festival). Greetings only: never an offer, never a discount, never outside 9 am to 9 pm India time.
+OCCASION_START, OCCASION_END = 9, 21  # hours in India time; fixed, not a setting: a greeting is never sent outside them
+OCCASION_HOURS = (OCCASION_START, OCCASION_END - 1)  # the hour an owner can choose: 9 am to 8 pm
+OFFER_WORDS = frozenset({"offer", "offers", "discount", "discounts", "sale", "off", "free", "deal", "deals", "cashback", "coupon", "coupons", "voucher", "vouchers", "buy", "win", "gift", "gifts",
+                         "bonus", "save", "price", "prices", "rs", "inr", "special", "limited", "exclusive", "book", "visit", "order"})
+
+
+def greeting_name_problem(name: str | None) -> str | None:
+    """A festival's name goes into a greeting, so it must be a plain name: letters, spaces, apostrophes and hyphens, and nothing that sounds like an offer."""
+    n = re.sub(r"\s+", " ", (name or "")).strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z '\u2019-]{1,39}", n):
+        return "Use 2 to 40 letters for the festival's name. Numbers and symbols are not allowed."
+    if any(w in OFFER_WORDS for w in re.findall(r"[a-z]+", n.lower())):
+        return "A greeting never mentions an offer or discount. Use only the festival's own name."
+    return None
+
+
+def in_occasion_hours(now) -> bool:
+    """True from 9:00 up to (not including) 21:00 India time."""
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+    t = (now if now.tzinfo else now.replace(tzinfo=timezone.utc)).astimezone(ZoneInfo("Asia/Kolkata"))
+    return OCCASION_START <= t.hour < OCCASION_END

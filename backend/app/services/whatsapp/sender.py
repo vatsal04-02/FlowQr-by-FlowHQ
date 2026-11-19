@@ -7,14 +7,16 @@ A send happens only if ALL of these hold (the first failure is the answer, as a 
   4. the variables are short single-line text and match the template;
   5. this idempotency key has not already sent (a retry, a re-run or two workers can never send twice);
   6. a marketing message is not too soon after another to the same person;
-  7. the business is within its per-minute and per-day limits.
+  7. the business is within its per-minute and per-day limits;
+  8. a birthday or festival greeting (kind "occasion") also needs: the Growth or Pro add-on, its own greeting template, occasion consent (and offers consent while the template's category is marketing or
+     not yet known; STOP always blocks it), 9 am to 9 pm India time, and at least WHATSAPP_OCCASION_GAP_DAYS since the last greeting to that person. Greetings are not offers: the offer gap does not apply to them.
 Only approved TEMPLATES are ever sent, never free text, so Meta's 24-hour customer-service window rules do not need to be relied on. A retryable Meta failure leaves no trace (the caller retries
 with the same key); a final failure is recorded on the message with Meta's error code.
 """
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
@@ -25,9 +27,9 @@ from app.core.rate_limit import hit
 from app.models import Tenant
 from app.models.base import utcnow
 from app.models.whatsapp import WhatsAppContact, WhatsAppMessage, WhatsAppTemplate
-from app.services.whatsapp import connection, gate, pricing
+from app.services.whatsapp import addons, connection, gate, pricing, rules
 from app.services.whatsapp.meta import MetaError, get_meta_client
-from app.services.whatsapp.templates import clean_variable, placeholders
+from app.services.whatsapp.templates import clean_variable, key_of, placeholders
 
 log = logging.getLogger("flowqr.whatsapp.sender")
 SENDABLE = ("marketing", "utility")
@@ -50,17 +52,31 @@ def _skip(reason: str) -> SendResult:
     return SendResult("skipped", reason)
 
 
-GAP_EXEMPT = ("optin_confirm", "occasion")  # not offers: a confirmation the customer just asked for, and (later) greetings, which have their own cap
+GAP_EXEMPT = ("optin_confirm", "occasion")  # not offers: a confirmation the customer just asked for, and greetings, which have their own cap
+# A kind that is exempt from the offer gap may only be used with its own messages, so no offer can ever be sent under a kind that skips the offer rules.
+KIND_TEMPLATES = {"optin_confirm": ("optin_confirm", "optin_confirm_offers"), "occasion": ("occasion_birthday", "occasion_festival")}
 
 
 def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, template: WhatsAppTemplate, variables: list[str], *, idem_key: str, run_id: uuid.UUID | None = None,
-                  campaign_id: uuid.UUID | None = None, kind: str | None = None) -> SendResult:
+                  campaign_id: uuid.UUID | None = None, kind: str | None = None, now: datetime | None = None) -> SendResult:
+    now = now or utcnow()
     purpose = template.category
     if purpose not in SENDABLE:
         return _skip("category_not_supported")
-    ok, reason = gate.preflight(db, tenant.id, contact, purpose)
+    if kind is not None and (kind not in KIND_TEMPLATES or key_of(template.template_name) not in KIND_TEMPLATES[kind]):
+        return _skip("kind_mismatch")
+    ok, reason = gate.preflight(db, tenant.id, contact, purpose, template=template, kind=kind)
     if not ok:
         return _skip(reason)
+    if kind == "occasion":
+        if not addons.occasions_allowed(db, tenant.id):
+            return _skip("plan_required")
+        if not rules.in_occasion_hours(now):
+            return _skip("outside_hours")
+        since_g = now - timedelta(days=settings.whatsapp_occasion_gap_days)
+        if db.scalar(select(WhatsAppMessage.id).where(WhatsAppMessage.tenant_id == tenant.id, WhatsAppMessage.contact_id == contact.id, WhatsAppMessage.kind == "occasion",
+                                                       WhatsAppMessage.delivery_status != "failed", WhatsAppMessage.created_at >= since_g).limit(1)) is not None:
+            return _skip("greeting_too_soon")
     conn = connection.connected_connection(db, tenant.id)
     if template.tenant_id != tenant.id or conn is None or template.connection_id != conn.id:
         return _skip("template_mismatch")
@@ -95,7 +111,7 @@ def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, templat
             db.flush()
     except IntegrityError:  # another worker took this key a moment ago
         return SendResult("sent", "duplicate")
-    now = utcnow()
+    now = utcnow()  # the moment of sending (not the pretend "now" a test may have passed in)
     try:
         wamid = get_meta_client().send_template(token, conn.phone_number_id, contact.phone, template.template_name, template.language, params)
     except MetaError as exc:

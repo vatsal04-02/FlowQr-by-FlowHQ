@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -249,4 +249,30 @@ test("the four Meta categories and the free allowance have plain words", () => {
   assert.equal(categoryLabel("other"), "other");
   assert.equal(freeAllowanceWords(1000), "First 1,000 free per number each month");
   assert.equal(freeAllowanceWords(0), "No free allowance");
+});
+
+test("a birthday is a day and a month that exist, and 29 February is allowed", () => {
+  for (const [d, m] of [[14, 3], [29, 2], [31, 1], [30, 4], [1, 12]]) assert.equal(birthdayProblem(d, m), null, `${d}/${m}`);
+  for (const [d, m] of [[30, 2], [31, 4], [31, 6], [31, 9], [31, 11], [0, 5], [5, 13], [5, 0], [1.5, 3]]) assert.notEqual(birthdayProblem(d, m), null, `${d}/${m}`);
+  assert.equal(birthdayWords(14, 3), "14 March");
+  assert.equal(birthdayWords(null, 3), "");
+  assert.equal(MONTHS.length, 12);
+});
+
+test("what kind a greeting is says unknown until WhatsApp has reported it", () => {
+  assert.deepEqual(greetingKindWords({ submitted: false, category: null, category_known: false }), { label: "Not sent to WhatsApp yet", tone: "gray" });
+  assert.deepEqual(greetingKindWords({ submitted: true, category: null, category_known: false }), { label: "Category not confirmed yet", tone: "amber" });
+  assert.deepEqual(greetingKindWords({ submitted: true, category: "marketing", category_known: true }), { label: "Marketing message", tone: "amber" });
+  assert.deepEqual(greetingKindWords({ submitted: true, category: "utility", category_known: true }), { label: "Update message", tone: "green" });
+});
+
+test("greeting helpers choose an hour from 9 to 20 and refusals read as plain sentences", () => {
+  for (const k of ["birthday", "festival"]) {
+    const f = AUTOMATION_FIELDS[k][0];
+    assert.equal(f.key, "send_hour");
+    assert.equal(f.min, 9);
+    assert.equal(f.max, 20);
+  }
+  for (const code of ["no_occasion_consent", "greeting_too_soon", "outside_hours", "day_passed", "plan_required"]) assert.match(reasonWords(code), /[a-z]{4,}/, code);
+  assert.match(reasonWords("outside_hours"), /9 am and 9 pm/);
 });

@@ -68,13 +68,13 @@ def test_a_connection_that_needs_attention_is_a_todo_with_the_reason(wm, admin):
 def test_one_click_prepares_the_messages_and_repeating_it_is_safe(wm, admin):
     biz = ready_biz(admin, "Prep Clinic", install=False)
     first = biz.post("/whatsapp/setup/prepare-messages", json={}).json()
-    assert first == {"submitted": ["review_followup", "enquiry_ack", "enquiry_followup"], "already_there": []}  # not the offer message unless asked
+    assert first == {"submitted": ["review_followup", "enquiry_ack", "enquiry_followup", "occasion_birthday", "occasion_festival"], "already_there": []}  # not the offer message unless asked; the two greetings go in the same click on Growth
     again = biz.post("/whatsapp/setup/prepare-messages", json={}).json()
-    assert again == {"submitted": [], "already_there": ["review_followup", "enquiry_ack", "enquiry_followup"]}
-    assert len([c for c in wm.calls if c[0] == "tpl_create"]) == 3
+    assert again == {"submitted": [], "already_there": ["review_followup", "enquiry_ack", "enquiry_followup", "occasion_birthday", "occasion_festival"]}
+    assert len([c for c in wm.calls if c[0] == "tpl_create"]) == 5
     offer = biz.post("/whatsapp/setup/prepare-messages", json={"include_offer": True}).json()
     assert offer["submitted"] == ["offer"]
-    assert owner_query("SELECT count(*) FROM whatsapp_templates WHERE tenant_id = :t", t=biz.tenant_id)[0][0] == 4
+    assert owner_query("SELECT count(*) FROM whatsapp_templates WHERE tenant_id = :t", t=biz.tenant_id)[0][0] == 6
 
 
 def test_preparing_needs_a_connection(wm, admin):

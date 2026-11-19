@@ -23,6 +23,15 @@ def tier(addon: TenantAddon | None) -> dict | None:
     return {"key": addon.addon_key, **t, "since": addon.started_at}
 
 
+def occasions_allowed(db: Session, tenant_id: uuid.UUID) -> bool:
+    """Birthday and festival greetings are part of the Growth and Pro add-ons."""
+    from app.core.config import settings
+    if not settings.whatsapp_require_addon:
+        return True
+    t = tier(active_addon(db, tenant_id))
+    return bool(t and t.get("occasions"))
+
+
 def set_addon(db: Session, admin: User, tenant: Tenant, addon_key: str | None, reason: str, ip: str | None = None) -> TenantAddon | None:
     """Switch a business's WhatsApp tier (or turn it off with None). Every change needs a written reason and is audited. Ending an add-on never deletes the business's contacts, consents or
     messages; it only stops new connections and (in later phases) new sends."""

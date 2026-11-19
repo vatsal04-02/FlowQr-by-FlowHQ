@@ -423,7 +423,7 @@ def test_automation_settings_are_validated(wm, admin):
         assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_config", cfg
     ok = biz.put("/whatsapp/automations/enquiry_followup", json={"status": "on", "config": {"follow_up_hours": 48, "send_ack": False}}).json()
     assert ok["config"] == {"send_ack": False, "ack_delay_minutes": 2, "follow_up_hours": 48}
-    assert biz.put("/whatsapp/automations/birthday", json={"status": "on"}).status_code == 422
+    assert biz.put("/whatsapp/automations/winback", json={"status": "on"}).status_code == 422  # not built
 
 
 def test_automation_changes_are_for_owners_and_admins_and_audited(wm, admin):

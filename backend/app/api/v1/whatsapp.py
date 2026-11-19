@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -55,6 +55,9 @@ class ContactIn(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=10)
     marketing: bool = False
     utility: bool = False
+    occasion: bool = False  # agreed to birthday and festival greetings (a consent of its own)
+    birth_day: int | None = Field(default=None, ge=1, le=31)
+    birth_month: int | None = Field(default=None, ge=1, le=12)
     attested: bool = False
     evidence: str | None = Field(default=None, max_length=400)
     location_id: uuid.UUID | None = None
@@ -64,21 +67,25 @@ class ContactPatch(BaseModel):
     name: str | None = Field(default=None, max_length=120)
     tags: list[str] | None = Field(default=None, max_length=10)
     location_id: uuid.UUID | None = None
+    birth_day: int | None = Field(default=None, ge=1, le=31)  # send both, or both as null to clear; setting them needs the "they agreed" confirmation
+    birth_month: int | None = Field(default=None, ge=1, le=12)
+    attested: bool = False
+    evidence: str | None = Field(default=None, max_length=400)
 
 
 class ConsentIn(BaseModel):
-    purpose: Literal["marketing", "utility"]
+    purpose: Literal["marketing", "utility", "occasion"]
     attested: bool = False
     evidence: str | None = Field(default=None, max_length=400)
 
 
 class WithdrawIn(BaseModel):
-    purpose: Literal["marketing", "utility"]
+    purpose: Literal["marketing", "utility", "occasion"]
 
 
 class ImportIn(BaseModel):
     csv: str = Field(min_length=3, max_length=400_000)
-    purposes: list[Literal["marketing", "utility"]] = Field(min_length=1, max_length=2)
+    purposes: list[Literal["marketing", "utility", "occasion"]] = Field(min_length=1, max_length=3)
     attested: bool = False
     evidence: str | None = Field(default=None, max_length=400)
 
@@ -156,7 +163,7 @@ def contacts(search: str | None = None, consent_filter: Literal["marketing", "ut
              ctx: TenantContext = Depends(get_tenant_context)):
     _on()
     total, items = consent.list_contacts(ctx.db, ctx.tenant_id, search=search, consent=consent_filter, limit=max(1, min(limit, 200)), offset=max(0, offset), location_id=location_id)
-    return {"total": total, "items": items, "counts": consent.counts(ctx.db, ctx.tenant_id), "wording": {p: rules.wording_for(p, ctx.tenant.name) for p in ("marketing", "utility")}}
+    return {"total": total, "items": items, "counts": consent.counts(ctx.db, ctx.tenant_id), "wording": {p: rules.wording_for(p, ctx.tenant.name) for p in ("marketing", "utility", "occasion")}}
 
 
 @router.get("/contacts/export")
@@ -175,9 +182,11 @@ def contact_add(body: ContactIn, request: Request, ctx: TenantContext = Depends(
 
     def go():
         c, created = consent.create_contact(ctx.db, ctx.tenant, phone=body.phone, name=body.name, tags=body.tags, source="owner_entry", user_id=ctx.user.id, location_id=body.location_id)
-        for purpose, wanted in (("marketing", body.marketing), ("utility", body.utility)):
+        for purpose, wanted in (("marketing", body.marketing), ("utility", body.utility), ("occasion", body.occasion)):
             if wanted:
                 consent.grant(ctx.db, ctx.tenant, c, purpose, "owner_entry", user_id=ctx.user.id, attested=body.attested, evidence=body.evidence, ip=client_ip(request))
+        if body.birth_day is not None or body.birth_month is not None:
+            consent.set_birthday(ctx.db, c, body.birth_day, body.birth_month, attested=body.attested, evidence=body.evidence, user_id=ctx.user.id, ip=client_ip(request))
         return consent.serialize(c, consent.consent_map(ctx.db, [c.id])[c.id])
     return _run(ctx, go)
 
@@ -190,11 +199,13 @@ def contacts_import(body: ImportIn, request: Request, ctx: TenantContext = Depen
 
 
 @router.patch("/contacts/{contact_id}")
-def contact_patch(contact_id: uuid.UUID, body: ContactPatch, ctx: TenantContext = Depends(require_role(Role.admin))):
+def contact_patch(contact_id: uuid.UUID, body: ContactPatch, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     _on()
 
     def go():
         c = consent.get_contact(ctx.db, ctx.tenant_id, contact_id)
+        if "birth_day" in body.model_fields_set or "birth_month" in body.model_fields_set:
+            consent.set_birthday(ctx.db, c, body.birth_day, body.birth_month, attested=body.attested, evidence=body.evidence, user_id=ctx.user.id, ip=client_ip(request))
         consent.update_contact(ctx.db, c, name=body.name, tags=body.tags, set_name="name" in body.model_fields_set, set_tags="tags" in body.model_fields_set, location_id=body.location_id,
                                set_location="location_id" in body.model_fields_set)
         return consent.serialize(c, consent.consent_map(ctx.db, [c.id])[c.id])
@@ -237,6 +248,7 @@ def contact_erase(contact_id: uuid.UUID, request: Request, ctx: TenantContext = 
 class PrepareIn(BaseModel):
     include_offer: bool = False
     include_optin: bool = False
+    include_occasion: bool = True
 
 
 class TestMessageIn(BaseModel):
@@ -255,7 +267,7 @@ def setup_prepare(body: PrepareIn, request: Request, ctx: TenantContext = Depend
     """One click: submit the standard messages the helpers use to WhatsApp for approval (safe to repeat)."""
     _on()
     _limit(f"wa-template-install:{ctx.tenant_id}", 30, 3600)
-    return _run(ctx, lambda: wa_setup.prepare_messages(ctx.db, ctx.tenant_id, ctx.user.id, client_ip(request), body.include_offer, body.include_optin))
+    return _run(ctx, lambda: wa_setup.prepare_messages(ctx.db, ctx.tenant_id, ctx.user.id, client_ip(request), body.include_offer, body.include_optin, body.include_occasion))
 
 
 @router.post("/setup/test-message")
@@ -324,7 +336,7 @@ def optin_keyword_delete(keyword_id: uuid.UUID, request: Request, ctx: TenantCon
 
 # ---- templates (the fixed, neutral messages FlowQR submits to WhatsApp for the business)
 class InstallIn(BaseModel):
-    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer", "optin_confirm", "optin_confirm_offers"]
+    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer", "optin_confirm", "optin_confirm_offers", "occasion_birthday", "occasion_festival"]
 
 
 @router.get("/templates")
@@ -356,6 +368,24 @@ class AutomationIn(BaseModel):
     config: dict | None = None
 
 
+# ---- birthday and festival greetings
+class FestivalChoiceIn(BaseModel):
+    enabled: bool
+
+
+@router.get("/occasions")
+def occasions_overview(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return occasions.overview(ctx.db, ctx.tenant)
+
+
+@router.put("/occasions/festivals/{festival_id}")
+def occasions_festival(festival_id: uuid.UUID, body: FestivalChoiceIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-festival:{ctx.tenant_id}", 120, 3600)
+    return _run(ctx, lambda: occasions.set_festival(ctx.db, ctx.tenant, ctx.user, festival_id, body.enabled, client_ip(request)))
+
+
 @router.get("/automations")
 def automations_list(ctx: TenantContext = Depends(get_tenant_context)):
     _on()
@@ -364,7 +394,7 @@ def automations_list(ctx: TenantContext = Depends(get_tenant_context)):
     counts = consent.counts(ctx.db, ctx.tenant_id)
     items = []
     for a in rules.CATALOGUE:
-        ready = {"connection": c is not None and c.status == "connected", "addon": bool(addon) or not settings.whatsapp_require_addon, "customers": counts["marketing" if a["purpose"] == "marketing" else "utility"] > 0}
+        ready = {"connection": c is not None and c.status == "connected", "addon": bool(addon) or not settings.whatsapp_require_addon, "customers": counts[a["purpose"]] > 0}
         item = {**a, "available": bool(a.get("live")), "coming_soon": not a.get("live"), "ready": ready}
         if a["key"] in automations.DEFAULTS:
             item["state"] = automations.serialize(ctx.db, ctx.tenant_id, a["key"])
@@ -375,14 +405,14 @@ def automations_list(ctx: TenantContext = Depends(get_tenant_context)):
 
 
 @router.put("/automations/{key}")
-def automation_set(key: Literal["review_followup", "enquiry_followup"], body: AutomationIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+def automation_set(key: Literal["review_followup", "enquiry_followup", "birthday", "festival"], body: AutomationIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     _on()
     _limit(f"wa-automation:{ctx.tenant_id}", 60, 3600)
     return _run(ctx, lambda: automations.set_status(ctx.db, ctx.tenant, ctx.user, key, body.status, body.config, client_ip(request)))
 
 
 @router.get("/automations/{key}/runs")
-def automation_runs(key: Literal["review_followup", "enquiry_followup"], status: Literal["scheduled", "sent", "skipped", "failed", "cancelled"] | None = None, ctx: TenantContext = Depends(get_tenant_context)):
+def automation_runs(key: Literal["review_followup", "enquiry_followup", "birthday", "festival"], status: Literal["scheduled", "sent", "skipped", "failed", "cancelled"] | None = None, ctx: TenantContext = Depends(get_tenant_context)):
     _on()
     return automations.list_runs(ctx.db, ctx.tenant_id, key, 50, status)
 

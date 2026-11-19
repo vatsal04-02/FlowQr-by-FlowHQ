@@ -51,7 +51,7 @@ function Helper({ a, canEdit, onChange, sendingOn }: { a: WaAutomation; canEdit:
       <ul className="mt-3 space-y-1">
         <Need done={c.connected}>Your WhatsApp number is connected</Need>
         <Need done={c.templates_approved}>{c.waiting.length ? "WhatsApp is still reviewing the message" : c.refused.length ? "WhatsApp did not approve the message" : "WhatsApp has approved the message (we prepare it when you switch this on)"}</Need>
-        <Need done={a.ready.customers}>{a.purpose === "marketing" ? "Customers who agreed to receive offers" : "Customers who agreed to updates about their visit or enquiry"}</Need>
+        <Need done={a.ready.customers}>{a.purpose === "marketing" ? "Customers who agreed to receive offers" : a.purpose === "occasion" ? "Customers who agreed to birthday and festival greetings" : "Customers who agreed to updates about their visit or enquiry"}</Need>
       </ul>
       {fields.length > 0 && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">{fields.map((f) => "bool" in f ? (

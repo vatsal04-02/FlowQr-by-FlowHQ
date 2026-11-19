@@ -47,6 +47,17 @@ STANDARD = {
         "body": "Hi {{1}}, thanks for joining {{2}} on WhatsApp. You will get {{3}}. Reply STOP at any time to stop offers.",
         "examples": ["Asha", "Asha Physio Clinic", "offers and updates"],
     },
+    # greetings. Asked for as MARKETING: a greeting is not an update about a visit, and WhatsApp decides the real category. Until WhatsApp's status listing reports it, the category is not known and the gate treats it as marketing.
+    "occasion_birthday": {
+        "category": "marketing", "variables": ["customer_name", "business_name"],
+        "body": "Hi {{1}}, everyone at {{2}} wishes you a very happy birthday. We hope you have a wonderful day. Reply STOP to stop these messages.",
+        "examples": ["Asha", "Asha Physio Clinic"],
+    },
+    "occasion_festival": {
+        "category": "marketing", "variables": ["customer_name", "business_name", "festival_name"],
+        "body": "Hi {{1}}, {{2}} wishes you and your family a very happy {{3}}. Warm wishes from all of us. Reply STOP to stop these messages.",
+        "examples": ["Asha", "Asha Physio Clinic", "Diwali"],
+    },
     "offer": {
         "category": "marketing", "variables": ["customer_name", "business_name", "offer_text"],
         "body": "Hi {{1}}, {{2}} has an offer for you: {{3}}. Reply STOP to stop receiving offers.",
@@ -123,7 +134,7 @@ def is_simple(components) -> bool:
 
 
 def _upsert(db: Session, conn: WhatsAppConnection, *, name: str, language: str, category: str, status: str, body: str | None, meta_id: str | None, rejection: str | None, now: datetime,
-            simple: bool = True) -> WhatsAppTemplate:
+            simple: bool = True, confirmed: bool = False) -> WhatsAppTemplate:
     row = db.scalar(select(WhatsAppTemplate).where(WhatsAppTemplate.connection_id == conn.id, WhatsAppTemplate.template_name == name, WhatsAppTemplate.language == language))
     key = key_of(name)
     schema = STANDARD[key]["variables"] if key else [f"variable_{i}" for i in range(1, placeholders(body) + 1)]
@@ -135,6 +146,7 @@ def _upsert(db: Session, conn: WhatsAppConnection, *, name: str, language: str, 
     row.rejection_reason = (rejection or "")[:300] or None if status == "rejected" else None
     row.last_synced_at = now
     row.simple = simple
+    row.category_confirmed = confirmed  # only WhatsApp's own status listing (sync) confirms a category; anything else leaves it "not yet known"
     return row
 
 
@@ -197,7 +209,7 @@ def sync(db: Session, tenant_id: uuid.UUID, user_id: uuid.UUID | None = None, ip
         old = (before.approval_status, before.category) if before else None
         row = _upsert(db, conn, name=name, language=lang, category=_category(t.get("category")), status=STATUS_MAP.get(str(t.get("status", "")).upper(), "disabled"), body=_body_of(t.get("components")),
                       meta_id=str(t.get("id") or "") or None, rejection=str(t.get("rejected_reason") or "") if str(t.get("rejected_reason") or "").upper() not in ("", "NONE") else None, now=now,
-                      simple=is_simple(t.get("components")))
+                      simple=is_simple(t.get("components")), confirmed=bool(t.get("category")))
         changed += int(old != (row.approval_status, row.category))
     for row in db.scalars(select(WhatsAppTemplate).where(WhatsAppTemplate.connection_id == conn.id)):
         if (row.template_name, row.language) not in seen and row.meta_template_id and row.approval_status != "disabled":
@@ -225,4 +237,4 @@ def render(template: WhatsAppTemplate, variables: list[str]) -> str:
 
 def serialize(t: WhatsAppTemplate) -> dict:
     return {"id": t.id, "name": t.template_name, "key": key_of(t.template_name), "language": t.language, "category": t.category, "status": t.approval_status, "body": t.body_text,
-            "variables": t.variable_schema or [], "rejection_reason": t.rejection_reason, "synced_at": t.last_synced_at, "simple": bool(t.simple)}
+            "variables": t.variable_schema or [], "rejection_reason": t.rejection_reason, "synced_at": t.last_synced_at, "simple": bool(t.simple), "category_confirmed": bool(t.category_confirmed)}

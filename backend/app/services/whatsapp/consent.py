@@ -11,7 +11,7 @@ import csv
 import io
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -133,7 +133,7 @@ def grant(db: Session, tenant: Tenant, contact: WhatsAppContact, purpose: str, s
             raise WaError(422, "attestation_required", "Please confirm that this customer agreed to receive WhatsApp messages from you.")
         if len(note) < 10:
             raise WaError(422, "evidence_required", "Write a short note on how they agreed, for example: asked at the counter on 12 Nov and wrote it in the register.")
-    suppressed = is_suppressed(db, tenant.id, contact.phone) if purpose == "marketing" else False
+    suppressed = is_suppressed(db, tenant.id, contact.phone) if purpose in ("marketing", "occasion") else False  # STOP stops offers and greetings alike
     if suppressed and source not in CUSTOMER_SOURCES:
         raise WaError(409, "opted_out", "This customer asked to stop receiving offers. They can only be added again by the customer themselves, for example by agreeing on your review page or website form.")
     existing = active_consent(db, contact.id, purpose)
@@ -168,6 +168,10 @@ def withdraw(db: Session, tenant: Tenant, contact: WhatsAppContact, purpose: str
             contact.marketing_opted_out_at = now
             changed = True
         _suppress(db, tenant.id, contact.phone, "customer_stop" if source == "customer_stop" else ("owner" if source == "owner" else "admin"), now)
+        greet = active_consent(db, contact.id, "occasion")  # STOP also stops birthday and festival greetings (visit and enquiry updates are not affected)
+        if greet:
+            greet.revoked_at, greet.revoked_source, greet.revoked_by = now, source, user_id
+            changed = True
     if changed:
         audit(db, action="whatsapp.consent_withdraw", tenant_id=tenant.id, user_id=user_id, entity_type="whatsapp_contact", entity_id=contact.id, meta={"purpose": purpose, "source": source}, ip=ip)
     return changed
@@ -208,6 +212,60 @@ def has_consent(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, pur
     return False, "invalid_purpose"
 
 
+def has_occasion_consent(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, category: str, category_confirmed: bool) -> tuple[bool, str]:
+    """The consent a birthday or festival greeting needs. Fail closed.
+    * STOP (or any offers opt-out) always blocks a greeting, whatever its category.
+    * Occasion consent is always required.
+    * If the approved category of the greeting is marketing, or WhatsApp has not yet reported it, offers consent is required too."""
+    if contact.tenant_id != tenant_id:
+        return False, "wrong_business"
+    if contact.marketing_opted_out_at is not None or is_suppressed(db, tenant_id, contact.phone):
+        return False, "opted_out"
+    if active_consent(db, contact.id, "occasion") is None:
+        return False, "no_occasion_consent"
+    if category == "marketing" or not category_confirmed:
+        if active_consent(db, contact.id, "marketing") is None:
+            return False, "no_marketing_consent"
+    return True, "ok"
+
+
+# ---- birthday: a day and a month, never a year
+def birthday_problem(day, month) -> str | None:
+    if isinstance(day, bool) or isinstance(month, bool) or not isinstance(day, int) or not isinstance(month, int):
+        return "Enter the birthday as a day and a month."
+    try:
+        date(2000, month, day)  # 2000 was a leap year: 29 February is a real birthday
+    except ValueError:
+        return "That day and month do not exist."
+    return None
+
+
+def require_attested(attested: bool, evidence: str | None) -> str:
+    if not attested:
+        raise WaError(422, "attestation_required", "Please confirm that this customer agreed to receive WhatsApp messages from you.")
+    note = re.sub(r"\s+", " ", (evidence or "")).strip()
+    if len(note) < 10:
+        raise WaError(422, "evidence_required", "Write a short note on how they agreed, for example: asked at the counter on 12 Nov and wrote it in the register.")
+    return note
+
+
+def set_birthday(db: Session, contact: WhatsAppContact, day, month, *, attested: bool, evidence: str | None, user_id: uuid.UUID | None, ip: str | None = None) -> None:
+    """Record (or clear, with both None) a customer's birth day and month. Setting it needs the same 'they agreed' confirmation as any other customer detail the owner types in."""
+    if day is None and month is None:
+        if contact.birth_day is not None:
+            contact.birth_day = contact.birth_month = None
+            audit(db, action="whatsapp.birthday_clear", tenant_id=contact.tenant_id, user_id=user_id, entity_type="whatsapp_contact", entity_id=contact.id, ip=ip)
+        return
+    if day is None or month is None:
+        raise WaError(422, "invalid_birthday", "Enter both the day and the month of the birthday.")
+    problem = birthday_problem(day, month)
+    if problem:
+        raise WaError(422, "invalid_birthday", problem)
+    require_attested(attested, evidence)
+    contact.birth_day, contact.birth_month = day, month
+    audit(db, action="whatsapp.birthday_set", tenant_id=contact.tenant_id, user_id=user_id, entity_type="whatsapp_contact", entity_id=contact.id, ip=ip)  # the date itself is not written to the audit log
+
+
 def erase_contact(db: Session, tenant: Tenant, contact: WhatsAppContact, user_id: uuid.UUID | None, ip: str | None = None) -> None:
     """Delete the person (number, name, tags, consent records). An opted-out number stays on the suppression list as a keyed hash so it cannot be re-added and messaged."""
     if contact.marketing_opted_out_at is not None:
@@ -220,7 +278,7 @@ def erase_contact(db: Session, tenant: Tenant, contact: WhatsAppContact, user_id
 
 # ---- listing, serialising, export
 def consent_map(db: Session, contact_ids: list[uuid.UUID]) -> dict[uuid.UUID, dict]:
-    out = {cid: {"marketing": None, "utility": None} for cid in contact_ids}
+    out = {cid: {"marketing": None, "utility": None, "occasion": None} for cid in contact_ids}
     if not contact_ids:
         return out
     for r in db.scalars(select(WhatsAppConsent).where(WhatsAppConsent.contact_id.in_(contact_ids), WhatsAppConsent.revoked_at.is_(None))):
@@ -229,9 +287,10 @@ def consent_map(db: Session, contact_ids: list[uuid.UUID]) -> dict[uuid.UUID, di
 
 
 def serialize(c: WhatsAppContact, consents: dict | None = None) -> dict:
-    consents = consents or {"marketing": None, "utility": None}
+    consents = consents or {"marketing": None, "utility": None, "occasion": None}
     return {"id": c.id, "phone": c.phone, "customer_name": c.customer_name, "tags": c.tags or [], "location_id": c.location_id, "source": c.source, "created_at": c.created_at,
-            "marketing": consents.get("marketing"), "utility": consents.get("utility"), "opted_out": c.marketing_opted_out_at is not None, "opted_out_at": c.marketing_opted_out_at}
+            "marketing": consents.get("marketing"), "utility": consents.get("utility"), "occasion": consents.get("occasion"), "opted_out": c.marketing_opted_out_at is not None, "opted_out_at": c.marketing_opted_out_at,
+            "birth_day": c.birth_day, "birth_month": c.birth_month}
 
 
 def list_contacts(db: Session, tenant_id: uuid.UUID, *, search: str | None, consent: str | None, limit: int, offset: int, location_id: uuid.UUID | None = None) -> tuple[int, list[dict]]:
@@ -264,8 +323,9 @@ def counts(db: Session, tenant_id: uuid.UUID) -> dict:
     base = select(func.count(func.distinct(WhatsAppConsent.contact_id))).where(WhatsAppConsent.tenant_id == tenant_id, WhatsAppConsent.revoked_at.is_(None))
     marketing = db.scalar(base.where(WhatsAppConsent.purpose == "marketing")) or 0
     utility = db.scalar(base.where(WhatsAppConsent.purpose == "utility")) or 0
+    occasion = db.scalar(base.where(WhatsAppConsent.purpose == "occasion")) or 0
     opted_out = db.scalar(select(func.count()).select_from(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id, WhatsAppContact.marketing_opted_out_at.is_not(None))) or 0
-    return {"contacts": total, "marketing": marketing, "utility": utility, "opted_out": opted_out}
+    return {"contacts": total, "marketing": marketing, "utility": utility, "occasion": occasion, "opted_out": opted_out}
 
 
 def _cell(v) -> str:
@@ -276,14 +336,33 @@ def _cell(v) -> str:
 def export_csv(db: Session, tenant_id: uuid.UUID) -> str:
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["phone", "name", "tags", "marketing_consent_since", "marketing_consent_source", "utility_consent_since", "utility_consent_source", "opted_out_of_marketing", "source", "added"])
+    w.writerow(["phone", "name", "tags", "marketing_consent_since", "marketing_consent_source", "utility_consent_since", "utility_consent_source", "opted_out_of_marketing", "source", "added",
+                "occasion_consent_since", "occasion_consent_source", "birth_day", "birth_month"])
     rows = list(db.scalars(select(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id).order_by(WhatsAppContact.created_at)))
     cm = consent_map(db, [r.id for r in rows])
     for r in rows:
-        m, u = cm[r.id]["marketing"], cm[r.id]["utility"]
+        m, u, o = cm[r.id]["marketing"], cm[r.id]["utility"], cm[r.id]["occasion"]
         w.writerow([r.phone, _cell(r.customer_name), _cell("; ".join(r.tags or [])), m["since"].isoformat() if m else "", m["source"] if m else "", u["since"].isoformat() if u else "", u["source"] if u else "",
-                    r.marketing_opted_out_at.isoformat() if r.marketing_opted_out_at else "", r.source, r.created_at.isoformat()])
+                    r.marketing_opted_out_at.isoformat() if r.marketing_opted_out_at else "", r.source, r.created_at.isoformat(),
+                    o["since"].isoformat() if o else "", o["source"] if o else "", r.birth_day or "", r.birth_month or ""])
     return out.getvalue()
+
+
+def _csv_birthday(row, bdcol, bmcol, bcol):
+    """(day, month), None when the row has no birthday, or "bad". Never a year: a value with a year is refused, not trimmed."""
+    try:
+        if bcol is not None and bcol < len(row) and row[bcol].strip():
+            parts = re.split(r"[-/ ]+", row[bcol].strip())
+            if len(parts) != 2:
+                return "bad"
+            d, m = int(parts[0]), int(parts[1])
+        elif bdcol is not None and bmcol is not None and bdcol < len(row) and bmcol < len(row) and row[bdcol].strip() and row[bmcol].strip():
+            d, m = int(row[bdcol]), int(row[bmcol])
+        else:
+            return None
+    except ValueError:
+        return "bad"
+    return "bad" if birthday_problem(d, m) else (d, m)
 
 
 # ---- CSV import (explicit confirmation of valid consent; one attestation for the whole file, never per-row trust)
@@ -306,11 +385,14 @@ def import_csv(db: Session, tenant: Tenant, user_id: uuid.UUID, text_csv: str, *
         raise WaError(422, "no_phone_column", "The first row must name the columns, and one must be called phone.")
     ncol = next((i for i, h in enumerate(header) if h in ("name", "customer name", "customer_name")), None)
     tcol = next((i for i, h in enumerate(header) if h in ("tags", "tag", "group")), None)
+    bdcol = next((i for i, h in enumerate(header) if h in ("birth_day", "birth day")), None)
+    bmcol = next((i for i, h in enumerate(header) if h in ("birth_month", "birth month")), None)
+    bcol = next((i for i, h in enumerate(header) if h in ("birthday", "birth date", "birthdate")), None)  # day and month only, like 14-03 or 14/03
     data = rows[1:]
     if len(data) > MAX_IMPORT_ROWS:
         raise WaError(413, "too_many_rows", f"That file has more than {MAX_IMPORT_ROWS} customers. Split it into smaller files.")
     seen: set[str] = set()
-    result = {"rows": len(data), "added": 0, "already_there": 0, "consents_recorded": 0, "skipped": 0, "errors": []}
+    result = {"rows": len(data), "added": 0, "already_there": 0, "consents_recorded": 0, "birthdays_set": 0, "skipped": 0, "errors": []}
     for n, row in enumerate(data, start=2):
         try:
             if pcol >= len(row) or not row[pcol].strip():
@@ -326,6 +408,13 @@ def import_csv(db: Session, tenant: Tenant, user_id: uuid.UUID, text_csv: str, *
             with db.begin_nested():
                 contact, created = create_contact(db, tenant, phone=phone, name=name, tags=tags, source="csv_import", user_id=user_id)
                 result["added" if created else "already_there"] += 1
+                bd = _csv_birthday(row, bdcol, bmcol, bcol)
+                if bd == "bad":
+                    if len(result["errors"]) < 20:
+                        result["errors"].append({"row": n, "reason": "The birthday was not saved: use a day and a month like 14-03, with no year."})
+                elif bd is not None:
+                    contact.birth_day, contact.birth_month = bd  # the whole file is covered by the one confirmation that these customers agreed
+                    result["birthdays_set"] += 1
                 for p in purposes:
                     try:
                         _, made = grant(db, tenant, contact, p, "csv_import", user_id=user_id, attested=True, evidence=evidence, ip=ip)

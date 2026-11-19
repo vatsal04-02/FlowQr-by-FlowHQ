@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, SmallInteger, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,7 +21,7 @@ def _in(col: str, values) -> str:
 
 CONNECTION_STATUSES = ("pending", "connected", "needs_attention", "disconnected")
 WEBHOOK_STATUSES = ("unknown", "subscribed", "failed")
-PURPOSES = ("marketing", "utility")
+PURPOSES = ("marketing", "utility", "occasion")  # occasion = birthday and festival greetings, a consent of its own
 CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in")
 CUSTOMER_SOURCES = ("qr_page", "website_form", "customer_message", "qr_click_to_chat", "keyword_opt_in")  # the customer did it themselves: the only sources that can lift an opt-out
 TEMPLATE_CATEGORIES = ("marketing", "utility", "authentication")
@@ -72,7 +72,9 @@ class WhatsAppContact(IdMixin, TimestampMixin, Base):
     append-only record (WhatsAppConsent). Contacts are never created from review submissions or imported silently."""
 
     __tablename__ = "whatsapp_contacts"
-    __table_args__ = (UniqueConstraint("tenant_id", "phone", name="uq_wa_contact_phone"), Index("ix_wa_contact_tenant_created", "tenant_id", "created_at"))
+    __table_args__ = (UniqueConstraint("tenant_id", "phone", name="uq_wa_contact_phone"), Index("ix_wa_contact_tenant_created", "tenant_id", "created_at"),
+                      CheckConstraint("(birth_day IS NULL) = (birth_month IS NULL)", name="ck_wa_contact_birth_pair"),
+                      CheckConstraint("birth_month IS NULL OR (birth_month BETWEEN 1 AND 12 AND birth_day BETWEEN 1 AND 31 AND NOT (birth_month IN (4, 6, 9, 11) AND birth_day > 30) AND NOT (birth_month = 2 AND birth_day > 29))", name="ck_wa_contact_birth_valid"))
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
     phone: Mapped[str] = mapped_column(String(20))  # E.164
@@ -82,6 +84,8 @@ class WhatsAppContact(IdMixin, TimestampMixin, Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     marketing_opted_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set by an opt-out; cleared only by a customer-originated new consent
     location_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"))  # optional: which branch this customer belongs to (location-specific offers)
+    birth_day: Mapped[int | None] = mapped_column(SmallInteger)  # optional birth day and month, never a year; used only for a birthday greeting the customer agreed to
+    birth_month: Mapped[int | None] = mapped_column(SmallInteger)
 
 
 class WhatsAppConsent(IdMixin, Base):
@@ -143,6 +147,7 @@ class WhatsAppTemplate(IdMixin, TimestampMixin, Base):
     variable_schema: Mapped[list] = mapped_column(JSONB, default=list)
     rejection_reason: Mapped[str | None] = mapped_column(String(300))
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    category_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)  # True only once Meta's own status listing has reported the category; until then the category is not known
     simple: Mapped[bool] = mapped_column(Boolean, default=True)  # a text body only (no header, media or button variables): the only kind a campaign can fill with plain text
 
 
@@ -219,7 +224,7 @@ class TenantAddon(IdMixin, TimestampMixin, Base):
     granted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
-AUTOMATION_KEYS = ("review_followup", "enquiry_followup")
+AUTOMATION_KEYS = ("review_followup", "enquiry_followup", "birthday", "festival")
 AUTOMATION_STATUSES = ("off", "on", "paused")
 RUN_STATUSES = ("scheduled", "sending", "sent", "skipped", "failed", "cancelled")
 CAMPAIGN_STATUSES = ("draft", "scheduled", "sending", "paused", "done", "cancelled")
@@ -354,4 +359,30 @@ class WhatsAppOptinKeyword(IdMixin, TimestampMixin, Base):
     keyword: Mapped[str] = mapped_column(String(20))
     purpose: Mapped[str] = mapped_column(String(10), default="utility")
     confirm_reply: Mapped[bool] = mapped_column(Boolean, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class WhatsAppFestival(IdMixin, Base):
+    """A festival FlowQR staff keep on a dated list (name, date, region). Global data. Greetings for it go only to businesses that opted in to it, and only to customers who agreed to occasion greetings.
+    A row is never deleted; staff can switch one off."""
+
+    __tablename__ = "whatsapp_festivals"
+    __table_args__ = (UniqueConstraint("name", "festival_date", "region", name="uq_wa_festival"),)
+
+    name: Mapped[str] = mapped_column(String(60))
+    festival_date: Mapped[date] = mapped_column(Date)
+    region: Mapped[str] = mapped_column(String(40), default="All India")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppFestivalOptin(IdMixin, TimestampMixin, Base):
+    """A business's choice to send greetings for one festival. Off unless the business turned it on."""
+
+    __tablename__ = "whatsapp_festival_optins"
+    __table_args__ = (UniqueConstraint("tenant_id", "festival_id", name="uq_wa_festival_optin"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    festival_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_festivals.id", ondelete="CASCADE"))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

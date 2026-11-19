@@ -8,17 +8,18 @@ export interface WaConnection {
 export interface WaTier { key: string; label: string; price_inr_month: number; automation_limit: number; summary: string; campaigns: boolean; segmentation: string }
 export interface WaStatus {
   enabled: boolean; signup_available: boolean; addon_required: boolean; addon: (WaTier & { since: string }) | null; tiers: WaTier[]; connection: WaConnection | null;
-  counts: { contacts: number; marketing: number; utility: number; opted_out: number }; messaging: { enabled: boolean; emergency_stop: boolean }; can_connect: boolean;
+  counts: { contacts: number; marketing: number; utility: number; occasion?: number; opted_out: number }; messaging: { enabled: boolean; emergency_stop: boolean }; can_connect: boolean;
 }
 export interface WaConsentInfo { since: string; source: string; wording_version: string }
 export interface WaContact {
   id: string; phone: string; customer_name: string | null; tags: string[]; location_id?: string | null; source: string; created_at: string; marketing: WaConsentInfo | null; utility: WaConsentInfo | null; opted_out: boolean; opted_out_at: string | null;
+  occasion?: WaConsentInfo | null; birth_day?: number | null; birth_month?: number | null;
 }
-export interface WaContacts { total: number; items: WaContact[]; counts: WaStatus["counts"]; wording: { marketing: string; utility: string } }
+export interface WaContacts { total: number; items: WaContact[]; counts: WaStatus["counts"]; wording: { marketing: string; utility: string; occasion?: string } }
 export interface WaChecklist { connected: boolean; templates_installed: boolean; templates_approved: boolean; missing: string[]; waiting: string[]; refused: string[] }
 export interface WaAutomationState { key: string; status: "off" | "on" | "paused"; config: Record<string, number | boolean>; activated_at: string | null; last_run_at: string | null; runs: Record<string, number>; checklist: WaChecklist }
 export interface WaAutomation {
-  key: string; title: string; description: string; purpose: "marketing" | "utility"; needs: string[]; available: boolean; coming_soon: boolean; ready: { connection: boolean; addon: boolean; customers: boolean };
+  key: string; title: string; description: string; purpose: "marketing" | "utility" | "occasion"; needs: string[]; available: boolean; coming_soon: boolean; ready: { connection: boolean; addon: boolean; customers: boolean };
   state?: WaAutomationState; campaigns_allowed?: boolean;
 }
 export interface WaAutomations { items: WaAutomation[]; limit: number | null; active: number; sending: boolean }
@@ -200,6 +201,9 @@ export function reasonWords(reason: string | null | undefined): string {
     automation_paused: "The helper was paused.", automation_off: "The helper was switched off.", campaign_cancelled: "The campaign was cancelled.", meta_rejected: "WhatsApp did not accept it.",
     meta_unavailable: "WhatsApp was not reachable. We will try again.", rate_limited: "Waiting for the sending limit.", daily_cap: "The daily limit was reached.", template_missing: "The message is not set up yet.",
     invalid_variables: "Something in the message was empty.", token_expired: "The WhatsApp connection needs renewing.", internal_error: "Something went wrong. We will try again.",
+    no_occasion_consent: "They have not agreed to birthday and festival greetings.", greeting_too_soon: "They already got a greeting in the last 14 days.",
+    outside_hours: "Greetings go out only between 9 am and 9 pm India time, and this was outside those hours.", day_passed: "Its day had already passed, so it was not sent late.",
+    plan_required: "Greetings are part of the Growth and Pro plans.", kind_mismatch: "That message cannot be sent this way.",
   };
   if (!reason) return "";
   if (reason.startsWith("gave_up:")) return "We tried several times and gave up. " + (map[reason.slice(8)] ?? "");
@@ -250,6 +254,8 @@ export type AutomationField = { key: string; label: string; bool: true } | { key
 export const AUTOMATION_FIELDS: Record<string, AutomationField[]> = {
   review_followup: [{ key: "delay_minutes", label: "Send the review request after", unit: "minutes", min: 5, max: 10080 }],
   enquiry_followup: [{ key: "send_ack", label: "Send a thank-you straight away", bool: true }, { key: "follow_up_hours", label: "Follow up if nobody has replied after", unit: "hours", min: 1, max: 168 }],
+  birthday: [{ key: "send_hour", label: "Send the greeting at", unit: "o'clock, India time (9 to 20)", min: 9, max: 20 }],
+  festival: [{ key: "send_hour", label: "Send the greeting at", unit: "o'clock, India time (9 to 20)", min: 9, max: 20 }],
 };
 
 // ---- Phase 4: the campaign manager
@@ -372,4 +378,31 @@ export function freeAllowanceWords(n: number): string {
 export function rateProblem(raw: string): string | null {
   if (!/^\d{1,4}(\.\d{1,4})?$/.test(raw.trim())) return "Enter the price in rupees, like 1.09 or 0.145.";
   return Number(raw) > 1000 ? "That price is not realistic." : null;
+}
+
+// ---- birthday and festival greetings
+export interface WaGreetingKind {
+  key: string; submitted: boolean; status: string | null; category: string | null; category_known: boolean; needs_offers_consent: boolean; warning: string | null; body: string | null;
+  audience: { agreed: number; would_receive: number; with_birthday: number; left_out: number }; helper: WaAutomationState;
+}
+export interface WaOccasions {
+  allowed: boolean; hours: { start: number; end: number; timezone: string }; gap_days: number; birthday: WaGreetingKind; festival: WaGreetingKind;
+  festivals: { id: string; name: string; date: string; region: string; enabled: boolean }[]; wording: string; note: string;
+}
+export interface WaFestival { id: string; name: string; date: string; region: string; active: boolean }
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // February has 29: a 29 February birthday is real
+/** A birth day and month, never a year. Mirrors the server's check; the server decides. */
+export function birthdayProblem(day: number, month: number): string | null {
+  if (!Number.isInteger(day) || !Number.isInteger(month) || month < 1 || month > 12 || day < 1) return "Choose a day and a month.";
+  return day > DAYS_IN[month - 1] ? "That day does not exist in that month." : null;
+}
+export function birthdayWords(day?: number | null, month?: number | null): string {
+  return day && month ? `${day} ${MONTHS[month - 1]}` : "";
+}
+/** What the owner is told about the kind of message a greeting is, from what WhatsApp reported. */
+export function greetingKindWords(g: Pick<WaGreetingKind, "submitted" | "category" | "category_known">): { label: string; tone: "green" | "amber" | "gray" } {
+  if (!g.submitted) return { label: "Not sent to WhatsApp yet", tone: "gray" };
+  if (!g.category_known) return { label: "Category not confirmed yet", tone: "amber" };
+  return g.category === "marketing" ? { label: "Marketing message", tone: "amber" } : { label: "Update message", tone: "green" };
 }

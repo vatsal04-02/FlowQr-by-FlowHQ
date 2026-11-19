@@ -821,7 +821,7 @@ def test_listing_filters_and_search(wa, admin):
     f = lambda **p: sorted(i["customer_name"] for i in biz.get("/whatsapp/contacts", params=p).json()["items"])  # noqa: E731
     assert f() == ["Meera", "Omar", "Ravi", "Sita"] and f(consent_filter="marketing") == ["Meera"] and f(consent_filter="utility") == ["Ravi"]
     assert f(consent_filter="opted_out") == ["Omar"] and f(consent_filter="none") == ["Omar", "Sita"] and f(search="rav") == ["Ravi"] and f(search="00013") == ["Sita"]
-    assert biz.get("/whatsapp/contacts").json()["counts"] == {"contacts": 4, "marketing": 1, "utility": 1, "opted_out": 1}
+    assert biz.get("/whatsapp/contacts").json()["counts"] == {"contacts": 4, "marketing": 1, "utility": 1, "occasion": 0, "opted_out": 1}
 
 
 # ===================================================================== CSV
@@ -946,7 +946,7 @@ def test_the_catalogue_is_plain_language_and_only_the_built_helpers_are_availabl
     titles = [i["title"] for i in r["items"]]
     assert "Get more customer reviews" in titles and "Follow up with enquiries" in titles and "Send offers to customers" in titles
     live = {i["key"] for i in r["items"] if i["available"]}
-    assert live == {"review_followup", "enquiry_followup", "offers"} and all(i["coming_soon"] is (not i["available"]) for i in r["items"]) and r["limit"] is None
+    assert live == {"review_followup", "enquiry_followup", "offers", "birthday", "festival"} and all(i["coming_soon"] is (not i["available"]) for i in r["items"]) and r["limit"] is None
     blob = json.dumps(r).lower()
     for jargon in ("webhook", "api", "waba", "token", "phone_number_id", "cloud api"):
         assert jargon not in blob, jargon
@@ -1047,8 +1047,8 @@ def test_the_migrations_are_two_steps_on_top_of_the_website_builder():
     cfg = Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0052"] and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0052"
+    assert script.get_heads() == ["0053"] and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0053").down_revision == "0052" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0053"
     tables = {r[0] for r in owner_query("SELECT tablename FROM pg_tables WHERE tablename LIKE 'whatsapp_%' OR tablename = 'tenant_addons'")}
     assert tables == {"whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
-                      "whatsapp_rates", "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients", "whatsapp_optin_settings", "whatsapp_optin_keywords", "whatsapp_rate_verifications"}
+                      "whatsapp_rates", "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients", "whatsapp_optin_settings", "whatsapp_optin_keywords", "whatsapp_rate_verifications", "whatsapp_festivals", "whatsapp_festival_optins"}

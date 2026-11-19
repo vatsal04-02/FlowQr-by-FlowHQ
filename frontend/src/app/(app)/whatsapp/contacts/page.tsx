@@ -10,10 +10,10 @@ import { api, apiFile, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { consentWords, csvPreview, CSV_TEMPLATE, reasonWords, SOURCE_WORDS, type WaContact, type WaContacts } from "@/lib/whatsapp";
+import { birthdayProblem, birthdayWords, consentWords, csvPreview, CSV_TEMPLATE, MONTHS, reasonWords, SOURCE_WORDS, type WaContact, type WaContacts } from "@/lib/whatsapp";
 
 const PAGE = 25;
-type Purpose = "marketing" | "utility";
+type Purpose = "marketing" | "utility" | "occasion";
 
 function Check({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
   return <label className="flex cursor-pointer items-start gap-3 text-sm text-ink-700"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-[#BD3E1B]" /><span>{children}</span></label>;
@@ -57,8 +57,8 @@ export default function Customers() {
     <>
       <PageHeader title="Your customers" subtitle="Only customers who agreed can get WhatsApp messages. Here you can see who agreed, and to what."
         actions={isAdmin ? <><Button variant="secondary" icon={<Download className="h-4 w-4" />} onClick={() => void exportCsv()}>Download list</Button><Button variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setImp(true)}>Upload a list</Button><Button variant="brand" icon={<Plus className="h-4 w-4" />} onClick={() => setAdd(true)}>Add a customer</Button></> : undefined} />
-      {d && <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[["Customers", d.counts.contacts], ["Agreed to offers", d.counts.marketing], ["Agreed to visit updates", d.counts.utility], ["Asked to stop offers", d.counts.opted_out]].map(([l, v]) => <Card key={String(l)}><p className="text-[13px] text-ink-500">{l}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{v}</p></Card>)}
+      {d && <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {[["Customers", d.counts.contacts], ["Agreed to offers", d.counts.marketing], ["Agreed to visit updates", d.counts.utility], ["Agreed to greetings", d.counts.occasion ?? 0], ["Asked to stop offers", d.counts.opted_out]].map(([l, v]) => <Card key={String(l)}><p className="text-[13px] text-ink-500">{l}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{v}</p></Card>)}
       </div>}
       <Card pad={false} className="mb-4 p-3 sm:p-4"><div className="flex flex-wrap gap-2">
         <div className="relative min-w-[200px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden /><input aria-label="Search customers" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or phone" className="min-h-11 w-full rounded-xl border border-ink-200 pl-9 pr-3 text-sm sm:min-h-10" /></div>
@@ -78,11 +78,11 @@ export default function Customers() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-ink">{c.customer_name ?? "No name"} <span className="ml-1 font-normal tabular-nums text-ink-500">{c.phone}</span></p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><Badge tone={w.tone}>{w.label}</Badge>{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}{manyLocs && locName(c.location_id) && <Badge tone="blue">{locName(c.location_id)}</Badge>}<span>{SOURCE_WORDS[c.source] ?? c.source} · {fmtDate(c.created_at)}</span></p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><Badge tone={w.tone}>{w.label}</Badge>{c.occasion && <Badge tone="blue">Greetings</Badge>}{c.birth_day && c.birth_month ? <Badge>Birthday {birthdayWords(c.birth_day, c.birth_month)}</Badge> : null}{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}{manyLocs && locName(c.location_id) && <Badge tone="blue">{locName(c.location_id)}</Badge>}<span>{SOURCE_WORDS[c.source] ?? c.source} · {fmtDate(c.created_at)}</span></p>
                   {c.opted_out && c.opted_out_at && <p className="mt-1 text-[13px] text-neg">Asked to stop offers on {fmtDate(c.opted_out_at)}. Only the customer can start them again.</p>}
                 </div>
                 {isAdmin && <div className="flex flex-wrap gap-2">
-                  {!c.opted_out && !(c.marketing && c.utility) && <Button size="sm" variant="secondary" onClick={() => setAgree(c)}>Record agreement</Button>}
+                  {!c.opted_out && !(c.marketing && c.utility && c.occasion) && <Button size="sm" variant="secondary" onClick={() => setAgree(c)}>Record agreement</Button>}
                   {c.utility && <Button size="sm" variant="secondary" onClick={() => void visitDone(c)}>Visit done</Button>}
                   {c.marketing && !c.opted_out && <Button size="sm" variant="secondary" onClick={() => void stopOffers(c)}>Stop offers</Button>}
                   <Button size="sm" variant="ghost" onClick={() => setErase(c)}>Delete</Button>
@@ -103,15 +103,17 @@ export default function Customers() {
   );
 }
 
-function Agreement({ wording, marketing, utility, setMarketing, setUtility, attested, setAttested, evidence, setEvidence }: {
+function Agreement({ wording, marketing, utility, setMarketing, setUtility, attested, setAttested, evidence, setEvidence, occasion, setOccasion, needAttest }: {
   wording: WaContacts["wording"]; marketing: boolean; utility: boolean; setMarketing: (v: boolean) => void; setUtility: (v: boolean) => void; attested: boolean; setAttested: (v: boolean) => void; evidence: string; setEvidence: (v: string) => void;
+  occasion?: boolean; setOccasion?: (v: boolean) => void; needAttest?: boolean;
 }) {
   return (
     <fieldset className="space-y-3 rounded-2xl border border-line p-4">
       <legend className="px-1 text-sm font-semibold">What did they agree to?</legend>
       <Check checked={marketing} onChange={setMarketing}><b>Offers and updates.</b> <span className="text-ink-500">“{wording.marketing}”</span></Check>
       <Check checked={utility} onChange={setUtility}><b>Updates about their visit or enquiry.</b> <span className="text-ink-500">“{wording.utility}”</span></Check>
-      {(marketing || utility) && (
+      {setOccasion && <Check checked={!!occasion} onChange={setOccasion}><b>Birthday and festival greetings.</b> <span className="text-ink-500">“{wording.occasion ?? "I agree to receive birthday and festival greetings on WhatsApp."}”</span></Check>}
+      {(marketing || utility || occasion || needAttest) && (
         <div className="space-y-3 border-t border-line pt-3">
           <Check checked={attested} onChange={setAttested}>I confirm this customer agreed to the message above.</Check>
           <Textarea label="How did they agree?" rows={2} value={evidence} onChange={(e) => setEvidence(e.target.value)} hint="For example: asked at the counter on 12 Nov and wrote it in the register." />
@@ -123,14 +125,16 @@ function Agreement({ wording, marketing, utility, setMarketing, setUtility, atte
 
 function AddCustomer({ wording, locations, onClose, onDone }: { wording: WaContacts["wording"]; locations: { id: string; name: string }[]; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const [f, setF] = useState({ phone: "", name: "", tags: "", location: "" }), [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
+  const [f, setF] = useState({ phone: "", name: "", tags: "", location: "", day: "", month: "" }), [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [occasion, setOccasion] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
-  const any = marketing || utility;
-  const ok = f.phone.replace(/\D/g, "").length >= 10 && (!any || (attested && evidence.trim().length >= 10));
+  const hasBirth = f.day !== "" || f.month !== "";
+  const birthBad = hasBirth ? (f.day === "" || f.month === "" ? "Choose both the day and the month." : birthdayProblem(Number(f.day), Number(f.month))) : null;
+  const any = marketing || utility || occasion || hasBirth;
+  const ok = f.phone.replace(/\D/g, "").length >= 10 && !birthBad && (!any || (attested && evidence.trim().length >= 10));
   async function save() {
     setBusy(true); setErr(null);
     try {
-      await api("/whatsapp/contacts", { method: "POST", body: { phone: f.phone, name: f.name || null, tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean), marketing, utility, attested, evidence: evidence.trim() || null, location_id: f.location || null } });
+      await api("/whatsapp/contacts", { method: "POST", body: { phone: f.phone, name: f.name || null, tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean), marketing, utility, occasion, birth_day: hasBirth ? Number(f.day) : null, birth_month: hasBirth ? Number(f.month) : null, attested, evidence: evidence.trim() || null, location_id: f.location || null } });
       toast("Customer added."); onDone();
     } catch (e) { setErr(errorMessage(e)); setBusy(false); }
   }
@@ -142,7 +146,11 @@ function AddCustomer({ wording, locations, onClose, onDone }: { wording: WaConta
         <Input label="Name (optional)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <Input label="Groups (optional)" placeholder="regular, family" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} hint="Separate with commas." />
         {locations.length > 0 && <Select label="Location (optional)" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} hint="Lets you send an offer to one location's customers (Pro)."><option value="">Not set</option>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</Select>}
-        <Agreement wording={wording} marketing={marketing} utility={utility} setMarketing={setMarketing} setUtility={setUtility} attested={attested} setAttested={setAttested} evidence={evidence} setEvidence={setEvidence} />
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Birthday: day (optional)" inputMode="numeric" placeholder="14" value={f.day} onChange={(e) => setF({ ...f, day: e.target.value.replace(/\D/g, "").slice(0, 2) })} error={birthBad ?? undefined} />
+          <Select label="Birthday: month" value={f.month} onChange={(e) => setF({ ...f, month: e.target.value })} hint="Day and month only, never a year."><option value="">Not set</option>{MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</Select>
+        </div>
+        <Agreement wording={wording} marketing={marketing} utility={utility} setMarketing={setMarketing} setUtility={setUtility} occasion={occasion} setOccasion={setOccasion} needAttest={hasBirth} attested={attested} setAttested={setAttested} evidence={evidence} setEvidence={setEvidence} />
         {!any && <p className="text-[13px] text-ink-500">You can add someone without an agreement. They will not get any message until they agree.</p>}
       </div>
     </Modal>
@@ -151,13 +159,13 @@ function AddCustomer({ wording, locations, onClose, onDone }: { wording: WaConta
 
 function RecordAgreement({ contact, wording, onClose, onDone }: { contact: WaContact; wording: WaContacts["wording"]; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
+  const [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [occasion, setOccasion] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
-  const ok = (marketing || utility) && attested && evidence.trim().length >= 10;
+  const ok = (marketing || utility || occasion) && attested && evidence.trim().length >= 10;
   async function save() {
     setBusy(true); setErr(null);
     try {
-      for (const [on, purpose] of [[marketing && !contact.marketing, "marketing"], [utility && !contact.utility, "utility"]] as [boolean, Purpose][]) {
+      for (const [on, purpose] of [[marketing && !contact.marketing, "marketing"], [utility && !contact.utility, "utility"], [occasion && !contact.occasion, "occasion"]] as [boolean, Purpose][]) {
         if (on) await api(`/whatsapp/contacts/${contact.id}/consent`, { method: "POST", body: { purpose, attested, evidence: evidence.trim() } });
       }
       toast("Agreement recorded."); onDone();
@@ -167,21 +175,21 @@ function RecordAgreement({ contact, wording, onClose, onDone }: { contact: WaCon
     <Modal open onClose={onClose} title={`Record agreement: ${contact.customer_name ?? contact.phone}`} footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button variant="brand" loading={busy} disabled={!ok} onClick={() => void save()}>Save agreement</Button></>}>
       <div className="space-y-4">
         {err && <Alert tone="error">{err}</Alert>}
-        <Agreement wording={wording} marketing={marketing} utility={utility} setMarketing={setMarketing} setUtility={setUtility} attested={attested} setAttested={setAttested} evidence={evidence} setEvidence={setEvidence} />
+        <Agreement wording={wording} marketing={marketing} utility={utility} setMarketing={setMarketing} setUtility={setUtility} occasion={occasion} setOccasion={setOccasion} attested={attested} setAttested={setAttested} evidence={evidence} setEvidence={setEvidence} />
       </div>
     </Modal>
   );
 }
 
-interface ImportResult { rows: number; added: number; already_there: number; consents_recorded: number; skipped: number; errors: { row: number; reason: string }[] }
+interface ImportResult { rows: number; added: number; already_there: number; consents_recorded: number; birthdays_set?: number; skipped: number; errors: { row: number; reason: string }[] }
 
 function ImportList({ wording, onClose, onDone }: { wording: WaContacts["wording"]; onClose: () => void; onDone: () => void }) {
   const file = useRef<HTMLInputElement>(null);
   const [text, setText] = useState(""), [name, setName] = useState("");
-  const [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
+  const [marketing, setMarketing] = useState(false), [utility, setUtility] = useState(false), [occasion, setOccasion] = useState(false), [attested, setAttested] = useState(false), [evidence, setEvidence] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null), [res, setRes] = useState<ImportResult | null>(null);
   const pv = text ? csvPreview(text) : null;
-  const ok = !!pv && pv.total > 0 && (marketing || utility) && attested && evidence.trim().length >= 10;
+  const ok = !!pv && pv.total > 0 && (marketing || utility || occasion) && attested && evidence.trim().length >= 10;
   async function pick(f: File | undefined) {
     setErr(null);
     if (!f) return;
@@ -191,7 +199,7 @@ function ImportList({ wording, onClose, onDone }: { wording: WaContacts["wording
   async function run() {
     setBusy(true); setErr(null);
     try {
-      setRes(await api<ImportResult>("/whatsapp/contacts/import", { method: "POST", body: { csv: text, purposes: [marketing && "marketing", utility && "utility"].filter(Boolean), attested, evidence: evidence.trim() } }));
+      setRes(await api<ImportResult>("/whatsapp/contacts/import", { method: "POST", body: { csv: text, purposes: [marketing && "marketing", utility && "utility", occasion && "occasion"].filter(Boolean), attested, evidence: evidence.trim() } }));
       onDone();
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
@@ -200,7 +208,7 @@ function ImportList({ wording, onClose, onDone }: { wording: WaContacts["wording
     <Modal open onClose={onClose} title="Upload a list of customers" footer={res ? <Button variant="brand" onClick={onClose}>Done</Button> : <><Button variant="secondary" onClick={onClose}>Cancel</Button><Button variant="brand" loading={busy} disabled={!ok} onClick={() => void run()}>Upload list</Button></>}>
       {res ? (
         <div className="space-y-3 text-sm text-ink-700">
-          <Alert tone="success">{res.added} added, {res.already_there} already in your list, {res.consents_recorded} agreements recorded{res.skipped ? `, ${res.skipped} skipped` : ""}.</Alert>
+          <Alert tone="success">{res.added} added, {res.already_there} already in your list, {res.consents_recorded} agreements recorded{res.birthdays_set ? `, ${res.birthdays_set} birthdays saved` : ""}{res.skipped ? `, ${res.skipped} skipped` : ""}.</Alert>
           {res.errors.length > 0 && <ul className="list-disc space-y-1 pl-5 text-[13px]">{res.errors.map((e) => <li key={e.row}>Row {e.row}: {e.reason}</li>)}</ul>}
         </div>
       ) : (
@@ -210,10 +218,10 @@ function ImportList({ wording, onClose, onDone }: { wording: WaContacts["wording
           <div>
             <input ref={file} type="file" accept=".csv,text/csv" className="sr-only" aria-label="Choose a CSV file" onChange={(e) => void pick(e.target.files?.[0])} />
             <div className="flex flex-wrap items-center gap-2"><Button variant="secondary" onClick={() => file.current?.click()}>{name || "Choose a file"}</Button><Button variant="ghost" size="sm" onClick={template}>Download an example</Button></div>
-            <p className="mt-1 text-[13px] text-ink-500">A CSV file with a column called phone. Optional columns: name and tags. Up to 2,000 customers.</p>
+            <p className="mt-1 text-[13px] text-ink-500">A CSV file with a column called phone. Optional columns: name, tags, and birthday (a day and month like 14-03, never a year; or birth_day and birth_month). Up to 2,000 customers.</p>
           </div>
           {pv && <div className="overflow-x-auto rounded-xl bg-surface-2 p-3 text-[13px]"><p className="mb-1 font-semibold">{pv.total} customers found. First rows:</p><table className="w-full text-left"><thead><tr>{pv.header.map((h, i) => <th key={i} className="pr-3 font-semibold">{h}</th>)}</tr></thead><tbody>{pv.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} className="pr-3 text-ink-700">{c}</td>)}</tr>)}</tbody></table></div>}
-          <Agreement wording={wording} marketing={marketing} utility={utility} setMarketing={setMarketing} setUtility={setUtility} attested={attested} setAttested={setAttested} evidence={evidence} setEvidence={setEvidence} />
+          <Agreement wording={wording} marketing={marketing} utility={utility} setMarketing={setMarketing} setUtility={setUtility} occasion={occasion} setOccasion={setOccasion} attested={attested} setAttested={setAttested} evidence={evidence} setEvidence={setEvidence} />
         </div>
       )}
     </Modal>

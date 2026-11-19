@@ -12,6 +12,7 @@ on an enquiry that has already been answered.
 import logging
 import uuid
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -26,11 +27,13 @@ from app.services.audit import audit
 from app.services.whatsapp import WaError, addons, connection, consent, sender, templates
 
 log = logging.getLogger("flowqr.whatsapp.automations")
+IST = ZoneInfo("Asia/Kolkata")
 
-DEFAULTS = {"review_followup": {"delay_minutes": 60}, "enquiry_followup": {"send_ack": True, "ack_delay_minutes": 2, "follow_up_hours": 24}}
-NEEDS = {"review_followup": ("review_followup",), "enquiry_followup": ("enquiry_ack", "enquiry_followup")}
+DEFAULTS = {"review_followup": {"delay_minutes": 60}, "enquiry_followup": {"send_ack": True, "ack_delay_minutes": 2, "follow_up_hours": 24}, "birthday": {"send_hour": 10}, "festival": {"send_hour": 10}}
+NEEDS = {"review_followup": ("review_followup",), "enquiry_followup": ("enquiry_ack", "enquiry_followup"), "birthday": ("occasion_birthday",), "festival": ("occasion_festival",)}
+OCCASION_KEYS = ("birthday", "festival")  # greetings: Growth and Pro only, their own consent, 9 am to 9 pm India time
 STEP_TEMPLATE = {"request": "review_followup", "ack": "enquiry_ack", "followup": "enquiry_followup"}
-RANGES = {"delay_minutes": (5, 10080), "ack_delay_minutes": (0, 60), "follow_up_hours": (1, 168)}
+RANGES = {"delay_minutes": (5, 10080), "ack_delay_minutes": (0, 60), "follow_up_hours": (1, 168), "send_hour": (9, 20)}  # send_hour: India time, 9 am to 8 pm (so a greeting is always inside 9 am to 9 pm)
 BACKOFF = (120, 600, 1800, 7200, 21600)
 
 
@@ -81,6 +84,8 @@ def set_status(db: Session, tenant: Tenant, user: User, key: str, status: str, c
     a = get(db, tenant.id, key)
     cfg = clean_config(key, config) if config is not None else (a.config if a else dict(DEFAULTS[key]))
     if status == "on" and (a is None or a.status != "on"):
+        if key in OCCASION_KEYS and not addons.occasions_allowed(db, tenant.id):
+            raise WaError(402, "plan_required", "Birthday and festival wishes are part of the Growth and Pro add-ons.")
         addon = addons.active_addon(db, tenant.id)
         if settings.whatsapp_require_addon and addon is None:
             raise WaError(402, "addon_required", "WhatsApp automation is an add-on. Ask FlowQR to switch it on for your business.")
@@ -200,6 +205,8 @@ def execute_run(db: Session, run: WhatsAppAutomationRun, now: datetime | None = 
         if enq is None or enq.status != "new":
             _finish(run, "skipped", "responded", now)
             return "skipped"
+    if a.automation_key in OCCASION_KEYS:
+        return _execute_greeting(db, run, a, tenant, contact, now)
     key = STEP_TEMPLATE[run.step]
     row = templates.standard_row(db, tenant.id, key)
     if row is None:
@@ -215,6 +222,10 @@ def execute_run(db: Session, run: WhatsAppAutomationRun, now: datetime | None = 
     else:
         variables = [name, tenant.name]
     res = sender.send_template(db, tenant, contact, row, variables, idem_key=f"run:{run.idempotency_key}", run_id=run.id)
+    return _apply(run, a, res, now)
+
+
+def _apply(run: WhatsAppAutomationRun, a: WhatsAppAutomation, res, now: datetime) -> str:
     if res.status == "sent":
         _finish(run, "sent", None, now)
         a.last_run_at = now
@@ -230,6 +241,22 @@ def execute_run(db: Session, run: WhatsAppAutomationRun, now: datetime | None = 
             run.scheduled_at = now + timedelta(seconds=max(res.retry_after, BACKOFF[min(run.attempts - 1, len(BACKOFF) - 1)]))
             run.reason = res.reason
     return run.status
+
+
+def _execute_greeting(db: Session, run: WhatsAppAutomationRun, a: WhatsAppAutomation, tenant: Tenant, contact: WhatsAppContact, now: datetime) -> str:
+    """A birthday or festival greeting. It goes out on its own day or not at all: a greeting that missed its day (the worker was down, or the hours closed) is skipped, never sent late."""
+    if run.context.get("on") != now.astimezone(IST).date().isoformat():
+        _finish(run, "skipped", "day_passed", now)
+        return "skipped"
+    row = templates.standard_row(db, tenant.id, "occasion_birthday" if a.automation_key == "birthday" else "occasion_festival")
+    if row is None:
+        _finish(run, "failed", "template_missing", now)
+        return "failed"
+    variables = [run.context.get("first_name") or templates.first_name(contact.customer_name), tenant.name]
+    if a.automation_key == "festival":
+        variables.append(run.context.get("festival") or "")
+    res = sender.send_template(db, tenant, contact, row, variables, idem_key=f"run:{run.idempotency_key}", run_id=run.id, kind="occasion", now=now)
+    return _apply(run, a, res, now)
 
 
 def sending_allowed() -> bool:

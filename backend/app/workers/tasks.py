@@ -196,12 +196,13 @@ def whatsapp_run_due():
     """Send what is due: automation runs, then campaign batches. Holds everything (and sends nothing) unless WHATSAPP_ENABLED and WHATSAPP_SENDING_ENABLED are true and the emergency stop is off."""
     from app.services.whatsapp import automations as wa_automations
     from app.services.whatsapp import campaigns as wa_campaigns
+    from app.services.whatsapp import occasions as wa_occasions
 
     if not wa_automations.sending_allowed():
         return {"held": True}
     db = system_session()
     try:
-        out = {"automations": wa_automations.run_due(db), "campaigns": wa_campaigns.run_due(db)}
+        out = {"greetings": wa_occasions.schedule_due(db), "automations": wa_automations.run_due(db), "campaigns": wa_campaigns.run_due(db)}
         db.commit()
         return out
     except Exception:

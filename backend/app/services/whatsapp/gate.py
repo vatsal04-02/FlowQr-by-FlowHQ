@@ -11,7 +11,7 @@ from app.models.whatsapp import WhatsAppContact
 from app.services.whatsapp import addons, connection, consent
 
 
-def preflight(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, purpose: str) -> tuple[bool, str]:
+def preflight(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, purpose: str, *, template=None, kind: str | None = None) -> tuple[bool, str]:
     if not settings.whatsapp_enabled:
         return False, "whatsapp_disabled"
     if settings.whatsapp_emergency_stop:
@@ -25,4 +25,6 @@ def preflight(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, purpo
         return False, "not_connected"
     if connection.token_state(conn) in ("missing", "expired"):
         return False, "token_expired"
+    if kind == "occasion":  # a birthday or festival greeting: occasion consent always, plus offers consent while its category is marketing or not yet known
+        return consent.has_occasion_consent(db, tenant_id, contact, purpose, bool(template is not None and template.category_confirmed))
     return consent.has_consent(db, tenant_id, contact, purpose)

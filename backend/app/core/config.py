@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     whatsapp_daily_cap: int = 1000  # WHATSAPP_DAILY_CAP: messages one business may send per day
     whatsapp_marketing_gap_hours: int = 72  # WHATSAPP_MARKETING_GAP_HOURS: the least time between two marketing messages to the same person
     whatsapp_review_gap_days: int = 30  # WHATSAPP_REVIEW_GAP_DAYS: the least time between two review requests to the same person
+    whatsapp_occasion_gap_days: int = 14  # WHATSAPP_OCCASION_GAP_DAYS: the least time between two birthday or festival greetings to the same person (greetings are not offers: the offer gap does not apply to them)
     whatsapp_send_max_attempts: int = 5  # WHATSAPP_SEND_MAX_ATTEMPTS: a failing automation send is retried with growing delays, then marked failed (the dead letter)
     whatsapp_campaign_batch: int = 40  # WHATSAPP_CAMPAIGN_BATCH: recipients one campaign sends per worker pass
     whatsapp_send_window_start: int = 9  # WHATSAPP_SEND_WINDOW_START: offers go out only between these hours, India time (0 and 24 = any time). Automation replies are not held.
