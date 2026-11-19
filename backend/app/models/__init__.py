@@ -29,3 +29,4 @@ from app.models.autonomy import AgentAction, AgentActionApproval, AgentIntervent
 from app.models.sites import Site, SiteAsset, SiteDomain, SiteEnquiry, SiteRevision, SiteSlugQuarantine  # noqa: F401,E402
 from app.models.whatsapp import TenantAddon, WhatsAppConnection, WhatsAppConsent, WhatsAppContact, WhatsAppMessage, WhatsAppSuppression, WhatsAppTemplate, WhatsAppWebhookEvent  # noqa: F401,E402
 from app.models.whatsapp import WhatsAppAutomation, WhatsAppAutomationRun, WhatsAppCampaign, WhatsAppCampaignRecipient, WhatsAppRate  # noqa: F401,E402
+from app.models.whatsapp import WhatsAppOptinKeyword, WhatsAppOptinSettings  # noqa: F401,E402

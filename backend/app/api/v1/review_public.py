@@ -122,7 +122,17 @@ def landing(public_id: str, request: Request, db: Session = Depends(public_db)):
         "review_url_kind": svc.review_url_kind(url),
         "submission": {"mode": (sub := provider_for(loc)).mode, **sub.capabilities()},  # "handoff" today: Google offers no public way to submit for a customer
         "disclaimer": DISCLAIMER,
+        "whatsapp_optin": _whatsapp_optin(db, tenant),  # an optional click-to-chat link to the business's own number; nothing is collected on this page
     }
+
+
+def _whatsapp_optin(db, tenant):
+    try:
+        from app.services.whatsapp import optin
+        link = optin.public_link(db, tenant)
+        return {"url": link["url"], "purpose_words": link["purpose_words"]} if link else None
+    except Exception:  # noqa: BLE001 - the review page must never fail because of an optional add-on
+        return None
 
 
 RETRYABLE = {"rate_limited", "timeout", "provider_error", "bad_response", "tls", "rejected"}  # "try again" can plausibly work

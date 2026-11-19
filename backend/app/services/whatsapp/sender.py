@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -50,8 +50,11 @@ def _skip(reason: str) -> SendResult:
     return SendResult("skipped", reason)
 
 
+GAP_EXEMPT = ("optin_confirm", "occasion")  # not offers: a confirmation the customer just asked for, and (later) greetings, which have their own cap
+
+
 def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, template: WhatsAppTemplate, variables: list[str], *, idem_key: str, run_id: uuid.UUID | None = None,
-                  campaign_id: uuid.UUID | None = None) -> SendResult:
+                  campaign_id: uuid.UUID | None = None, kind: str | None = None) -> SendResult:
     purpose = template.category
     if purpose not in SENDABLE:
         return _skip("category_not_supported")
@@ -69,10 +72,11 @@ def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, templat
     existing = db.scalar(select(WhatsAppMessage).where(WhatsAppMessage.tenant_id == tenant.id, WhatsAppMessage.idempotency_key == idem_key))
     if existing is not None:
         return SendResult("sent" if existing.delivery_status != "failed" else "failed", "duplicate", existing.id)
-    if purpose == "marketing":
+    if purpose == "marketing" and kind not in GAP_EXEMPT:
         since = utcnow() - timedelta(hours=settings.whatsapp_marketing_gap_hours)
         recent = db.scalar(select(WhatsAppMessage.id).where(WhatsAppMessage.tenant_id == tenant.id, WhatsAppMessage.contact_id == contact.id, WhatsAppMessage.category == "marketing",
-                                                           WhatsAppMessage.delivery_status != "failed", WhatsAppMessage.created_at >= since).limit(1))
+                                                           WhatsAppMessage.delivery_status != "failed", WhatsAppMessage.created_at >= since,
+                                                           or_(WhatsAppMessage.kind.is_(None), WhatsAppMessage.kind.not_in(GAP_EXEMPT))).limit(1))
         if recent is not None:
             return _skip("too_soon")
     if not hit(f"wa-send-min:{tenant.id}", settings.whatsapp_send_per_minute, 60):
@@ -84,7 +88,7 @@ def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, templat
         return _skip("not_connected")
     rate = pricing.rate_for(db, purpose)
     msg = WhatsAppMessage(tenant_id=tenant.id, connection_id=conn.id, contact_id=contact.id, phone_number_id=conn.phone_number_id, direction="outbound", category=purpose, template_id=template.id,
-                          delivery_status="queued", idempotency_key=idem_key, run_id=run_id, campaign_id=campaign_id, est_rate=rate.rate if rate else None)
+                          delivery_status="queued", idempotency_key=idem_key, run_id=run_id, campaign_id=campaign_id, est_rate=rate.rate if rate else None, kind=kind)
     try:
         with db.begin_nested():
             db.add(msg)

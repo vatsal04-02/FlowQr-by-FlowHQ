@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -212,4 +212,23 @@ test("every set-up state has a plain label", () => {
 test("a number worth sending to the server looks like an Indian mobile number or an international one", () => {
   for (const ok of ["98765 43210", "9876543210", "+91 98765 43210", "919876543210", "+44 7911 123456"]) assert.equal(looksLikeMobile(ok), true, ok);
   for (const bad of ["", "12345", "abcdefghij", "98765", "0000", "123456789"]) assert.equal(looksLikeMobile(bad), false, bad);
+});
+
+test("a keyword is checked the way the server checks it", () => {
+  for (const ok of ["joinus", "JoinUs", " welcome ", "abc", "a".repeat(20)]) assert.equal(keywordProblem(ok), null, ok);
+  for (const bad of ["", "ab", "hello world", "join!", "a".repeat(21), "yes", "OK", "Stop", "stopall", "opt-out", "unsubscribe"]) assert.notEqual(keywordProblem(bad), null, bad);
+});
+
+test("each way of joining is named for the owner and every purpose has plain words", () => {
+  assert.equal(SOURCE_WORDS.qr_click_to_chat, "Joined from your QR page");
+  assert.equal(SOURCE_WORDS.keyword_opt_in, "Joined by texting a keyword");
+  assert.deepEqual(OPTIN_PURPOSES.map((p) => p.value), ["utility", "marketing", "both"]);
+  assert.ok(OPTIN_PURPOSES[0].hint.includes("do not agree to offers"));
+});
+
+test("the thank-you message state is told plainly", () => {
+  assert.deepEqual(confirmWords(null), { label: "Not sent to WhatsApp yet", tone: "gray" });
+  assert.equal(confirmWords("approved").tone, "green");
+  assert.equal(confirmWords("pending").tone, "amber");
+  assert.equal(confirmWords("rejected").tone, "red");
 });

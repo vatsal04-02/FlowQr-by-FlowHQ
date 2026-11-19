@@ -29,6 +29,7 @@ from app.services.whatsapp import consent, rules
 log = logging.getLogger("flowqr.whatsapp.webhook")
 MAX_BODY = 1_000_000
 RANK = {"queued": 0, "sent": 1, "delivered": 2, "read": 3}
+CODE_FORM = re.compile(r"\bCode:\s*[A-Za-z0-9]{6}\s*$", re.IGNORECASE)  # phones change letter case; the match itself ignores case too
 ATTENTION_EVENTS = {"DISABLED_UPDATE", "ACCOUNT_VIOLATION", "ACCOUNT_RESTRICTION", "PARTNER_REMOVED", "ACCOUNT_DELETED"}
 
 
@@ -71,7 +72,8 @@ def sanitize(payload: dict) -> dict | None:
             for m in (v.get("messages") or [])[:200]:
                 if isinstance(m, dict) and m.get("from"):
                     text = (m.get("text") or {}).get("body") if m.get("type") == "text" and isinstance(m.get("text"), dict) else None
-                    item["messages"].append({"from": _digits(m["from"]), "type": str(m.get("type", ""))[:16], "text": text[:64] if isinstance(text, str) and len(text) <= 64 else None})
+                    keep = isinstance(text, str) and (len(text) <= 64 or (len(text) <= 240 and CODE_FORM.search(text)))  # an opt-in message carries a code; anything else long is not kept
+                    item["messages"].append({"from": _digits(m["from"]), "id": str(m.get("id", ""))[:120], "type": str(m.get("type", ""))[:16], "text": text if keep else None})
             if item["field"] == "account_update":
                 item["event"] = str(v.get("event", ""))[:40]
             items.append(item)
@@ -172,6 +174,11 @@ def process_event(db: Session, event_id: uuid.UUID) -> dict:
             if m.get("from") and rules.is_opt_out(m.get("text")) and tenant is not None:
                 if consent.opt_out_by_phone(db, tenant, "+" + m["from"]):
                     out["opt_outs"] += 1
+            elif m.get("from") and tenant is not None:  # not a STOP: is it a customer opting in (the QR page's message, or an opt-in keyword)?
+                from app.services.whatsapp import optin
+                joined = optin.handle_inbound(db, tenant, "+" + m["from"], m.get("text"), m.get("id") or "")
+                if joined:
+                    out["opt_ins"] = out.get("opt_ins", 0) + 1
         if item.get("field") == "account_update" and item.get("event") in ATTENTION_EVENTS:
             conn.status, conn.attention_reason = "needs_attention", "Meta reported a problem with your WhatsApp account. Open WhatsApp Manager to see why."
             out["attention"] += 1

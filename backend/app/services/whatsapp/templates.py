@@ -37,6 +37,16 @@ STANDARD = {
         "body": "Hi {{1}}, we are following up on your enquiry with {{2}}. If you still need help, just reply to this message.",
         "examples": ["Asha", "Asha Physio Clinic"],
     },
+    "optin_confirm": {
+        "category": "utility", "variables": ["customer_name", "business_name", "agreed_to"],
+        "body": "Hi {{1}}, thanks for joining {{2}} on WhatsApp. You will get {{3}}. Reply STOP at any time to stop offers.",
+        "examples": ["Asha", "Asha Physio Clinic", "updates about your visits and enquiries"],
+    },
+    "optin_confirm_offers": {
+        "category": "marketing", "variables": ["customer_name", "business_name", "agreed_to"],
+        "body": "Hi {{1}}, thanks for joining {{2}} on WhatsApp. You will get {{3}}. Reply STOP at any time to stop offers.",
+        "examples": ["Asha", "Asha Physio Clinic", "offers and updates"],
+    },
     "offer": {
         "category": "marketing", "variables": ["customer_name", "business_name", "offer_text"],
         "body": "Hi {{1}}, {{2}} has an offer for you: {{3}}. Reply STOP to stop receiving offers.",

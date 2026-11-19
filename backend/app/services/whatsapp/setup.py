@@ -131,9 +131,9 @@ def status(db: Session, tenant: Tenant) -> dict:
             "last_test": {"status": test.delivery_status, "sent_at": test.sent_at, "delivered_at": test.delivered_at} if test is not None else None}
 
 
-def prepare_messages(db: Session, tenant_id: uuid.UUID, user_id: uuid.UUID, ip: str | None = None, include_offer: bool = False) -> dict:
-    """Submit the standard messages the helpers use (and, if asked, the offer message) that are not yet with WhatsApp. Safe to repeat."""
-    keys = list(UTILITY_KEYS) + (["offer"] if include_offer else [])
+def prepare_messages(db: Session, tenant_id: uuid.UUID, user_id: uuid.UUID, ip: str | None = None, include_offer: bool = False, include_optin: bool = False) -> dict:
+    """Submit the standard messages the helpers use (and, if asked, the offer message and the opt-in confirmations) that are not yet with WhatsApp. Safe to repeat."""
+    keys = list(UTILITY_KEYS) + (["offer"] if include_offer else []) + (["optin_confirm", "optin_confirm_offers"] if include_optin else [])
     done, skipped = [], []
     for k in keys:
         if templates.standard_row(db, tenant_id, k) is not None:

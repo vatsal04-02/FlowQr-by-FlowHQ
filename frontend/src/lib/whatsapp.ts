@@ -65,7 +65,37 @@ export function consentWords(c: Pick<WaContact, "marketing" | "utility" | "opted
 
 export const SOURCE_WORDS: Record<string, string> = {
   qr_page: "On your review page", website_form: "On your website", customer_message: "Messaged you", owner_entry: "Added by you", csv_import: "Imported by you", admin_entry: "Added by FlowQR",
+  qr_click_to_chat: "Joined from your QR page", keyword_opt_in: "Joined by texting a keyword",
 };
+
+/** Opt-in without a phone number: the QR page's WhatsApp button and opt-in keywords. */
+export type OptinPurpose = "utility" | "marketing" | "both";
+export interface WaOptinKeyword { id: string; keyword: string; purpose: OptinPurpose; enabled: boolean; confirm_reply: boolean; wording: string }
+export interface WaOptin {
+  settings: { code: string; qr_enabled: boolean; purpose: OptinPurpose; confirm_reply: boolean; prefill_text: string } | null;
+  keywords: WaOptinKeyword[]; max_keywords: number; connected: boolean; link_live: boolean; link_example: string | null;
+  confirm_templates: Record<"optin_confirm" | "optin_confirm_offers", string | null>; purpose_words: Record<OptinPurpose, string>;
+}
+export const OPTIN_PURPOSES: { value: OptinPurpose; label: string; hint: string }[] = [
+  { value: "utility", label: "Updates about their visits and enquiries", hint: "The safest choice. Customers do not agree to offers." },
+  { value: "marketing", label: "Offers and updates", hint: "Customers agree to receive your offers." },
+  { value: "both", label: "Visit updates and offers", hint: "Customers agree to both, in one message." },
+];
+const RESERVED = new Set(["yes", "no", "ok", "okay", "hi", "hello", "hey", "thanks", "thank", "help", "start", "stop", "join", "cancel", "unsubscribe", "optout"]);
+/** Mirrors the server's check so a bad word is caught before it is sent. The server decides. */
+export function keywordProblem(raw: string): string | null {
+  const k = raw.trim().toLowerCase();
+  if (!/^[a-z0-9]{3,20}$/.test(k)) return "Use 3 to 20 letters or numbers, with no spaces.";
+  if (RESERVED.has(k) || ["stop all", "stopall", "opt out", "opt-out"].includes(k)) return "That word is too common or already means something else. Choose a more specific word.";
+  return null;
+}
+/** What the owner is told about the confirmation message, from the approval state WhatsApp reported. */
+export function confirmWords(status: string | null | undefined): { label: string; tone: "green" | "amber" | "gray" | "red" } {
+  if (!status) return { label: "Not sent to WhatsApp yet", tone: "gray" };
+  if (status === "approved") return { label: "Approved", tone: "green" };
+  if (status === "pending") return { label: "WhatsApp is reviewing it", tone: "amber" };
+  return { label: "Not approved", tone: "red" };
+}
 
 /** Where a given automation stands, as one sentence. */
 export function automationStatus(a: WaAutomation): string {

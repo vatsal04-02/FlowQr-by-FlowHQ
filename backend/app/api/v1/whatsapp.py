@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, pricing, rules, setup as wa_setup, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -236,6 +236,7 @@ def contact_erase(contact_id: uuid.UUID, request: Request, ctx: TenantContext = 
 # ---- first-run set-up: the guided path from nothing to the first helper
 class PrepareIn(BaseModel):
     include_offer: bool = False
+    include_optin: bool = False
 
 
 class TestMessageIn(BaseModel):
@@ -254,7 +255,7 @@ def setup_prepare(body: PrepareIn, request: Request, ctx: TenantContext = Depend
     """One click: submit the standard messages the helpers use to WhatsApp for approval (safe to repeat)."""
     _on()
     _limit(f"wa-template-install:{ctx.tenant_id}", 30, 3600)
-    return _run(ctx, lambda: wa_setup.prepare_messages(ctx.db, ctx.tenant_id, ctx.user.id, client_ip(request), body.include_offer))
+    return _run(ctx, lambda: wa_setup.prepare_messages(ctx.db, ctx.tenant_id, ctx.user.id, client_ip(request), body.include_offer, body.include_optin))
 
 
 @router.post("/setup/test-message")
@@ -264,9 +265,66 @@ def setup_test(body: TestMessageIn, request: Request, ctx: TenantContext = Depen
     return _run(ctx, lambda: wa_setup.send_test(ctx.db, ctx.tenant, ctx.user, phone=body.phone, own_number=body.own_number, ip=client_ip(request)), commit_on_error=True)  # a failed try is kept: the checklist says so
 
 
+# ---- opt-in without a phone number: the QR page's WhatsApp button and opt-in keywords
+class OptinIn(BaseModel):
+    qr_enabled: bool | None = None
+    purpose: Literal["utility", "marketing", "both"] | None = None
+    confirm_reply: bool | None = None
+
+
+class KeywordIn(BaseModel):
+    keyword: str = Field(min_length=3, max_length=20)
+    purpose: Literal["utility", "marketing", "both"] = "utility"
+    confirm_reply: bool = True
+
+
+class KeywordPatch(BaseModel):
+    enabled: bool | None = None
+    purpose: Literal["utility", "marketing", "both"] | None = None
+    confirm_reply: bool | None = None
+
+
+@router.get("/optin")
+def optin_get(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return optin.overview(ctx.db, ctx.tenant)
+
+
+@router.put("/optin")
+def optin_put(body: OptinIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-optin:{ctx.tenant_id}", 60, 3600)
+
+    def go():
+        optin.set_settings(ctx.db, ctx.tenant, ctx.user, qr_enabled=body.qr_enabled, purpose=body.purpose, confirm_reply=body.confirm_reply, ip=client_ip(request))
+        return optin.overview(ctx.db, ctx.tenant)
+    return _run(ctx, go)
+
+
+@router.post("/optin/keywords", status_code=201)
+def optin_keyword_add(body: KeywordIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-optin:{ctx.tenant_id}", 60, 3600)
+    return _run(ctx, lambda: optin.serialize_keyword(optin.add_keyword(ctx.db, ctx.tenant, ctx.user, keyword=body.keyword, purpose=body.purpose, confirm_reply=body.confirm_reply, ip=client_ip(request)), ctx.tenant))
+
+
+@router.patch("/optin/keywords/{keyword_id}")
+def optin_keyword_patch(keyword_id: uuid.UUID, body: KeywordPatch, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    return _run(ctx, lambda: optin.serialize_keyword(optin.update_keyword(ctx.db, ctx.tenant, ctx.user, optin.get_keyword(ctx.db, ctx.tenant_id, keyword_id), enabled=body.enabled, purpose=body.purpose,
+                                                                         confirm_reply=body.confirm_reply, ip=client_ip(request)), ctx.tenant))
+
+
+@router.delete("/optin/keywords/{keyword_id}", status_code=204)
+def optin_keyword_delete(keyword_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _run(ctx, lambda: optin.delete_keyword(ctx.db, ctx.tenant, ctx.user, optin.get_keyword(ctx.db, ctx.tenant_id, keyword_id), client_ip(request)))
+    return Response(status_code=204)
+
+
 # ---- templates (the fixed, neutral messages FlowQR submits to WhatsApp for the business)
 class InstallIn(BaseModel):
-    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer"]
+    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer", "optin_confirm", "optin_confirm_offers"]
 
 
 @router.get("/templates")

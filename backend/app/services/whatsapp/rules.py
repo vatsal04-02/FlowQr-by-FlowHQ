@@ -21,6 +21,46 @@ def wording_for(purpose: str, business_name: str, version: str = WORDING_VERSION
     return template.format(business=(business_name or "this business").strip()[:120])[:600]
 
 
+# ---- opt-in without a phone number on the page. The customer sends a message; the message itself is the consent, so its wording is fixed here and compared exactly.
+PURPOSE_WORDS = {"utility": "updates about your visits and enquiries", "marketing": "offers and updates", "both": "updates about your visits and enquiries, and offers"}
+RESERVED_KEYWORDS = frozenset({"yes", "no", "ok", "okay", "hi", "hii", "hey", "hello", "thanks", "thank", "thankyou", "start", "help", "cancel", "end", "quit", "bye", "haan", "nahi"})
+OPTIN_WORDING_VERSION = "optin-1"
+
+
+def _biz(name: str | None) -> str:
+    return re.sub(r"\s+", " ", (name or "this business")).strip()[:40]
+
+
+def optin_text(purpose: str, business: str | None, code: str) -> str:
+    """The text a customer's WhatsApp is prefilled with after tapping the button on the QR page. It is also the consent wording, stored exactly."""
+    b = _biz(business)
+    if purpose == "marketing":
+        return f"Yes, send me offers and updates from {b} on WhatsApp. I can reply STOP to stop them. Code: {code}"
+    if purpose == "both":
+        return f"Yes, send me updates about my visits and enquiries, and offers, from {b} on WhatsApp. I can reply STOP to stop offers. Code: {code}"
+    return f"Yes, send me updates about my visits and enquiries from {b} on WhatsApp. Code: {code}"
+
+
+def keyword_wording(keyword: str, purpose: str, business: str | None) -> str:
+    """What texting an opt-in keyword means. The owner shows exactly this next to the keyword (a sign, a bill); it is stored as the consent wording."""
+    b = _biz(business)
+    stop = " I can reply STOP to stop offers." if purpose in ("marketing", "both") else ""
+    return f'Texting "{keyword.upper()}" to {b} on WhatsApp means: I agree to receive {PURPOSE_WORDS[purpose]} from {b}.{stop}'
+
+
+def norm_text(text: str | None) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip()).casefold()
+
+
+def keyword_problem(keyword: str | None) -> str | None:
+    k = (keyword or "").strip().lower()
+    if not re.fullmatch(r"[a-z0-9]{3,20}", k):
+        return "Use 3 to 20 letters or numbers, with no spaces."
+    if k in RESERVED_KEYWORDS or k in OPT_OUT_WORDS:
+        return "That word is too common or already means something else. Choose a more specific word."
+    return None
+
+
 # ---- opt-out: a customer's reply that means "stop messaging me" (exact message after trimming; a sentence that merely contains the word is NOT an opt-out)
 OPT_OUT_WORDS = frozenset({"stop", "stop all", "stopall", "unsubscribe", "opt out", "optout", "opt-out", "बंद", "बंद करो", "band", "band karo"})
 

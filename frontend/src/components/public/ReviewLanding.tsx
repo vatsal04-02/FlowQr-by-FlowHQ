@@ -17,6 +17,7 @@ interface Landing {
   suggestions: Topic[];
   ai_available: boolean; google_ready: boolean; review_url: string | null; review_url_kind: string;
   submission?: { mode: "handoff" | "direct" }; // "handoff" today: Google offers no public way to submit a review for a customer
+  whatsapp_optin?: { url: string; purpose_words: string } | null; // optional: a link that opens WhatsApp to the business. No number is typed here.
 }
 interface DraftResp {
   session_id: string | null; draft: string | null; ai_status: "ok" | "manual" | "needs_more" | "rejected" | "unavailable"; ask?: "detail";
@@ -466,6 +467,12 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
           </div>
         )}
         <p className="text-center text-xs text-ink-500">{t.privacy}</p>
+        {page.whatsapp_optin && submitState !== "done" && (
+          <div className="rounded-xl border border-ink-200 bg-white p-3 text-center" data-testid="whatsapp-optin">
+            <a href={page.whatsapp_optin.url} target="_blank" rel="noopener noreferrer" className={`${secondary} !min-h-11 !text-[15px]`}>Get {page.whatsapp_optin.purpose_words} on WhatsApp</a>
+            <p className="mt-1.5 text-[12px] leading-snug text-ink-500">Optional. This opens WhatsApp with a message already written. You only agree if you send it, and you can reply STOP at any time. We do not ask for your number here.</p>
+          </div>
+        )}
 
         {/* ------------------------------------------------ the one tap: a compact bar that stays in reach on phones */}
         {submitState !== "done" && (

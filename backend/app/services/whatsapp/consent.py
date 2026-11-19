@@ -119,7 +119,7 @@ def is_suppressed(db: Session, tenant_id: uuid.UUID, phone: str) -> bool:
 
 
 def grant(db: Session, tenant: Tenant, contact: WhatsAppContact, purpose: str, source: str, *, user_id: uuid.UUID | None = None, attested: bool = False, evidence: str | None = None,
-          ip: str | None = None, now: datetime | None = None) -> tuple[WhatsAppConsent, bool]:
+          ip: str | None = None, now: datetime | None = None, wording_text: str | None = None, wording_version: str | None = None) -> tuple[WhatsAppConsent, bool]:
     """Record a consent. Returns (consent, created); asking again for a purpose that is already consented returns the existing record (no duplicate, wording untouched)."""
     if purpose not in PURPOSES:
         raise WaError(422, "invalid_purpose", "Choose marketing or updates about a visit.")
@@ -140,8 +140,8 @@ def grant(db: Session, tenant: Tenant, contact: WhatsAppContact, purpose: str, s
     if existing:
         return existing, False
     now = now or utcnow()
-    row = WhatsAppConsent(tenant_id=tenant.id, contact_id=contact.id, purpose=purpose, source=source, wording_version=rules.WORDING_VERSION,
-                          wording_text=rules.wording_for(purpose, tenant.name), evidence=note[:400] or None, granted_at=now, granted_by=user_id)
+    row = WhatsAppConsent(tenant_id=tenant.id, contact_id=contact.id, purpose=purpose, source=source, wording_version=(wording_version or rules.WORDING_VERSION)[:24],
+                          wording_text=(wording_text or rules.wording_for(purpose, tenant.name))[:600], evidence=note[:400] or None, granted_at=now, granted_by=user_id)
     db.add(row)
     if suppressed:  # the customer themselves agreed again: the opt-out is lifted
         db.execute(delete(WhatsAppSuppression).where(WhatsAppSuppression.tenant_id == tenant.id, WhatsAppSuppression.phone_hash == rules.phone_hash(tenant.id, contact.phone)))
@@ -149,7 +149,7 @@ def grant(db: Session, tenant: Tenant, contact: WhatsAppContact, purpose: str, s
     if purpose == "marketing" and contact.marketing_opted_out_at and source in CUSTOMER_SOURCES:
         contact.marketing_opted_out_at = None
     db.flush()
-    audit(db, action="whatsapp.consent_grant", tenant_id=tenant.id, user_id=user_id, entity_type="whatsapp_contact", entity_id=contact.id, meta={"purpose": purpose, "source": source, "wording": rules.WORDING_VERSION}, ip=ip)
+    audit(db, action="whatsapp.consent_grant", tenant_id=tenant.id, user_id=user_id, entity_type="whatsapp_contact", entity_id=contact.id, meta={"purpose": purpose, "source": source, "wording": (wording_version or rules.WORDING_VERSION)}, ip=ip)
     return row, True
 
 
@@ -276,12 +276,12 @@ def _cell(v) -> str:
 def export_csv(db: Session, tenant_id: uuid.UUID) -> str:
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["phone", "name", "tags", "marketing_consent_since", "utility_consent_since", "opted_out_of_marketing", "source", "added"])
+    w.writerow(["phone", "name", "tags", "marketing_consent_since", "marketing_consent_source", "utility_consent_since", "utility_consent_source", "opted_out_of_marketing", "source", "added"])
     rows = list(db.scalars(select(WhatsAppContact).where(WhatsAppContact.tenant_id == tenant_id).order_by(WhatsAppContact.created_at)))
     cm = consent_map(db, [r.id for r in rows])
     for r in rows:
         m, u = cm[r.id]["marketing"], cm[r.id]["utility"]
-        w.writerow([r.phone, _cell(r.customer_name), _cell("; ".join(r.tags or [])), m["since"].isoformat() if m else "", u["since"].isoformat() if u else "",
+        w.writerow([r.phone, _cell(r.customer_name), _cell("; ".join(r.tags or [])), m["since"].isoformat() if m else "", m["source"] if m else "", u["since"].isoformat() if u else "", u["source"] if u else "",
                     r.marketing_opted_out_at.isoformat() if r.marketing_opted_out_at else "", r.source, r.created_at.isoformat()])
     return out.getvalue()
 

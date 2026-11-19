@@ -1,4 +1,4 @@
-# WhatsApp Automation: Phases 1 to 5
+# WhatsApp Automation: Phases 1 to 5, and the second round (opt-in, prices, greetings, clicks, audiences)
 
 Status: **Phases 1 to 5 are implemented in the repository and tested locally; not deployed; every flag OFF by default.** Phases 2 and 3 are described in the section "Phases 2 and 3" Phase 4 in "Phase 4" and Phase 5 in "Phase 5" below; the rest of this document describes Phase 1. No real Meta account, number, customer or message has been involved. Nothing in this document has been applied to production.
 
@@ -164,3 +164,20 @@ No migration (the checklist is derived from existing records). Still local only;
 - **Add yourself as the first customer** inside the wizard (with the "this person agreed" confirmation and a note on how they agreed), and **switch on the first helper** from the recommended cards.
 
 Remaining after Phase 5: the QR review page opt-in (a product decision: that page does not collect a phone number today), birthday and win-back, click tracking, an administrator screen for dated Meta rates, and everything that needs real Meta credentials and approval (Tech Provider status, Embedded Signup configuration, template approvals, India rates, coexistence eligibility).
+
+# Second round
+
+Rules for every phase below: every send goes through the single sender and gate (nothing here bypasses it); consent is stored per purpose with its exact wording and timestamp; only the customer can opt back in after STOP; only approved text-only templates are sent; cost is always an estimate and apart from FlowQR's fee; everything ships OFF behind the existing add-on switches. Nothing in this round is deployed until the owner says so.
+
+## Second round, Phase 1: opt-in without a phone number (migration 0051) - DONE, not deployed
+**Status: built and tested locally; not deployed; every WhatsApp flag stays off.**
+
+- **The QR review page** can show an optional button, **Get updates on WhatsApp**. It is a plain `wa.me` link to the business's own connected number with a message already written, containing a short per-business code. **No phone number is collected or typed on the page.** The link is returned by the public landing endpoint only when: WhatsApp automation is on, the business switched the button on, its number is connected and the add-on is active. If anything fails, the review page works as before.
+- **The customer's message is the consent.** An inbound message on the business's own verified number (signature checked; the business comes only from the verified phone-number id) counts **only if its text equals the prefilled text** (ignoring case and spacing). An edited sentence, a wrong code, another business's text, a disabled button or an extra word creates nothing. The consent is limited to the **purpose named in the prefilled text** (visit updates / offers / both); no offers consent is ever recorded unless the text said so. It stores the exact wording, wording version `optin-1`, the time and the source `qr_click_to_chat`.
+- **Opt-in keywords** sit beside STOP. Up to **5 per business**, each lower-case, 3 to 20 letters or numbers, never a common or reserved word (yes, ok, hi, join ... and every STOP word). The **whole message** must equal the keyword (trailing punctuation allowed); a keyword inside a sentence does nothing. Each has its own purpose and optional confirmation, stores its exact wording (source `keyword_opt_in`) and is audited.
+- **STOP always wins.** STOP is checked first. Re-joining after STOP is the customer's own act and lifts only the opt-out of the **same purpose**; the owner and CSV imports still cannot lift an opt-out.
+- **One confirmation reply**, only when a consent was newly recorded and the owner left it on. It is sent with `sender.send_template` like every other message (approved own-connection template, sending switch, emergency stop, connection, consent for the template's real category, limits, idempotency key). If it cannot be sent the consent is still kept. A temporary Meta failure retries the whole event (nothing is half-recorded). Two new fixed messages: `flowqr_optin_confirm_en` (utility) and `flowqr_optin_confirm_offers_en` (marketing); they are submitted with the one-click set-up when asked but the checklist still counts only the three core messages.
+- **A confirmation never uses up the offer gap**: messages of kind `optin_confirm` are excluded from the 72-hour marketing frequency rule (and do not count towards it).
+- **Where it shows**: the owner screen **WhatsApp > Sign-ups** (button on or off, purpose, the exact message customers send, keywords, confirmation approval state); each customer shows how they joined; the customer export now has `marketing_consent_source` and `utility_consent_source` columns; the account export and deletion cover the two new tables.
+- **Data**: `whatsapp_optin_settings` (code, switch, purpose, confirmation switch), `whatsapp_optin_keywords`, `whatsapp_messages.kind`; forced row-level security; the consent source check allows the two new sources.
+- **Webhook text kept**: an inbound text is stored only if it is 64 characters or fewer, or is a longer message ending in `Code: XXXXXX` (an opt-in). Ordinary chat is not kept.

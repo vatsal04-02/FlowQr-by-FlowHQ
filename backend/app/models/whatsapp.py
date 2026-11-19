@@ -22,8 +22,8 @@ def _in(col: str, values) -> str:
 CONNECTION_STATUSES = ("pending", "connected", "needs_attention", "disconnected")
 WEBHOOK_STATUSES = ("unknown", "subscribed", "failed")
 PURPOSES = ("marketing", "utility")
-CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry")
-CUSTOMER_SOURCES = ("qr_page", "website_form", "customer_message")  # the customer did it themselves: the only sources that can lift an opt-out
+CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in")
+CUSTOMER_SOURCES = ("qr_page", "website_form", "customer_message", "qr_click_to_chat", "keyword_opt_in")  # the customer did it themselves: the only sources that can lift an opt-out
 TEMPLATE_CATEGORIES = ("marketing", "utility", "authentication")
 TEMPLATE_STATUSES = ("pending", "approved", "rejected", "paused", "disabled")
 MESSAGE_DIRECTIONS = ("outbound", "inbound")
@@ -175,6 +175,7 @@ class WhatsAppMessage(IdMixin, TimestampMixin, Base):
     run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_automation_runs.id", ondelete="SET NULL"))
     idempotency_key: Mapped[str | None] = mapped_column(String(200))  # one send per key per business: a retry or a re-run can never send twice
     est_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))  # the rate in force when it was sent: an ESTIMATE of Meta's charge, not an invoice
+    kind: Mapped[str | None] = mapped_column(String(16))  # optin_confirm | (later) occasion: sent through the same gate, but not counted by the offer-frequency gap
 
 
 class WhatsAppWebhookEvent(IdMixin, Base):
@@ -309,3 +310,33 @@ class WhatsAppCampaignRecipient(IdMixin, Base):
     status: Mapped[str] = mapped_column(String(10), default="pending")
     reason: Mapped[str | None] = mapped_column(String(60))
     message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_messages.id", ondelete="SET NULL"))
+
+
+OPTIN_PURPOSES = ("utility", "marketing", "both")
+
+
+class WhatsAppOptinSettings(IdMixin, TimestampMixin, Base):
+    """A business's WhatsApp opt-in without a phone number on the page: a short code that proves a click came from its QR page, whether the page offers the button, and what it asks for."""
+
+    __tablename__ = "whatsapp_optin_settings"
+    __table_args__ = (CheckConstraint(_in("purpose", OPTIN_PURPOSES), name="ck_wa_optin_purpose"), UniqueConstraint("tenant_id", name="uq_wa_optin_tenant"), UniqueConstraint("code", name="uq_wa_optin_code"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    code: Mapped[str] = mapped_column(String(10))
+    qr_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    purpose: Mapped[str] = mapped_column(String(10), default="utility")
+    confirm_reply: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class WhatsAppOptinKeyword(IdMixin, TimestampMixin, Base):
+    """A word a customer can text to the business's number to opt in. At most 5 per business (enforced in the service)."""
+
+    __tablename__ = "whatsapp_optin_keywords"
+    __table_args__ = (CheckConstraint(_in("purpose", OPTIN_PURPOSES), name="ck_wa_keyword_purpose"), CheckConstraint("keyword = lower(keyword)", name="ck_wa_keyword_lower"),
+                      UniqueConstraint("tenant_id", "keyword", name="uq_wa_keyword"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    keyword: Mapped[str] = mapped_column(String(20))
+    purpose: Mapped[str] = mapped_column(String(10), default="utility")
+    confirm_reply: Mapped[bool] = mapped_column(Boolean, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)

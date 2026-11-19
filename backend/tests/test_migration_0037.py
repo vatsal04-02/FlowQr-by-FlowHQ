@@ -40,11 +40,11 @@ def plans():
 
 def test_the_history_is_one_straight_line_from_production_head_0036():
     sd = ScriptDirectory.from_config(Config(os.path.join(BACKEND, "alembic.ini")))
-    assert sd.get_heads() == ["0050"]  # one head (0040-0043 sit on 0037; 0044 = consent grants; 0045 = privacy and account lifecycle; 0046 = admin-managed businesses; 0047 = website builder; 0048 = WhatsApp foundation; 0049 = WhatsApp messaging; 0050 = WhatsApp campaign manager)
-    assert sd.get_revision("0050").down_revision == "0049" and sd.get_revision("0049").down_revision == "0048" and sd.get_revision("0048").down_revision == "0047" and sd.get_revision("0047").down_revision == "0046" and sd.get_revision("0046").down_revision == "0045" and sd.get_revision("0045").down_revision == "0044" and sd.get_revision("0044").down_revision == "0043"
+    assert sd.get_heads() == ["0051"]  # one head (0040-0043 sit on 0037; 0044 = consent grants; 0045 = privacy and account lifecycle; 0046 = admin-managed businesses; 0047 = website builder; 0048 = WhatsApp foundation; 0049 = WhatsApp messaging; 0050 = WhatsApp campaign manager)
+    assert sd.get_revision("0051").down_revision == "0050" and sd.get_revision("0050").down_revision == "0049" and sd.get_revision("0049").down_revision == "0048" and sd.get_revision("0048").down_revision == "0047" and sd.get_revision("0047").down_revision == "0046" and sd.get_revision("0046").down_revision == "0045" and sd.get_revision("0045").down_revision == "0044" and sd.get_revision("0044").down_revision == "0043"
     assert sd.get_revision("0037").down_revision == "0036"  # production is stamped 0036: this is the next revision after it
     chain = [r.revision for r in sd.walk_revisions()]
-    assert chain[:15] == ["0050", "0049", "0048", "0047", "0046", "0045", "0044", "0043", "0042", "0041", "0040", "0037", "0036", "0035", "0033"]  # newest first
+    assert chain[:16] == ["0051", "0050", "0049", "0048", "0047", "0046", "0045", "0044", "0043", "0042", "0041", "0040", "0037", "0036", "0035", "0033"]  # newest first
     assert not [f for f in os.listdir(os.path.join(BACKEND, "alembic", "versions")) if f.startswith("0034")]  # no stray second file with the old id
 
 
@@ -76,7 +76,7 @@ def test_downgrade_to_0036_removes_only_the_new_columns_restores_the_old_names_a
         alembic("upgrade", "head")
     assert present() and plans() == {"starter": ("Launch", 49900), "growth": ("Growth", 79900), "pro": ("Scale", 149900)}
     assert owner_query("SELECT plan, status FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id)[0] == before_plan
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0050"  # the head now
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0051"  # the head now
 
 
 def test_a_name_an_administrator_changed_is_never_overwritten_by_the_rename():
