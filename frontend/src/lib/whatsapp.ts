@@ -450,7 +450,7 @@ export type ConvStatus = "open" | "needs_human" | "closed";
 export interface WaConvSummary {
   id: string; contact: { id: string; name: string | null; phone: string; source: string; opted_out: boolean; no_consent: boolean } | null; status: ConvStatus; handoff_reason: string | null; handoff_words: string | null;
   unread: number; needs_reply: boolean; preview: string | null; preview_from: string | null; last_message_at: string | null; window_open: boolean; window_closes_at: string | null;
-  ai_paused_until: string | null; assigned_to: string | null; source: string;
+  ai_paused_until: string | null; assigned_to: string | null; source: string; ai_off?: boolean;
 }
 export interface WaConvMessage {
   id: string; direction: "inbound" | "outbound"; sender_type: "customer" | "ai" | "staff" | "system"; sender_label: string | null; text: string | null; msg_type: string; status: string; created_at: string;
@@ -483,3 +483,32 @@ export function windowWords(open: boolean, closesAt: string | null, now: number 
   return mins >= 120 ? `You can reply freely for about ${Math.round(mins / 60)} more hours.` : mins >= 60 ? "You can reply freely for about an hour more." : `You can reply freely for ${mins} more minute${mins === 1 ? "" : "s"}.`;
 }
 export const RETENTION_NOTE = (days: number) => `Messages are kept for ${days} days, then deleted. They are also deleted when you delete the customer.`;
+
+// ---- the assistant (auto-reply)
+export type KnowledgeKind = "about" | "address" | "hours" | "service" | "faq" | "policy" | "booking_rule";
+export interface WaKnowledgeItem { id: string; kind: KnowledgeKind; title: string | null; body: string; price_inr: number | null; active: boolean; position: number; updated_at: string }
+export interface WaKnowledge {
+  items: WaKnowledgeItem[]; readiness: { ready: boolean; missing: string[]; count: number }; max_items: number;
+  suggestions: { business_type: string; questions: string[]; sections: { kind: KnowledgeKind; label: string; single: boolean }[]; warning: string; examples: Record<string, string> };
+}
+export interface WaAiStatus {
+  available: boolean; reason: string | null; reason_words: string | null; platform: { on: boolean; reason: string | null; words: string | null; terms_verified: boolean };
+  settings: { enabled: boolean; privacy_ack_at: string | null; tone: string | null }; readiness: { ready: boolean; missing: string[]; count: number };
+  quota: { limit: number; used: number; remaining: number; month: string; near_limit: boolean; tier: string | null }; privacy_notice: string; unanswered: number;
+}
+export interface WaAiTestReply { reply: string; kind: "reply" | "refuse" | "handoff" | "holding"; reason: string | null; reason_words: string | null; sources: string[]; sent_to_whatsapp: false; model_version: string | null }
+export interface WaUnanswered { question: string; count: number; last_asked_at: string | null; ids: string[] }
+export const KNOWLEDGE_ORDER: KnowledgeKind[] = ["about", "address", "hours", "service", "faq", "policy", "booking_rule"];
+/** How full the month's allowance is, in words an owner can act on. */
+export function quotaWords(q: Pick<WaAiStatus["quota"], "limit" | "used" | "remaining">): string {
+  if (q.limit <= 0) return "Your plan does not include assistant replies.";
+  if (q.remaining <= 0) return "This month's replies are used up. Customers go to your team until next month.";
+  if (q.used >= q.limit * 0.8) return `${q.remaining} of ${q.limit} replies left this month. Customers go to your team when they run out.`;
+  return `${q.used} of ${q.limit} replies used this month.`;
+}
+export interface WaAiQuotas {
+  items: { id: string; addon_key: string; monthly_replies: number; effective_from: string; note: string }[];
+  platform: { on: boolean; reason: string | null; terms_verified: boolean; terms_provider: string | null; provider: string };
+  this_month: { provider: string | null; model_version: string | null; runs: number; prompt_tokens: number; completion_tokens: number; avg_latency_ms: number }[]; note: string;
+}
+export const tierLabel = (k: string) => ({ whatsapp_starter: "Starter", whatsapp_growth: "Growth", whatsapp_pro: "Pro" } as Record<string, string>)[k] ?? k;

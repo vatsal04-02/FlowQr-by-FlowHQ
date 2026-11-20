@@ -109,6 +109,10 @@ Result: ______________________  Date: ____________
 
 **Do:** read Meta's current WhatsApp Business Solution Terms and Business Messaging Policy, and ask Meta (support or your partner contact) in writing whether this use is allowed: who the "AI provider" is in this setup (FlowQR, the model provider, or both), whether the model provider's involvement changes the answer, and any disclosure Meta requires (FlowQR already says "automated assistant" in the first reply).
 
+**Also record, separately, the AI provider's own written data terms** (no training on our data, retention and deletion, where it is processed, sub-processors, fit with India's data protection law: the full list is in `docs/WHATSAPP_AUTOMATION.md`, "What you must confirm IN WRITING with the AI provider"). The assistant stays unavailable until a person has these and sets `WHATSAPP_AI_TERMS_VERIFIED` and `WHATSAPP_AI_TERMS_PROVIDER`.
+
+Provider and plan: ______________  Where the written terms are kept: ______________  Date: ____________
+
 **Record:** the document and clause, the date, the written answer if you asked.
 
 Result: ______________________  Date: ____________
@@ -135,7 +139,7 @@ Result: ______________________  Date: ____________
 Result: ______________________  Date: ____________
 
 ## 11. The assistant evaluation (before it is switched on for any real business)
-See "Assistant evaluation" in `docs/WHATSAPP_AUTOMATION.md`: a fixed set of about 50 prompts with a written pass mark, run against the real model. **No result is recorded here until someone has run it and seen it.**
+See "Assistant evaluation" in `docs/WHATSAPP_AUTOMATION.md`: a fixed set of 50 prompts with a written pass mark (zero hard failures, at least 45 of 50, all 14 deterministic prompts without a model call), run against the real model with `python -m app.cli ai-eval-wa`. It must pass before the assistant is switched on for any real business and be re-run on every model change. **No result is recorded here until someone has run it and seen it.**
 
 | Model and version | Date run | Prompts passed | Hard-fail categories all passed? | Run by |
 |---|---|---|---|---|

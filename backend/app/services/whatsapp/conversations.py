@@ -357,10 +357,10 @@ def hand_back(db: Session, tenant: Tenant, user: User, conv: WhatsAppConversatio
     """Let the assistant answer again. If the customer is waiting, it looks at the conversation after the usual short wait."""
     now = now or utcnow()
     conv.ai_paused_until, conv.assigned_to = None, None
-    if conv.handoff_reason == "staff_took_over":
+    if conv.handoff_reason != "customer_opted_out":  # a person handing back clears the reason; a customer who sent STOP is never answered by the assistant whatever is pressed (checked again at answer time)
         conv.handoff_reason = None
-    if conv.status == "needs_human" and conv.handoff_reason is None:
-        conv.status = "open"
+        if conv.status == "needs_human":
+            conv.status = "open"
     if needs_reply(conv):
         cs = get_settings(db, tenant.id)
         conv.reply_due_at = now + timedelta(seconds=cs.debounce_seconds if cs else 4)
@@ -443,7 +443,7 @@ def summary(db: Session, conv: WhatsAppConversation, contact: WhatsAppContact | 
     return {"id": conv.id, "contact": c_state, "status": conv.status, "handoff_reason": conv.handoff_reason, "handoff_words": rules.HANDOFF_WORDS.get(conv.handoff_reason or ""), "unread": conv.unread_count,
             "needs_reply": needs_reply(conv), "preview": preview, "preview_from": last.sender_type if last else None, "last_message_at": conv.last_message_at, "window_open": window_open(conv, now),
             "window_closes_at": window_closes_at(conv), "ai_paused_until": conv.ai_paused_until if conv.ai_paused_until and conv.ai_paused_until > now else None, "assigned_to": conv.assigned_to,
-            "source": conv.source}
+            "source": conv.source, "ai_off": conv.ai_off}
 
 
 def list_conversations(db: Session, tenant_id: uuid.UUID, *, q: str | None = None, filter: str = "all", limit: int = PAGE, offset: int = 0, now: datetime | None = None) -> dict:
@@ -482,6 +482,14 @@ def thread(db: Session, tenant: Tenant, conv: WhatsAppConversation, *, before: d
     names = _staff_names(db, {m.staff_user_id for m in msgs} | {conv.assigned_to})
     out = summary(db, conv, contact, now)
     out["messages"] = [serialize_message(m, contact, names) for m in msgs]
+    ai_ids = [m.id for m in msgs if m.sender_type == "ai"]
+    if ai_ids:
+        from app.services.whatsapp import agent
+        fb = agent.feedback_for(db, conv.id, ai_ids)
+        for m in out["messages"]:
+            if m["id"] in fb:
+                m["feedback"], m["model_version"] = fb[m["id"]]["feedback"], fb[m["id"]]["model_version"]
+    out["ai_off"] = conv.ai_off
     out["assigned_name"] = names.get(conv.assigned_to)
     out["code"] = conv.code
     out["fallback_templates"] = [] if window_open(conv, now) else fallback_templates(db, tenant, contact)
@@ -547,6 +555,9 @@ def purge(db: Session, now: datetime | None = None) -> dict:
         total["messages"] += m
         total["conversations"] += c
         total["contacts"] += k
+    from app.services.whatsapp import agent
+    ai = agent.purge(db, now)
+    total["ai_questions"], total["ai_runs"] = ai["questions"], ai["runs"]
     return total
 
 

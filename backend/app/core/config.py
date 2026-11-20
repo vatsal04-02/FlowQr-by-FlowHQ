@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     whatsapp_conversations_enabled: bool = False  # WHATSAPP_CONVERSATIONS_ENABLED: two-way conversations and the inbox (platform switch; each business also has its own). Needs WHATSAPP_ENABLED
     whatsapp_service_reply_max_chars: int = 1500  # the longest free-form reply one message may carry
     whatsapp_conversation_text_max_chars: int = 4096  # the longest customer message that is kept
+    whatsapp_ai_enabled: bool = False  # WHATSAPP_AI_ENABLED: the assistant that answers customers (platform switch; each business also has its own). Needs WHATSAPP_CONVERSATIONS_ENABLED
+    whatsapp_ai_kill_switch: bool = False  # WHATSAPP_AI_KILL_SWITCH: true stops every assistant reply at once and hands every conversation to a person
+    whatsapp_ai_terms_verified: bool = False  # WHATSAPP_AI_TERMS_VERIFIED: the owner holds the AI provider's WRITTEN data terms (no training on our data, retention, location, sub-processors, India law). Default false: the assistant is "unavailable"
+    whatsapp_ai_terms_provider: str = ""  # WHATSAPP_AI_TERMS_PROVIDER: the provider those terms are for. The assistant is available only if it equals AI_PROVIDER, so changing provider silently never inherits an old confirmation
+    whatsapp_ai_customer_replies_per_hour: int = 6  # most assistant replies one customer gets in an hour (loop and abuse protection)
+    whatsapp_ai_max_steps: int = 3  # most model calls for one customer message (lookups and one retry)
+    whatsapp_ai_max_seconds: int = 20  # past this the customer gets the holding message and a person is asked
+    whatsapp_ai_test_chat_per_hour: int = 40  # "test it" chat messages per business per hour
     whatsapp_occasion_gap_days: int = 14  # WHATSAPP_OCCASION_GAP_DAYS: the least time between two birthday or festival greetings to the same person (greetings are not offers: the offer gap does not apply to them)
     whatsapp_send_max_attempts: int = 5  # WHATSAPP_SEND_MAX_ATTEMPTS: a failing automation send is retried with growing delays, then marked failed (the dead letter)
     whatsapp_campaign_batch: int = 40  # WHATSAPP_CAMPAIGN_BATCH: recipients one campaign sends per worker pass
@@ -506,6 +514,10 @@ def config_problems(s: Settings) -> list[str]:
             p.append("CASHFREE_AUTHORIZATION_PAISE cannot be below 100 (Cashfree's minimum authorisation for UPI and cards is Rs 1)")
     if s.whatsapp_conversations_enabled and not s.whatsapp_enabled:
         p.append("WHATSAPP_CONVERSATIONS_ENABLED needs WHATSAPP_ENABLED")
+    if s.whatsapp_ai_enabled and not s.whatsapp_conversations_enabled:
+        p.append("WHATSAPP_AI_ENABLED needs WHATSAPP_CONVERSATIONS_ENABLED")
+    if s.whatsapp_ai_terms_verified and not s.whatsapp_ai_terms_provider:
+        p.append("WHATSAPP_AI_TERMS_VERIFIED needs WHATSAPP_AI_TERMS_PROVIDER (the provider the written terms are for)")
     if s.whatsapp_enabled:
         if not s.token_encryption_key:
             p.append("TOKEN_ENCRYPTION_KEY is required when WHATSAPP_ENABLED is true (WhatsApp access tokens are stored encrypted)")

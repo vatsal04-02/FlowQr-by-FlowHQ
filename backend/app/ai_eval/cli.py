@@ -31,6 +31,10 @@ def add_commands(sub) -> None:
     p.add_argument("--thinking", default="minimal", help="Gemini thinking level ('' to omit)")
     p.add_argument("--price", action="append", default=[], metavar="MODEL=IN,OUT", help="USD per 1M tokens, from the provider's price list; without it only tokens are reported")
     p.add_argument("--out", default="docs/ai-eval")
+    w = sub.add_parser("ai-eval-wa", help="run the fixed 50-prompt evaluation of the WhatsApp assistant (calls the configured provider with invented text only)")
+    w.add_argument("--precheck-only", action="store_true", help="run only the deterministic prompts (no model; never a pass)")
+    w.add_argument("--rpm", type=float, default=12, help="model prompts per minute")
+    w.add_argument("--out", default="docs/ai-eval")
     rs = sub.add_parser("ai-eval-rescore", help="recompute the metrics of a saved run with the current metric code (no model calls)")
     rs.add_argument("--run", required=True)
     rs.add_argument("--price", action="append", default=[])
@@ -133,4 +137,7 @@ def rescore_cmd(args) -> int:
 
 
 def run(args) -> int:
+    if args.cmd == "ai-eval-wa":
+        from app.ai_eval import wa_assistant
+        return wa_assistant.run_cli(args)
     return run_eval(args) if args.cmd == "ai-eval" else rescore_cmd(args) if args.cmd == "ai-eval-rescore" else human(args)

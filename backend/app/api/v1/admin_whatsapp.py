@@ -12,7 +12,7 @@ from app.models import Tenant
 from datetime import date
 from decimal import Decimal
 
-from app.services.whatsapp import WaError, addons, connection, consent, occasions, pricing, rules
+from app.services.whatsapp import WaError, addons, agent, ai_knowledge, connection, consent, occasions, pricing, rules
 
 router = APIRouter(prefix="/admin", tags=["admin-whatsapp"])
 
@@ -126,3 +126,35 @@ def verify_rate(rate_id: uuid.UUID, body: VerifyIn, request: Request, ctx: AuthC
         ctx.db.rollback()
         raise HTTPException(status_code=exc.status, detail=exc.detail())
     return {"rate_id": rate_id, "verified": v.verified, "note": v.note, "at": v.created_at}
+
+
+# ---- the assistant: monthly replies by tier (dated, append-only) and what it costs in real use
+class AiQuotaIn(BaseModel):
+    addon_key: str = Field(max_length=24)
+    monthly_replies: int = Field(ge=0, le=100000)
+    effective_from: date
+    note: str = Field(min_length=5, max_length=300)
+
+
+@router.get("/whatsapp/ai-quotas")
+def ai_quotas(ctx: AuthContext = Depends(require_platform_admin)):
+    from sqlalchemy import func, select
+    from app.models.whatsapp import WhatsAppAiRun
+    start = ai_knowledge.month_start()
+    rows = ctx.db.execute(select(WhatsAppAiRun.provider, WhatsAppAiRun.model_version, func.count(), func.coalesce(func.sum(WhatsAppAiRun.prompt_tokens), 0), func.coalesce(func.sum(WhatsAppAiRun.completion_tokens), 0),
+                                 func.coalesce(func.avg(WhatsAppAiRun.latency_ms), 0)).where(WhatsAppAiRun.is_test.is_(False), WhatsAppAiRun.created_at >= start).group_by(WhatsAppAiRun.provider, WhatsAppAiRun.model_version)).all()
+    return {"items": ai_knowledge.list_quotas(ctx.db), "platform": {**{"on": agent.platform_availability().ok, "reason": agent.platform_availability().reason}, "terms_verified": agent.terms_ok(),
+                                                                       "terms_provider": settings.whatsapp_ai_terms_provider or None, "provider": agent.provider_label()},
+            "this_month": [{"provider": p, "model_version": m, "runs": c, "prompt_tokens": int(pt), "completion_tokens": int(ct), "avg_latency_ms": int(a)} for p, m, c, pt, ct, a in rows],
+            "note": "Starting values are deliberately low for the limited beta. Change one by adding a row with a later date; set it from the tokens and latency recorded here."}
+
+
+@router.post("/whatsapp/ai-quotas", status_code=201)
+def add_ai_quota(body: AiQuotaIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    try:
+        row = ai_knowledge.add_quota(ctx.db, ctx.user, addon_key=body.addon_key, monthly_replies=body.monthly_replies, effective_from=body.effective_from, note=body.note, ip=client_ip(request))
+        ctx.db.commit()
+    except WaError as exc:
+        ctx.db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.detail())
+    return {"id": row.id, "addon_key": row.addon_key, "monthly_replies": row.monthly_replies, "effective_from": row.effective_from, "note": row.note}

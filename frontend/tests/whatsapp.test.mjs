@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -348,4 +348,18 @@ test("the 24-hour window is explained in plain words", () => {
   assert.match(windowWords(false, null, now), /has not written to you/);
   assert.deepEqual(CONV_FILTERS.map((f) => f.value), ["all", "needs_you", "unread", "closed"]);
   assert.match(RETENTION_NOTE(90), /90 days.*deleted when you delete the customer/);
+});
+
+test("the assistant's allowance is explained in words an owner can act on", () => {
+  assert.match(quotaWords({ limit: 0, used: 0, remaining: 0 }), /does not include/);
+  assert.match(quotaWords({ limit: 150, used: 10, remaining: 140 }), /10 of 150 replies used/);
+  assert.match(quotaWords({ limit: 150, used: 125, remaining: 25 }), /25 of 150 replies left.*go to your team/);
+  assert.match(quotaWords({ limit: 150, used: 150, remaining: 0 }), /used up.*until next month/);
+});
+
+test("the notes have seven sections and offers are not one of them", () => {
+  assert.deepEqual(KNOWLEDGE_ORDER, ["about", "address", "hours", "service", "faq", "policy", "booking_rule"]);
+  assert.ok(!KNOWLEDGE_ORDER.includes("offer"));
+  assert.equal(tierLabel("whatsapp_growth"), "Growth");
+  assert.equal(tierLabel("x"), "x");
 });

@@ -26,5 +26,5 @@ def test_downgrade_removes_only_the_new_pieces_and_keeps_every_order():
         assert owner_query("SELECT count(*) FROM prepaid_orders")[0][0] == before
     finally:
         alembic("upgrade", "head")
-    assert exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == "0056"
+    assert exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == "0057"
     assert biz.tenant_id

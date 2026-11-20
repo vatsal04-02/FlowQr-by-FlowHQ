@@ -191,7 +191,7 @@ def send_service_reply(db: Session, tenant: Tenant, conv, text: str, *, sender_t
     def _record(status: str, wamid: str | None = None, code: str | None = None) -> None:
         db.add(WhatsAppConversationMessage(tenant_id=tenant.id, conversation_id=conv.id, direction="outbound", sender_type=sender_type, staff_user_id=getattr(staff_user, "id", None), text=text,
                                            meta_message_id=wamid, ledger_id=msg.id, delivery_status=status, error_code=code, template_key=template_key, marketing_confirmed=bool(marketing_confirmed and sender_type == "staff"),
-                                           sent_at=sent_at if status != "failed" else None))
+                                           created_at=sent_at, sent_at=sent_at if status != "failed" else None))  # created exactly when it was sent, so a customer's very next message always sorts after it
         conv.last_outbound_at, conv.last_message_at, conv.awaiting_reply = sent_at, sent_at, False
 
     try:

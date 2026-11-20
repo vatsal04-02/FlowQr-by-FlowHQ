@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, agent, ai_knowledge, automations, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -501,6 +501,143 @@ def conversation_delete(conversation_id: uuid.UUID, request: Request, ctx: Tenan
     _inbox(ctx)
     _run(ctx, lambda: conversations.delete_conversation(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), client_ip(request)))
     return Response(status_code=204)
+
+
+# ---- the assistant (Phase 8): notes, settings, "test it", ratings, unanswered questions
+class KnowledgeIn(BaseModel):
+    kind: str = Field(..., max_length=14)
+    title: str | None = Field(None, max_length=120)
+    body: str = Field(..., max_length=ai_knowledge.MAX_BODY + 400)
+    price_inr: float | str | None = None
+
+
+class KnowledgePatch(BaseModel):
+    title: str | None = Field(None, max_length=120)
+    body: str | None = Field(None, max_length=ai_knowledge.MAX_BODY + 400)
+    price_inr: float | str | None = None
+    active: bool | None = None
+
+
+class AiSettingsIn(BaseModel):
+    enabled: bool | None = None
+    acknowledge_privacy: bool = False
+    tone: str | None = Field(None, max_length=200)
+
+
+class TestChatIn(BaseModel):
+    message: str = Field(..., min_length=1, max_length=600)
+    history: list[dict] = Field(default_factory=list, max_length=12)
+
+
+class FeedbackIn(BaseModel):
+    value: str | None = None
+
+
+class PauseIn(BaseModel):
+    paused: bool
+
+
+class ResolveIn(BaseModel):
+    ids: list[uuid.UUID] = Field(..., max_length=50)
+
+
+def _ai_ctx(ctx: TenantContext) -> None:
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "The assistant settings are for people who can see every location."})
+
+
+@router.get("/ai/status")
+def ai_status(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    return agent.ai_status(ctx.db, ctx.tenant)
+
+
+@router.put("/ai/settings")
+def ai_settings_put(body: AiSettingsIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-settings:{ctx.tenant_id}", 60, 3600)
+
+    def go():
+        agent.set_ai_settings(ctx.db, ctx.tenant, ctx.user, enabled=body.enabled, acknowledge_privacy=body.acknowledge_privacy, tone=body.tone, set_tone="tone" in body.model_fields_set, ip=client_ip(request))
+        return agent.ai_status(ctx.db, ctx.tenant)
+    return _run(ctx, go)
+
+
+@router.get("/ai/knowledge")
+def ai_knowledge_list(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    items = ai_knowledge.list_items(ctx.db, ctx.tenant_id)
+    return {"items": [ai_knowledge.serialize_item(i) for i in items], "readiness": ai_knowledge.readiness(items), "suggestions": ai_knowledge.suggestions(ctx.tenant), "max_items": ai_knowledge.MAX_ITEMS}
+
+
+@router.post("/ai/knowledge", status_code=201)
+def ai_knowledge_add(body: KnowledgeIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-knowledge:{ctx.tenant_id}", 200, 3600)
+    return _run(ctx, lambda: ai_knowledge.serialize_item(ai_knowledge.create_item(ctx.db, ctx.tenant, ctx.user, kind=body.kind, title=body.title, body=body.body, price_inr=body.price_inr, ip=client_ip(request))))
+
+
+@router.post("/ai/knowledge/import")
+def ai_knowledge_import(request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Pre-fill from the business's own details already in FlowQR. Offers are never copied. Nothing is fetched from a website."""
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-import:{ctx.tenant_id}", 20, 3600)
+    return _run(ctx, lambda: ai_knowledge.import_existing(ctx.db, ctx.tenant, ctx.user, ip=client_ip(request)))
+
+
+@router.patch("/ai/knowledge/{item_id}")
+def ai_knowledge_edit(item_id: uuid.UUID, body: KnowledgePatch, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    return _run(ctx, lambda: ai_knowledge.serialize_item(ai_knowledge.update_item(ctx.db, ctx.tenant, ctx.user, ai_knowledge.get_item(ctx.db, ctx.tenant_id, item_id), title=body.title, body=body.body, price_inr=body.price_inr,
+                                                                                    active=body.active, set_price="price_inr" in body.model_fields_set, ip=client_ip(request))))
+
+
+@router.delete("/ai/knowledge/{item_id}", status_code=204)
+def ai_knowledge_delete(item_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    _run(ctx, lambda: ai_knowledge.delete_item(ctx.db, ctx.tenant, ctx.user, ai_knowledge.get_item(ctx.db, ctx.tenant_id, item_id), client_ip(request)))
+    return Response(status_code=204)
+
+
+@router.post("/ai/test-chat")
+def ai_test_chat(body: TestChatIn, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Try the assistant as a customer would. Never sent to WhatsApp, never counted against the quota."""
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-test:{ctx.tenant_id}", 60, 3600)
+    return _run(ctx, lambda: agent.test_chat(ctx.db, ctx.tenant, body.message, body.history), commit_on_error=True)
+
+
+@router.get("/ai/unanswered")
+def ai_unanswered(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    return {"items": agent.list_unanswered(ctx.db, ctx.tenant_id)}
+
+
+@router.post("/ai/unanswered/resolve")
+def ai_unanswered_resolve(body: ResolveIn, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    return _run(ctx, lambda: {"resolved": agent.resolve_unanswered(ctx.db, ctx.tenant_id, body.ids)})
+
+
+@router.get("/ai/usage")
+def ai_usage_summary(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    return {**agent.usage_summary(ctx.db, ctx.tenant_id), "quota": ai_knowledge.quota_status(ctx.db, ctx.tenant_id)}
+
+
+@router.post("/conversations/{conversation_id}/ai-pause")
+def conversation_ai_pause(conversation_id: uuid.UUID, body: PauseIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.summary(ctx.db, agent.pause_conversation(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), body.paused, client_ip(request)), None))
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/feedback")
+def conversation_feedback(conversation_id: uuid.UUID, message_id: uuid.UUID, body: FeedbackIn, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: agent.set_feedback(ctx.db, ctx.tenant, conversations.get(ctx.db, ctx.tenant_id, conversation_id), message_id, body.value))
 
 
 # ---- birthday and festival greetings

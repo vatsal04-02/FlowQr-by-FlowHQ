@@ -121,6 +121,8 @@ platform-admin	POST	/api/v1/admin/users/{user_id}/send-reset
 platform-admin	POST	/api/v1/admin/users/{user_id}/verify-email
 platform-admin	GET	/api/v1/admin/webhooks
 platform-admin	POST	/api/v1/admin/webhooks/{event_id}/reprocess
+platform-admin	GET	/api/v1/admin/whatsapp/ai-quotas
+platform-admin	POST	/api/v1/admin/whatsapp/ai-quotas
 platform-admin	GET	/api/v1/admin/whatsapp/festivals
 platform-admin	POST	/api/v1/admin/whatsapp/festivals
 platform-admin	PATCH	/api/v1/admin/whatsapp/festivals/{festival_id}
@@ -368,6 +370,17 @@ public	POST	/api/v1/webhooks/cashfree
 public	POST	/api/v1/webhooks/cashfree-pg
 public	GET	/api/v1/webhooks/whatsapp
 public-bypass-db	POST	/api/v1/webhooks/whatsapp
+member	GET	/api/v1/whatsapp/ai/knowledge
+role-admin	POST	/api/v1/whatsapp/ai/knowledge
+role-admin	POST	/api/v1/whatsapp/ai/knowledge/import
+role-admin	DELETE	/api/v1/whatsapp/ai/knowledge/{item_id}
+role-admin	PATCH	/api/v1/whatsapp/ai/knowledge/{item_id}
+role-admin	PUT	/api/v1/whatsapp/ai/settings
+member	GET	/api/v1/whatsapp/ai/status
+role-admin	POST	/api/v1/whatsapp/ai/test-chat
+member	GET	/api/v1/whatsapp/ai/unanswered
+role-admin	POST	/api/v1/whatsapp/ai/unanswered/resolve
+member	GET	/api/v1/whatsapp/ai/usage
 member	GET	/api/v1/whatsapp/automations
 role-admin	PUT	/api/v1/whatsapp/automations/{key}
 member	GET	/api/v1/whatsapp/automations/{key}/runs
@@ -400,8 +413,10 @@ member	GET	/api/v1/whatsapp/conversations/settings
 role-admin	PUT	/api/v1/whatsapp/conversations/settings
 role-admin	DELETE	/api/v1/whatsapp/conversations/{conversation_id}
 member	GET	/api/v1/whatsapp/conversations/{conversation_id}
+member	POST	/api/v1/whatsapp/conversations/{conversation_id}/ai-pause
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/close
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/hand-back
+member	POST	/api/v1/whatsapp/conversations/{conversation_id}/messages/{message_id}/feedback
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/read
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/reopen
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/reply

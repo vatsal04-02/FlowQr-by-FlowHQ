@@ -464,6 +464,10 @@ class WhatsAppConversation(IdMixin, TimestampMixin, Base):
     reply_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when the wait for more messages ends and something should happen
     last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source: Mapped[str] = mapped_column(String(16), default="organic")
+    ai_off: Mapped[bool] = mapped_column(Boolean, default=False)  # the owner paused the assistant for this one conversation
+    ai_disclosed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the "automated assistant" line was sent
+    holding_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the "someone will reply" line was sent
+    ai_pseudonym: Mapped[str | None] = mapped_column(String(16))  # the only name for this customer the AI provider ever sees
 
 
 class WhatsAppConversationMessage(IdMixin, Base):
@@ -490,3 +494,85 @@ class WhatsAppConversationMessage(IdMixin, Base):
     via_app: Mapped[bool] = mapped_column(Boolean, default=False)  # typed in the WhatsApp Business app on the owner's phone (reported back by Meta)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---- Phase 8: the AI assistant
+KNOWLEDGE_KINDS = ("about", "address", "hours", "service", "faq", "policy", "booking_rule")  # no "offer": the assistant never sees offers
+AI_OUTCOMES = ("replied", "handoff", "refused", "holding", "blocked", "error")
+
+
+class WhatsAppAiQuota(IdMixin, Base):
+    """DATED, append-only: replies a month a WhatsApp tier includes. A change is a new row with a new date (never an edit), so past months can be explained."""
+
+    __tablename__ = "whatsapp_ai_quotas"
+    __table_args__ = (UniqueConstraint("addon_key", "effective_from", name="uq_wa_ai_quota"), CheckConstraint("monthly_replies >= 0", name="ck_wa_ai_quota_nonneg"), CheckConstraint(_in("addon_key", ADDON_KEYS), name="ck_wa_ai_quota_key"))
+
+    addon_key: Mapped[str] = mapped_column(String(24))
+    monthly_replies: Mapped[int] = mapped_column(Integer)
+    effective_from: Mapped[date] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(String(300))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppAiSettings(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_ai_settings"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_wa_ai_settings_tenant"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    privacy_ack_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the owner's acknowledgement that customer messages go to an AI provider
+    privacy_ack_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    tone: Mapped[str | None] = mapped_column(String(120))
+    quota_warned_month: Mapped[str | None] = mapped_column(String(7))  # "2026-11": the 80% warning went out this month
+
+
+class WhatsAppKnowledgeItem(IdMixin, TimestampMixin, Base):
+    """One thing the owner tells the assistant. The only source of what it may say about the business."""
+
+    __tablename__ = "whatsapp_knowledge_items"
+    __table_args__ = (CheckConstraint(_in("kind", KNOWLEDGE_KINDS), name="ck_wa_knowledge_kind"), CheckConstraint("price_inr IS NULL OR price_inr >= 0", name="ck_wa_knowledge_price"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(14))
+    title: Mapped[str | None] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(String(1200))
+    price_inr: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class WhatsAppAiRun(IdMixin, Base):
+    """One assistant attempt. Tokens and latency are recorded so the monthly quota can be priced from real data. Holds no phone number and no message text."""
+
+    __tablename__ = "whatsapp_ai_runs"
+    __table_args__ = (CheckConstraint(_in("outcome", AI_OUTCOMES), name="ck_wa_ai_run_outcome"), CheckConstraint("feedback IS NULL OR feedback in ('up', 'down')", name="ck_wa_ai_run_feedback"),
+                      Index("ix_wa_ai_run_tenant_created", "tenant_id", "created_at"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversations.id", ondelete="SET NULL"))
+    message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversation_messages.id", ondelete="SET NULL"))
+    provider: Mapped[str | None] = mapped_column(String(40))
+    model_version: Mapped[str | None] = mapped_column(String(80))
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(10))
+    handoff_reason: Mapped[str | None] = mapped_column(String(40))
+    counted: Mapped[bool] = mapped_column(Boolean, default=False)  # uses one reply of the month's quota
+    is_test: Mapped[bool] = mapped_column(Boolean, default=False)  # a "test it" chat run: never sent to WhatsApp, not counted
+    feedback: Mapped[str | None] = mapped_column(String(4))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppUnansweredQuestion(IdMixin, Base):
+    __tablename__ = "whatsapp_unanswered_questions"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversations.id", ondelete="CASCADE"))
+    question: Mapped[str] = mapped_column(String(300))
+    count: Mapped[int] = mapped_column(Integer, default=1)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

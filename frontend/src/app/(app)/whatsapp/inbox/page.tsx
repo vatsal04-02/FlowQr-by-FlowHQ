@@ -72,6 +72,9 @@ function Thread({ id, isAdmin, onClose, onChange }: { id: string; isAdmin: boole
       else setErr(errorMessage(e));
     } finally { setBusy(null); }
   }
+  async function rate(messageId: string, current: "up" | "down" | null | undefined, value: "up" | "down") {
+    try { await api(`/whatsapp/conversations/${id}/messages/${messageId}/feedback`, { method: "POST", body: { value: current === value ? null : value } }); await q.reload(); } catch (e) { setErr(errorMessage(e)); }
+  }
   async function remove() {
     if (!window.confirm("Delete this conversation and every message in it? This cannot be undone.")) return;
     try { await api(`/whatsapp/conversations/${id}`, { method: "DELETE" }); toast("Deleted."); onClose(); onChange(); } catch (e) { setErr(errorMessage(e)); }
@@ -87,6 +90,7 @@ function Thread({ id, isAdmin, onClose, onChange }: { id: string; isAdmin: boole
             <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-500">{t.contact?.no_consent && <Badge>Contact, no consent</Badge>}{t.contact?.opted_out && <Badge tone="red">Asked to stop</Badge>}{t.status === "needs_human" && <Badge tone="amber">Needs you</Badge>}{t.ai_paused_until && <Badge tone="blue">Assistant paused</Badge>}{t.assigned_name && <span>With {t.assigned_name}</span>}</p></div>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          <Button size="sm" variant="ghost" loading={busy === "ai"} onClick={() => void act("ai-pause", "ai", { paused: !t.ai_off })} aria-pressed={!!t.ai_off}>{t.ai_off ? "Resume assistant here" : "Pause assistant here"}</Button>
           {t.ai_paused_until ? <Button size="sm" variant="secondary" loading={busy === "hb"} onClick={() => void act("hand-back", "hb")}>Hand back to assistant</Button> : <Button size="sm" variant="secondary" loading={busy === "to"} onClick={() => void act("take-over", "to")}>Take over</Button>}
           {t.status === "closed" ? <Button size="sm" variant="ghost" onClick={() => void act("reopen", "ro")}>Reopen</Button> : <Button size="sm" variant="ghost" onClick={() => void act("close", "cl")}>Close</Button>}
           {isAdmin && <Button size="sm" variant="ghost" onClick={() => void remove()}>Delete</Button>}
@@ -100,6 +104,13 @@ function Thread({ id, isAdmin, onClose, onChange }: { id: string; isAdmin: boole
             <p className="mb-0.5 text-[11px] text-ink-500" data-testid="sender">{senderTag(m)} · {clock(m.created_at)}{m.direction === "outbound" && m.status !== "received" ? ` · ${m.status === "failed" ? "not delivered" : m.status}` : ""}</p>
             <div className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${BUBBLE[m.sender_type]}`}>{m.text ?? <span className="text-ink-500">[{m.msg_type}: FlowQR can only show text]</span>}</div>
             {m.marketing_confirmed && <p className="mt-0.5 text-[11px] text-amber-700">You confirmed this message looks like an offer.</p>}
+            {m.sender_type === "ai" && (
+              <p className="mt-1 flex items-center gap-1.5 text-[11px] text-ink-500" data-testid="rating">
+                <span>Was this reply good?</span>
+                <button type="button" aria-pressed={m.feedback === "up"} aria-label="Good reply" onClick={() => void rate(m.id, m.feedback, "up")} className={`rounded-full border px-2 py-0.5 ${m.feedback === "up" ? "border-green-600 bg-green-50 text-green-700" : "border-ink-200"}`}>Yes</button>
+                <button type="button" aria-pressed={m.feedback === "down"} aria-label="Poor reply" onClick={() => void rate(m.id, m.feedback, "down")} className={`rounded-full border px-2 py-0.5 ${m.feedback === "down" ? "border-red-600 bg-red-50 text-red-700" : "border-ink-200"}`}>No</button>
+                {m.model_version && <span title="The AI model that wrote this reply">{m.model_version}</span>}
+              </p>)}
           </div>))}
         <div ref={end} />
       </div>

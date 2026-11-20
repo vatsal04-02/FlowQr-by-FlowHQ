@@ -29,6 +29,6 @@ def test_downgrade_removes_only_the_new_table_and_upgrade_restores_it_without_to
         assert owner_query("SELECT count(*), md5(string_agg(id::text || plan || status, ',' ORDER BY id::text)) FROM subscriptions")[0] == before
     finally:
         alembic("upgrade", "head")
-    assert table_exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == "0056"
+    assert table_exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == "0057"
     assert owner_query("SELECT count(*), md5(string_agg(id::text || plan || status, ',' ORDER BY id::text)) FROM subscriptions")[0] == before
     assert biz.tenant_id
