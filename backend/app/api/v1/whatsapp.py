@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -366,6 +366,141 @@ def templates_install(body: InstallIn, request: Request, ctx: TenantContext = De
 class AutomationIn(BaseModel):
     status: Literal["on", "paused", "off"]
     config: dict | None = None
+
+
+# ---- conversations and the inbox
+class ConvSettingsIn(BaseModel):
+    enabled: bool | None = None
+    retention_days: int | None = None
+    takeover_minutes: int | None = None
+    debounce_seconds: int | None = None
+    notify_email: bool | None = None
+
+
+class ReplyIn(BaseModel):
+    text: str = Field(min_length=1, max_length=4096)
+    confirm_marketing: bool = False
+    client_id: str | None = Field(default=None, max_length=64)  # one per press of Send, so a double click never sends twice
+
+
+class ConvTemplateIn(BaseModel):
+    key: str = Field(max_length=40)
+    client_id: str | None = Field(default=None, max_length=64)
+
+
+def _inbox(ctx: TenantContext) -> None:
+    """The inbox is business-wide, so it is for people who see every location, and only while it is switched on."""
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "The inbox is for people who can see every location."})
+    if not conversations.enabled_for(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=404, detail={"code": "conversations_disabled", "message": "The inbox is not switched on."})
+
+
+@router.get("/conversations/settings")
+def conversation_settings(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return {"settings": conversations.serialize_settings(conversations.get_settings(ctx.db, ctx.tenant_id)), "platform_on": conversations.platform_on(), "addon_ok": bool(addons.active_addon(ctx.db, ctx.tenant_id)) or not settings.whatsapp_require_addon,
+            "active": conversations.enabled_for(ctx.db, ctx.tenant_id)}
+
+
+@router.put("/conversations/settings")
+def conversation_settings_put(body: ConvSettingsIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-conv-settings:{ctx.tenant_id}", 60, 3600)
+
+    def go():
+        conversations.set_settings(ctx.db, ctx.tenant, ctx.user, ip=client_ip(request), **body.model_dump())
+        return {"settings": conversations.serialize_settings(conversations.get_settings(ctx.db, ctx.tenant_id)), "platform_on": conversations.platform_on(), "active": conversations.enabled_for(ctx.db, ctx.tenant_id)}
+    return _run(ctx, go)
+
+
+@router.get("/conversations")
+def conversation_list(q: str | None = Query(default=None, max_length=80), filter: Literal["all", "needs_you", "unread", "closed"] = "all", limit: int = 50, offset: int = 0, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return conversations.list_conversations(ctx.db, ctx.tenant_id, q=q, filter=filter, limit=limit, offset=offset)
+
+
+@router.get("/conversations/{conversation_id}")
+def conversation_get(conversation_id: uuid.UUID, before: _dt | None = None, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.thread(ctx.db, ctx.tenant, conversations.get(ctx.db, ctx.tenant_id, conversation_id), before=before))
+
+
+@router.post("/conversations/{conversation_id}/read")
+def conversation_read(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+
+    def go():
+        c = conversations.get(ctx.db, ctx.tenant_id, conversation_id)
+        conversations.mark_read(c)
+        return {"unread": c.unread_count}
+    return _run(ctx, go)
+
+
+@router.post("/conversations/{conversation_id}/reply")
+def conversation_reply(conversation_id: uuid.UUID, body: ReplyIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    _limit(f"wa-reply:{ctx.tenant_id}:{ctx.user.id}", 60, 60)
+    return _run(ctx, lambda: conversations.staff_reply(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), body.text, confirm_marketing=body.confirm_marketing,
+                                                       client_id=body.client_id, ip=client_ip(request)), commit_on_error=True)
+
+
+@router.post("/conversations/{conversation_id}/send-template")
+def conversation_send_template(conversation_id: uuid.UUID, body: ConvTemplateIn, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    _limit(f"wa-reply:{ctx.tenant_id}:{ctx.user.id}", 60, 60)
+    return _run(ctx, lambda: conversations.send_fallback_template(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), body.key, client_id=body.client_id), commit_on_error=True)
+
+
+@router.post("/conversations/{conversation_id}/take-over")
+def conversation_take_over(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.summary(ctx.db, conversations.take_over(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id)), None))
+
+
+@router.post("/conversations/{conversation_id}/hand-back")
+def conversation_hand_back(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.summary(ctx.db, conversations.hand_back(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id)), None))
+
+
+@router.post("/conversations/{conversation_id}/close")
+def conversation_close(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+
+    def go():
+        c = conversations.get(ctx.db, ctx.tenant_id, conversation_id)
+        conversations.close(c)
+        return {"status": c.status}
+    return _run(ctx, go)
+
+
+@router.post("/conversations/{conversation_id}/reopen")
+def conversation_reopen(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+
+    def go():
+        c = conversations.get(ctx.db, ctx.tenant_id, conversation_id)
+        conversations.reopen(c)
+        return {"status": c.status}
+    return _run(ctx, go)
+
+
+@router.delete("/conversations/{conversation_id}", status_code=204)
+def conversation_delete(conversation_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _inbox(ctx)
+    _run(ctx, lambda: conversations.delete_conversation(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), client_ip(request)))
+    return Response(status_code=204)
 
 
 # ---- birthday and festival greetings

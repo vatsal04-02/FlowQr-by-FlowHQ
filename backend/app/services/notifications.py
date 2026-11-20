@@ -84,6 +84,18 @@ def collect(db: Session, tenant: Tenant, *, location_ids: frozenset[uuid.UUID] |
         for p in db.scalars(select(ScheduledPost).where(ScheduledPost.tenant_id == tenant.id, ScheduledPost.status == "failed", ScheduledPost.updated_at > since).limit(10)):
             out.append(Item(f"post-{p.id}", "failed_post", "bad", "A Google post didn't publish", p.failure_reason or p.summary[:140], "/gbp/posts", p.updated_at))
 
+    # WhatsApp conversations waiting for a person (business-wide, so only for people who see every location). No message text: who and why.
+    if location_ids is None:
+        from app.models.whatsapp import WhatsAppContact, WhatsAppConversation
+        from app.services.whatsapp import conversations as _wa_conv
+        from app.services.whatsapp import rules as _wa_rules
+        if _wa_conv.enabled_for(db, tenant.id):
+            for conv, contact in db.execute(select(WhatsAppConversation, WhatsAppContact).join(WhatsAppContact, WhatsAppContact.id == WhatsAppConversation.contact_id).where(
+                    WhatsAppConversation.tenant_id == tenant.id, WhatsAppConversation.status == "needs_human", WhatsAppConversation.handoff_at > since).order_by(WhatsAppConversation.handoff_at.desc()).limit(10)):
+                who = contact.customer_name or "A customer"
+                out.append(Item(f"conversation-{conv.id}-{int(conv.handoff_at.timestamp())}", "conversation", "warn", f"{who} is waiting for a reply on WhatsApp",
+                                _wa_rules.HANDOFF_WORDS.get(conv.handoff_reason or "", "It is waiting for a person."), f"/whatsapp/inbox?c={conv.id}", conv.handoff_at))
+
     # trial ending (once it is within 5 days)
     sub = db.scalar(select(Subscription).where(Subscription.tenant_id == tenant.id))
     if location_ids is None and sub and sub.status == "trialing" and sub.trial_ends_at and now <= sub.trial_ends_at <= now + timedelta(days=5):

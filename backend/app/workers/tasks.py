@@ -176,6 +176,11 @@ def whatsapp_process_event(self, event_id: str):
     try:
         out = wa_webhook.process_event(db, _uuid.UUID(event_id))
         db.commit()
+        for _cid, wait in (out.pop("conversations", None) or {}).items():  # a customer wrote: look at the conversation once the short wait for more messages is over
+            try:
+                whatsapp_conversations_due.apply_async(countdown=int(wait) + 1)
+            except Exception:  # noqa: BLE001 - the 30-second sweep below is the safety net
+                log.warning("could not schedule the conversation check; the sweep will pick it up")
         return out
     except Exception as exc:  # noqa: BLE001
         db.rollback()
@@ -187,6 +192,27 @@ def whatsapp_process_event(self, event_id: str):
                 db.commit()
             return {"failed": True}
         raise self.retry(exc=exc, countdown=min(900, 15 * 2 ** self.request.retries))
+    finally:
+        db.close()
+
+
+@celery_app.task(name="flowqr.whatsapp_conversations_due")
+def whatsapp_conversations_due():
+    """Conversations whose wait for more messages has ended: the assistant may answer once, otherwise a person is told. Also runs every 30 seconds as a safety net. Does nothing unless
+    WHATSAPP_ENABLED and WHATSAPP_CONVERSATIONS_ENABLED."""
+    from app.services.whatsapp import conversations as wa_conversations
+
+    if not wa_conversations.platform_on():
+        return {"held": True}
+    db = system_session()
+    try:
+        out = wa_conversations.run_due(db)
+        db.commit()
+        return out
+    except Exception:
+        db.rollback()
+        log.exception("whatsapp conversations due failed")
+        raise
     finally:
         db.close()
 
@@ -226,7 +252,11 @@ def whatsapp_housekeeping():
     db = system_session()
     try:
         ids = wa_webhook.stale_event_ids(db)
-        out = {"requeued": len(ids), "purged": wa_webhook.purge_old(db), **wa_connection.check_all(db)}
+        out = {"requeued": len(ids), "purged": wa_webhook.purge_old(db), "texts_scrubbed": wa_webhook.scrub_old_texts(db), **wa_connection.check_all(db)}
+        from app.core.rate_limit import hit
+        if hit("wa-conversation-purge", 1, 6 * 3600):  # at most every six hours
+            from app.services.whatsapp import conversations as wa_conversations
+            out["conversation_purge"] = wa_conversations.purge(db)
         db.commit()
         for i in ids:
             wa_webhook.enqueue(i)

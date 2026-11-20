@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     whatsapp_review_gap_days: int = 30  # WHATSAPP_REVIEW_GAP_DAYS: the least time between two review requests to the same person
     whatsapp_link_base_url: str = "https://api.flowqr.site/api/v1/l"  # WHATSAPP_LINK_BASE_URL: where tracked review links point (for now the API host; a separate short domain can replace it later, see docs)
     whatsapp_link_dedupe_seconds: int = 60  # repeat opens of one link inside this many seconds count as one click
+    whatsapp_conversations_enabled: bool = False  # WHATSAPP_CONVERSATIONS_ENABLED: two-way conversations and the inbox (platform switch; each business also has its own). Needs WHATSAPP_ENABLED
+    whatsapp_service_reply_max_chars: int = 1500  # the longest free-form reply one message may carry
+    whatsapp_conversation_text_max_chars: int = 4096  # the longest customer message that is kept
     whatsapp_occasion_gap_days: int = 14  # WHATSAPP_OCCASION_GAP_DAYS: the least time between two birthday or festival greetings to the same person (greetings are not offers: the offer gap does not apply to them)
     whatsapp_send_max_attempts: int = 5  # WHATSAPP_SEND_MAX_ATTEMPTS: a failing automation send is retried with growing delays, then marked failed (the dead letter)
     whatsapp_campaign_batch: int = 40  # WHATSAPP_CAMPAIGN_BATCH: recipients one campaign sends per worker pass
@@ -501,6 +504,8 @@ def config_problems(s: Settings) -> list[str]:
             p.append("Razorpay keys must be removed while BILLING_PROVIDER=cashfree (one payment provider only)")
         if s.cashfree_authorization_paise < 100:
             p.append("CASHFREE_AUTHORIZATION_PAISE cannot be below 100 (Cashfree's minimum authorisation for UPI and cards is Rs 1)")
+    if s.whatsapp_conversations_enabled and not s.whatsapp_enabled:
+        p.append("WHATSAPP_CONVERSATIONS_ENABLED needs WHATSAPP_ENABLED")
     if s.whatsapp_enabled:
         if not s.token_encryption_key:
             p.append("TOKEN_ENCRYPTION_KEY is required when WHATSAPP_ENABLED is true (WhatsApp access tokens are stored encrypted)")
@@ -539,3 +544,11 @@ def assert_production_safe(s: Settings) -> None:
     problems = config_problems(s)
     if problems:
         raise RuntimeError("Unsafe " + s.app_env + " configuration:\n  - " + "\n  - ".join(problems))
+
+
+def whatsapp_passthrough_missing(environ) -> list[str]:
+    """The WhatsApp and Meta settings the app knows about that are NOT present in this process's environment. The production compose files list variables one by one, so a variable written in
+    .env.production only reaches the app if the overlay (deploy/vps/docker-compose.vps.yml) or the base file lists it. One that is not listed is silently ignored and the code default applies.
+    Logged as one warning at startup in production, and runnable by hand: python -c "from app.core.config import whatsapp_passthrough_missing as f; import os; print(f(os.environ))"."""
+    names = sorted(n.upper() for n in Settings.model_fields if n.startswith(("whatsapp_", "meta_")))
+    return [n for n in names if n not in environ]

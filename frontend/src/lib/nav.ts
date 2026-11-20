@@ -62,6 +62,7 @@ export const DESTS: Dest[] = [
     { href: "/whatsapp", label: "Overview" },
     { href: "/whatsapp/setup", label: "Set up" },
     { href: "/whatsapp/connect", label: "Connect" },
+    { href: "/whatsapp/inbox", label: "Inbox" },
     { href: "/whatsapp/contacts", label: "Customers" },
     { href: "/whatsapp/optin", label: "Sign-ups" },
     { href: "/whatsapp/automations", label: "Automations" },

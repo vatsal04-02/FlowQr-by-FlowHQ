@@ -1,8 +1,27 @@
 # WhatsApp: things only a person can check with Meta
 
-FlowQR's tests use a mock of Meta. They prove FlowQR behaves correctly **given** what Meta is assumed to do. They do **not** prove what Meta really does. The six checks below need a real Meta account, real approvals and real traffic, so they are for a person to do and record. **None of them has been done. Nothing here is a result.** Fill in each "Result" box yourself, with the date, and do not tick a box you have not seen with your own eyes.
+FlowQR's tests use a mock of Meta. They prove FlowQR behaves correctly **given** what Meta is assumed to do. They do **not** prove what Meta really does. The checks below need a real Meta account, real approvals and real traffic, so they are for a person to do and record. **None of them has been done. Nothing here is a result.** Fill in each "Result" box yourself, with the date, and do not tick a box you have not seen with your own eyes.
 
 Until a check is done, keep the matching WhatsApp flags off (`WHATSAPP_SENDING_ENABLED`, `WHATSAPP_WEBHOOK_ENABLED`, `WHATSAPP_SIGNUP_ENABLED`) in production.
+
+---
+
+## 0. DO THIS FIRST: coexistence, echo events and the web inbox
+**Why it matters:** this decides whether FlowQR's web inbox is an optional extra or the **only place** an owner can reply. Many owners already use the WhatsApp Business app on their phone. If Meta does not let the same number run on the phone app and the Cloud API at once (coexistence), then once a business is connected its owner can answer customers only in FlowQR's inbox. If it does, the inbox must also cope with messages typed on the phone: FlowQR reads Meta's "echo" events for those (`smb_message_echoes`), but **the shape of that event is written from documentation and has never been seen from real traffic**. The inbox, takeover and the assistant's "a person is already replying" rule all depend on it.
+
+**Do:** with a real shop number that is already in use on the WhatsApp Business app, complete the connection. Then check, and record exactly what you see:
+1. Is coexistence allowed for an Indian number, and what does Meta say or require?
+2. Does the number keep working in the phone app after it is connected? What can and cannot be done there?
+3. A customer writes: does it show in the phone app, in FlowQR's inbox, or both?
+4. The owner replies **in the phone app**: does a webhook event reach FlowQR, with which field name and which fields (to, id, timestamp, type, text)? Does it appear in the inbox as "WhatsApp Business app"?
+5. The owner replies **from FlowQR's inbox**: does it appear in the phone app?
+6. Anything that stops working (broadcast lists, status, labels, chat history), and what Meta says about the 24-hour window when both are in use.
+
+**Record:** what Meta allowed, the real echo event body (with the customer's number removed), and whether FlowQR's reading of it matched. If it did not match, `ingest_echo` in `services/whatsapp/conversations.py` and the echo part of `sanitize` in `webhook.py` must be corrected before conversations are switched on for anyone.
+
+Result: ______________________  Date: ____________
+
+(Item 3 below, "coexistence and the connection check", is about the connection check only; this item is about the inbox.)
 
 ---
 
@@ -85,4 +104,43 @@ Result: ______________________  Date: ____________
 
 ---
 
-When all six are done and recorded, the flags can be considered for switching on for one test business first, then widened. Until then FlowQR is built, tested against a mock, and safe by default, but **unproven against the real Meta**.
+## 7. Is a business-specific AI assistant allowed under Meta's AI provider terms?
+**Why it matters:** the conversation assistant (Phase 8) answers customers with an AI model. Meta's terms for the WhatsApp Business Platform have rules about AI chatbots and about AI providers. FlowQR's design is a **business-specific** assistant: it answers only from the business's own information, refuses general-assistant requests, hands off to a person, and never behaves as a general-purpose chatbot. Whether that fits Meta's current wording is a question for Meta's current terms and, if unclear, Meta support, not for this code.
+
+**Do:** read Meta's current WhatsApp Business Solution Terms and Business Messaging Policy, and ask Meta (support or your partner contact) in writing whether this use is allowed: who the "AI provider" is in this setup (FlowQR, the model provider, or both), whether the model provider's involvement changes the answer, and any disclosure Meta requires (FlowQR already says "automated assistant" in the first reply).
+
+**Record:** the document and clause, the date, the written answer if you asked.
+
+Result: ______________________  Date: ____________
+
+## 8. Real service-message pricing and the 1,000 free allowance
+**Why it matters:** a reply inside the 24-hour window is a "service" message. The price table assumes service messages are billable from 1 Oct 2026 with the first 1,000 per number per month free, at 0.145 rupees afterwards. Those numbers are the starting values from AiSensy's pricing page, **not from Meta**, and are shown to owners as unverified estimates.
+
+**Do:** from Meta's own rate card and your billing page, confirm: the service-message price for India, the date it starts, the free allowance and whether it is per number or per account, how the month is counted, and whether messages sent to a customer who started the conversation through an ad are treated differently. Use "Record a check" on the **service** row in the admin WhatsApp prices screen, or add a corrected price.
+
+Result: ______________________  Date: ____________
+
+## 9. The free entry-point window length (click-to-WhatsApp ads and page buttons)
+**Why it matters:** when a customer starts a chat from an ad or a page button, Meta gives a free window. Sources disagree about its length (72 hours, or 7 days from 21 Sep 2026). FlowQR (Phase 11) will treat it as a dated, unverified setting and count those messages as free only once it is verified.
+
+**Do:** find the current length in Meta's documentation and confirm it on a real test conversation's billing. Record the date it applies from.
+
+Result: ______________________  Date: ____________
+
+## 10. The category Meta gives appointment reminders (needed before Phase 9 sends any)
+**Why it matters:** reminders are fixed approved templates. If Meta calls them utility they can go to customers who agreed to visit updates. If Meta calls them marketing, or the category is not yet known, FlowQR fails closed (like greetings) and also needs offers consent, which booking-only customers do not have, so they would not get reminders.
+
+**Do:** when the reminder templates exist, submit them, then record the category Meta assigns and the time it took.
+
+Result: ______________________  Date: ____________
+
+## 11. The assistant evaluation (before it is switched on for any real business)
+See "Assistant evaluation" in `docs/WHATSAPP_AUTOMATION.md`: a fixed set of about 50 prompts with a written pass mark, run against the real model. **No result is recorded here until someone has run it and seen it.**
+
+| Model and version | Date run | Prompts passed | Hard-fail categories all passed? | Run by |
+|---|---|---|---|---|
+| | | | | |
+
+---
+
+When all of the above are done and recorded, the flags can be considered for switching on for one test business first, then widened. Until then FlowQR is built, tested against a mock, and safe by default, but **unproven against the real Meta**.

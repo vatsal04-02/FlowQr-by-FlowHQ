@@ -15,6 +15,7 @@ celery_app.conf.update(
         },
         "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
         "whatsapp-run-due": {"task": "flowqr.whatsapp_run_due", "schedule": 60.0},  # automations and campaigns due now (does nothing unless sending is enabled and not stopped)
+        "whatsapp-conversations-due": {"task": "flowqr.whatsapp_conversations_due", "schedule": 30.0},  # safety net for the short wait before a conversation is looked at (no-op unless WHATSAPP_CONVERSATIONS_ENABLED)
         "whatsapp-housekeeping": {"task": "flowqr.whatsapp_housekeeping", "schedule": 600.0},  # no-op unless WHATSAPP_ENABLED (services/whatsapp)
         "sites-housekeeping": {"task": "flowqr.sites_housekeeping", "schedule": 3600.0},  # no-op unless SITES_ENABLED (services/sites/service.py)
         "prepaid-reconcile": {"task": "flowqr.prepaid_reconcile", "schedule": 3600.0},  # prepaid plans: catches a lost webhook or a closed tab after paying

@@ -134,3 +134,47 @@ def in_occasion_hours(now) -> bool:
     from zoneinfo import ZoneInfo
     t = (now if now.tzinfo else now.replace(tzinfo=timezone.utc)).astimezone(ZoneInfo("Asia/Kolkata"))
     return OCCASION_START <= t.hour < OCCASION_END
+
+
+# ---- a conversation reply is a service message: never an offer, a discount or marketing. This is a deterministic filter, not a judgement.
+# For the assistant it is a HARD BLOCK (the reply is not sent; the conversation goes to a person). For a person it is a WARNING with a one-click confirm that is logged.
+_MARKETING = [
+    r"\boffers\b", r"\b(?:an?|the|this|our|your|special|great|best|new|exclusive|limited|festive|current|any|no)\s+offer\b", r"\boffer\s+(?:ends|valid|code|price|expires)\b",
+    r"\bdiscounts?\b", r"\bcash-?back\b", r"\bcoupons?\b", r"\bvouchers?\b", r"\bpromo(?:tion|tions|code|codes)?\b", r"\bdeals?\b", r"\bon sale\b", r"\bsale\b", r"\bbogo\b",
+    r"\bbuy\s+\d+\s+get\b", r"\d{1,3}\s?%\s?(?:off|discount)", r"\bflat\s+(?:rs\.?|₹)?\s*\d+", r"\bfree\s+(?:gift|gifts|consultation|check-?up|trial|session|demo|sample)\b",
+    r"\blimited[\s-]time\b", r"\bexclusive\b", r"\bspecial\s+(?:price|rate|deal)\b", r"\bhurry\b", r"\blast\s+chance\b", r"\bdon'?t\s+miss\b", r"\bearly\s+bird\b",
+    r"\bsave\s+(?:up\s+to\s+)?(?:rs\.?|₹)?\s*\d+", r"\bchh?oo?t\b", r"छूट", r"ऑफ़?र", r"डिस्काउंट", r"कैशबैक", r"मुफ़्त\s+उपहार",
+]
+_MARKETING_RE = [re.compile(p, re.I) for p in _MARKETING]
+
+
+def marketing_terms(text: str | None) -> list[str]:
+    """The offer-style words or phrases found in `text` (empty if none). Ordinary service talk passes: prices, hours, "we offer physiotherapy", "free parking"."""
+    found: list[str] = []
+    for rx in _MARKETING_RE:
+        m = rx.search(text or "")
+        if m:
+            t = " ".join(m.group(0).split())
+            if t.lower() not in [x.lower() for x in found]:
+                found.append(t)
+    return found
+
+
+# why a conversation is waiting for a person, in words the owner reads
+HANDOFF_WORDS = {
+    "assistant_off": "The assistant is off, so this is waiting for you.",
+    "customer_opted_out": "This customer asked to stop messages, so the assistant does not reply on its own. You can still reply, because they wrote first.",
+    "customer_asked_for_human": "The customer asked for a person.",
+    "media_not_supported": "The customer sent a picture, voice note or file. The assistant can only read text.",
+    "staff_took_over": "A person took over.",
+    "not_in_knowledge": "The answer is not in the information you gave the assistant.",
+    "low_confidence": "The assistant was not sure enough to answer.",
+    "sensitive_topic": "The message touches something sensitive (health, legal, money or safety), which the assistant never answers.",
+    "sensitive_data_shared": "The customer shared sensitive details such as a card number or an OTP. The assistant did not use them.",
+    "ai_unavailable": "The assistant was not available just now.",
+    "bad_model_output": "The assistant could not produce a safe answer.",
+    "quota_reached": "This month's assistant replies are used up.",
+    "rate_limited": "This customer sent many messages quickly, so the assistant paused.",
+    "reply_blocked": "The assistant's answer broke a rule (for example it mentioned an offer), so it was not sent.",
+    "send_blocked": "The reply could not be sent.",
+}

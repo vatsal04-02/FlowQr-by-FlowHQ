@@ -16,6 +16,14 @@ log = logging.getLogger("flowqr")
 if not logging.getLogger().handlers:
     logging.basicConfig(level=logging.INFO if not settings.hardened else logging.WARNING, format="%(levelname)s [%(name)s] %(message)s")
 assert_production_safe(settings)
+if settings.hardened:
+    import os
+
+    from app.core.config import whatsapp_passthrough_missing
+
+    _missing = whatsapp_passthrough_missing(os.environ)
+    if _missing:
+        log.warning("WhatsApp settings that never reach this container (not listed in the compose overlay, so the code default applies): %s. If you set any of them in .env.production, add it to deploy/vps/docker-compose.vps.yml.", ", ".join(_missing))
 from app.core import monitoring  # noqa: E402
 
 monitoring.init("api")

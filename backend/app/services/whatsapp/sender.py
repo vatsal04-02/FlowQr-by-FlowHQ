@@ -10,7 +10,8 @@ A send happens only if ALL of these hold (the first failure is the answer, as a 
   7. the business is within its per-minute and per-day limits;
   8. a birthday or festival greeting (kind "occasion") also needs: the Growth or Pro add-on, its own greeting template, occasion consent (and offers consent while the template's category is marketing or
      not yet known; STOP always blocks it), 9 am to 9 pm India time, and at least WHATSAPP_OCCASION_GAP_DAYS since the last greeting to that person. Greetings are not offers: the offer gap does not apply to them.
-Only approved TEMPLATES are ever sent, never free text, so Meta's 24-hour customer-service window rules do not need to be relied on. A retryable Meta failure leaves no trace (the caller retries
+Only approved TEMPLATES are sent by send_template, so Meta's 24-hour customer-service window rules do not need to be relied on there. The ONE exception is `send_service_reply` at the end of this file:
+a free-form reply to a customer who wrote first, sent only while their 24-hour window is open (see its docstring for every condition). A retryable Meta failure leaves no trace (the caller retries
 with the same key); a final failure is recorded on the message with Meta's error code.
 """
 import logging
@@ -126,5 +127,88 @@ def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, templat
         log.warning("WhatsApp send refused by Meta (code %s)", exc.code)
         return SendResult("failed", "meta_rejected", msg.id)
     msg.meta_message_id, msg.delivery_status, msg.sent_at, msg.status_updated_at = wamid, "sent", now, now
+    db.flush()
+    return SendResult("sent", "ok", msg.id)
+
+
+def send_service_reply(db: Session, tenant: Tenant, conv, text: str, *, sender_type: str, staff_user=None, idem_key: str, marketing_confirmed: bool = False, template_key: str | None = None,
+                       now: datetime | None = None) -> SendResult:
+    """A free-form reply inside a conversation (kind "service_reply"). The only place free-form text is ever sent. It is sent only when ALL of these hold, and the first failure is the answer:
+      * the text is not empty and not too long;
+      * the platform switch for conversations is on and this business has its inbox on;
+      * the same switches as every message: WhatsApp on, no emergency stop, sending on, the add-on, a healthy connection from THIS business;
+      * the customer wrote to the business first (`last_customer_message_at`) and that was less than 24 hours ago: outside the window only approved templates can be sent;
+      * the text is not an offer, a discount or marketing. For the assistant and automatic messages that is a hard block. For a person it is a warning that they must confirm once, and the
+        confirmation is recorded on the message (the caller also logs it);
+      * this exact reply was not already sent (idempotency key), and the business is within its per-minute and per-day limits.
+    It never touches consent: a customer writing to us gives no offers consent, and replying creates none. It is recorded in the message ledger with category "service" so the cost estimate (and the
+    free monthly allowance) applies."""
+    from app.models.whatsapp import WhatsAppContact, WhatsAppConversationMessage, WhatsAppConversationSettings
+    now = now or utcnow()
+    text = (text or "").strip()
+    if not text or len(text) > settings.whatsapp_service_reply_max_chars or sender_type not in ("ai", "staff", "system"):
+        return _skip("invalid_text")
+    if not settings.whatsapp_conversations_enabled:
+        return _skip("conversations_disabled")
+    cs = db.scalar(select(WhatsAppConversationSettings).where(WhatsAppConversationSettings.tenant_id == tenant.id))
+    if cs is None or not cs.enabled:
+        return _skip("conversations_disabled")
+    contact = db.get(WhatsAppContact, conv.contact_id)
+    if contact is None or conv.tenant_id != tenant.id or contact.tenant_id != tenant.id:
+        return _skip("wrong_business")
+    ok, reason = gate.preflight(db, tenant.id, contact, "service", kind="service_reply")
+    if not ok:
+        return _skip(reason)
+    conn = connection.connected_connection(db, tenant.id)
+    if conn is None:
+        return _skip("not_connected")
+    if conv.last_customer_message_at is None:
+        return _skip("no_customer_message")
+    if now >= conv.last_customer_message_at + timedelta(hours=24):
+        return _skip("window_closed")
+    if rules.marketing_terms(text) and not (sender_type == "staff" and marketing_confirmed):
+        return _skip("marketing_warning" if sender_type == "staff" else "marketing_content")
+    existing = db.scalar(select(WhatsAppMessage).where(WhatsAppMessage.tenant_id == tenant.id, WhatsAppMessage.idempotency_key == idem_key))
+    if existing is not None:
+        return SendResult("sent" if existing.delivery_status != "failed" else "failed", "duplicate", existing.id)
+    if not hit(f"wa-send-min:{tenant.id}", settings.whatsapp_send_per_minute, 60):
+        return SendResult("retry", "rate_limited", retry_after=60)
+    if not hit(f"wa-send-day:{tenant.id}", settings.whatsapp_daily_cap, 86400):
+        return SendResult("retry", "daily_cap", retry_after=3600)
+    token = connection._token_of(conn)  # noqa: SLF001
+    if not token:
+        return _skip("not_connected")
+    msg = WhatsAppMessage(tenant_id=tenant.id, connection_id=conn.id, contact_id=contact.id, phone_number_id=conn.phone_number_id, direction="outbound", category="service", template_id=None,
+                          delivery_status="queued", idempotency_key=idem_key, est_rate=pricing.est_rate_for_send(db, tenant.id, "service"), kind="service_reply")
+    try:
+        with db.begin_nested():
+            db.add(msg)
+            db.flush()
+    except IntegrityError:
+        return SendResult("sent", "duplicate")
+    sent_at = utcnow()  # the moment of sending (not the pretend "now" a test may have passed in)
+
+    def _record(status: str, wamid: str | None = None, code: str | None = None) -> None:
+        db.add(WhatsAppConversationMessage(tenant_id=tenant.id, conversation_id=conv.id, direction="outbound", sender_type=sender_type, staff_user_id=getattr(staff_user, "id", None), text=text,
+                                           meta_message_id=wamid, ledger_id=msg.id, delivery_status=status, error_code=code, template_key=template_key, marketing_confirmed=bool(marketing_confirmed and sender_type == "staff"),
+                                           sent_at=sent_at if status != "failed" else None))
+        conv.last_outbound_at, conv.last_message_at, conv.awaiting_reply = sent_at, sent_at, False
+
+    try:
+        wamid = get_meta_client().send_text(token, conn.phone_number_id, contact.phone, text)
+    except MetaError as exc:
+        if exc.retryable:
+            db.delete(msg)  # no trace: the caller retries with the same key
+            db.flush()
+            return SendResult("retry", "meta_unavailable", retry_after=120)
+        msg.delivery_status, msg.error_code, msg.status_updated_at = "failed", str(exc.code or exc.status or "meta")[:20], sent_at
+        if exc.code in TOKEN_ERRORS:
+            conn.status, conn.attention_reason = "needs_attention", "Meta no longer accepts this connection. Press Connect WhatsApp to connect again."
+        _record("failed", None, msg.error_code)
+        db.flush()
+        log.warning("WhatsApp service reply refused by Meta (code %s)", exc.code)
+        return SendResult("failed", "meta_rejected", msg.id)
+    msg.meta_message_id, msg.delivery_status, msg.sent_at, msg.status_updated_at = wamid, "sent", sent_at, sent_at
+    _record("sent", wamid)
     db.flush()
     return SendResult("sent", "ok", msg.id)

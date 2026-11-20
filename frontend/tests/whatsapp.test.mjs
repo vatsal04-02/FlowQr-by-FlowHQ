@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -319,4 +319,33 @@ test("what a preview left out is told in words", () => {
   assert.equal(leftOutWords({ no_consent: 0, opted_out: 0 }), "");
   assert.equal(leftOutWords({ no_consent: 2, opted_out: 1 }), "Left out: 1 asked to stop offers and 2 never agreed to receive offers.");
   assert.equal(leftOutWords({ no_consent: 0, opted_out: 4 }), "Left out: 4 asked to stop offers.");
+});
+
+test("a contact who only wrote to you is labelled as having no consent", () => {
+  assert.deepEqual(consentWords({ marketing: null, utility: null, opted_out: false, no_consent_contact: true }), { label: "Contact, no consent", tone: "gray" });
+  assert.equal(consentWords({ marketing: null, utility: null, opted_out: false }).label, "No agreement yet");
+  assert.equal(consentWords({ marketing: null, utility: null, opted_out: true, no_consent_contact: true }).label, "Asked to stop offers");
+  assert.equal(consentWords({ marketing: { since: "x", source: "owner_entry", wording_version: "v" }, utility: null, opted_out: false, no_consent_contact: false }).label, "Agreed to offers");
+});
+
+test("every message says who sent it, and the assistant is always marked automated", () => {
+  assert.equal(senderTag({ sender_type: "ai", sender_label: "Assistant (automated)", via_app: false }), "Assistant (automated)");
+  assert.equal(senderTag({ sender_type: "ai", sender_label: null, via_app: false }), "Assistant (automated)");
+  assert.equal(senderTag({ sender_type: "system", sender_label: null, via_app: false }), "Automatic message");
+  assert.equal(senderTag({ sender_type: "staff", sender_label: "Meera Shah", via_app: false }), "Meera Shah");
+  assert.equal(senderTag({ sender_type: "staff", sender_label: null, via_app: false }), "A team member");
+  assert.match(senderTag({ sender_type: "staff", sender_label: null, via_app: true }), /WhatsApp Business app/);
+  assert.equal(senderTag({ sender_type: "customer", sender_label: "Asha", via_app: false }), "Asha");
+});
+
+test("the 24-hour window is explained in plain words", () => {
+  const now = Date.parse("2026-11-20T10:00:00Z");
+  assert.match(windowWords(true, "2026-11-20T10:30:00Z", now), /30 more minutes/);
+  assert.match(windowWords(true, "2026-11-20T10:01:00Z", now), /1 more minute\b/);
+  assert.match(windowWords(true, "2026-11-20T11:05:00Z", now), /about an hour/);
+  assert.match(windowWords(true, "2026-11-21T04:00:00Z", now), /about 18 more hours/);
+  assert.match(windowWords(false, "2026-11-19T10:00:00Z", now), /approved message/);
+  assert.match(windowWords(false, null, now), /has not written to you/);
+  assert.deepEqual(CONV_FILTERS.map((f) => f.value), ["all", "needs_you", "unread", "closed"]);
+  assert.match(RETENTION_NOTE(90), /90 days.*deleted when you delete the customer/);
 });

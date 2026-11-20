@@ -13,7 +13,7 @@ export interface WaStatus {
 export interface WaConsentInfo { since: string; source: string; wording_version: string }
 export interface WaContact {
   id: string; phone: string; customer_name: string | null; tags: string[]; location_id?: string | null; source: string; created_at: string; marketing: WaConsentInfo | null; utility: WaConsentInfo | null; opted_out: boolean; opted_out_at: string | null;
-  occasion?: WaConsentInfo | null; birth_day?: number | null; birth_month?: number | null; last_visit_at?: string | null; last_replied_at?: string | null; last_enquiry_at?: string | null;
+  occasion?: WaConsentInfo | null; birth_day?: number | null; birth_month?: number | null; last_visit_at?: string | null; last_replied_at?: string | null; last_enquiry_at?: string | null; no_consent_contact?: boolean;
 }
 export interface WaContacts { total: number; items: WaContact[]; counts: WaStatus["counts"]; wording: { marketing: string; utility: string; occasion?: string } }
 export interface WaChecklist { connected: boolean; templates_installed: boolean; templates_approved: boolean; missing: string[]; waiting: string[]; refused: string[] }
@@ -59,8 +59,9 @@ export function connectionWords(c: WaConnection | null): { label: string; tone: 
 }
 
 /** What a customer has agreed to, in words an owner understands. */
-export function consentWords(c: Pick<WaContact, "marketing" | "utility" | "opted_out">): { label: string; tone: "green" | "blue" | "gray" | "red" } {
+export function consentWords(c: Pick<WaContact, "marketing" | "utility" | "opted_out"> & { no_consent_contact?: boolean }): { label: string; tone: "green" | "blue" | "gray" | "red" } {
   if (c.opted_out) return { label: "Asked to stop offers", tone: "red" };
+  if (c.no_consent_contact) return { label: "Contact, no consent", tone: "gray" };  // someone who wrote to you: kept so you can reply, never messaged first
   if (c.marketing && c.utility) return { label: "Agreed to offers and visit updates", tone: "green" };
   if (c.marketing) return { label: "Agreed to offers", tone: "green" };
   if (c.utility) return { label: "Agreed to visit updates", tone: "blue" };
@@ -443,3 +444,42 @@ export function leftOutWords(x: { no_consent: number; opted_out: number } | unde
   if (x.no_consent) bits.push(`${x.no_consent} never agreed to receive offers`);
   return `Left out: ${bits.join(" and ")}.`;
 }
+
+// ---- conversations and the inbox
+export type ConvStatus = "open" | "needs_human" | "closed";
+export interface WaConvSummary {
+  id: string; contact: { id: string; name: string | null; phone: string; source: string; opted_out: boolean; no_consent: boolean } | null; status: ConvStatus; handoff_reason: string | null; handoff_words: string | null;
+  unread: number; needs_reply: boolean; preview: string | null; preview_from: string | null; last_message_at: string | null; window_open: boolean; window_closes_at: string | null;
+  ai_paused_until: string | null; assigned_to: string | null; source: string;
+}
+export interface WaConvMessage {
+  id: string; direction: "inbound" | "outbound"; sender_type: "customer" | "ai" | "staff" | "system"; sender_label: string | null; text: string | null; msg_type: string; status: string; created_at: string;
+  template_key: string | null; via_app: boolean; marketing_confirmed: boolean; error_code: string | null; feedback?: "up" | "down" | null; model_version?: string | null;
+}
+export interface WaConvThread extends WaConvSummary {
+  messages: WaConvMessage[]; assigned_name: string | null; code: string; window_note: string | null;
+  fallback_templates: { key: string; label: string; can_send: boolean; reason: string | null; text: string | null }[];
+}
+export interface WaConvList { total: number; unread_total: number; needs_you: number; items: WaConvSummary[] }
+export interface WaConvSettings {
+  settings: { enabled: boolean; retention_days: number; takeover_minutes: number; debounce_seconds: number; notify_email: boolean; limits: Record<string, [number, number]> };
+  platform_on: boolean; addon_ok: boolean; active: boolean;
+}
+export const CONV_FILTERS: { value: "all" | "needs_you" | "unread" | "closed"; label: string }[] = [
+  { value: "all", label: "All" }, { value: "needs_you", label: "Needs you" }, { value: "unread", label: "Unread" }, { value: "closed", label: "Closed" },
+];
+/** Who a message is from, in the words shown above it. A customer's own name, the assistant clearly marked as automated, or the named team member. */
+export function senderTag(m: Pick<WaConvMessage, "sender_type" | "sender_label" | "via_app">): string {
+  if (m.sender_type === "ai") return "Assistant (automated)";
+  if (m.sender_type === "system") return "Automatic message";
+  if (m.sender_type === "staff") return m.via_app ? "You, on the WhatsApp Business app" : m.sender_label ?? "A team member";
+  return m.sender_label ?? "A customer";
+}
+/** What the customer's 24-hour window means for the owner right now. */
+export function windowWords(open: boolean, closesAt: string | null, now: number = Date.now()): string {
+  if (!closesAt) return "This customer has not written to you, so only an approved message can be sent.";
+  if (!open) return "The 24-hour window has closed. WhatsApp only allows an approved message now.";
+  const mins = Math.max(0, Math.round((new Date(closesAt).getTime() - now) / 60000));
+  return mins >= 120 ? `You can reply freely for about ${Math.round(mins / 60)} more hours.` : mins >= 60 ? "You can reply freely for about an hour more." : `You can reply freely for ${mins} more minute${mins === 1 ? "" : "s"}.`;
+}
+export const RETENTION_NOTE = (days: number) => `Messages are kept for ${days} days, then deleted. They are also deleted when you delete the customer.`;

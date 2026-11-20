@@ -306,6 +306,7 @@ def serialize(c: WhatsAppContact, consents: dict | None = None) -> dict:
     consents = consents or {"marketing": None, "utility": None, "occasion": None}
     return {"id": c.id, "phone": c.phone, "customer_name": c.customer_name, "tags": c.tags or [], "location_id": c.location_id, "source": c.source, "created_at": c.created_at,
             "marketing": consents.get("marketing"), "utility": consents.get("utility"), "occasion": consents.get("occasion"), "opted_out": c.marketing_opted_out_at is not None, "opted_out_at": c.marketing_opted_out_at,
+            "no_consent_contact": c.source == "customer_message" and c.marketing_opted_out_at is None and not any(consents.get(k) for k in ("marketing", "utility", "occasion")),  # exists only because they wrote to us
             "birth_day": c.birth_day, "birth_month": c.birth_month, "last_visit_at": c.last_visit_at, "last_replied_at": c.last_replied_at, "last_enquiry_at": c.last_enquiry_at}
 
 
