@@ -165,4 +165,32 @@ export const en = {
     next: [["We call you", "Usually within one working day, at your preferred time."], ["We set up a walkthrough", "Using your own Google profile, if you like."], ["You decide", "Start a free trial, or don't. No pressure."]] as [string, string][],
     success: ["Thanks, we've got it.", "We'll call you at your preferred time. Keep an eye on WhatsApp too if you ticked the box."],
   },
+  // WhatsApp Marketing AI Agent. Built in the product, switched off for customers: nothing here says "live", "official", "verified" or "approved by Meta". The two "soon" tiles are not built.
+  whatsapp: {
+    meta: { title: "WhatsApp Marketing AI Agent", description: "FlowQR's WhatsApp Marketing AI Agent helps you send offers, automate follow-ups and answer customers on WhatsApp, with every offer approved by you before it sends. Join the waitlist." },
+    title: "WhatsApp Marketing AI Agent",
+    sub: "Send offers, automate follow-ups and answer customers on WhatsApp. AI handles the daily routine, so you can focus on your customers.",
+    tiles: [
+      { title: "WhatsApp Campaigns", body: "See who gets it and the estimated cost first. Nothing sends until you approve.", soon: false },
+      { title: "Automated Messages", body: "Review requests, enquiry follow-ups, birthday and festival wishes, on autopilot.", soon: false },
+      { title: "AI Auto-Replies", body: "Answers from your own business info, and hands the chat to you when unsure.", soon: true },
+      { title: "Appointment Booking", body: "Customers book a slot in the chat. Reminders go out for you.", soon: true },
+      { title: "Consent and Opt-outs", body: "Each customer's permission is saved with the exact wording and time. STOP is always honoured.", soon: false },
+      { title: "Message Insights", body: "Sent, delivered and read shown separately. Costs always shown as estimates.", soon: false },
+    ],
+    cta: "Join the waitlist", ctaHref: "/demo", learnMore: "About the WhatsApp agent",
+    chat: {
+      name: "Sunrise Physio", initial: "S", role: "Business account, automated assistant",
+      messages: [
+        ["in", "Hi, are you open this Saturday?"],
+        ["out", "Hi! Yes, we are open 9 am to 1 pm on Saturdays. Would you like me to book a slot?"],
+        ["in", "Yes, 11 am please"],
+        ["out", "Done. You are booked for Saturday at 11 am. I will remind you the day before."],
+      ] as [string, string][],
+      working: "FlowQR is working on your chats",
+      checks: ["Replies from your business info", "Books appointments", "Hands over to you when unsure"],
+      approve: "You approve every offer before it sends.",
+    },
+    fine: "WhatsApp is a trademark of Meta Platforms, Inc. FlowQR is an independent product and is not affiliated with or endorsed by Meta. Phone screens show sample data. Estimated WhatsApp charges are paid to Meta and are separate from FlowQR's fee.",
+  },
 };

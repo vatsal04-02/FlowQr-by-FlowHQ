@@ -41,6 +41,12 @@ export function GoogleG({ size = 28, className }: { size?: number | string; clas
   return <span aria-hidden className={clsx("inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-[#F5F5F5] ring-1 ring-m-line", className)} style={{ width: css, height: css }}><Image src="/marketing/google-g.webp" alt="" width={96} height={96} className="h-full w-full object-cover" /></span>;
 }
 
+/** The WhatsApp logo (the supplied image sits on white, so the tile is a round white one like GoogleG's). Padding keeps the speech bubble's tail inside the circle. `size` is px, or a CSS length such as "0.8em". Decorative: the heading beside it names the product. */
+export function WhatsAppLogo({ size = 28, className }: { size?: number | string; className?: string }) {
+  const css = typeof size === "number" ? `${size}px` : size;
+  return <span aria-hidden className={clsx("inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-white ring-1 ring-m-line", className)} style={{ width: css, height: css }}><Image src="/marketing/whatsapp-logo.webp" alt="" width={224} height={224} className="h-full w-full object-contain p-[6%]" /></span>;
+}
+
 /** Micro chip (hero right side). */
 export function MicroChip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return <span className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-m-surface px-2.5 t-micro text-m-ink2 shadow-[0_1px_2px_rgba(11,15,46,.06)]"><span aria-hidden className="text-m-accentStrong">{icon}</span>{children}</span>;
