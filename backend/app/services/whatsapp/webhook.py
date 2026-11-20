@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.security import constant_time_equals
 from app.models import Tenant
 from app.models.base import utcnow
-from app.models.whatsapp import WhatsAppConnection, WhatsAppMessage, WhatsAppWebhookEvent
+from app.models.whatsapp import WhatsAppConnection, WhatsAppContact, WhatsAppMessage, WhatsAppWebhookEvent
 from app.services.whatsapp import consent, rules
 
 log = logging.getLogger("flowqr.whatsapp.webhook")
@@ -139,6 +139,19 @@ def _when(ts: str | None) -> datetime:
         return utcnow()
 
 
+def _status_event(db: Session, msg: WhatsAppMessage) -> None:
+    """Tell anyone listening that a message moved on. Only ids, the status and the kind: never message text."""
+    from app.services.whatsapp import integrations
+    c = db.get(WhatsAppContact, msg.contact_id) if msg.contact_id else None
+    integrations.emit(db, msg.tenant_id, "message.status", {"message_id": msg.id, "status": msg.delivery_status, "error_code": msg.error_code, "kind": msg.kind or "template", "category": msg.category, **integrations.customer_ref(c)})
+
+
+def _opt_out_event(db: Session, tenant: Tenant, phone: str) -> None:
+    from app.services.whatsapp import integrations
+    c = consent.find_by_phone(db, tenant.id, phone)
+    integrations.emit(db, tenant.id, "contact.opted_out", {"at": utcnow(), **(integrations.customer_ref(c) if c else {"customer_phone": phone})})
+
+
 def apply_status(msg: WhatsAppMessage, status: str, ts: str | None, errors: list[dict]) -> bool:
     """Move a message record forward. Returns whether anything changed (False for a repeat, an out-of-order older status or a failure after delivery)."""
     when = _when(ts)
@@ -183,6 +196,7 @@ def process_event(db: Session, event_id: uuid.UUID) -> dict:
             msg = db.scalar(select(WhatsAppMessage).where(WhatsAppMessage.tenant_id == conn.tenant_id, WhatsAppMessage.phone_number_id == conn.phone_number_id, WhatsAppMessage.meta_message_id == s["id"]))
             if msg is not None and apply_status(msg, s["status"], s.get("timestamp"), s.get("errors", [])):
                 out["statuses"] += 1
+                _status_event(db, msg)
                 if msg.kind == "service_reply":
                     from app.services.whatsapp import conversations as _conv
                     _conv.sync_status(db, msg)
@@ -190,6 +204,7 @@ def process_event(db: Session, event_id: uuid.UUID) -> dict:
             if m.get("from") and rules.is_opt_out(m.get("text")) and tenant is not None:
                 if consent.opt_out_by_phone(db, tenant, "+" + m["from"]):
                     out["opt_outs"] += 1
+                    _opt_out_event(db, tenant, "+" + m["from"])
             elif m.get("from") and tenant is not None:  # not a STOP: is it a customer opting in (the QR page's message, or an opt-in keyword)?
                 from app.services.whatsapp import optin
                 joined = optin.handle_inbound(db, tenant, "+" + m["from"], m.get("text"), m.get("id") or "")

@@ -22,7 +22,7 @@ def _in(col: str, values) -> str:
 CONNECTION_STATUSES = ("pending", "connected", "needs_attention", "disconnected")
 WEBHOOK_STATUSES = ("unknown", "subscribed", "failed")
 PURPOSES = ("marketing", "utility", "occasion")  # occasion = birthday and festival greetings, a consent of its own
-CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in", "whatsapp_booking")
+CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in", "whatsapp_booking", "api_integration")
 CUSTOMER_SOURCES = ("qr_page", "website_form", "customer_message", "qr_click_to_chat", "keyword_opt_in")  # the customer did it themselves: the only sources that can lift an opt-out
 TEMPLATE_CATEGORIES = ("marketing", "utility", "authentication")
 TEMPLATE_STATUSES = ("pending", "approved", "rejected", "paused", "disabled")
@@ -659,3 +659,78 @@ class WhatsAppBooking(IdMixin, TimestampMixin, Base):
     reminder_day_result: Mapped[str | None] = mapped_column(String(40))
     reminder_soon_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reminder_soon_result: Mapped[str | None] = mapped_column(String(40))
+
+
+# ---- Phase 10: integrations
+API_SCOPES = ("customers:write", "visits:write", "enquiries:write", "bookings:write")
+WEBHOOK_EVENTS = ("message.status", "contact.opted_out", "conversation.created", "booking.created", "booking.updated")
+
+
+class WhatsAppApiKey(IdMixin, Base):
+    """A business's API key. Only a hash is stored: the key itself is shown once, when it is made."""
+
+    __tablename__ = "whatsapp_api_keys"
+    __table_args__ = (UniqueConstraint("key_hash", name="uq_wa_api_key_hash"), CheckConstraint("rate_limit_per_min BETWEEN 10 AND 600", name="ck_wa_api_key_rate"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    prefix: Mapped[str] = mapped_column(String(16))  # the first characters, so an owner can tell keys apart
+    key_hash: Mapped[str] = mapped_column(String(64))
+    scopes: Mapped[list] = mapped_column(JSONB, default=list)
+    rate_limit_per_min: Mapped[int] = mapped_column(Integer, default=60)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WhatsAppApiRequest(IdMixin, Base):
+    """The stored answer to an idempotent POST: a retry with the same key gets this, and the work is not done twice."""
+
+    __tablename__ = "whatsapp_api_requests"
+    __table_args__ = (UniqueConstraint("tenant_id", "key_id", "idem_key", name="uq_wa_api_request"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    key_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_api_keys.id", ondelete="CASCADE"))
+    idem_key: Mapped[str] = mapped_column(String(64))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    status_code: Mapped[int] = mapped_column(Integer)
+    response: Mapped[dict] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppWebhookEndpoint(IdMixin, Base):
+    __tablename__ = "whatsapp_webhook_endpoints"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(String(500))
+    secret_enc: Mapped[str] = mapped_column(Text)  # the signing secret, encrypted; shown once when made
+    secret_hint: Mapped[str] = mapped_column(String(8))
+    events: Mapped[list] = mapped_column(JSONB, default=list)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    disabled_reason: Mapped[str | None] = mapped_column(String(120))
+    failure_streak: Mapped[int] = mapped_column(Integer, default=0)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppWebhookDelivery(IdMixin, Base):
+    __tablename__ = "whatsapp_webhook_deliveries"
+    __table_args__ = (CheckConstraint(_in("status", ("pending", "delivered", "dead")), name="ck_wa_delivery_status"), Index("ix_wa_delivery_endpoint", "endpoint_id", "created_at"),
+                      Index("ix_wa_delivery_due", "next_attempt_at", postgresql_where=text("status = 'pending'")))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    endpoint_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_webhook_endpoints.id", ondelete="CASCADE"))
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    event_type: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[dict] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status_code: Mapped[int | None] = mapped_column(Integer)
+    last_error: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

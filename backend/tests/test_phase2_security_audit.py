@@ -95,6 +95,7 @@ def test_every_route_is_classified_and_nothing_mutating_is_public_by_accident():
         "/api/v1/account/me/deletion/confirm",  # reviewed: single-use, expiring, hashed link from the person's own mailbox; 10 per 5 minutes per IP; one identical answer for every failure
         "/api/v1/billing/razorpay/webhook",
         "/api/v1/webhooks/cashfree",  # reviewed: signature over the raw body, 5-minute window, stored before processing, treated as a hint (tests/test_cashfree_billing.py)
+        "/api/v1/integrations/v1/customers", "/api/v1/integrations/v1/visits", "/api/v1/integrations/v1/enquiries", "/api/v1/integrations/v1/bookings",  # reviewed: authenticated by a hashed, scoped, revocable, rate-limited API key (no cookie, so no CSRF); Pro only; every POST idempotent; never creates consent without an explicit agreement and a note of how (tests/test_whatsapp_integrations.py)
         "/api/v1/webhooks/cashfree-pg",  # reviewed: 404 unless prepaid checkout is on; signature over the raw body, 5-minute window, stored before processing, the order looked up by OUR id and the truth re-read from Cashfree (tests/test_prepaid_checkout.py)
     }
     stray = [(m, p) for p, m, lvl in route_table()
@@ -320,6 +321,8 @@ def test_cross_origin_browser_calls_work_for_the_site_and_only_the_site(monkeypa
     # every custom header the API emits must be exposed, or the browser hides it from the frontend
     emitted = set()
     for f in (_P(__file__).resolve().parents[1] / "app").rglob("*.py"):
+        if f.name == "integrations.py" and f.parent.name == "whatsapp":
+            continue  # its X-FlowQR-* names are headers on webhook REQUESTS we send to a business's own server, not responses a browser reads
         emitted |= set(_re.findall(r"X-FlowQR-[A-Za-z-]+", f.read_text(encoding="utf-8")))
     assert emitted <= set(exposed), f"headers the API sends but the browser would hide: {sorted(emitted - set(exposed))}"
     assert "Content-Disposition" in exposed

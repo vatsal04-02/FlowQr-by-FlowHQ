@@ -145,6 +145,8 @@ def get_or_create(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact) -
         conv = WhatsAppConversation(tenant_id=tenant_id, contact_id=contact.id, code=_code(db, tenant_id), status="open")
         db.add(conv)
         db.flush()
+        from app.services.whatsapp import integrations
+        integrations.emit(db, tenant_id, "conversation.created", {"conversation_id": conv.id, "source": conv.source, **integrations.customer_ref(contact)})
     return conv
 
 

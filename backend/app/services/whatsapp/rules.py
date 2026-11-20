@@ -82,11 +82,11 @@ def phone_hash(tenant_id: uuid.UUID, phone: str) -> str:
 
 # ---- add-on tiers. Prices are REFERENCE text (nothing is billed from the application). Meta's per-message charges are separate and never included in these.
 ADDON_TIERS = {
-    "whatsapp_starter": {"label": "WhatsApp Starter", "price_inr_month": 299, "automation_limit": 3, "campaigns": False, "occasions": False, "click_tracking": False, "bookings": False, "segmentation": "none",
+    "whatsapp_starter": {"label": "WhatsApp Starter", "price_inr_month": 299, "automation_limit": 3, "campaigns": False, "occasions": False, "click_tracking": False, "bookings": False, "integrations": False, "segmentation": "none",
                          "summary": "3 automations: reminders and review follow-ups."},
-    "whatsapp_growth": {"label": "WhatsApp Growth", "price_inr_month": 499, "automation_limit": 8, "campaigns": True, "occasions": True, "click_tracking": False, "bookings": True, "segmentation": "basic",
+    "whatsapp_growth": {"label": "WhatsApp Growth", "price_inr_month": 499, "automation_limit": 8, "campaigns": True, "occasions": True, "click_tracking": False, "bookings": True, "integrations": False, "segmentation": "basic",
                         "summary": "8 automations, scheduled campaigns and simple customer groups."},
-    "whatsapp_pro": {"label": "WhatsApp Pro", "price_inr_month": 799, "automation_limit": 15, "campaigns": True, "occasions": True, "click_tracking": True, "bookings": True, "segmentation": "advanced",
+    "whatsapp_pro": {"label": "WhatsApp Pro", "price_inr_month": 799, "automation_limit": 15, "campaigns": True, "occasions": True, "click_tracking": True, "bookings": True, "integrations": True, "segmentation": "advanced",
                      "summary": "15 automations, advanced customer groups and campaign results."},
 }
 

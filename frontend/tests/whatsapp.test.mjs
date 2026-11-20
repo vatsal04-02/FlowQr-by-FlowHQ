@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { reminderWords, reminderStateWords, hoursSummary, WEEKDAY_NAMES, BOOKING_STATUS_WORDS, KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { deliveryWords, webhookUrlProblem, keyStatusWords, reminderWords, reminderStateWords, hoursSummary, WEEKDAY_NAMES, BOOKING_STATUS_WORDS, KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -386,4 +386,19 @@ test("opening hours are summarised and bookings have four plain statuses", () =>
   assert.equal(hoursSummary([{ weekday: 5, opens: "10:00", closes: "14:00" }, { weekday: 0, opens: "09:00", closes: "18:00" }]), "Sat 10:00 to 14:00; Mon 09:00 to 18:00");
   assert.equal(WEEKDAY_NAMES.length, 7);
   assert.deepEqual(Object.keys(BOOKING_STATUS_WORDS), ["booked", "done", "no_show", "cancelled"]);
+});
+
+test("deliveries, keys and webhook addresses are explained in plain words", () => {
+  assert.equal(deliveryWords({ status: "delivered", attempts: 1, last_status_code: 200, last_error: null }), "Delivered.");
+  assert.equal(deliveryWords({ status: "delivered", attempts: 3, last_status_code: 200, last_error: null }), "Delivered on attempt 3.");
+  assert.equal(deliveryWords({ status: "pending", attempts: 0, last_status_code: null, last_error: null }), "Waiting to be sent.");
+  assert.match(deliveryWords({ status: "pending", attempts: 2, last_status_code: 500, last_error: "receiver answered 500" }), /Will try again \(attempt 2 failed: receiver answered 500\)/);
+  assert.match(deliveryWords({ status: "dead", attempts: 6, last_status_code: 500, last_error: "receiver answered 500" }), /Gave up after 6 attempts: receiver answered 500/);
+  assert.equal(keyStatusWords({ active: true, revoked_at: null, expires_at: null }), "Active");
+  assert.equal(keyStatusWords({ active: false, revoked_at: "2026-11-20", expires_at: null }), "Revoked");
+  assert.equal(keyStatusWords({ active: false, revoked_at: null, expires_at: "2026-11-01" }), "Expired");
+  assert.equal(webhookUrlProblem("https://hooks.example.com/x"), null);
+  assert.match(webhookUrlProblem("http://hooks.example.com"), /https/);
+  assert.match(webhookUrlProblem(""), /Enter/);
+  assert.match(webhookUrlProblem("https://x.example.com/" + "a".repeat(600)), /too long/);
 });

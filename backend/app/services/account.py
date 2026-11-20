@@ -39,7 +39,7 @@ log = logging.getLogger("flowqr.account")
 # Never exported, whatever table they are in.
 SECRET_COLUMNS = {"data", "refresh_token_encrypted", "access_token_encrypted", "access_token_expires_at", "password_hash", "token_hash", "csrf_token",
                   "visitor_hash", "logo_png", "idempotency_key", "publish_token", "dedupe_key",
-                  "access_token_enc", "state_hash"}  # WhatsApp: the encrypted business token and the hashed one-time signup state
+                  "access_token_enc", "state_hash", "key_hash", "secret_enc"}  # WhatsApp: the encrypted business token and the hashed one-time signup state
 MAX_ROWS = 200_000
 TABLES = [Location, GoogleConnection, GoogleLocation, Review, ReplyDraft, ReplyLog, QRCard, CardAssignment, ReviewCampaign, RetiredCampaignId,
           ReviewSession, ReviewDraft, ReviewEvent, ScanEvent, Subscription, Payment, CardOrder, AuditLog, AIGenerationLog, Invitation,
@@ -67,7 +67,8 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   "whatsapp_optin_settings", "whatsapp_optin_keywords", "whatsapp_festival_optins", "whatsapp_links", "whatsapp_link_clicks",
                   "whatsapp_conversation_settings", "whatsapp_conversations", "whatsapp_conversation_messages",
                   "whatsapp_ai_settings", "whatsapp_knowledge_items", "whatsapp_ai_runs", "whatsapp_unanswered_questions",
-                  "whatsapp_booking_settings", "whatsapp_booking_services", "whatsapp_booking_hours", "whatsapp_booking_closed", "whatsapp_bookings")
+                  "whatsapp_booking_settings", "whatsapp_booking_services", "whatsapp_booking_hours", "whatsapp_booking_closed", "whatsapp_bookings",
+                  "whatsapp_api_keys", "whatsapp_api_requests", "whatsapp_webhook_endpoints", "whatsapp_webhook_deliveries")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 

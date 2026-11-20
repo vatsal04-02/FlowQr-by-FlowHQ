@@ -237,6 +237,26 @@ def whatsapp_booking_reminders():
         db.close()
 
 
+@celery_app.task(name="flowqr.whatsapp_webhook_deliveries")
+def whatsapp_webhook_deliveries():
+    """Outbound webhook deliveries that are due (signed, to public https addresses only, retried with backoff). Does nothing unless WHATSAPP_INTEGRATIONS_ENABLED."""
+    from app.services.whatsapp import integrations as wa_integrations
+
+    if not wa_integrations.platform_on():
+        return {"held": True}
+    db = system_session()
+    try:
+        out = wa_integrations.run_deliveries(db)
+        db.commit()
+        return out
+    except Exception:
+        db.rollback()
+        log.exception("whatsapp webhook deliveries failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.whatsapp_run_due")
 def whatsapp_run_due():
     """Send what is due: automation runs, then campaign batches. Holds everything (and sends nothing) unless WHATSAPP_ENABLED and WHATSAPP_SENDING_ENABLED are true and the emergency stop is off."""
@@ -277,6 +297,8 @@ def whatsapp_housekeeping():
         if hit("wa-conversation-purge", 1, 6 * 3600):  # at most every six hours
             from app.services.whatsapp import conversations as wa_conversations
             out["conversation_purge"] = wa_conversations.purge(db)
+            from app.services.whatsapp import integrations as wa_integrations
+            out["integrations_purge"] = wa_integrations.purge(db)
         db.commit()
         for i in ids:
             wa_webhook.enqueue(i)

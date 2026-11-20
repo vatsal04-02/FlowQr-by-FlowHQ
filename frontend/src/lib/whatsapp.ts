@@ -553,3 +553,24 @@ export function hoursSummary(rows: { weekday: number; opens: string; closes: str
 }
 export const bookingDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
 export const bookingTime = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
+
+// ---- integrations
+export interface WaApiKey { id: string; name: string; prefix: string; scopes: string[]; rate_limit_per_min: number; created_at: string; last_used_at: string | null; expires_at: string | null; revoked_at: string | null; active: boolean; key?: string; note?: string }
+export interface WaWebhookEndpoint { id: string; url: string; events: string[]; active: boolean; disabled_reason: string | null; secret_hint: string; failure_streak: number; last_success_at: string | null; last_failure_at: string | null; created_at: string; secret?: string; note?: string }
+export interface WaDelivery { id: string; endpoint_id: string; event_id: string; event_type: string; status: "pending" | "delivered" | "dead"; attempts: number; next_attempt_at: string | null; last_status_code: number | null; last_error: string | null; created_at: string; delivered_at: string | null }
+export interface WaIntegrations { platform_on: boolean; plan_ok: boolean; keys: WaApiKey[]; endpoints: WaWebhookEndpoint[]; scopes: Record<string, string>; events: Record<string, string>; api_version: string; base_path: string; limits: { keys: number; endpoints: number } }
+/** One plain sentence for a delivery: what happened and what happens next. */
+export function deliveryWords(d: Pick<WaDelivery, "status" | "attempts" | "last_status_code" | "last_error">): string {
+  if (d.status === "delivered") return d.attempts > 1 ? `Delivered on attempt ${d.attempts}.` : "Delivered.";
+  if (d.status === "dead") return `Gave up after ${d.attempts} attempts${d.last_error ? `: ${d.last_error}` : ""}.`;
+  return d.attempts === 0 ? "Waiting to be sent." : `Will try again (attempt ${d.attempts} failed${d.last_error ? `: ${d.last_error}` : ""}).`;
+}
+/** A webhook address must be https; this is only a quick check before asking the server, which does the real one. */
+export function webhookUrlProblem(url: string): string | null {
+  const u = url.trim();
+  if (!u) return "Enter the address that should receive events.";
+  if (!/^https:\/\//i.test(u)) return "The address must start with https://";
+  if (u.length > 500) return "That address is too long.";
+  return null;
+}
+export const keyStatusWords = (k: Pick<WaApiKey, "active" | "revoked_at" | "expires_at">): string => (k.revoked_at ? "Revoked" : !k.active ? "Expired" : "Active");

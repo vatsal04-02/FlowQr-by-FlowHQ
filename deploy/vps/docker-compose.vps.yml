@@ -15,6 +15,7 @@ x-hardened: &hardened
   APP_ENV: ${APP_ENV:?set APP_ENV=production}
   WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}  # the WhatsApp section. The base compose file lists variables one by one, so a variable only reaches the app if it is listed here or there. Off unless .env.production says true. The other WHATSAPP_ and META_ variables are NOT passed through yet: add each one here on purpose when it is needed
   WHATSAPP_CONVERSATIONS_ENABLED: ${WHATSAPP_CONVERSATIONS_ENABLED:-false}  # two-way conversations and the inbox (also needs each business to switch its own on)
+  WHATSAPP_INTEGRATIONS_ENABLED: ${WHATSAPP_INTEGRATIONS_ENABLED:-false}  # API keys, inbound API and signed outbound webhooks (Pro; also off until a business creates a key)
   WHATSAPP_BOOKING_ENABLED: ${WHATSAPP_BOOKING_ENABLED:-false}  # appointment booking and reminders (also needs each business to switch its own on)
   WHATSAPP_AI_ENABLED: ${WHATSAPP_AI_ENABLED:-false}  # the assistant that answers customers (also needs each business to switch its own on, and the terms switch below)
   WHATSAPP_AI_KILL_SWITCH: ${WHATSAPP_AI_KILL_SWITCH:-false}  # true stops every assistant reply at once

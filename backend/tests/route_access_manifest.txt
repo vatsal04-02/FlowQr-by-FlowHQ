@@ -268,6 +268,11 @@ role-admin	POST	/api/v1/google/connections/{connection_id}/refresh-locations
 role-admin	PUT	/api/v1/google/connections/{connection_id}/selection
 member	GET	/api/v1/google/status
 role-admin	POST	/api/v1/google/sync
+public	POST	/api/v1/integrations/v1/bookings
+public	POST	/api/v1/integrations/v1/customers
+public	POST	/api/v1/integrations/v1/enquiries
+public	GET	/api/v1/integrations/v1/me
+public	POST	/api/v1/integrations/v1/visits
 signed-in	POST	/api/v1/invitations/accept
 public-bypass-db	GET	/api/v1/l/{token}
 public	GET	/api/v1/legal/info
@@ -437,6 +442,15 @@ member	POST	/api/v1/whatsapp/conversations/{conversation_id}/reopen
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/reply
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/send-template
 member	POST	/api/v1/whatsapp/conversations/{conversation_id}/take-over
+role-admin	GET	/api/v1/whatsapp/integrations
+role-admin	GET	/api/v1/whatsapp/integrations/deliveries
+role-admin	POST	/api/v1/whatsapp/integrations/deliveries/{delivery_id}/retry
+role-admin	POST	/api/v1/whatsapp/integrations/endpoints
+role-admin	DELETE	/api/v1/whatsapp/integrations/endpoints/{endpoint_id}
+role-admin	PATCH	/api/v1/whatsapp/integrations/endpoints/{endpoint_id}
+role-admin	POST	/api/v1/whatsapp/integrations/endpoints/{endpoint_id}/test
+role-admin	POST	/api/v1/whatsapp/integrations/keys
+role-admin	POST	/api/v1/whatsapp/integrations/keys/{key_id}/revoke
 member	GET	/api/v1/whatsapp/messages
 role-admin	GET	/api/v1/whatsapp/messages/export
 member	GET	/api/v1/whatsapp/occasions

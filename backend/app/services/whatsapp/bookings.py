@@ -347,6 +347,12 @@ def _code(db: Session, tenant_id: uuid.UUID) -> str:
 
 
 # ---- the one place a booking is made, changed or ended
+def _event(db: Session, b: WhatsAppBooking, change: str, now: datetime | None) -> None:
+    """Tell anyone listening (outbound webhooks). Lazy import: integrations uses this module too."""
+    from app.services.whatsapp import integrations
+    integrations.booking_event(db, b, change, now)
+
+
 def _lock(db: Session, tenant_id: uuid.UUID) -> WhatsAppBookingSettings:
     """Take the business's booking lock. Everything that reads availability and then writes a booking does so while holding it."""
     s = db.scalar(select(WhatsAppBookingSettings).where(WhatsAppBookingSettings.tenant_id == tenant_id).with_for_update())
@@ -374,6 +380,7 @@ def book(db: Session, tenant: Tenant, contact: WhatsAppContact, svc: WhatsAppBoo
     db.add(b)
     db.flush()
     audit(db, action="whatsapp.booking_create", tenant_id=tenant.id, user_id=user.id if user else None, entity_type="whatsapp_booking", entity_id=b.id, meta={"source": source, "code": b.code}, ip=ip)
+    _event(db, b, "created", now)
     return b, True
 
 
@@ -390,6 +397,7 @@ def reschedule(db: Session, tenant: Tenant, b: WhatsAppBooking, start: datetime,
     b.reminder_day_at = b.reminder_day_result = b.reminder_soon_at = b.reminder_soon_result = None  # reminders are for the new time
     db.flush()
     audit(db, action="whatsapp.booking_reschedule", tenant_id=tenant.id, user_id=user.id if user else None, entity_type="whatsapp_booking", entity_id=b.id, ip=ip)
+    _event(db, b, "rescheduled", now)
     return b
 
 
@@ -401,6 +409,7 @@ def cancel(db: Session, tenant: Tenant, b: WhatsAppBooking, reason: str | None =
     b.status, b.cancelled_at, b.cancel_reason = "cancelled", now or utcnow(), (" ".join((reason or "").split())[:120] or None)
     db.flush()
     audit(db, action="whatsapp.booking_cancel", tenant_id=tenant.id, user_id=user.id if user else None, entity_type="whatsapp_booking", entity_id=b.id, ip=ip)
+    _event(db, b, "cancelled", now)
     return b
 
 
@@ -424,6 +433,7 @@ def mark(db: Session, tenant: Tenant, user: User, b: WhatsAppBooking, status: st
             review = {"scheduled": False, "reason": "automation_off"}
     db.flush()
     audit(db, action=f"whatsapp.booking_{status}", tenant_id=tenant.id, user_id=user.id, entity_type="whatsapp_booking", entity_id=b.id, ip=ip)
+    _event(db, b, status, now)
     return {"booking": b, "review": review}
 
 

@@ -25,7 +25,7 @@ from app.services.audit import audit
 from app.services.whatsapp import WaError
 from app.services.whatsapp import rules
 
-OWNER_SOURCES = ("owner_entry", "csv_import", "admin_entry")
+OWNER_SOURCES = ("owner_entry", "csv_import", "admin_entry", "api_integration")  # somebody other than the customer says "they agreed": attested, with a written note of how
 MAX_IMPORT_ROWS = 2000
 MAX_IMPORT_BYTES = 300_000
 MAX_TAGS = 10
