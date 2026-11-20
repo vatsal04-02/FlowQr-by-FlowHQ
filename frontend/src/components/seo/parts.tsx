@@ -14,7 +14,7 @@ const SRC: Record<Source, { label: string; tip: string; cls: string }> = {
 /** Where a number comes from. Shown on every Local SEO and Performance card so Google data, Places measurements and our own calculations are never confused. */
 export function SourceTag({ source, className }: { source: Source; className?: string }) {
   const s = SRC[source];
-  return <span title={s.tip} className={clsx("inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[11px] font-semibold", s.cls, className)}>{s.label}</span>;
+  return <span title={s.tip} className={clsx("inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[12px] font-semibold", s.cls, className)}>{s.label}</span>;
 }
 
 /** The explicit "unavailable" state: says what is missing and why, and never shows a zero in its place. */

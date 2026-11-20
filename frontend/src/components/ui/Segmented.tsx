@@ -11,7 +11,7 @@ export function Segmented<T extends string | number>({ options, value, onChange,
   const id = useId();
   const move = (dir: 1 | -1) => { const i = options.findIndex(([v]) => v === value); onChange(options[(i + dir + options.length) % options.length][0]); };
   return (
-    <div role="radiogroup" aria-label={label} className={clsx("relative flex rounded-full bg-surface-2/80 p-1 shadow-[inset_0_1px_2px_rgba(22,19,15,.08)] backdrop-blur", className)}
+    <div role="radiogroup" aria-label={label} className={clsx("relative flex rounded-full bg-surface-2 p-1", className)}
       onKeyDown={(e) => { if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); move(1); } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); move(-1); } }}>
       {options.map(([v, l]) => {
         const on = v === value;

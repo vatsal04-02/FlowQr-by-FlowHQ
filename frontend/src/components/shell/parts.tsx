@@ -1,7 +1,6 @@
 "use client";
 import clsx from "clsx";
 import { Check, ChevronDown, HelpCircle, Moon, Sun } from "lucide-react";
-import { Sheet } from "../ui/Sheet";
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { locate, type Dest } from "@/lib/nav";
@@ -56,24 +55,38 @@ export function ThemeToggle({ vertical = false, small = false }: { vertical?: bo
  * Page tabs: the pages inside the current section, and a lighter second row for pages that share a theme. At most four tabs, sharing the width equally, so no
  * label is ever cut on a 390px phone. A section with more pages shows the current page as a button that opens a list (one sheet), never a cut-off strip.
  */
+/** Every page of a section as one row of pills you can swipe: the current one is filled and scrolled into view, so nothing is hidden behind a menu and one tap goes anywhere. */
+function Strip({ label, items, current, className }: { label: string; items: { href: string; label: string }[]; current: string | null; className?: string }) {
+  const on = useRef<HTMLAnchorElement>(null);
+  useEffect(() => { on.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [current]);
+  return (
+    <nav aria-label={label} className={className}>
+      <ul className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        {items.map((x) => {
+          const active = x.href === current;
+          return (
+            <li key={x.href} className="shrink-0">
+              <Link ref={active ? on : undefined} href={x.href} aria-current={active ? "page" : undefined}
+                className={clsx("flex min-h-11 items-center rounded-full px-4 text-[15px] font-semibold transition-colors", active ? "bg-ink-solid text-ink-on" : "bg-surface text-ink-700 ring-1 ring-line hover:bg-surface-2")}>
+                {x.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests: Dest[]; hidePrimaryOnWide?: boolean }) {
   const l = locate(path);
-  const [pick, setPick] = useState<null | { label: string; items: { href: string; label: string }[]; on: string | null }>(null);
   if (!l) return null;
   const dest = dests.find((d) => d.id === l.dest.id) ?? l.dest;
   const kids = dest.children ?? [];
   const child = kids.find((c) => c.href === l.child?.href) ?? null;
   const row = (label: string, items: { href: string; label: string }[], current: string | null, small?: boolean, hideWide?: boolean) => {
     if (items.length > 4) {
-      const now = items.find((x) => x.href === current) ?? items[0];
-      return (
-        <nav aria-label={label} className={clsx(small ? "mb-3" : "mb-4", hideWide && "md:hidden")}>
-          <button type="button" aria-haspopup="dialog" onClick={() => setPick({ label, items, on: current })}
-            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[12px] bg-surface px-3 text-[14px] font-medium ring-1 ring-line hover:bg-surface-2 sm:w-auto sm:min-w-[240px]">
-            <span className="truncate">{now.label}</span><ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden />
-          </button>
-        </nav>
-      );
+      return <Strip label={label} items={items} current={current} className={clsx(small ? "mb-3" : "mb-4", hideWide && "md:hidden")} />;
     }
     return (
       <nav aria-label={label} className={clsx(small ? "mb-3" : "mb-4", hideWide && "md:hidden")}>
@@ -85,7 +98,7 @@ export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests
                 <Link href={x.href} aria-current={active ? "page" : undefined}
                   className={clsx("relative flex min-h-11 items-center justify-center whitespace-nowrap px-2 text-center font-medium transition-colors",
                     small ? clsx("rounded-[10px] text-[13px] sm:min-h-9", active ? "bg-surface text-ink shadow-card" : "text-muted hover:text-ink")
-                      : clsx("text-[14px]", active ? "text-ink" : "text-muted hover:text-ink"))}>
+                      : clsx("text-[15px] font-semibold", active ? "text-ink" : "text-muted hover:text-ink"))}>
                   {x.label}
                   {!small && active && <span aria-hidden className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink-solid" />}
                 </Link>
@@ -101,15 +114,6 @@ export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests
     <>
       {kids.length > 1 && row(`${dest.label} pages`, kids, child?.href ?? null, false, hidePrimaryOnWide)}
       {child?.tabs && child.tabs.length > 1 && row(`${child.label} sections`, child.tabs, tabNow, true)}
-      <Sheet open={!!pick} onClose={() => setPick(null)} title={pick?.label.replace(/ (pages|sections)$/, "") ?? ""}>
-        <ul className="pb-2">
-          {pick?.items.map((x) => (
-            <li key={x.href}><Link href={x.href} onClick={() => setPick(null)} aria-current={x.href === pick.on ? "page" : undefined}
-              className={clsx("flex min-h-12 items-center justify-between rounded-[12px] px-3 text-[15px]", x.href === pick.on ? "bg-surface-2 font-semibold" : "hover:bg-surface-2")}>
-              {x.label}{x.href === pick.on && <Check className="h-4 w-4" aria-hidden />}</Link></li>
-          ))}
-        </ul>
-      </Sheet>
     </>
   );
 }

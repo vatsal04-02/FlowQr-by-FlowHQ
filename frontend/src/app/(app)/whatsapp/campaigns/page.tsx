@@ -1,11 +1,12 @@
 "use client";
-import { Copy, Download, Plus } from "lucide-react";
+import { ChevronRight, Copy, Download, Megaphone, Plus } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
 import { Input, Select, Textarea } from "@/components/ui/Form";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { IconTile, Note } from "@/components/whatsapp/ui";
 import { api, apiFile, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
@@ -41,23 +42,26 @@ export default function Offers() {
 
   return (
     <>
-      <PageHeader title="Offers" subtitle="Send an offer to customers who agreed to receive them. You approve it before anything is sent."
-        actions={isAdmin && list.data?.allowed && choices.length > 0 ? <Button variant="brand" icon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>New offer</Button> : undefined} />
+      <PageHeader title="Offers"
+        actions={isAdmin && list.data?.allowed && choices.length > 0 ? <Button variant="brand" size="lg" icon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>New offer</Button> : undefined} />
       {list.error && <Alert tone="error">{list.error}</Alert>}
       {!list.data || !tpl.data ? <Skeleton className="h-64" /> : (
         <div className="space-y-4">
           {!list.data.allowed && <Alert tone="info" title="Part of the Growth and Pro add-ons">Offers are not included in your WhatsApp add-on. Ask the FlowQR team to upgrade it.</Alert>}
           {list.data.allowed && !offer && <Alert tone="info" title="First, get the offer message approved" action={isAdmin ? <Button loading={busy} onClick={() => void prepare()}>Prepare the message</Button> : undefined}>WhatsApp has to approve the wording of every message. We send it for you. It usually takes a short while.</Alert>}
           {offer && offer.status !== "approved" && choices.length === 0 && <Alert tone={offer.status === "rejected" ? "warning" : "info"} title={offer.status === "pending" ? "WhatsApp is reviewing the offer message" : "The offer message is not approved"} action={<Button variant="secondary" loading={busy} onClick={() => void check()}>Check again</Button>}>{offer.rejection_reason ? `Reason: ${offer.rejection_reason}` : "You can create offers as soon as it is approved."}</Alert>}
-          {!list.data.sending && <Alert tone="info">Sending is not switched on yet. You can prepare and approve offers now. They start when FlowQR switches WhatsApp sending on.</Alert>}
-          {list.data.items.length === 0 ? <EmptyState title="No offers yet">Offers go only to customers who agreed to receive them.</EmptyState> : (
-            <div className="space-y-3">{list.data.items.map((c) => (
-              <Card key={c.id}>
-                <button type="button" onClick={() => setOpen(c.id)} className="flex w-full flex-wrap items-start justify-between gap-3 text-left">
-                  <span className="min-w-0"><span className="block font-semibold text-ink">{c.name}</span><span className="mt-0.5 block text-[13px] text-ink-500">{c.variables.offer_text ?? "Custom message"} · {c.scheduled_at ? `starts ${fmtDate(c.scheduled_at)}` : fmtDate(c.created_at)}</span></span>
+          {!list.data.sending && <Note className="px-1">Sending is not switched on yet. Offers start when it is.</Note>}
+          <Note className="px-1">Offers go only to customers who agreed. You approve each one before anything is sent.</Note>
+          {list.data.items.length === 0 ? <EmptyState title="No offers yet">Create one to see who would get it and the likely charge.</EmptyState> : (
+            <ul className="panel divide-y divide-line">{list.data.items.map((c) => (
+              <li key={c.id}>
+                <button type="button" onClick={() => setOpen(c.id)} className="flex min-h-[72px] w-full items-center gap-3 p-4 text-left">
+                  <IconTile icon={Megaphone} tone={c.status === "sending" || c.status === "done" ? "pos" : c.status === "paused" ? "warn" : "brand"} size={44} />
+                  <span className="min-w-0 flex-1"><span className="block truncate text-[16px] font-semibold text-ink">{c.name}</span><span className="mt-0.5 block truncate text-[13px] text-muted">{c.variables.offer_text ?? "Custom message"} · {c.scheduled_at ? `starts ${fmtDate(c.scheduled_at)}` : fmtDate(c.created_at)}</span></span>
                   <Badge tone={CAMPAIGN_STATUS[c.status].tone}>{CAMPAIGN_STATUS[c.status].label}</Badge>
+                  <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-ink-300" />
                 </button>
-              </Card>))}</div>
+              </li>))}</ul>
           )}
           {cmp.data && cmp.data.items.length > 0 && (
             <Card>
@@ -66,7 +70,7 @@ export default function Offers() {
                 <thead><tr className="text-[13px] text-ink-500">{["Offer", "Sent", "Delivered", "Read", "Not delivered", "Asked to stop", "Likely charge"].map((h) => <th key={h} className="pb-2 pr-3 font-semibold">{h}</th>)}</tr></thead>
                 <tbody>{cmp.data.items.map((r) => (
                   <tr key={r.id} className="border-t border-ink-100 text-ink-700">
-                    <td className="py-2 pr-3 font-semibold text-ink">{r.name}<span className="block text-[12px] font-normal text-ink-400">{r.started_at ? fmtDate(r.started_at) : ""}</span></td>
+                    <td className="py-2 pr-3 font-semibold text-ink">{r.name}<span className="block text-[13px] font-normal text-ink-400">{r.started_at ? fmtDate(r.started_at) : ""}</span></td>
                     <td className="pr-3 tabular-nums">{r.sent}</td><td className="pr-3 tabular-nums">{r.delivered} <span className="text-ink-400">({percent(r.delivery_rate)})</span></td>
                     <td className="pr-3 tabular-nums">{r.read} <span className="text-ink-400">({percent(r.read_rate)} of delivered)</span></td><td className="pr-3 tabular-nums">{r.failed}</td><td className="pr-3 tabular-nums">{r.opted_out_after}</td><td className="tabular-nums">{rupees(r.estimated_meta_cost)}</td>
                   </tr>))}</tbody>
@@ -150,7 +154,7 @@ function NewOffer({ choices, onClose, onDone }: { choices: WaTemplates["items"];
                 {f.engaged && <Input label="In the last (days)" type="number" min={1} max={365} value={f.engagedDays} onChange={(e) => setF({ ...f, engagedDays: e.target.value })} />}
                 <Input label="Did not read, reply to or click their last (offers)" type="number" min={1} max={10} value={f.offersN} onChange={(e) => setF({ ...f, offersN: e.target.value })} hint="Only customers who were sent at least this many offers that reached their phone. Read receipts must be on to see a read." />
                 <Input label="Win back: not visited or messaged in the last (days)" type="number" min={1} max={365} value={f.winback} onChange={(e) => setF({ ...f, winback: e.target.value })} hint={WINBACK_NOTE} />
-                <p className="text-[12px] text-ink-500">These only choose who the offer is for. It is still an ordinary offer: customers must have agreed to offers, anyone who replied STOP is left out, and you approve the exact number first.</p>
+                <p className="text-[13px] text-ink-500">These only choose who the offer is for. It is still an ordinary offer: customers must have agreed to offers, anyone who replied STOP is left out, and you approve the exact number first.</p>
               </div>
             </div>
           </details>
@@ -253,7 +257,7 @@ function OfferDetail({ id, canEdit, onClose, onDuplicate }: { id: string; canEdi
             <div className="border-t border-line pt-3">
               <div className="mb-2 flex items-center justify-between"><p className="font-semibold text-ink">Results so far</p>{canEdit && <Button size="sm" variant="secondary" icon={<Download className="h-4 w-4" />} onClick={() => void download()}>Download results</Button>}</div>
               <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {([["Sent", res.data.sent], ["Delivered", `${res.data.delivered} (${percent(res.data.delivery_rate)})`], ["Read", `${res.data.read} (${percent(res.data.read_rate)})`], ["Not delivered", res.data.failed], ["Waiting", res.data.waiting], ["Not sent", res.data.skipped], ["Asked to stop after", res.data.opted_out_after], ["Charge so far", rupees(res.data.estimated_meta_cost)]] as [string, number | string][]).map(([l, v]) => <div key={l} className="rounded-xl bg-surface-2 p-3"><dt className="text-[12px] text-ink-500">{l}</dt><dd className="font-semibold tabular-nums text-ink">{v}</dd></div>)}
+                {([["Sent", res.data.sent], ["Delivered", `${res.data.delivered} (${percent(res.data.delivery_rate)})`], ["Read", `${res.data.read} (${percent(res.data.read_rate)})`], ["Not delivered", res.data.failed], ["Waiting", res.data.waiting], ["Not sent", res.data.skipped], ["Asked to stop after", res.data.opted_out_after], ["Charge so far", rupees(res.data.estimated_meta_cost)]] as [string, number | string][]).map(([l, v]) => <div key={l} className="rounded-xl bg-surface-2 p-3"><dt className="text-[13px] text-ink-500">{l}</dt><dd className="font-semibold tabular-nums text-ink">{v}</dd></div>)}
               </dl>
               <Timeline days={res.data.timeline} />
               {Object.keys(res.data.skipped_reasons).length > 0 && <ul className="mt-2 list-disc pl-5 text-[13px] text-ink-700">{Object.entries(res.data.skipped_reasons).map(([r, n]) => <li key={r}>{n}: {reasonWords(r)}</li>)}</ul>}

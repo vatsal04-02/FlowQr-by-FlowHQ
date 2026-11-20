@@ -35,12 +35,12 @@ export function LatestReviews({ items, total, loading }: { items: Review[] | nul
                     <span data-words="skip" className="block truncate text-[14px] font-semibold group-hover:underline">{r.reviewer_name ?? "Google user"}</span>
                     <span data-words="skip" className="block truncate text-[13px] text-muted">{r.text || "Rating only, no written review"}</span>
                   </Link>
-                  <span className="flex flex-col items-end gap-0.5"><Stars rating={r.rating} size={12} /><span className="text-[12px] text-muted">{timeAgo(r.review_created_at)}</span></span>
+                  <span className="flex flex-col items-end gap-0.5"><Stars rating={r.rating} size={12} /><span className="text-[13px] text-muted">{timeAgo(r.review_created_at)}</span></span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-12">
-                  <span className={clsx("rounded-full px-2 py-0.5 text-[11px] font-semibold leading-4", replied ? "bg-pos-tint text-pos" : "bg-warn-tint text-warn")}>{replied ? "Replied" : "Needs reply"}</span>
+                  <span className={clsx("rounded-full px-2 py-0.5 text-[12px] font-semibold leading-4", replied ? "bg-pos-tint text-pos" : "bg-warn-tint text-warn")}>{replied ? "Replied" : "Needs reply"}</span>
                   {!replied && (
-                    <Link href={`/gbp/reviews/${r.id}`} className="btn-glass inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold md:min-h-7">
+                    <Link href={`/gbp/reviews/${r.id}`} className="btn-glass inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold md:min-h-7">
                       {!personal && <Sparkles className="h-3 w-3" aria-hidden />}{personal ? "Open to handle" : "Reply with AI"}
                     </Link>
                   )}
@@ -50,7 +50,7 @@ export function LatestReviews({ items, total, loading }: { items: Review[] | nul
           })}
         </ul>
       )}
-      {items && total > items.length && <p className="mt-1 text-[12px] text-muted">{total} reviews synced in all</p>}
+      {items && total > items.length && <p className="mt-1 text-[13px] text-muted">{total} reviews synced in all</p>}
     </Card>
   );
 }
@@ -63,7 +63,7 @@ export function RatingMix({ o, loading }: { o: Overview | null; loading: boolean
   const total = slices.reduce((a, s) => a + s.value, 0);
   return (
     <Card label="Rating mix" tone="amber">
-      <Title right={total ? <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[12px] font-medium text-ink-700">{total} reviews</span> : null}>Rating mix</Title>
+      <Title right={total ? <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[13px] font-medium text-ink-700">{total} reviews</span> : null}>Rating mix</Title>
       {loading || !r ? <Skeleton className="mt-3 h-[130px]" /> : total === 0 ? <p className="mt-3 text-[14px] text-muted">Shown once reviews have been synced.</p> : (
         <div className="mt-3 flex flex-wrap items-center gap-5">
           <Donut slices={slices} size={116} stroke={16} label={`Rating mix of ${total} reviews`}

@@ -68,7 +68,7 @@ function Hero({ trialDays }: { trialDays: number | null }) {
   const facts: [string, string][] = [["One payment per term", "bg-tone-sky/15"], ["No auto-renewal", "bg-tone-teal/15"], ["Prices in rupees", "bg-tone-amber/20"], ...(trialDays ? [[`${trialDays}-day free trial`, "bg-accent-tint"] as [string, string]] : [])];
   return (
     <header className="pb-6 pt-2 sm:pb-9 sm:pt-4">
-      <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }} className="inline-flex rounded-full bg-accent-tint px-3 py-1 text-[11px] font-medium text-accent-ink">Plans</motion.p>
+      <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }} className="inline-flex rounded-full bg-accent-tint px-3 py-1 text-[12px] font-medium text-accent-ink">Plans</motion.p>
       <motion.h2 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05, ease: EASE }}
         className="mt-3 max-w-[24ch] text-balance font-display text-[1.65rem] font-semibold leading-[1.12] tracking-[-0.02em] text-ink sm:max-w-[28ch] sm:text-[2.2rem] lg:text-[2.6rem]">
         Grow your local business. Without the operational overhead.
@@ -77,7 +77,7 @@ function Hero({ trialDays }: { trialDays: number | null }) {
         Collect more Google reviews, answer them quickly and keep your business profile active from one place. Pick the plan that fits your business and the term that fits your budget.
       </motion.p>
       <motion.ul initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.22 }} className="mt-4 flex flex-wrap gap-2">
-        {facts.map(([f, tint]) => <li key={f} className="flex items-center gap-2 rounded-full bg-surface py-1.5 pl-1.5 pr-3 text-[12px] text-ink-700 shadow-pill"><span className={`grid h-5 w-5 place-items-center rounded-full ${tint}`}><Check className="h-3 w-3 text-ink" aria-hidden /></span>{f}</li>)}
+        {facts.map(([f, tint]) => <li key={f} className="flex items-center gap-2 rounded-full bg-surface py-1.5 pl-1.5 pr-3 text-[13px] text-ink-700 shadow-pill"><span className={`grid h-5 w-5 place-items-center rounded-full ${tint}`}><Check className="h-3 w-3 text-ink" aria-hidden /></span>{f}</li>)}
       </motion.ul>
     </header>
   );
@@ -108,7 +108,7 @@ function TermSelector({ terms, plans, value, onChange }: { terms: PrepaidTerms; 
                 const on = m === value;
                 return (
                   <button key={m} ref={(el) => { refs.current[i] = el; }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(m)} onKeyDown={(e) => move(e, i)}
-                    className={`relative min-h-10 rounded-full px-1 text-center text-[12.5px] font-medium transition-colors sm:text-[13px] ${ring} ${on ? "text-on-accent" : "text-muted hover:text-ink"}`}>
+                    className={`relative min-h-10 rounded-full px-1 text-center text-[13px] font-medium transition-colors sm:text-[13px] ${ring} ${on ? "text-on-accent" : "text-muted hover:text-ink"}`}>
                     {on && <motion.span layoutId="term-pill" className="absolute inset-0 rounded-full bg-accent-ink shadow-pill" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
                     <span className="relative">{termTabLabel(m)}</span>
                   </button>
@@ -118,7 +118,7 @@ function TermSelector({ terms, plans, value, onChange }: { terms: PrepaidTerms; 
           </LayoutGroup>
         </div>
       </div>
-      <p className="mt-1.5 flex min-h-6 items-center gap-2 px-1 text-[12px] text-muted sm:justify-end" aria-hidden>{best > 0 ? <><span className="rounded-full bg-pos-tint px-2 py-0.5 font-medium text-pos">Up to {best}% less</span>than paying month by month</> : "Pay one month at a time"}</p>
+      <p className="mt-1.5 flex min-h-6 items-center gap-2 px-1 text-[13px] text-muted sm:justify-end" aria-hidden>{best > 0 ? <><span className="rounded-full bg-pos-tint px-2 py-0.5 font-medium text-pos">Up to {best}% less</span>than paying month by month</> : "Pay one month at a time"}</p>
     </>
   );
 }
@@ -174,9 +174,9 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, 
         <div className="flex min-h-8 items-center justify-between gap-2">
           <div className="flex items-center gap-2.5"><span className={`grid h-8 w-8 place-items-center rounded-xl ${th.chipIcon}`}><th.icon className="h-4 w-4" aria-hidden /></span>
           <h3 id={`plan-${plan.code}`} className="font-display text-[17px] font-semibold tracking-tight text-ink">{name}</h3></div>
-          {state === "current" ? <span className="rounded-full bg-pos-tint px-2.5 py-1 text-[11px] font-medium text-pos">Current plan</span>
-            : state === "trial" ? <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-medium text-muted shadow-pill">In your free trial</span>
-            : recommended ? <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] font-medium text-accent-ink shadow-pill">Recommended</span> : null}
+          {state === "current" ? <span className="rounded-full bg-pos-tint px-2.5 py-1 text-[12px] font-medium text-pos">Current plan</span>
+            : state === "trial" ? <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-muted shadow-pill">In your free trial</span>
+            : recommended ? <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-accent-ink shadow-pill">Recommended</span> : null}
         </div>
         <p className="mt-2 text-[13px] text-ink-700">{POSITIONING[plan.code]}</p>
         </div>
@@ -186,7 +186,7 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, 
           {total === null ? <p className="font-display text-2xl font-semibold text-muted">Unavailable</p> : (
             <>
               <p className="flex items-baseline gap-1.5 font-display text-ink"><span className="text-xl font-medium text-muted">₹</span><Glide value={total / 100} className="num text-[2.4rem] font-semibold leading-none tracking-[-0.03em] sm:text-[2.7rem]" /><span className="text-[13px] font-normal text-muted">for {monthsLabel(months)}</span></p>
-              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]">
+              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px]">
                 <span className={`rounded-full px-2.5 py-1 text-ink-700 ${th.chip}`}><span className="num font-medium text-ink">₹<Glide value={(monthly ?? 0) / 100} /></span> a month</span>
                 {saving && !offer && <span className="rounded-full bg-pos-tint px-2.5 py-1 font-medium text-pos">Save {rupees(saving.paise)} ({saving.percent}%)</span>}
                 {offer && <span className="rounded-full bg-accent-tint px-2.5 py-1 font-medium text-accent-ink">{offer.label} · normally {rupees(offer.list_price_paise)}</span>}
@@ -205,16 +205,16 @@ function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, 
 
         <dl className="mt-5 grid grid-cols-2 gap-2">
           {LIMIT_ROWS.map((r) => (
-            <div key={r.id} className={`rounded-2xl px-3 py-2.5 ${th.tile}`}><dd className="num font-display text-lg font-semibold leading-6 text-ink">{r.value(plan).toLocaleString("en-IN")}</dd><dt className="mt-0.5 text-[11.5px] leading-4 text-muted">{r.label}</dt></div>
+            <div key={r.id} className={`rounded-2xl px-3 py-2.5 ${th.tile}`}><dd className="num font-display text-lg font-semibold leading-6 text-ink">{r.value(plan).toLocaleString("en-IN")}</dd><dt className="mt-0.5 text-[12px] leading-4 text-muted">{r.label}</dt></div>
           ))}
         </dl>
 
         <Fold label={below ? `What's included · everything in ${PLAN_NAME[below.code] ?? below.name}, plus` : "What's included"} className="mt-4">
           <div className="space-y-4 md:pt-1">
-            <p className="hidden text-[11.5px] font-medium uppercase tracking-[.08em] text-muted md:block">{below ? `Everything in ${PLAN_NAME[below.code] ?? below.name}, plus` : "Includes"}</p>
+            <p className="hidden text-[12px] font-medium uppercase tracking-[.08em] text-muted md:block">{below ? `Everything in ${PLAN_NAME[below.code] ?? below.name}, plus` : "Includes"}</p>
             {groups.map((g) => (
               <div key={g.id}>
-                <p className="text-[12.5px] font-semibold text-ink">{g.title}</p>
+                <p className="text-[13px] font-semibold text-ink">{g.title}</p>
                 <ul className="mt-1.5 space-y-1.5">{g.items.map((it) => <li key={it} className="flex gap-2 text-[13px] leading-5 text-ink-700"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pos" aria-hidden />{it}</li>)}</ul>
               </div>
             ))}
@@ -242,17 +242,17 @@ function Comparison({ plans }: { plans: Plan[] }) {
             <caption className="sr-only">What each plan includes</caption>
             <thead>
               <tr><th scope="col" className="w-[44%] py-2 pr-2 text-left sm:w-[40%]"><span className="sr-only">Feature</span></th>
-                {plans.map((p) => <th key={p.code} scope="col" className={`${cell} text-[12.5px] font-semibold text-ink sm:text-sm`}>{PLAN_NAME[p.code] ?? p.name}</th>)}</tr>
+                {plans.map((p) => <th key={p.code} scope="col" className={`${cell} text-[13px] font-semibold text-ink sm:text-sm`}>{PLAN_NAME[p.code] ?? p.name}</th>)}</tr>
             </thead>
             <tbody>
-              <tr><th colSpan={4} scope="colgroup" className="pb-1 pt-4 text-left text-[11px] font-medium uppercase tracking-[.08em] text-muted">Limits</th></tr>
+              <tr><th colSpan={4} scope="colgroup" className="pb-1 pt-4 text-left text-[12px] font-medium uppercase tracking-[.08em] text-muted">Limits</th></tr>
               {LIMIT_ROWS.map((r) => (
-                <tr key={r.id} className="border-t border-line"><th scope="row" className="py-2 pr-2 text-left text-[12.5px] font-normal text-ink-700 sm:text-sm">{r.label}</th>{plans.map((p) => <td key={p.code} className={`${cell} num font-medium text-ink`}>{r.value(p).toLocaleString("en-IN")}</td>)}</tr>
+                <tr key={r.id} className="border-t border-line"><th scope="row" className="py-2 pr-2 text-left text-[13px] font-normal text-ink-700 sm:text-sm">{r.label}</th>{plans.map((p) => <td key={p.code} className={`${cell} num font-medium text-ink`}>{r.value(p).toLocaleString("en-IN")}</td>)}</tr>
               ))}
               {groups.map((g) => (
-                [<tr key={`h-${g}`}><th colSpan={4} scope="colgroup" className="pb-1 pt-4 text-left text-[11px] font-medium uppercase tracking-[.08em] text-muted">{g}</th></tr>,
+                [<tr key={`h-${g}`}><th colSpan={4} scope="colgroup" className="pb-1 pt-4 text-left text-[12px] font-medium uppercase tracking-[.08em] text-muted">{g}</th></tr>,
                   ...ALL_FEATURE_ROWS.filter(([gg]) => gg === g).map(([, k, label]) => (
-                    <tr key={k} className="border-t border-line"><th scope="row" className="py-2 pr-2 text-left text-[12.5px] font-normal text-ink-700 sm:text-sm">{label}</th>
+                    <tr key={k} className="border-t border-line"><th scope="row" className="py-2 pr-2 text-left text-[13px] font-normal text-ink-700 sm:text-sm">{label}</th>
                       {plans.map((p) => <td key={p.code} className={cell}>{has(p, k) ? <><Check className="mx-auto h-4 w-4 text-pos" aria-hidden /><span className="sr-only">Included</span></> : <><Minus className="mx-auto h-4 w-4 text-ink-300" aria-hidden /><span className="sr-only">Not included</span></>}</td>)}</tr>
                   ))]
               ))}
@@ -286,7 +286,7 @@ function HowBillingWorks() {
           <motion.li key={t} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-30px" }} transition={{ duration: 0.4, delay: 0.04 * (i % 3), ease: EASE }} whileHover={{ y: -2 }}
             className="flex gap-3 rounded-[18px] bg-surface p-4 shadow-card ring-1 ring-line">
             <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-4 w-4" aria-hidden /></span>
-            <div className="min-w-0"><p className="text-[13.5px] font-semibold text-ink">{t}</p><p className="mt-0.5 text-[12.5px] leading-5 text-muted">{d}</p></div>
+            <div className="min-w-0"><p className="text-[13.5px] font-semibold text-ink">{t}</p><p className="mt-0.5 text-[13px] leading-5 text-muted">{d}</p></div>
           </motion.li>
         ))}
       </ol>
@@ -406,7 +406,7 @@ export function PricingExperience({ plans, terms, sub, isOwner, trialDays, offer
             <TermSelector terms={terms!} plans={ordered} value={months} onChange={choose} />
             <p className="sr-only" role="status" aria-live="polite">{announce}</p>
             {!terms!.checkout_open && (
-              <p className="mt-2 flex items-start gap-2 rounded-2xl bg-surface-2 px-3.5 py-2.5 text-[12.5px] leading-5 text-muted"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />Online payment for prepaid plans is not open yet. Compare prices and plans now; the buy buttons work once payment is ready.</p>
+              <p className="mt-2 flex items-start gap-2 rounded-2xl bg-surface-2 px-3.5 py-2.5 text-[13px] leading-5 text-muted"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />Online payment for prepaid plans is not open yet. Compare prices and plans now; the buy buttons work once payment is ready.</p>
             )}
             <PlanSwitcher plans={ordered} value={shown} onChange={setShown} />
             <div className="mt-4 grid items-stretch gap-4 md:grid-cols-3">

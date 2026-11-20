@@ -10,7 +10,7 @@ type Variant = "primary" | "ink" | "secondary" | "ghost" | "danger" | "inverse" 
 type Size = "md" | "sm" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[12px] font-semibold transition-[transform,background-color,color,box-shadow] duration-200 ease-spring select-none disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap hover:-translate-y-px active:translate-y-0 active:scale-[.97] motion-reduce:transition-none";
+  "inline-flex items-center justify-center gap-2 rounded-[12px] font-semibold transition-[transform,background-color,color,box-shadow] duration-200 ease-spring select-none disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap active:scale-[.98] motion-reduce:transition-none";
 const solid = "btn-ink btn-sheen";
 const variants: Record<Variant, string> = {
   primary: solid,
@@ -23,9 +23,9 @@ const variants: Record<Variant, string> = {
 };
 // 44px touch targets on small screens; a little denser on pointer devices.
 const sizes: Record<Size, string> = {
-  md: "min-h-11 px-5 text-sm",
-  sm: "min-h-11 px-4 text-[13px] sm:min-h-9",
-  lg: "min-h-12 px-6 text-[15px]",
+  md: "min-h-11 px-5 text-[15px]",
+  sm: "min-h-11 px-4 text-sm sm:min-h-9",
+  lg: "min-h-12 px-6 text-base",
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", extra?: string) {

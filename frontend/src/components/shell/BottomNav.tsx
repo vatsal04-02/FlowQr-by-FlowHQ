@@ -19,7 +19,7 @@ export function BottomNav({ path, dests, moreOpen, onMore }: { path: string; des
   useEffect(() => { setPending(null); }, [path]);               // the page arrived: the real route takes over
   const active = pending ?? bottomActive(path);
   const four = BOTTOM_IDS.map((id) => dests.find((d) => d.id === id)).filter((d): d is Dest => !!d);
-  const item = "relative flex !min-h-[56px] w-full flex-col items-center justify-center gap-[3px] rounded-[18px] px-1 text-[11px] font-semibold leading-[14px] transition-colors duration-300";
+  const item = "relative flex !min-h-[56px] w-full flex-col items-center justify-center gap-[3px] rounded-[18px] px-1 text-[12px] font-semibold leading-[14px] transition-colors duration-300";
   const pill = <motion.span layoutId="dock-on" aria-hidden className="absolute inset-0.5 rounded-[18px] bg-accent-tint shadow-[inset_0_1px_0_rgb(255_255_255/.6)]" transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.9 }} />;
   const glyph = (Icon: Dest["icon"], on: boolean) => (
     <motion.span aria-hidden className="relative grid place-items-center" animate={{ y: on ? -1.5 : 0, scale: on ? 1.08 : 1 }} transition={{ type: "spring", stiffness: 420, damping: 26 }}>
@@ -105,7 +105,7 @@ export function MoreSheet({ open, onClose, role, whatsapp = false, onSearch, sup
             <div className="space-y-4 px-2 pt-1">
               {groups.map((g) => (
                 <section key={g.label} aria-label={g.label}>
-                  <h3 className="px-3 pb-1 text-[12px] font-medium text-muted">{g.label}</h3>
+                  <h3 className="px-3 pb-1 text-[13px] font-medium text-muted">{g.label}</h3>
                   <ul>
                     {g.items.map((it) => (
                       <li key={it.label}>

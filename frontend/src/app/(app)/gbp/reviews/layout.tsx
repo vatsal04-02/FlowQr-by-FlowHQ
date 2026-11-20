@@ -98,7 +98,7 @@ function Workspace({ children }: { children: ReactNode }) {
                   return (
                     <button key={v} role="tab" aria-selected={on} onClick={() => { setF({ ...f, reply_state: v }); setPage(0); }}
                       className={clsx("inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[10px] px-2.5 text-[13px] font-medium transition-colors sm:min-h-8", on ? "bg-ink-solid text-ink-on" : "text-ink-700 hover:bg-surface-2")}>
-                      {l}{n !== undefined && n > 0 && <span className="num text-[12px] opacity-70">{n}</span>}
+                      {l}{n !== undefined && n > 0 && <span className="num text-[13px] opacity-70">{n}</span>}
                     </button>
                   );
                 })}

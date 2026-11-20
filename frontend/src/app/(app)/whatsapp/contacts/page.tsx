@@ -1,29 +1,51 @@
 "use client";
-import { Download, Plus, Search, Upload } from "lucide-react";
+import clsx from "clsx";
+import { Ban, Bell, Download, Gift, Megaphone, Plus, Search, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, Card, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
 import { FilterSelect, Input, Select, Textarea } from "@/components/ui/Form";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { ActionMenu, Avatar, Chips, Figure, IconButton, IconTile, Meter } from "@/components/whatsapp/ui";
 import { api, apiFile, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { birthdayProblem, birthdayWords, consentWords, csvPreview, CSV_TEMPLATE, MONTHS, reasonWords, SOURCE_WORDS, type WaContact, type WaContacts } from "@/lib/whatsapp";
+import { birthdayProblem, birthdayWords, csvPreview, CSV_TEMPLATE, MONTHS, reasonWords, type WaContact, type WaContacts } from "@/lib/whatsapp";
+import { consentRows, initials } from "@/lib/whatsapp-ui";
 
 const PAGE = 25;
+type Show = "" | "marketing" | "utility" | "opted_out" | "none";
+const CONSENT_ICON = { offers: Megaphone, updates: Bell, greetings: Gift, stopped: Ban } as const;
+const CONSENT_TONE = { offers: "brand", updates: "pos", greetings: "accent", stopped: "neg" } as const;
 type Purpose = "marketing" | "utility" | "occasion";
 
 function Check({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
   return <label className="flex cursor-pointer items-start gap-3 text-sm text-ink-700"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-[#BD3E1B]" /><span>{children}</span></label>;
 }
 
+/** Three small icons say what a customer agreed to (lit when they did); a red one says they stopped offers. Each has a name for screen readers. */
+function Agreed({ c }: { c: WaContact }) {
+  const g = [
+    { on: !!c.marketing && !c.opted_out, icon: Megaphone, yes: "Agreed to offers", no: "Has not agreed to offers" },
+    { on: !!c.utility, icon: Bell, yes: "Agreed to visit updates", no: "Has not agreed to visit updates" },
+    { on: !!c.occasion, icon: Gift, yes: "Agreed to greetings", no: "Has not agreed to greetings" },
+  ];
+  const stopped = "Asked to stop offers. Only the customer can start them again.";
+  return (
+    <ul className="flex shrink-0 items-center gap-1">
+      {g.map((x) => <li key={x.yes} role="img" aria-label={x.on ? x.yes : x.no} title={x.on ? x.yes : x.no} className={clsx("grid h-6 w-6 place-items-center rounded-full", x.on ? "bg-pos-tint text-pos" : "bg-surface-2 text-ink-300")}><x.icon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden /></li>)}
+      {c.opted_out && <li role="img" aria-label={stopped} title={stopped} className="grid h-7 w-7 place-items-center rounded-full bg-neg-tint text-neg"><Ban className="h-3.5 w-3.5" strokeWidth={2} aria-hidden /></li>}
+    </ul>
+  );
+}
+
 /** The people you may message, and what each one agreed to. Having someone in this list is NOT permission to message them: only the agreement is. */
 export default function Customers() {
   const { isAdmin } = useAuth();
   const toast = useToast();
-  const [q, setQ] = useState(""), [search, setSearch] = useState(""), [filter, setFilter] = useState(""), [page, setPage] = useState(0);
+  const [q, setQ] = useState(""), [search, setSearch] = useState(""), [filter, setFilter] = useState<Show>(""), [page, setPage] = useState(0);
   const [add, setAdd] = useState(false), [imp, setImp] = useState(false), [agree, setAgree] = useState<WaContact | null>(null), [erase, setErase] = useState<WaContact | null>(null);
   useEffect(() => { const t = setTimeout(() => { setSearch(q); setPage(0); }, 300); return () => clearTimeout(t); }, [q]);
   const locs = useFetch<{ id: string; name: string }[]>("/locations");
@@ -31,7 +53,7 @@ export default function Customers() {
   const list = useFetch<WaContacts>("/whatsapp/contacts", { search, consent_filter: filter, location_id: loc, limit: PAGE, offset: page * PAGE });
   const d = list.data;
   const manyLocs = (locs.data?.length ?? 0) > 1;
-  const locName = (id: string | null | undefined) => (id ? locs.data?.find((l) => l.id === id)?.name : undefined);
+  const rows = d ? consentRows(d.counts) : [];
 
   async function stopOffers(c: WaContact) {
     try { await api(`/whatsapp/contacts/${c.id}/opt-out`, { method: "POST", body: { purpose: "marketing" } }); toast("Done. This customer will not get offers."); void list.reload(); } catch (e) { toast(errorMessage(e)); }
@@ -56,41 +78,57 @@ export default function Customers() {
 
   return (
     <>
-      <PageHeader title="Your customers" subtitle="Only customers who agreed can get WhatsApp messages. Here you can see who agreed, and to what."
-        actions={isAdmin ? <><Button variant="secondary" icon={<Download className="h-4 w-4" />} onClick={() => void exportCsv()}>Download list</Button><Button variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setImp(true)}>Upload a list</Button><Button variant="brand" icon={<Plus className="h-4 w-4" />} onClick={() => setAdd(true)}>Add a customer</Button></> : undefined} />
-      {d && <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {[["Customers", d.counts.contacts], ["Agreed to offers", d.counts.marketing], ["Agreed to visit updates", d.counts.utility], ["Agreed to greetings", d.counts.occasion ?? 0], ["Asked to stop offers", d.counts.opted_out]].map(([l, v]) => <Card key={String(l)}><p className="text-[13px] text-ink-500">{l}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{v}</p></Card>)}
-      </div>}
-      <Card pad={false} className="mb-4 p-3 sm:p-4"><div className="flex flex-wrap gap-2">
-        <div className="relative min-w-[200px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden /><input aria-label="Search customers" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or phone" className="min-h-11 w-full rounded-xl border border-ink-200 pl-9 pr-3 text-sm sm:min-h-10" /></div>
+      <PageHeader title="Customers"
+        actions={isAdmin ? <><IconButton label="Download list" icon={Download} onClick={() => void exportCsv()} /><IconButton label="Upload a list" icon={Upload} onClick={() => setImp(true)} /><Button variant="brand" size="lg" icon={<Plus className="h-4 w-4" />} onClick={() => setAdd(true)}>Add</Button></> : undefined} />
+      {d && (
+        <section className="panel mb-3 p-5 sm:mb-4 sm:p-6" aria-label="Who agreed to what">
+          <Figure value={d.counts.contacts} label={d.counts.contacts === 1 ? "customer" : "customers"} />
+          {d.counts.contacts > 0 && (
+            <ul className="mt-5 space-y-3.5">
+              {rows.map((r) => (
+                <li key={r.key} className="grid grid-cols-[28px_1fr_auto] items-center gap-3">
+                  <IconTile icon={CONSENT_ICON[r.key]} size={28} tone={CONSENT_TONE[r.key]} />
+                  <div><p className="mb-1.5 text-[14px] leading-4 text-ink-700">{r.label}</p><Meter value={r.share} tone={CONSENT_TONE[r.key]} label={`${r.label}: ${r.value} of ${d.counts.contacts}`} /></div>
+                  <span className="num text-[17px] font-semibold text-ink">{r.value}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+      <div className="mb-3 space-y-3 sm:mb-4">
+        <div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden /><input aria-label="Search customers" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or phone" className="min-h-12 w-full rounded-2xl border border-ink-200 bg-white pl-10 pr-3 text-[16px]" /></div>
         {manyLocs && <FilterSelect label="Location" value={loc} onChange={(e) => { setLoc(e.target.value); setPage(0); }}><option value="">All locations</option>{locs.data?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</FilterSelect>}
-        <FilterSelect label="Show" value={filter} onChange={(e) => { setFilter(e.target.value); setPage(0); }}><option value="">Everyone</option><option value="marketing">Agreed to offers</option><option value="utility">Agreed to visit updates</option><option value="opted_out">Asked to stop offers</option><option value="none">No agreement yet</option></FilterSelect>
-      </div></Card>
+        <Chips label="Show" value={filter} onChange={(v) => { setFilter(v); setPage(0); }} options={[{ value: "", label: "Everyone" }, { value: "marketing", label: "Offers" }, { value: "utility", label: "Visit updates" }, { value: "opted_out", label: "Stopped" }, { value: "none", label: "No agreement" }]} />
+      </div>
       {list.error && <Alert tone="error">{list.error}</Alert>}
       {!d ? <Skeleton className="h-64" /> : d.items.length === 0 ? (
         <EmptyState title={search || filter ? "No customers match" : "No customers yet"} action={isAdmin && !search && !filter ? <Button variant="brand" onClick={() => setAdd(true)}>Add a customer</Button> : undefined}>
           {search || filter ? "Try a different search." : "Add customers who told you they are happy to hear from you on WhatsApp. We never add anyone from review forms or enquiries by ourselves."}
         </EmptyState>
       ) : (
-        <div className="space-y-3">{d.items.map((c) => {
-          const w = consentWords(c);
+        <ul className="panel divide-y divide-line">{d.items.map((c) => {
+          const name = c.customer_name ?? "No name";
+          const menu = isAdmin ? [
+            ...(!c.opted_out && !(c.marketing && c.utility && c.occasion) ? [{ label: "Record agreement", onClick: () => setAgree(c) }] : []),
+            { label: "Visit done", onClick: () => void visitDone(c) },
+            ...(c.marketing && !c.opted_out ? [{ label: "Stop offers", onClick: () => void stopOffers(c) }] : []),
+            { label: "Delete", onClick: () => setErase(c), danger: true },
+          ] : [];
+          const extra = [c.birth_day && c.birth_month ? `Birthday ${birthdayWords(c.birth_day, c.birth_month)}` : null, c.last_visit_at ? `Visited ${fmtDate(c.last_visit_at)}` : null].filter(Boolean);
           return (
-            <Card key={c.id}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-ink">{c.customer_name ?? "No name"} <span className="ml-1 font-normal tabular-nums text-ink-500">{c.phone}</span></p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><Badge tone={w.tone}>{w.label}</Badge>{c.occasion && <Badge tone="blue">Greetings</Badge>}{c.birth_day && c.birth_month ? <Badge>Birthday {birthdayWords(c.birth_day, c.birth_month)}</Badge> : null}{c.last_visit_at ? <Badge>Last visit {fmtDate(c.last_visit_at)}</Badge> : null}{c.last_replied_at ? <Badge>Wrote {fmtDate(c.last_replied_at)}</Badge> : null}{c.tags.map((t) => <Badge key={t}>{t}</Badge>)}{manyLocs && locName(c.location_id) && <Badge tone="blue">{locName(c.location_id)}</Badge>}<span>{SOURCE_WORDS[c.source] ?? c.source} · {fmtDate(c.created_at)}</span></p>
-                  {c.opted_out && c.opted_out_at && <p className="mt-1 text-[13px] text-neg">Asked to stop offers on {fmtDate(c.opted_out_at)}. Only the customer can start them again.</p>}
-                </div>
-                {isAdmin && <div className="flex flex-wrap gap-2">
-                  {!c.opted_out && !(c.marketing && c.utility && c.occasion) && <Button size="sm" variant="secondary" onClick={() => setAgree(c)}>Record agreement</Button>}
-                  <Button size="sm" variant="secondary" onClick={() => void visitDone(c)}>Visit done</Button>
-                  {c.marketing && !c.opted_out && <Button size="sm" variant="secondary" onClick={() => void stopOffers(c)}>Stop offers</Button>}
-                  <Button size="sm" variant="ghost" onClick={() => setErase(c)}>Delete</Button>
-                </div>}
+            <li key={c.id} className="flex items-center gap-3 p-3.5 sm:p-4">
+              <Avatar text={initials(c.customer_name, c.phone)} tone={c.opted_out ? "neg" : c.marketing || c.utility ? "pos" : "neutral"} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[16px] font-semibold leading-5 text-ink">{name}</p>
+                <p className="num mt-0.5 truncate text-[13px] leading-4 text-muted">{c.phone}</p>
+                {extra.length > 0 && <p className="mt-0.5 truncate text-[13px] leading-4 text-muted">{extra.join(" · ")}</p>}
+                {c.opted_out && c.opted_out_at && <p className="mt-0.5 text-[13px] leading-4 text-neg">Stopped offers {fmtDate(c.opted_out_at)}</p>}
               </div>
-            </Card>);
-        })}</div>
+              <Agreed c={c} />
+              {isAdmin && <ActionMenu label={`Actions for ${name}`} items={menu} />}
+            </li>);
+        })}</ul>
       )}
       {d && d.total > PAGE && <div className="mt-4 flex items-center justify-between"><Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><span className="text-sm text-ink-500">{page * PAGE + 1}–{Math.min(d.total, (page + 1) * PAGE)} of {d.total}</span><Button variant="secondary" size="sm" disabled={(page + 1) * PAGE >= d.total} onClick={() => setPage(page + 1)}>Next</Button></div>}
 

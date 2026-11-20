@@ -11,7 +11,7 @@ import { TrialNote } from "./TrialNote";
  * The site footer, in the four-column layout of components/ui/footer-column.tsx: brand and the two sign-up actions on the left; Product, Company, Legal and Contact on the right.
  * Nothing is invented: the links are the site's own pages, and the support email comes from the server (the Contact column shows it only when one is configured; the demo link is always there).
  */
-const PRODUCT: FooterColumn = { title: "Product", links: [{ text: "Google Business", href: "/google-business" }, { text: "Review Cards", href: "/review-cards" }, { text: "AI Growth Agent", href: "/ai-growth-agent" }, { text: "Pricing", href: "/pricing" }] };
+const PRODUCT: FooterColumn = { title: "Product", links: [{ text: "Google Business", href: "/google-business" }, { text: "Review Cards", href: "/review-cards" }, { text: "AI Growth Agent", href: "/ai-growth-agent" }, { text: "WhatsApp Marketing AI Agent", href: "/whatsapp-marketing-ai-agent" }, { text: "Pricing", href: "/pricing" }] };
 const COMPANY: FooterColumn = { title: "Company", links: [{ text: "Industries", href: "/industries" }, { text: "About", href: "/about" }, { text: "FlowHQ services", href: "/about#services" }] };
 const LEGAL: FooterColumn = { title: "Legal", links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }, { text: "Refunds", href: "/refund-policy" }, { text: "Delete your data", href: "/data-deletion" }] };
 

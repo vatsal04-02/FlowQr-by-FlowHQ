@@ -27,7 +27,7 @@ export function Donut({ slices, size = 132, stroke = 18, centre, sub, label }: {
             style={{ transition: `stroke-dasharray 1s cubic-bezier(.2,.7,.2,1) ${i * 140 + 150}ms` }}><title>{`${s.label}: ${fmtNum(s.value)}`}</title></circle>;
         })}
       </svg>
-      <span className="absolute inset-0 grid place-content-center text-center leading-none"><b className="num text-[26px] font-semibold tracking-[-.03em]">{centre}</b>{sub && <span className="mt-1 text-[12px] text-muted">{sub}</span>}</span>
+      <span className="absolute inset-0 grid place-content-center text-center leading-none"><b className="num text-[26px] font-semibold tracking-[-.03em]">{centre}</b>{sub && <span className="mt-1 text-[13px] text-muted">{sub}</span>}</span>
     </span>
   );
 }

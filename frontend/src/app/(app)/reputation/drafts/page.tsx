@@ -128,7 +128,7 @@ export default function ReplyAssistantPage() {
           <h2 className="text-[15px] font-semibold">Waiting for you</h2>
           <div className="mt-3 flex flex-wrap items-center gap-5">
             <Ring value={o && o.new_in_range ? Math.min(100, (replied / o.new_in_range) * 100) : null} size={104} stroke={10} label={o ? `${replied} of ${o.new_in_range} new reviews answered` : "No new reviews"}>
-              <span><b className="num block text-[26px] font-semibold leading-none">{o ? fmtNum(replied) : "–"}</b><span className="num text-[11px] text-muted">of {o ? fmtNum(o.new_in_range) : "–"}</span></span>
+              <span><b className="num block text-[26px] font-semibold leading-none">{o ? fmtNum(replied) : "–"}</b><span className="num text-[12px] text-muted">of {o ? fmtNum(o.new_in_range) : "–"}</span></span>
             </Ring>
             <dl className="grid min-w-0 flex-1 grid-cols-2 gap-3 text-[14px]">
               <div><dt className="text-muted">Drafts</dt><dd className="num text-[24px] font-semibold">{drafts.loading && !drafts.data ? "–" : fmtNum(n)}</dd></div>

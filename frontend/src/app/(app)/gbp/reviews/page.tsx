@@ -15,7 +15,7 @@ export default function ReviewsIndex() {
       <ol className="mt-5 space-y-4">
         {STEPS.map(([t, b], i) => (
           <li key={t} className="flex gap-3">
-            <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ink text-[11px] font-bold text-white">{i + 1}</span>
+            <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ink text-[12px] font-bold text-white">{i + 1}</span>
             <div><p className="text-sm font-semibold">{t}</p><p className="mt-0.5 text-[13px] text-ink-500">{b}</p></div>
           </li>
         ))}

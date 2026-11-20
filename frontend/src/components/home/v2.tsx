@@ -46,7 +46,6 @@ export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null;
   const milestone = missing ? { text: UNLOCK[missing.key] ?? `Add ${missing.label} to your score`, href: missing.href } : g && g.score !== null && g.score < 90 ? { text: `Reach 90 (you are at ${g.score})`, href: weak?.href ?? "/overview" } : null;
   return (
     <Card label="Growth score" hero className="!p-5 lg:!p-5">
-      <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"><span className="absolute -left-14 -top-20 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,rgb(var(--c-tone-blue)/.16),transparent)]" /></span>
       <div className="relative flex items-center justify-between gap-3">
         <h2 className="text-[15px] font-semibold">Growth score</h2>
         <Segmented options={PERIODS} value={days as 7 | 30 | 90} onChange={onDays} label="Period" />
@@ -55,13 +54,13 @@ export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null;
         <div className="relative mt-4 grid items-center gap-5 md:grid-cols-[minmax(0,230px)_minmax(0,1fr)] md:gap-8">
           <div className="flex flex-col items-center gap-3 text-center">
             <Ring value={g.score} size={132} stroke={12} label={g.score === null ? "No score yet" : `Growth score ${g.score} out of 100`}>
-              <span><b className="num block text-[44px] font-semibold leading-none tracking-[-.03em]">{g.score === null ? "–" : <CountUp value={g.score} />}</b>{g.partial && g.score !== null && <span className="text-[11px] text-muted">partial</span>}</span>
+              <span><b className="num block text-[44px] font-semibold leading-none tracking-[-.03em]">{g.score === null ? "–" : <CountUp value={g.score} />}</b>{g.partial && g.score !== null && <span className="text-[12px] text-muted">partial</span>}</span>
             </Ring>
             {v && (
               <p className="max-w-[230px] text-[13.5px] leading-snug">
                 <b className={clsx("font-semibold", v.tone === "good" ? "text-pos" : v.tone === "fair" ? "text-warn" : "text-neg")}>{v.word}</b>
                 {v.fixes.length === 0 ? " — nothing to fix right now" : v.reach ? ` — ${v.fixes.length} ${v.fixes.length === 1 ? "fix" : "fixes"} could take you to ${v.reach}` : ` — ${v.fixes.length} ${v.fixes.length === 1 ? "part needs" : "parts need"} work`}
-                {names && <span className="mt-0.5 block text-[12px] text-muted">{names}</span>}
+                {names && <span className="mt-0.5 block text-[13px] text-muted">{names}</span>}
               </p>
             )}
             {weak && <Link href={weak.href} className="btn-glass inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold md:min-h-9"><Sparkles className="h-3.5 w-3.5" aria-hidden />Improve {weak.label.toLowerCase()}</Link>}
@@ -72,7 +71,7 @@ export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null;
                 <li key={p.key} className="min-w-0">
                   <Link href={p.href} aria-label={`${p.label}: ${p.detail}`} className="group flex flex-col items-center gap-1.5 rounded-[16px] px-0.5 py-2.5 transition-[background-color,transform] duration-200 ease-spring hover:-translate-y-0.5 hover:bg-surface-2/70">
                     <Ring value={p.value === null ? null : p.value * 100} size={58} stroke={8} label=""><span className="num text-[13px] font-semibold">{partValue(p)}</span></Ring>
-                    <span className={clsx("w-full truncate text-center text-[12.5px] leading-none", p.key === g.weakest ? "font-semibold text-ink" : "text-ink-700")}>{p.label}</span>
+                    <span className={clsx("w-full truncate text-center text-[13px] leading-none", p.key === g.weakest ? "font-semibold text-ink" : "text-ink-700")}>{p.label}</span>
                   </Link>
                 </li>
               ))}
@@ -96,7 +95,7 @@ function Chip({ v }: { v: Verdict }) {
   const word = v === "good" ? "Good" : "Needs attention";
   return (
     <>
-      <span className={clsx("hidden shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-4 sm:inline lg:hidden min-[1280px]:inline", CHIP[v])}>{word}</span>
+      <span className={clsx("hidden shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold leading-4 sm:inline lg:hidden min-[1280px]:inline", CHIP[v])}>{word}</span>
       <span role="img" aria-label={word} title={word} className={clsx("h-2.5 w-2.5 shrink-0 rounded-full sm:hidden lg:inline-block min-[1280px]:hidden", v === "good" ? "bg-pos" : "bg-warn")} />
     </>
   );
@@ -109,7 +108,7 @@ function Tile({ label, icon, tone, value, visual, foot, href, verdict, ctx }: { 
         <Chip v={verdict ?? null} />
       </span>
       <span className="mt-2 flex items-baseline gap-2"><span className="num text-[28px] font-semibold leading-9 tracking-[-.025em]">{value}</span>{foot}</span>
-      {ctx && <span className="mt-0.5 block truncate text-[12px] leading-4 text-muted">{ctx}</span>}
+      {ctx && <span className="mt-0.5 block truncate text-[13px] leading-4 text-muted">{ctx}</span>}
       <span className="mt-auto pt-2">{visual}</span>
     </Link>
   );
@@ -196,12 +195,12 @@ export function DoThisWeek({ todos, hasCard, loading, g }: { todos: Todo[]; hasC
             const label = key ? g?.parts.find((p) => p.key === key)?.label : null;
             return (
               <li key={t.id} className={clsx("flex items-center gap-3 rounded-[16px] p-2.5 pl-3 transition-colors", i === 0 ? "bg-surface-2 ring-1 ring-line" : "bg-surface-2/60 hover:bg-surface-2")}>
-                <span aria-hidden className={clsx("num grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold", i === 0 ? "bg-ink-solid text-ink-on" : "bg-surface text-ink-700 shadow-pill")}>{i + 1}</span>
+                <span aria-hidden className={clsx("num grid h-6 w-6 shrink-0 place-items-center rounded-full text-[13px] font-semibold", i === 0 ? "bg-ink-solid text-ink-on" : "bg-surface text-ink-700 shadow-pill")}>{i + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-2 block text-[14px] font-medium leading-5">{t.title}{t.tone === "bad" && <span className="sr-only"> (urgent)</span>}</span>
                   <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                    {lift > 0 && <span className="rounded-full bg-pos-tint px-2 py-0.5 text-[11px] font-semibold leading-4 text-pos" title={`${label} at full marks would add up to ${lift} to the score`}>{label} · up to +{lift}</span>}
-                    <span className={clsx("rounded-full px-2 py-0.5 text-[11px] font-medium leading-4", t.state === "In progress" ? "bg-chart/15 text-chart" : "bg-surface text-muted ring-1 ring-line")}>{t.state ?? "To do"}</span>
+                    {lift > 0 && <span className="rounded-full bg-pos-tint px-2 py-0.5 text-[12px] font-semibold leading-4 text-pos" title={`${label} at full marks would add up to ${lift} to the score`}>{label} · up to +{lift}</span>}
+                    <span className={clsx("rounded-full px-2 py-0.5 text-[12px] font-medium leading-4", t.state === "In progress" ? "bg-chart/15 text-chart" : "bg-surface text-muted ring-1 ring-line")}>{t.state ?? "To do"}</span>
                   </span>
                 </span>
                 {i === 0
@@ -234,7 +233,7 @@ export function FunnelStrip({ steps, hasCard, loading }: { steps: FunnelStep[] |
               <li key={l} className="min-w-0">
                 <span className="num block text-[20px] font-semibold leading-7">{empty ? "–" : fmtNum(v)}</span>
                 <span aria-hidden className="mt-1 flex h-12 items-end rounded-[6px] bg-surface-2"><span className={clsx("fq-bar w-full rounded-[6px]", empty ? "h-[2px] bg-ink-300" : "bg-chart")} style={empty ? undefined : { height: `${Math.max(4, (v / top) * 100)}%`, opacity: 1 - i * 0.15 }} /></span>
-                <span className="mt-1 block truncate text-[12px] text-muted">{l}</span>
+                <span className="mt-1 block truncate text-[13px] text-muted">{l}</span>
               </li>
             ))}
           </ol>

@@ -75,7 +75,7 @@ export function AgentShowcase({ title, sub }: { title: string; sub: string }) {
   // The last word of the heading carries the accent colour.
   const cut = title.lastIndexOf(" ");
   return (
-    <section id="agents" aria-labelledby="agents-h" className="scroll-mt-24 overflow-hidden bg-m-tint py-14 md:py-24">
+    <section id="agents" aria-labelledby="agents-h" className="mkt-google-wash scroll-mt-24 overflow-hidden py-14 md:py-24">
       <div className="mkt-wrap">
         <div ref={ref} className="grid items-center gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-10">
           <div>

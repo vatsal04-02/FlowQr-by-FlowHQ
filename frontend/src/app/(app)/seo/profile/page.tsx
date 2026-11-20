@@ -61,7 +61,7 @@ function Row({ c }: { c: HealthCheck }) {
     <>
       <span aria-hidden className={clsx("grid h-6 w-6 shrink-0 place-items-center rounded-full", ok ? "bg-pos-tint text-pos" : c.status === "missing" ? "border-2 border-neg" : "border-2 border-warn")}>{ok && <Check className="h-3.5 w-3.5" strokeWidth={3} />}</span>
       <span className={clsx("min-w-0 flex-1 text-[14px]", ok ? "text-muted" : "font-medium")}>{c.label}<span className="sr-only">: {ok ? "done" : c.status === "missing" ? "missing" : "could be better"}</span></span>
-      {!ok && <span className="shrink-0 text-[12px] text-muted">{MINUTES[c.key] ?? ""}</span>}
+      {!ok && <span className="shrink-0 text-[13px] text-muted">{MINUTES[c.key] ?? ""}</span>}
       {!ok && c.link && <ChevronRight className="h-4 w-4 shrink-0 text-ink-400" aria-hidden />}
     </>
   );

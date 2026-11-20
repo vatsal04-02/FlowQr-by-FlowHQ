@@ -70,7 +70,7 @@ export default function InsightsPage() {
                   </li>
                 );
               })}
-              <li className="flex gap-4 pt-1 text-[12px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-pos" />Good</span><span className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-ink-300" />Neutral</span><span className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-neg" />Bad</span></li>
+              <li className="flex gap-4 pt-1 text-[13px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-pos" />Good</span><span className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-ink-300" />Neutral</span><span className="flex items-center gap-1.5"><i aria-hidden className="h-2 w-2 rounded-full bg-neg" />Bad</span></li>
             </ul>
             </>
           )}
@@ -78,7 +78,7 @@ export default function InsightsPage() {
 
         <div className="space-y-3 lg:col-span-5 lg:space-y-4">
           <Card label="Rating mix" tone="amber" tilt>
-            <Title right={mixTotal ? <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[12px] font-medium text-ink-700">{mixTotal} reviews</span> : null}>Rating mix</Title>
+            <Title right={mixTotal ? <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[13px] font-medium text-ink-700">{mixTotal} reviews</span> : null}>Rating mix</Title>
             {ov.loading && !r ? <Skeleton className="mt-3 h-32" /> : mixTotal === 0 ? <p className="mt-3 text-[14px] text-muted">Shown once reviews have been synced.</p> : (
               <div className="mt-3 flex flex-wrap items-center gap-5">
                 <Donut slices={mixSlices} size={116} stroke={16} label={`Rating mix of ${mixTotal} reviews`} centre={r?.average_rating_all_time == null ? "–" : <CountUp value={r.average_rating_all_time} decimals={1} />} sub="average" />

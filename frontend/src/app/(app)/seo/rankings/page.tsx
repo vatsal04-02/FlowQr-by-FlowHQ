@@ -46,14 +46,14 @@ export default function RankingsPage() {
               {total > 0 && (
                 <>
                   <div aria-hidden className="mt-3 flex h-3.5 gap-[3px]">{counted.map((x, i) => <i key={x.keyword} className="fq-bar-x block rounded-full" style={{ flex: x.value, background: colorOf(x.keyword), animationDelay: `${i * 90}ms` }} title={`${x.keyword}: ${fmtNum(x.value)}`} />)}</div>
-                  <p className="mt-2 text-[12px] text-muted">Share of these {counted.length} searches · <CountUp value={total} /> in all</p>
+                  <p className="mt-2 text-[13px] text-muted">Share of these {counted.length} searches · <CountUp value={total} /> in all</p>
                 </>
               )}
               <ol className="mt-3 space-y-2.5">
                 {shown.map((x) => (
                   <li key={x.keyword}>
                     <div className="flex items-baseline justify-between gap-3 text-[14px]"><span data-words="skip" className="flex min-w-0 items-center gap-2"><i aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: colorOf(x.keyword) }} /><span className="truncate">{x.keyword}</span></span>
-                      <b className="num shrink-0 font-semibold">{x.value === null ? "<15" : fmtNum(x.value)}{x.value !== null && <em className="ml-1 text-[12px] font-medium not-italic text-muted">{pct[counted.findIndex((c) => c.keyword === x.keyword)]}%</em>}</b></div>
+                      <b className="num shrink-0 font-semibold">{x.value === null ? "<15" : fmtNum(x.value)}{x.value !== null && <em className="ml-1 text-[13px] font-medium not-italic text-muted">{pct[counted.findIndex((c) => c.keyword === x.keyword)]}%</em>}</b></div>
                     <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-3"><span className="fq-bar-x block h-full rounded-full" style={{ background: colorOf(x.keyword), width: `${x.value === null ? 3 : Math.max(3, (x.value / topTerm) * 100)}%` }} /></span>
                   </li>
                 ))}

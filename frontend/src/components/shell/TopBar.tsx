@@ -102,7 +102,7 @@ export function SearchPill({ onOpen }: { onOpen: () => void }) {
       className={clsx(tbBtn, "min-[860px]:ml-1 min-[860px]:flex min-[860px]:h-10 min-[860px]:w-auto min-[860px]:min-w-[150px] min-[860px]:max-w-[300px] min-[860px]:flex-[0_1_300px] min-[860px]:items-center min-[860px]:justify-start min-[860px]:gap-2.5 min-[860px]:pl-3 min-[860px]:pr-2 min-[860px]:text-muted")}>
       <SearchGlyph className="h-5 w-5 shrink-0" strokeWidth={1.6} />
       <span className="hidden min-w-0 flex-1 truncate text-left text-[13.5px] min-[860px]:block">Search or jump to…</span>
-      <kbd className="hidden rounded-md bg-surface-2 px-1.5 py-0.5 font-sans text-[11.5px] text-muted ring-1 ring-line min-[860px]:block">{mac ? "⌘K" : "Ctrl K"}</kbd>
+      <kbd className="hidden rounded-md bg-surface-2 px-1.5 py-0.5 font-sans text-[12px] text-muted ring-1 ring-line min-[860px]:block">{mac ? "⌘K" : "Ctrl K"}</kbd>
     </button>
   );
 }

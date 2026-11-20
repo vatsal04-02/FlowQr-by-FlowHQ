@@ -78,7 +78,7 @@ export function GoogleHistory({ range, extra }: { range: Range; extra?: ReactNod
                 : <p className="rounded-[12px] bg-surface-2 p-3 text-[13px] text-muted">The daily chart appears once Google has shared three days in a row ({d!.days_with_data} so far). The totals are on the cards below.</p>}</div>
               {sum > 0 && <div className="flex flex-col items-center gap-3 md:items-stretch"><div className="flex justify-center"><Donut slices={slices} size={140} stroke={19} label="Share of calls, directions and website clicks" centre={<CountUp value={sum} />} sub="actions" /></div><Legend slices={slices} /></div>}
             </div>
-            <p className="mt-3 text-[12px] text-muted">Days Google has not reported are left out, never counted as zero.</p>
+            <p className="mt-3 text-[13px] text-muted">Days Google has not reported are left out, never counted as zero.</p>
           </Card>
         );
       })()}

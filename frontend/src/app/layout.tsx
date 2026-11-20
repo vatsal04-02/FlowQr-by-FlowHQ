@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import "./design.css";
 import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/Toast";
 import { APP_PREFIXES } from "@/lib/nav";
@@ -19,11 +20,14 @@ const geist = localFont({ src: "../fonts/geist-latin.woff2", weight: "100 900", 
 const geistMono = localFont({ src: "../fonts/geist-mono-latin.woff2", weight: "100 900", variable: "--font-geist-mono", display: "swap" });
 const inter = localFont({ src: "../fonts/inter-latin.woff2", weight: "100 900", variable: "--font-inter", display: "swap" });
 const jakarta = localFont({ src: "../fonts/plus-jakarta-sans-700-latin.woff2", weight: "700", variable: "--font-jakarta", display: "swap" });
+// The logged-in app's one typeface: Plus Jakarta Sans, the face of the FlowQR wordmark, as a variable font. The second file only supplies characters the first lacks (the rupee sign), so it is not preloaded.
+const jakartaVar = localFont({ src: "../fonts/plus-jakarta-sans-latin-wght.woff2", weight: "200 800", variable: "--font-jakarta-var", display: "swap" });
+const jakartaExt = localFont({ src: "../fonts/plus-jakarta-sans-latin-ext-wght.woff2", weight: "200 800", variable: "--font-jakarta-ext", display: "swap", preload: false });
 const devanagari = localFont({ src: "../fonts/noto-sans-devanagari.woff2", weight: "100 900", variable: "--font-devanagari", display: "swap", preload: false }); // Hindi review page only
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} ${inter.variable} ${jakarta.variable} ${devanagari.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} ${inter.variable} ${jakarta.variable} ${jakartaVar.variable} ${jakartaExt.variable} ${devanagari.variable}`}>
       <head>
         {/* App pages only: put the dashboard palette and the saved light/dark choice on <html> before first paint (no flash). */}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript(APP_PREFIXES) }} />

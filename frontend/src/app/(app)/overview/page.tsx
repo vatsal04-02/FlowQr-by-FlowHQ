@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DoThisWeek, FunnelStrip, Numbers, ScoreCard, WeeklyReviews, type FunnelStep, type GrowthScore } from "@/components/home/v2";
 import { GoogleActions, LatestReviews, RatingMix } from "@/components/home/v3";
 import { GettingStarted } from "@/components/overview/GettingStarted";
@@ -21,13 +21,26 @@ function rangeFor(days: Days) {
   return { from: isoDay(from), to: isoDay(to) };
 }
 
+/** "Good morning, Geeta": the greeting follows the hour on this device, and uses only the first name. It starts as a plain "Hello" so the server and the browser agree on the first paint. */
+function useGreeting(fullName: string | null | undefined) {
+  const [g, setG] = useState({ hello: "Hello", date: "" });
+  useEffect(() => {
+    const now = new Date(), h = now.getHours();
+    setG({ hello: h < 5 ? "Hello" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 22 ? "Good evening" : "Hello", date: now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }) });
+  }, []);
+  const first = (fullName ?? "").trim().split(/\s+/)[0] ?? "";
+  const name = first ? first[0].toUpperCase() + first.slice(1) : "";
+  return { title: name ? `${g.hello}, ${name}` : g.hello, date: g.date };
+}
+
 /**
  * Home answers "am I getting better, and what do I do this week?" with pictures first. Several charts, each answering a different question and each drawn from numbers the API returned
  * (docs/DESIGN.md §4): the Growth score ring and its five parts; four numbers with a small picture each; reviews by week against the goal; what customers do on Google (stored daily
  * figures, drawn only when Google has shared enough days); how ratings split; the four newest reviews; three moves for the week; the steps from card to Google.
  */
 export default function Home() {
-  const { tenant } = useAuth();
+  const { tenant, me } = useAuth();
+  const greeting = useGreeting(me?.user.full_name);
   const [days, setDays] = useState<Days>(30);
   const { locationId } = useLocationScope();
   const loc = locationId ?? "";
@@ -64,7 +77,11 @@ export default function Home() {
 
   return (
     <>
-      <h1 className="sr-only">Home, {tenant?.name}</h1>
+      <div className="mb-4 sm:mb-5">
+        <h1 className="text-[30px] font-bold leading-[36px] tracking-[-.015em] text-ink sm:text-[32px] sm:leading-10 lg:text-[34px]"><span className="sr-only">Home. </span>{greeting.title}</h1>
+        <p className="mt-1 min-h-[22px] text-[15px] leading-[22px] text-muted sm:text-base">{greeting.date}{greeting.date && tenant?.name ? " · " : ""}{tenant?.name}</p>
+        <p className="mt-2 max-w-xl text-[15px] font-medium leading-6 text-ink-700 sm:text-base">See the difference FlowQR is making.</p>
+      </div>
       {ov.error && <div className="mb-4"><Alert tone="error" title="We couldn't load your numbers" action={<button type="button" onClick={() => { void ov.reload(); void prevOv.reload(); }} className="inline-flex min-h-11 items-center rounded-[10px] bg-surface px-4 text-sm font-semibold text-ink">Try again</button>}>{ov.error}</Alert></div>}
       <div data-flat className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-stretch lg:gap-3">
         <Rv d={0} className="lg:order-1 lg:col-span-8"><ScoreCard g={score.data} loading={score.loading && !score.data} days={days} onDays={setDays} /></Rv>

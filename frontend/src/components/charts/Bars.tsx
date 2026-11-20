@@ -22,12 +22,12 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
       <div className="relative" style={{ height }} role="img" aria-label={label}>
         {[0, 0.5, 1].map((t) => (
           <div key={t} aria-hidden className="absolute inset-x-0 flex items-center gap-2" style={{ bottom: `${t * 100}%`, transform: "translateY(50%)" }}>
-            <span className="num w-5 text-right text-[11px] text-muted">{Math.round(top * t)}</span><span className="h-px flex-1 bg-line" />
+            <span className="num w-5 text-right text-[12px] text-muted">{Math.round(top * t)}</span><span className="h-px flex-1 bg-line" />
           </div>
         ))}
         {goal ? (
           <div aria-hidden className="absolute left-7 right-0 border-t-[1.5px] border-dashed border-ink-500" style={{ bottom: pct(goal) }}>
-            <span className="absolute -top-[18px] right-0 bg-surface pl-1 text-[11px] font-medium text-ink-600">{goalLabel ?? "Goal"} {goal % 1 ? goal.toFixed(1) : goal}</span>
+            <span className="absolute -top-[18px] right-0 bg-surface pl-1 text-[12px] font-medium text-ink-600">{goalLabel ?? "Goal"} {goal % 1 ? goal.toFixed(1) : goal}</span>
           </div>
         ) : null}
         <div className="absolute inset-y-0 left-7 right-0 flex items-end justify-around gap-1">
@@ -50,16 +50,16 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
           </div>
         )}
         {on !== null && data[on] && (
-          <div id={`${id}-tip`} role="tooltip" className="pointer-events-none absolute -top-2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[10px] bg-ink-solid px-2.5 py-1.5 text-[12px] text-ink-on"
+          <div id={`${id}-tip`} role="tooltip" className="pointer-events-none absolute -top-2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[10px] bg-ink-solid px-2.5 py-1.5 text-[13px] text-ink-on"
             style={{ left: `calc(1.75rem + (100% - 1.75rem) * ${(on + 0.5) / data.length})` }}>
             <b className="num">{data[on].cur}</b> {unit} · {data[on].tip ?? data[on].label}{hasPrev && data[on].prev !== null && data[on].prev !== undefined ? <span className="opacity-70"> · before {data[on].prev}</span> : null}
           </div>
         )}
       </div>
-      <div aria-hidden className="ml-7 mt-1.5 flex justify-around gap-1 overflow-hidden">{data.map((d, i) => <span key={d.key} className="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center text-[11px] text-muted">{i % Math.max(1, Math.ceil(data.length / 5)) ? "" : d.label}</span>)}</div>
+      <div aria-hidden className="ml-7 mt-1.5 flex justify-around gap-1 overflow-hidden">{data.map((d, i) => <span key={d.key} className="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center text-[12px] text-muted">{i % Math.max(1, Math.ceil(data.length / 5)) ? "" : d.label}</span>)}</div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        {hasPrev ? <p className="flex items-center gap-3 text-[12px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] bg-chart" />This period</span><span className="flex items-center gap-1.5">{asLine ? <i aria-hidden className="h-0 w-4 border-t-[1.75px] border-dashed border-ink-500" /> : <i aria-hidden className="h-2.5 w-2.5 rounded-[2px] border border-ink-400" />}{asLine ? "Period before" : "Before"}</span></p> : <span />}
-        <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 text-[12px] font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
+        {hasPrev ? <p className="flex items-center gap-3 text-[13px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] bg-chart" />This period</span><span className="flex items-center gap-1.5">{asLine ? <i aria-hidden className="h-0 w-4 border-t-[1.75px] border-dashed border-ink-500" /> : <i aria-hidden className="h-2.5 w-2.5 rounded-[2px] border border-ink-400" />}{asLine ? "Period before" : "Before"}</span></p> : <span />}
+        <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 text-[13px] font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
       </div>
       {table && (
         <table className="mt-2 w-full text-left text-[13px]"><thead><tr className="text-muted"><th className="py-1 font-medium">Period</th><th className="py-1 text-right font-medium">This</th>{hasPrev && <th className="py-1 text-right font-medium">Before</th>}</tr></thead>

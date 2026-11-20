@@ -7,6 +7,7 @@ import { HeroFloaters } from "@/components/marketing/HeroFloaters";
 import { HeroActions } from "@/components/marketing/HeroActions";
 import { MButton, MicroChip } from "@/components/marketing/kit";
 import { AgentShowcase } from "@/components/marketing/AgentShowcase";
+import { WhatsAppShowcase } from "@/components/marketing/WhatsAppShowcase";
 import { StorySection } from "@/components/marketing/HomeSections";
 import { StepConnectArt, StepCounterArt, StepReviewsArt } from "@/components/marketing/HomeVisuals";
 import { MiniCard, OverviewScreen } from "@/components/marketing/Mockups";
@@ -45,6 +46,9 @@ export default function Home() {
 
       {/* The three agents, animated */}
       <AgentShowcase title={c.team.title} sub={c.team.sub} />
+
+      {/* The WhatsApp Marketing AI Agent, directly below the GBP AI Agent */}
+      <div className="mt-8 md:mt-14"><WhatsAppShowcase learnMoreHref="/whatsapp-marketing-ai-agent" /></div>
 
 
       {/* S3 + S4 Brand intro and phone with orbiting cards */}

@@ -1,0 +1,79 @@
+/*
+ * The logged-in app's design pass (everything here is scoped to <html class="fq-app">, so the marketing site, sign-in and the public review pages are untouched).
+ * Imported after globals.css in layout.tsx, so these rules win without any !important.
+ *
+ * The idea: FlowQR is a tool a busy shop or clinic owner opens many times a day, on a phone, to see what needs them and do one thing about it. So the interface is calm and
+ * content-first: one typeface (the wordmark's own, Plus Jakarta Sans), flat white sheets on a quiet navy-grey ground, hairlines instead of glows, and colour spent only on meaning.
+ * Navy is the structure (text, sidebar, the main button); orange is the single call to action (navy text on #FE6A05, 5.97:1, the same as the marketing site and the review page).
+ *
+ * Contrast (computed): ink on white 16:1, muted on canvas 5.6:1, muted on a grey well 5.3:1, orange-brown link text on white 5.2:1. Dark: ink 15.6:1, muted 7.6:1 on a card.
+ */
+
+/* ---- Type ---- */
+html.fq-app { --font-geist: var(--font-jakarta-var), var(--font-jakarta-ext); --font-inter: var(--font-jakarta-var), var(--font-jakarta-ext); }
+html.fq-app body {
+  font-size: 16px; line-height: 24px; letter-spacing: 0; word-spacing: .05em; font-feature-settings: "calt" 1; font-optical-sizing: auto;
+}
+/* Plus Jakarta Sans sets its word spaces tight, so words get a touch more room; headings keep only a light negative tracking. */
+html.fq-app h1, html.fq-app h2, html.fq-app h3, html.fq-app h4 { letter-spacing: -.012em; word-spacing: .07em; line-height: 1.2; font-feature-settings: normal; }
+html.fq-app p, html.fq-app li { text-wrap: pretty; }
+html.fq-app .num, html.fq-app .tnum { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+/* Labels that used to be tracked capitals read as plain small text: capitals are for names, not for decoration. */
+html.fq-app .eyebrow { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; }
+
+/* ---- Palette: navy-tinted neutrals (light) ---- */
+html.fq-app {
+  --c-ink: 17 23 63; --c-ink-800: 35 42 85; --c-ink-700: 58 65 102; --c-ink-600: 77 84 120; --c-ink-500: 90 97 128; --c-ink-400: 122 129 159; --c-ink-300: 163 169 192; --c-ink-200: 213 217 230; --c-ink-100: 227 230 239; --c-ink-50: 241 243 248;
+  --c-ink-solid: 17 23 63; --c-on-ink: 255 255 255; --c-navy: 17 23 63;
+  --c-canvas-outer: 233 235 242; --c-canvas: 244 245 249; --c-surface: 255 255 255; --c-surface-2: 238 240 246; --c-surface-3: 226 229 239;
+  --c-muted: 90 97 128; --c-muted-soft: 107 114 144; --c-line: 227 230 239;
+  --c-cta: 254 106 5; --c-cta-hover: 236 95 0; --c-on-cta: 17 23 63;
+  --hatch: rgb(var(--c-surface-3));
+  /* Flat sheets: a hairline and almost no shadow. Depth comes from the grey ground, not from glows. */
+  --shadow-card: 0 0 0 1px rgb(var(--c-line)), 0 1px 2px rgba(17,23,63,.04);
+  --shadow-pill: 0 0 0 1px rgb(var(--c-line)), 0 1px 2px rgba(17,23,63,.05);
+  --shadow-lift: 0 0 0 1px rgb(var(--c-ink-200)), 0 10px 28px -12px rgba(17,23,63,.22);
+  --shadow-hero: none;
+}
+html.fq-app[data-theme="dark"] {
+  --c-ink: 242 244 251; --c-ink-800: 231 234 246; --c-ink-700: 211 216 234; --c-ink-600: 190 196 220; --c-ink-500: 165 172 200; --c-ink-400: 130 138 170; --c-ink-300: 90 98 135; --c-ink-200: 52 59 92; --c-ink-100: 40 46 78; --c-ink-50: 29 35 64;
+  --c-ink-solid: 242 244 251; --c-on-ink: 17 23 63; --c-navy: 242 244 251; --c-white: 21 26 51;
+  --c-canvas-outer: 6 9 22; --c-canvas: 12 16 36; --c-surface: 21 26 51; --c-surface-2: 29 35 64; --c-surface-3: 40 46 80;
+  --c-muted: 165 172 200; --c-muted-soft: 130 138 170; --c-line: 38 44 76;
+  --c-cta: 254 106 5; --c-cta-hover: 255 128 40; --c-on-cta: 17 23 63;
+  --shadow-card: 0 0 0 1px rgb(var(--c-line)); --shadow-pill: 0 0 0 1px rgb(var(--c-line)); --shadow-lift: 0 0 0 1px rgb(var(--c-ink-200)), 0 14px 30px -12px rgba(0,0,0,.65);
+}
+
+/* ---- Surfaces: no ambient glow, no frosted cards, no tinted card glows ---- */
+html.fq-app .fq-ambient { display: none; }
+html.fq-app .panel, html.fq-app .surface { box-shadow: var(--shadow-card); }
+html.fq-app .tn { border: 0; background: rgb(var(--c-surface)); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--shadow-card); }
+html.fq-app[data-theme="dark"] .tn { box-shadow: var(--shadow-card); }
+html.fq-app .kic { background: rgb(var(--tc, var(--c-ink)) / .13); box-shadow: none; border-radius: 10px; }
+html.fq-app .glass, html.fq-app[data-theme="dark"] .glass { background: rgb(var(--c-surface)); border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--shadow-card); }
+html.fq-app .beam::before { display: none; }
+html.fq-app .tilt, html.fq-app .tilt:hover, html.fq-app .tn.tilt:hover { transform: none; }
+html.fq-app .tilt::after { display: none; }
+html.fq-app .tilt:hover, html.fq-app .lift:hover { transform: none; box-shadow: var(--shadow-lift); }
+
+/* ---- The top bar and the phone tab bar are the functional layer: the only places a material is used ---- */
+html.fq-app .top-glass { background: rgb(var(--c-canvas) / .9); box-shadow: none; }
+html.fq-app .top-glass.scrolled { box-shadow: 0 8px 20px -16px rgba(17,23,63,.35); }
+html.fq-app .tb-chip { box-shadow: var(--shadow-pill); }
+html.fq-app .tb-chip:hover { transform: none; box-shadow: var(--shadow-lift); }
+html.fq-app .dock { background: rgb(var(--c-surface) / .92); border: 0; box-shadow: 0 0 0 1px rgb(var(--c-line)), 0 10px 28px -10px rgba(17,23,63,.3); }
+html.fq-app[data-theme="dark"] .dock { box-shadow: 0 0 0 1px rgb(var(--c-line)), 0 10px 28px -10px rgba(0,0,0,.7); }
+
+/* ---- Buttons: flat fills, no gloss, no sweep. Navy for the main action, orange (navy text) for the one call to action, a white outline for the rest ---- */
+html.fq-app .btn-sheen::after { display: none; }
+html.fq-app .btn-ink, html.fq-app[data-theme="dark"] .btn-ink { background: rgb(var(--c-ink-solid)); color: rgb(var(--c-on-ink)); box-shadow: none; }
+html.fq-app .btn-ink:hover { background: rgb(var(--c-ink-800)); box-shadow: none; }
+html.fq-app .btn-brand, html.fq-app[data-theme="dark"] .btn-brand { background: rgb(var(--c-cta)); color: rgb(var(--c-on-cta)); box-shadow: none; }
+html.fq-app .btn-brand:hover { background: rgb(var(--c-cta-hover)); box-shadow: none; }
+html.fq-app .btn-glass { background: rgb(var(--c-surface)); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset 0 0 0 1px rgb(var(--c-ink-200)); }
+html.fq-app .btn-glass:hover { background: rgb(var(--c-surface-2)); box-shadow: inset 0 0 0 1px rgb(var(--c-ink-300)); }
+html.fq-app .btn-ink:active, html.fq-app .btn-brand:active { filter: brightness(.94); }
+
+/* ---- Motion: a page change is a quiet fade, nothing rises, blurs or tilts ---- */
+@keyframes fq-stagger { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fq-blur-in { from { opacity: 0; } to { opacity: 1; } }

@@ -45,7 +45,7 @@ const NFC_STATE: Record<Nfc["status"], { tone: "gray" | "amber" | "green"; label
 };
 
 function Tile({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
-  return <div className="rounded-2xl bg-surface-2 px-3 py-2.5"><p className="num font-display text-xl font-semibold leading-6 text-ink">{value}</p><p className="mt-0.5 text-[11.5px] leading-4 text-muted">{label}</p>{hint && <p className="mt-0.5 text-[11px] text-muted">{hint}</p>}</div>;
+  return <div className="rounded-2xl bg-surface-2 px-3 py-2.5"><p className="num font-display text-xl font-semibold leading-6 text-ink">{value}</p><p className="mt-0.5 text-[12px] leading-4 text-muted">{label}</p>{hint && <p className="mt-0.5 text-[12px] text-muted">{hint}</p>}</div>;
 }
 
 /** One QR/NFC asset: where it points, its NFC tag, and how it is used. Every change here is confirmed when the card is live, audited, and needs no new QR and no tag rewrite. */

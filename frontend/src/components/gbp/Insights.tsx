@@ -87,7 +87,7 @@ export function MonthlyTrend({ gid }: { gid: string }) {
             {months.map((x, i) => (
               <div key={x.m} className="flex min-w-0 flex-1 flex-col items-center gap-1.5" title={`${x.m}: ${fmtNum(x.v)}`}>
                 <div className={clsx("grow-y w-full rounded-t-[8px] rounded-b-[4px]", i === months.length - 1 ? "hatch bg-accent/30" : "bg-ink-solid")} style={{ height: `${Math.max(2, (x.v / max) * 100)}%`, ["--d" as string]: `${i * 30}ms` }} />
-                <span className="text-[10px] text-muted sm:text-xs">{new Date(x.m + "-01").toLocaleDateString("en-IN", { month: "short" })}</span>
+                <span className="text-[12px] text-muted sm:text-xs">{new Date(x.m + "-01").toLocaleDateString("en-IN", { month: "short" })}</span>
               </div>
             ))}
           </div>

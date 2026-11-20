@@ -73,7 +73,7 @@ export function AreaChart({ days, names, colors, ariaLabel, unit = "" }: { days:
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-ink-700">{names.map((n, k) => <span key={n} className="inline-flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: colors[k] }} />{n}</span>)}</div>
+      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink-700">{names.map((n, k) => <span key={n} className="inline-flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: colors[k] }} />{n}</span>)}</div>
       <div ref={wrap} tabIndex={0} role="img" aria-label={`${ariaLabel}. Use the left and right arrow keys to read each day.`} onKeyDown={onKey} onPointerMove={(e: PointerEvent) => nearest(e.clientX)} onPointerLeave={() => setAt(null)} onBlur={() => setAt(null)}
         className="relative cursor-crosshair rounded-[10px] outline-offset-2" style={{ animation: "chart-reveal 1.4s cubic-bezier(.2,.7,.2,1) .2s both" }}>
         <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full overflow-visible" aria-hidden>
@@ -86,7 +86,7 @@ export function AreaChart({ days, names, colors, ariaLabel, unit = "" }: { days:
           {xs.map(({ f, d }, i) => <text key={f} x={PL + f * pw} y={H - 6} textAnchor={i === 0 ? "start" : i === xs.length - 1 ? "end" : "middle"} fontSize="11" fill="rgb(var(--c-muted))">{label(d)}</text>)}
         </svg>
         {sel && (
-          <div role="status" className="pointer-events-none absolute top-1 z-10 grid min-w-[150px] gap-1 rounded-[12px] bg-ink-solid px-3 py-2 text-[12px] text-ink-on shadow-lift"
+          <div role="status" className="pointer-events-none absolute top-1 z-10 grid min-w-[150px] gap-1 rounded-[12px] bg-ink-solid px-3 py-2 text-[13px] text-ink-on shadow-lift"
             style={{ left: `${px}%`, transform: px > 78 ? "translateX(-100%)" : px < 22 ? "translateX(0)" : "translateX(-50%)" }}>
             <b>{label(sel.date)}</b>
             {names.map((n, k) => <span key={n} className="flex items-center gap-2"><i aria-hidden className="h-2 w-2 rounded-[2px]" style={{ background: colors[k] }} />{n}<b className="num ml-auto pl-4">{sel.values[k]}</b></span>)}
@@ -94,7 +94,7 @@ export function AreaChart({ days, names, colors, ariaLabel, unit = "" }: { days:
           </div>
         )}
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-[12px] text-muted">
+      <div className="mt-2 flex items-center justify-between gap-2 text-[13px] text-muted">
         <span>{days.length} {days.length === 1 ? "day" : "days"} reported by Google{unit ? ` · ${unit}` : ""}</span>
         <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
       </div>

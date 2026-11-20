@@ -38,7 +38,7 @@ export function RankLadder({ words, limit }: { words: SeoKeyword[]; limit?: numb
               <span aria-hidden className="absolute top-1/2 h-2 w-px -translate-y-1/2 bg-ink-300" style={{ left: "92%" }} />
               {measured && <span aria-hidden className={clsx("absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2", k.rank === null ? "border-ink-400 bg-surface" : "border-surface bg-ink-solid")} style={{ left: `${pos}%` }} />}
             </div>
-            <div aria-hidden className="mt-0.5 flex justify-between text-[11px] text-muted"><span>1</span><span>{measured ? day(k.checked_at) : "not checked"}</span><span>20</span></div>
+            <div aria-hidden className="mt-0.5 flex justify-between text-[12px] text-muted"><span>1</span><span>{measured ? day(k.checked_at) : "not checked"}</span><span>20</span></div>
           </li>
         );
       })}
