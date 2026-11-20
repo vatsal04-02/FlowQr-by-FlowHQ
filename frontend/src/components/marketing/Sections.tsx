@@ -11,7 +11,7 @@ import { GrowthCard, ReplyCard } from "./HeroFloaters";
 import { TrialNote } from "./TrialNote";
 import { HeroBackdrop } from "./Depth";
 import { EASE, Rise } from "./motion";
-import { Draw, PopIn } from "./scroll";
+import { Draw, PopIn, ScrollSettle } from "./scroll";
 
 /* ======================================================================= ScrollStatement (05)
    Each word goes from --muted-2 to --ink as it crosses ~60% of the viewport. `{chip}` in the text places the inline icon chip. */
@@ -203,7 +203,7 @@ export function Marquee({ items }: { items: MarqueeItem[] }) {
 }
 
 /* ======================================================================= Final CTA (09) */
-const CLOSE_POINTS = ["Every Google review and reply in one inbox", "AI drafts the reply, you approve it", "QR and NFC cards for your counter"];
+const CLOSE_POINTS = ["Every Google review and reply in one inbox", "AI drafts, you approve before it goes out", "QR and NFC cards for your counter"];
 
 /**
  * The closing call to action: one large navy panel. Left: the closing line, three plain points (the same facts as the rest of the page), the two buttons and the trial terms. Right: two small pieces of the
@@ -213,7 +213,7 @@ export function FinalCTA({ line1, line2, primary = "Sign up", primaryHref = "/re
   return (
     <section className="relative px-3 pb-6 pt-10 sm:px-5 md:pb-8 md:pt-14">
       <Rise y={24} blur={false}>
-        <div className="relative isolate mx-auto max-w-[1180px] overflow-hidden rounded-[28px] bg-m-navy px-6 py-10 text-white sm:px-10 md:rounded-[36px] md:px-14 md:py-16">
+        <ScrollSettle from={0.96}><div className="relative isolate mx-auto max-w-[1180px] overflow-hidden rounded-[28px] bg-m-navy px-6 py-10 text-white sm:px-10 md:rounded-[36px] md:px-14 md:py-16">
           <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 -z-10 h-[520px] w-[520px] rounded-full bg-[radial-gradient(closest-side,rgba(254,106,5,.42),rgba(254,106,5,0))]" />
           <div aria-hidden className="pointer-events-none absolute -bottom-40 left-[20%] -z-10 h-[420px] w-[420px] rounded-full bg-[radial-gradient(closest-side,rgba(255,178,122,.16),rgba(255,178,122,0))]" />
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-[.5]" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.10) 1px, transparent 1px)", backgroundSize: "26px 26px", maskImage: "linear-gradient(90deg, #000, transparent 70%)", WebkitMaskImage: "linear-gradient(90deg, #000, transparent 70%)" }} />
@@ -242,7 +242,7 @@ export function FinalCTA({ line1, line2, primary = "Sign up", primaryHref = "/re
               </div>
             </div>
           </div>
-        </div>
+        </div></ScrollSettle>
       </Rise>
     </section>
   );

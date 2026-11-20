@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarCheck, Layers, MousePointerClick, Nfc, QrCode, ScanLine, Search, Sparkles, Star, TrendingUp } from "lucide-react";
+import { BadgeCheck, CalendarCheck, Layers, MessageCircle, MousePointerClick, Nfc, QrCode, ScanLine, Sparkles, Star } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Hero } from "@/components/marketing/Hero";
@@ -9,6 +9,7 @@ import { MButton, MicroChip } from "@/components/marketing/kit";
 import { AgentShowcase } from "@/components/marketing/AgentShowcase";
 import { WhatsAppShowcase } from "@/components/marketing/WhatsAppShowcase";
 import { StorySection } from "@/components/marketing/HomeSections";
+import { TeamBand } from "@/components/marketing/TeamBand";
 import { StepConnectArt, StepCounterArt, StepReviewsArt } from "@/components/marketing/HomeVisuals";
 import { MiniCard, OverviewScreen } from "@/components/marketing/Mockups";
 import { PhoneOrbit } from "@/components/marketing/PhoneOrbit";
@@ -38,16 +39,19 @@ export default function Home() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* S1 Hero */}
-      <Hero line1={c.hero.line1} line2={c.hero.line2} typed={c.hero.typed} sub={c.hero.sub}
+      <Hero compact line1={c.hero.line1} line2={c.hero.line2} typed={c.hero.typed} sub={c.hero.sub}
         actions={<HeroActions />} floaters={<HeroFloaters />} />
+
+      {/* The team: three agents, one job each, before any one of them is explained */}
+      <TeamBand />
 
       {/* Made for: the kinds of business, large and scrolling, each linking to its block on /industries */}
       <BusinessBand title={c.hero.bandTitle} items={en.industries.list.map(([id, name]) => [id, name] as [string, string])} />
 
-      {/* The three agents, animated */}
+      {/* The Google Profile Agent, animated */}
       <AgentShowcase title={c.team.title} sub={c.team.sub} />
 
-      {/* The WhatsApp Marketing AI Agent, directly below the GBP AI Agent */}
+      {/* The WhatsApp Marketing AI Agent, directly below the Google Profile Agent */}
       <div className="mt-8 md:mt-14"><WhatsAppShowcase learnMoreHref="/whatsapp-marketing-ai-agent" /></div>
 
 
@@ -59,10 +63,10 @@ export default function Home() {
           { node: <MiniCard icon={<Nfc className="h-3.5 w-3.5" strokeWidth={1.5} />} title="NFC taps: 41" sub="Sample data" className="w-[140px]" />, x: -120, y: -110, r: 3 },
           { node: <MiniCard tone="accent" icon={<CalendarCheck className="h-3.5 w-3.5" strokeWidth={1.5} />} title="Google post scheduled" sub="Diwali offer" className="w-[180px]" />, x: 300, y: -60, r: 8 },
           { node: <MiniCard icon={<BadgeCheck className="h-3.5 w-3.5" strokeWidth={1.5} />} title="Approve 3 replies" className="w-[150px]" />, x: 150, y: -120, r: -3 },
-          { node: <MiniCard tone="tint" icon={<TrendingUp className="h-3.5 w-3.5" strokeWidth={1.5} />} title="Profile 92% complete" sub="Sample data" className="w-[170px]" />, x: 280, y: 130, r: 5 },
+          { node: <MiniCard tone="tint" icon={<MessageCircle className="h-3.5 w-3.5" strokeWidth={1.5} />} title="WhatsApp offer ready" sub="You approve first" className="w-[170px]" />, x: 280, y: 130, r: 5 },
         ]} />
 
-      {/* G. Local storytelling: people check Google first */}
+      {/* G. Local storytelling: customers look you up before they visit */}
       <StorySection c={c.story} />
 
       {/* A. How it works: three connected steps */}
@@ -73,7 +77,7 @@ export default function Home() {
         rows={c.compare.rows.map(([feature, ...cells], i) => { const I = ROW_ICONS[i]; return { feature, cells, icon: <I className="h-3.5 w-3.5" strokeWidth={1.5} /> }; })} />
 
       {/* S8 FAQ */}
-      <FaqScroller sub="Straight answers about reviews, replies, Google and cost." items={c.faq.map(([q, a]) => [q, a === "PRICING_LINK" ? <span key="pricing">Plans are in rupees on our <Link href="/pricing" className="text-m-accentStrong underline">pricing page</Link>. Cards are sold separately.</span> : a])} />
+      <FaqScroller sub="Straight answers about the agents, reviews, Google, WhatsApp and cost." items={c.faq.map(([q, a]) => [q, a === "PRICING_LINK" ? <span key="pricing">Plans are in rupees on our <Link href="/pricing" className="text-m-accentStrong underline">pricing page</Link>. Cards are sold separately.</span> : a])} />
 
       {/* Final CTA */}
       <FinalCTA line1={c.cta.line1} line2={c.cta.line2} />

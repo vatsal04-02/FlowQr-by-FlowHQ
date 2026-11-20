@@ -31,7 +31,7 @@ export function FooterCards() {
       brand={
         <>
           <Logo dark size={40} />
-          <p className="mt-5 max-w-[320px] text-[15px] leading-relaxed text-white/75">Google reviews and review cards for local businesses.</p>
+          <p className="mt-5 max-w-[320px] text-[15px] leading-relaxed text-white/75">An AI marketing team for local businesses: Google, reviews and WhatsApp.</p>
           <div className="mt-6 flex flex-wrap items-center gap-2.5">
             <MButton href="/register" event="signup_cta_click">Sign up</MButton>
             <Link href="/login" className="inline-flex min-h-11 items-center rounded-full border border-white/40 px-5 text-[14px] font-medium text-white transition-colors hover:bg-white/10 focus-visible:!outline-white">Log in</Link>

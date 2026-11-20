@@ -4,7 +4,7 @@ import { GoogleG, SampleTag } from "./kit";
 
 /**
  * The cards that float around the home hero. Each one is a small, real-looking piece of the product (a Google profile, a drafted reply with its Approve button, the Growth score,
- * a local-rank grid, a Google post, the customer-actions chart), drawn differently on purpose: different widths, one navy card among the white ones, no repeated icon-in-a-square.
+ * a local-rank grid, a Google post, a WhatsApp offer waiting for approval), drawn differently on purpose: different widths, one navy card among the white ones, no repeated icon-in-a-square.
  * Each carries one plain sentence on what the feature does.
  *
  * Motion is CSS only (.fc-in / .fc-float in globals.css), so the server and the browser draw the same markup: on load the cards start stacked behind the headline and are dealt out to
@@ -108,28 +108,18 @@ function PostCard() {
   );
 }
 
-function ActionsCard() {
-  const calls = "0,26 10,25 20,27 30,22 40,24 50,19 60,23 70,20 80,24 90,21 100,23 110,19 120,22";
-  const dirs = "0,18 10,15 20,17 30,9 40,14 50,6 60,13 70,8 80,12 90,7 100,11 110,6 120,9";
-  const web = "0,23 10,22 20,23 30,18 40,21 50,15 60,20 70,16 80,19 90,15 100,18 110,14 120,17";
+function WhatsAppCard() {
   return (
     <div className={clsx(FACE, "bg-white p-3.5 text-left")}>
       <div className="flex items-center justify-between gap-2">
-        <p className={clsx(LABEL, "text-m-ink")}>Customer actions</p>
+        <p className={clsx(LABEL, "text-m-ink")}>WhatsApp offer</p>
         <SampleTag className="shrink-0 whitespace-nowrap" />
       </div>
-      <svg aria-hidden viewBox="0 0 120 32" preserveAspectRatio="none" className="mt-2.5 h-[52px] w-full overflow-visible">
-        <path d="M0 31.5H120" stroke="#EAE6E0" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-        <polyline points={dirs} fill="none" stroke="#2457D6" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        <polyline points={web} fill="none" stroke="#E8B04A" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        <polyline points={calls} fill="none" stroke="#0F8F86" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      </svg>
-      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-m-ink2">
-        <li className="flex items-center gap-1.5"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#0F8F86]" />Calls</li>
-        <li className="flex items-center gap-1.5"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#2457D6]" />Directions</li>
-        <li className="flex items-center gap-1.5"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#E8B04A]" />Website clicks</li>
-      </ul>
-      <p className={clsx(CAPTION, "mt-2")}>Counted the way Google reports them.</p>
+      <p className="mt-2.5 max-w-[90%] rounded-[12px] rounded-bl-[4px] bg-[color:var(--wa-bubble)] px-2.5 py-2 text-[12px] leading-snug text-m-ink">Hi Asha, 10% off all sessions this week.</p>
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <p className="text-[11.5px] leading-tight text-m-muted">You approve before it sends.</p>
+        <span className="shrink-0 rounded-full bg-m-accent px-3 py-1 text-[11.5px] font-medium text-m-ink">Approve</span>
+      </div>
     </div>
   );
 }
@@ -149,7 +139,7 @@ const CARDS: Card[] = [
   { id: "growth", node: <GrowthCard />, side: "l", top: 268, inset: "clamp(48px,5.6vw,100px)", width: "clamp(206px,15.6vw,236px)", from: ["30vw", "-10px", "9deg"], delay: 0.85, drift: [6.5, -2.5, 0.7] },
   { id: "rank", node: <RankCard />, side: "r", top: 290, inset: "clamp(60px,6.6vw,116px)", width: "clamp(206px,15.4vw,226px)", from: ["-30vw", "-30px", "-10deg"], delay: 1.0, drift: [7.5, 2, -0.5] },
   { id: "posts", node: <PostCard />, side: "l", top: 458, inset: "clamp(16px,2.2vw,44px)", width: "clamp(214px,16.4vw,248px)", from: ["34vw", "-170px", "-12deg"], delay: 1.15, drift: [8.5, 0, 0.4] },
-  { id: "actions", node: <ActionsCard />, side: "r", top: 534, inset: "clamp(20px,2.6vw,52px)", width: "clamp(224px,17.2vw,260px)", from: ["-34vw", "-200px", "12deg"], delay: 1.3, drift: [7, -2, 0.6] },
+  { id: "whatsapp", node: <WhatsAppCard />, side: "r", top: 534, inset: "clamp(20px,2.6vw,52px)", width: "clamp(224px,17.2vw,260px)", from: ["-34vw", "-200px", "12deg"], delay: 1.3, drift: [7, -2, 0.6] },
 ];
 
 export function HeroFloaters() {

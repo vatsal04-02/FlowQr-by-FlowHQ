@@ -5,21 +5,29 @@
  */
 export const en = {
   home: {
-    meta: { title: "FlowQR: Google reviews and QR/NFC review cards for local businesses", description: "FlowQR by FlowHQ helps local businesses manage their Google reviews and keep their Google Business Profile active. A QR/NFC card makes it easy for every genuine customer to share honest feedback, and AI drafts replies for you to approve." },
-    hero: { line1: "AI marketing team for", line2: "", typed: "local businesses.", bandTitle: "Made for your business", bandAll: "See all businesses", sub: "Manage your Google reviews, replies and posts in one place.", forLabel: "Built for local businesses —", forAccent: "any kind.", primary: "Book a demo", secondary: "Free profile check", left: "Your Google profile, reviews and marketing, managed from one app.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
-    team: { title: "GBP AI Agent", sub: "Track your local SEO, fix gaps in your profile and reply to every review. AI handles the daily routine, so you can focus on your customers." },
-    intro: { line1: "Your Google profile,", line2Pre: "looked after", accent: "every day.", sub: "Reviews to reply to, updates to post, details to complete. FlowQR keeps track and drafts the routine work for you to approve." },
+    meta: { title: "FlowQR: an AI marketing team for local businesses", description: "FlowQR by FlowHQ gives local businesses a team of AI agents: one keeps your Google profile active and drafts replies and posts, one gives customers a QR/NFC card to share honest reviews, and one handles WhatsApp follow-ups and offers (waitlist). You stay in control of what goes out." },
+    hero: { line1: "AI marketing team for local businesses", line2: "", typed: "that generates real revenue.", bandTitle: "Made for your business", bandAll: "See all businesses", sub: "One agent for your Google profile, one for reviews and one for WhatsApp. They do the daily work. You stay in charge of what goes out.", forLabel: "Built for local businesses —", forAccent: "any kind.", primary: "Book a demo", secondary: "Free profile check", left: "Your Google profile, reviews and WhatsApp, run by one team.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
+    squad: {
+      title: "Meet your marketing team.", sub: "Three AI agents, one job each. They do the daily routine, you stay in charge of what goes out.",
+      agents: [
+        { name: "Google Profile Agent", job: "Keeps your profile complete, drafts posts and writes a reply to every review.", approve: "You approve what goes public.", cta: "See the Google agent", href: "#agents", tag: "" },
+        { name: "Review & QR Agent", job: "Gives every genuine customer an easy way to review you, with a QR/NFC card and one link.", approve: "Customers write their own reviews.", cta: "See review cards", href: "/review-cards", tag: "" },
+        { name: "WhatsApp Agent", job: "Follows up with customers, sends birthday wishes and offers on WhatsApp.", approve: "You approve every offer.", cta: "See the WhatsApp agent", href: "#whatsapp-agent", tag: "Waitlist" },
+      ] as { name: string; job: string; approve: string; cta: string; href: string; tag: string }[],
+    },
+    team: { title: "Google Profile Agent", sub: "Track where you appear on Google, fix gaps in your profile and reply to every review. The agent does the daily routine, you approve what goes public." },
+    intro: { line1: "Your whole team,", line2Pre: "in one app,", accent: "every day.", sub: "Replies to approve, posts to schedule, follow-ups to send. Your agents keep track and prepare the routine work for you to approve." },
     story: {
-      title: "People check Google before they choose your business.",
-      lead: "What they see online can influence whether they walk through your door.",
-      body: "FlowQR helps you manage reviews and keep your profile active.",
+      title: "Customers look you up before they walk in.",
+      lead: "They check Google, read your reviews and message you on WhatsApp.",
+      body: "Your agents keep each of those places active, so you don't have to.",
     },
     how: {
-      title: "Get started in 3 simple steps", sub: "No technical knowledge needed. Start managing your Google reviews in three easy steps.",
-      steps: [["Connect Google", "Link your Google Business Profile to FlowQR."], ["Place your QR card", "Keep your FlowQR card at your counter. Customers scan it with their phone."], ["Collect honest reviews", "Customers reach your Google review page. Manage reviews and replies from one place."]] as [string, string][],
+      title: "Put your team to work in 3 steps", sub: "No technical knowledge needed. Connect once, then approve what your agents prepare.",
+      steps: [["Connect Google", "Your Google Profile Agent starts from your real profile."], ["Place your QR card", "Keep it at your counter. Customers scan it and reach your Google review page."], ["Approve, and the team works", "Replies and posts wait for your OK. WhatsApp joins when it opens for you."]] as [string, string][],
     },
     compare: {
-      title: "Reviews shouldn't be a full-time job.", sub: "FlowQR vs doing it by hand, or a basic QR code.",
+      title: "Marketing shouldn't be a full-time job.", sub: "FlowQR's agents vs doing it by hand, or a basic QR code.",
       columns: ["FlowQR", "By hand", "Basic QR"],
       rows: [
         ["One place for reviews", true, "Check Google", false],
@@ -36,7 +44,8 @@ export const en = {
       pause: "Pause scrolling", play: "Play scrolling",
     },
     faq: [
-      ["What is FlowQR and how does it work?", "FlowQR helps local businesses manage their Google reviews and keep their Google Business Profile active. A QR/NFC card makes it easy for customers to leave a review, and AI drafts replies and posts for you to approve."],
+      ["What is FlowQR and how does it work?", "FlowQR is a team of AI agents for local businesses. One keeps your Google Business Profile active and drafts replies and posts. One gives customers a QR/NFC card to share honest reviews. One handles WhatsApp follow-ups and offers, and is on a waitlist. You stay in control of what goes out."],
+      ["Will the WhatsApp agent message my customers on its own?", "Only customers who agreed to hear from you, with their permission saved, and STOP is always honoured. You approve every offer before it sends. The WhatsApp agent is not open yet: join the waitlist from the demo page."],
       ["Is this allowed by Google's review policies?", "Yes. We never filter by star rating or offer rewards. Every customer writes and posts their own review."],
       ["Does FlowQR write reviews for my customers?", "No. AI only helps customers say what they already think. They edit it and post it themselves."],
       ["Will AI post replies without my permission?", "AI-written replies and posts wait for your approval. Short template thank-you replies to new 4 and 5 star reviews can go out automatically, and you can turn that off at any time in settings."],
@@ -44,7 +53,7 @@ export const en = {
       ["What if I already have printed QR codes, or want to move a card to another location?", "A card's link never changes. Point it at another location from the app and its scan history stays."],
       ["How much does it cost?", "PRICING_LINK"],
     ] as [string, string][],
-    cta: { line1: "Build a stronger", line2: "Google presence." },
+    cta: { line1: "Put your marketing", line2: "team to work." },
   },
   google: {
     meta: { title: "Google Business Profile management for local businesses", description: "All your Google reviews in one inbox, AI reply drafts you approve, Google Posts, photos and insights, through Google's official Business Profile APIs with your permission." },

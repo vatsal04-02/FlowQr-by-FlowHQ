@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LogoMark } from "../ui/Brand";
 import { GoogleG, MButton, SampleTag } from "./kit";
 import { Rise } from "./motion";
+import { Parallax, ScrollSettle } from "./scroll";
 
 /**
  * The GBP AI Manager Agent, one product, on a light warm band: text, six feature tiles and one button on the left; one phone showing a
@@ -84,7 +85,7 @@ export function AgentShowcase({ title, sub }: { title: string; sub: string }) {
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-m-surface shadow-[var(--shadow-card)] ring-4 ring-white/60"><LogoMark size={28} /></span>
                 <p className="flex items-center gap-1.5 text-[14px] font-medium text-m-ink2"><Sparkles className="h-4 w-4 text-m-accentStrong" strokeWidth={1.5} aria-hidden />by FlowQR</p>
               </div>
-              <h2 id="agents-h" className="t-display mt-6 text-m-ink [text-wrap:wrap] max-sm:!text-[length:min(10vw,40px)]"><GoogleG size="0.78em" className="mr-[.22em] translate-y-[-.06em] align-middle shadow-[var(--shadow-card)]" />{title.slice(0, cut)} <span className="text-m-accentText">{title.slice(cut + 1)}</span></h2>
+              <h2 id="agents-h" className="t-display mt-6 text-m-ink [text-wrap:wrap] !text-[length:clamp(32px,3.7vw,54px)] max-sm:!text-[length:min(9.4vw,38px)]"><GoogleG size="0.78em" className="mr-[.22em] translate-y-[-.06em] align-middle shadow-[var(--shadow-card)]" />{title.slice(0, cut)} <span className="text-m-accentText">{title.slice(cut + 1)}</span></h2>
               <p className="mt-5 max-w-[560px] text-pretty text-[16px] leading-relaxed text-m-ink2 md:text-[17px]">{sub}</p>
             </Rise>
             <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -101,9 +102,10 @@ export function AgentShowcase({ title, sub }: { title: string; sub: string }) {
 
           {/* The phone is drawn at 270 x 500 and scaled so its text stays crisp; the wrapper holds the scaled size. */}
           <Rise delay={0.2} y={20} blur={false} className="relative mx-auto w-full max-w-[420px] py-4">
+            <ScrollSettle from={0.95}>
             <span aria-hidden className="absolute left-1/2 top-1/2 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70 md:h-[460px] md:w-[460px]" />
-            <span aria-hidden className="absolute -right-4 bottom-2 h-[150px] w-[150px] rounded-full bg-m-accent300/35" />
-            <span aria-hidden className="absolute left-0 top-10 h-24 w-20 opacity-60 [background-image:radial-gradient(rgba(254,106,5,.55)_1.6px,transparent_1.8px)] [background-size:16px_16px]" />
+            <Parallax speed={22} className="absolute -right-4 bottom-2 h-[150px] w-[150px] rounded-full bg-m-accent300/35" />
+            <Parallax speed={-18} className="absolute left-0 top-10 h-24 w-20 opacity-60 [background-image:radial-gradient(rgba(254,106,5,.55)_1.6px,transparent_1.8px)] [background-size:16px_16px]" />
             <div className="relative mx-auto h-[450px] w-[243px] lg:h-[555px] lg:w-[300px]">
               <div className="absolute left-0 top-0 w-[270px] origin-top-left scale-[.9] rounded-[40px] bg-m-navy p-[8px] shadow-[0_30px_60px_-20px_rgba(11,15,46,.45)] lg:scale-[1.11]">
                 <div className="relative h-[500px] overflow-hidden rounded-[33px] bg-white text-m-ink">
@@ -113,8 +115,9 @@ export function AgentShowcase({ title, sub }: { title: string; sub: string }) {
                 </div>
               </div>
             </div>
-            <FloatBadge className="left-2 top-[30%] sm:left-8"><Check className="h-6 w-6" strokeWidth={2} /></FloatBadge>
-            <FloatBadge className="right-2 top-[64%] sm:right-8" dir={-1}><BarChart3 className="h-6 w-6" strokeWidth={1.5} /></FloatBadge>
+            <Parallax speed={26} className="pointer-events-none absolute inset-0"><FloatBadge className="left-2 top-[30%] sm:left-8"><Check className="h-6 w-6" strokeWidth={2} /></FloatBadge></Parallax>
+            <Parallax speed={-26} className="pointer-events-none absolute inset-0"><FloatBadge className="right-2 top-[64%] sm:right-8" dir={-1}><BarChart3 className="h-6 w-6" strokeWidth={1.5} /></FloatBadge></Parallax>
+            </ScrollSettle>
           </Rise>
         </div>
       </div>

@@ -3,12 +3,13 @@ import type { ReactNode } from "react";
 import { HeroBackdrop, Tilt } from "./Depth";
 import { BlurWords, Pop, Rise } from "./motion";
 import { TextReveal } from "@/components/ui/text-reveal";
+import { ScrollFade } from "./scroll";
 
 /**
  * DESIGN.md §1 / 01-hero.png: centred two-line headline (line 2 in accent), two pill buttons, then a faint 3-column grid with + crosshairs
  * at every intersection, fading at the edges. Left: icon + one line. Centre: a product card. Right: stacked micro-chips.
  */
-export function Hero({ line1, line2, typed, actions, center, left, chips, sub, leftNode, rightNode, below, kicker, flow, floaters }: {
+export function Hero({ line1, line2, typed, actions, center, left, chips, sub, leftNode, rightNode, below, kicker, flow, floaters, compact }: {
   line1: string; line2: string; /** When given, the second line is this text in the accent colour, revealed word by word after the first line (the full text is in the heading for screen readers and search). */ typed?: string; actions?: ReactNode; center?: ReactNode; left?: { icon: ReactNode; text: string }; chips?: ReactNode[]; sub?: string;
   /** Richer side columns (a product card each) instead of the one-line left text and the chips. */
   leftNode?: ReactNode; rightNode?: ReactNode; below?: ReactNode; kicker?: ReactNode;
@@ -16,20 +17,22 @@ export function Hero({ line1, line2, typed, actions, center, left, chips, sub, l
   flow?: ReactNode;
   /** Cards that float around the headline (see HeroFloaters): in the empty space beside it on wide screens, a grid under the buttons otherwise. */
   floaters?: ReactNode;
+  /** A longer headline (about 38 characters on its first line): set a little smaller so it still fits between the floating cards. */
+  compact?: boolean;
 }) {
   return (
     <section className={clsx("relative isolate -mt-[76px] overflow-hidden", flow ? "pb-12 pt-[112px] md:pb-14 md:pt-[108px]" : "pb-16 pt-[140px] md:pb-24 md:pt-[188px]", floaters && "xl:min-h-[720px]")}>
       <HeroBackdrop />
-      <div className="relative z-[1] mkt-wrap text-center">
+      <ScrollFade className="relative z-[1] mkt-wrap text-center">
         {kicker && <Rise className={clsx("flex justify-center", flow ? "mb-4" : "mb-6")}>{kicker}</Rise>}
-        <h1 className={clsx("t-display mx-auto text-m-ink", !flow && "max-w-[900px]", flow && "max-w-[980px] max-sm:!text-[length:min(8.7vw,38px)] max-sm:!leading-[1.08] sm:!text-[clamp(30px,4.9vw,46px)] sm:!leading-[1.08] sm:!tracking-[-.035em] lg:!text-[clamp(40px,3.7vw,54px)]")}>
+        <h1 className={clsx("t-display mx-auto text-m-ink", !flow && "max-w-[900px]", compact && "!max-w-[960px] max-sm:!text-[length:min(8.4vw,36px)] max-sm:!leading-[1.08] sm:!text-[length:clamp(30px,3.6vw,52px)] sm:!leading-[1.06]", flow && "max-w-[980px] max-sm:!text-[length:min(8.7vw,38px)] max-sm:!leading-[1.08] sm:!text-[clamp(30px,4.9vw,46px)] sm:!leading-[1.08] sm:!tracking-[-.035em] lg:!text-[clamp(40px,3.7vw,54px)]")}>
           <TextReveal as="div" per="word" preset="fade-in-blur" speedReveal={1.2} delay={0.1}>{line1}</TextReveal>
           {typed ? <TextReveal as="div" per="word" preset="fade-in-blur" speedReveal={1.2} delay={0.55} className="text-m-accentText">{typed}</TextReveal>
             : line2 && <BlurWords as="div" text={line2} delay={0.18} className="text-m-accentText" />}
         </h1>
         {sub && <TextReveal as="p" per="word" preset="fade-in-blur" speedReveal={1.6} delay={0.45} className={clsx("mx-auto text-balance text-[17px] leading-relaxed text-m-ink2 md:text-[19px]", flow ? "mt-4 max-w-[640px] lg:max-w-[860px]" : "mt-6 max-w-[640px]")}>{sub}</TextReveal>}
         {actions && <Rise delay={0.35} className={clsx("flex flex-wrap items-center justify-center gap-2.5", flow ? "mt-5" : "mt-7")}>{actions}</Rise>}
-      </div>
+      </ScrollFade>
       {floaters}
       {flow && <div className="relative mx-auto mt-7 max-w-[1120px] px-4 md:mt-6">{flow}</div>}
       {center && (

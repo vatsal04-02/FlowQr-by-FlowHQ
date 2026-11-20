@@ -8,6 +8,7 @@ import { track } from "@/lib/track";
 import { LogoMark } from "../ui/Brand";
 import { SampleTag, SoonChip, WhatsAppLogo } from "./kit";
 import { Rise } from "./motion";
+import { Parallax, ScrollSettle } from "./scroll";
 
 /**
  * The WhatsApp Marketing AI Agent, on a light green band. It is the sibling of AgentShowcase (the GBP AI Agent): text, six tiles and one button on the left, one phone on the
@@ -96,7 +97,7 @@ export function WhatsAppShowcase({ as = "h2", learnMoreHref }: { as?: "h1" | "h2
               </Link>
               {learnMoreHref && <Link href={learnMoreHref} className="inline-flex min-h-11 items-center text-[14px] font-medium text-m-ink underline decoration-m-ink/30 underline-offset-4 hover:decoration-m-ink">{c.learnMore}</Link>}
             </div>
-            <ul className="order-3 mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:order-2 lg:grid-cols-3">
+            <ul className="order-3 mt-8 grid grid-cols-2 gap-3 lg:order-2 lg:grid-cols-3">
               {c.tiles.map((t, i) => { const Icon = ICONS[i]; return (
                 <Rise as="li" key={t.title} delay={0.1 + i * 0.05} y={14} blur={false} className="relative rounded-[16px] bg-m-surface p-4 shadow-[var(--shadow-card)]">
                   <span className={green}><Icon className="h-5 w-5" strokeWidth={1.5} aria-hidden /></span>
@@ -110,6 +111,7 @@ export function WhatsAppShowcase({ as = "h2", learnMoreHref }: { as?: "h1" | "h2
 
           {/* The phone is drawn at 270 x 500 and scaled so its text stays crisp; the wrapper holds the scaled size (same frame as the GBP phone). */}
           <Rise delay={0.2} y={20} blur={false} className="relative mx-auto w-full max-w-[420px] py-4">
+            <ScrollSettle from={0.95}>
             <span aria-hidden className="absolute left-1/2 top-1/2 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[color:var(--wa-circle)] md:h-[460px] md:w-[460px]" />
             <div role="group" aria-label="Example WhatsApp chat on a phone (sample data)" className="relative mx-auto h-[450px] w-[243px] lg:h-[555px] lg:w-[300px]">
               <div className="absolute left-0 top-0 w-[270px] origin-top-left scale-[.9] rounded-[40px] bg-m-navy p-[8px] shadow-[0_30px_60px_-20px_rgba(11,15,46,.45)] lg:scale-[1.11]">
@@ -120,8 +122,9 @@ export function WhatsAppShowcase({ as = "h2", learnMoreHref }: { as?: "h1" | "h2
                 </div>
               </div>
             </div>
-            <FloatBadge className="left-2 top-[30%] sm:left-8"><Check className="h-6 w-6" strokeWidth={2} /></FloatBadge>
-            <FloatBadge className="right-2 top-[64%] sm:right-8" dir={-1}><BarChart3 className="h-6 w-6" strokeWidth={1.5} /></FloatBadge>
+            <Parallax speed={26} className="pointer-events-none absolute inset-0"><FloatBadge className="left-2 top-[30%] sm:left-8"><Check className="h-6 w-6" strokeWidth={2} /></FloatBadge></Parallax>
+            <Parallax speed={-26} className="pointer-events-none absolute inset-0"><FloatBadge className="right-2 top-[64%] sm:right-8" dir={-1}><BarChart3 className="h-6 w-6" strokeWidth={1.5} /></FloatBadge></Parallax>
+            </ScrollSettle>
           </Rise>
         </div>
         <p className="mt-10 max-w-[36em] text-[13px] leading-relaxed text-m-muted">{c.fine}</p>

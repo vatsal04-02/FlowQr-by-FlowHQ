@@ -8,7 +8,7 @@ import { StripCardArt, StripInsightsArt, StripReplyArt } from "./HomeVisuals";
 import { GoogleG, MButton, SampleTag } from "./kit";
 import { Stars } from "./Mockups";
 import { Rise } from "./motion";
-import { Parallax, ScrollSettle } from "./scroll";
+import { Parallax, ScrollSettle, ScrollWords } from "./scroll";
 
 type Home = typeof en.home;
 /** One vertical rhythm for the home sections below the hero: 56px on phones, 80px from md. */
@@ -68,7 +68,7 @@ export function StorySection({ c }: { c: Home["story"] }) {
           <div>
             <Rise>
               <h2 id="story-h" className="t-h2 text-m-ink">{c.title}</h2>
-              <p className="mt-5 max-w-[520px] text-[20px] font-medium leading-snug tracking-[-.02em] text-m-ink2 md:text-[22px]">{c.lead}</p>
+              <p className="mt-5 max-w-[520px] text-[20px] font-medium leading-snug tracking-[-.02em] text-m-ink2 md:text-[22px]"><ScrollWords text={c.lead} /></p>
               <p className="mt-3 max-w-[480px] text-[16px] leading-relaxed text-m-muted">{c.body}</p>
               <div className="mt-7"><MButton href="#how-it-works" variant="secondary">See how it works</MButton></div>
             </Rise>
