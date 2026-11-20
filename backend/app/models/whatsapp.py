@@ -4,11 +4,11 @@ delivery records, the webhook event log, and the manually recorded add-on. Nothi
 Every table carries tenant_id with forced row-level security (migration 0048). Access tokens are stored encrypted (Fernet, TOKEN_ENCRYPTION_KEY) in `access_token_enc` and are never returned by an
 API, exported or logged."""
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, SmallInteger, String, Text, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, SmallInteger, String, Text, Time, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -22,7 +22,7 @@ def _in(col: str, values) -> str:
 CONNECTION_STATUSES = ("pending", "connected", "needs_attention", "disconnected")
 WEBHOOK_STATUSES = ("unknown", "subscribed", "failed")
 PURPOSES = ("marketing", "utility", "occasion")  # occasion = birthday and festival greetings, a consent of its own
-CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in")
+CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in", "whatsapp_booking")
 CUSTOMER_SOURCES = ("qr_page", "website_form", "customer_message", "qr_click_to_chat", "keyword_opt_in")  # the customer did it themselves: the only sources that can lift an opt-out
 TEMPLATE_CATEGORIES = ("marketing", "utility", "authentication")
 TEMPLATE_STATUSES = ("pending", "approved", "rejected", "paused", "disabled")
@@ -468,6 +468,8 @@ class WhatsAppConversation(IdMixin, TimestampMixin, Base):
     ai_disclosed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the "automated assistant" line was sent
     holding_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the "someone will reply" line was sent
     ai_pseudonym: Mapped[str | None] = mapped_column(String(16))  # the only name for this customer the AI provider ever sees
+    booking_consent_ask_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # the booking whose "would you like reminders? Reply YES" question is waiting for an answer
+    booking_consent_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class WhatsAppConversationMessage(IdMixin, Base):
@@ -576,3 +578,84 @@ class WhatsAppUnansweredQuestion(IdMixin, Base):
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- Phase 9: appointment booking
+BOOKING_STATUSES = ("booked", "done", "no_show", "cancelled")
+BOOKING_SOURCES = ("ai", "staff", "api")
+
+
+class WhatsAppBookingSettings(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_booking_settings"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_wa_booking_settings_tenant"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    capacity: Mapped[int] = mapped_column(Integer, default=1)  # how many bookings may overlap (chairs, rooms, practitioners)
+    slot_step_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    min_notice_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    max_days_ahead: Mapped[int] = mapped_column(Integer, default=30)
+    reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    reminder_day_hour: Mapped[int] = mapped_column(Integer, default=10)  # India time: the day-before reminder goes out at this hour
+    reminder_soon_hours: Mapped[int] = mapped_column(Integer, default=2)  # the second reminder goes out this long before
+
+
+class WhatsAppBookingService(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_booking_services"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    buffer_minutes: Mapped[int] = mapped_column(Integer, default=0)  # kept free after each booking
+    price_inr: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class WhatsAppBookingHours(IdMixin, Base):
+    __tablename__ = "whatsapp_booking_hours"
+    __table_args__ = (UniqueConstraint("tenant_id", "weekday", name="uq_wa_booking_hours_day"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    weekday: Mapped[int] = mapped_column(SmallInteger)  # 0 = Monday
+    opens: Mapped[time] = mapped_column(Time)
+    closes: Mapped[time] = mapped_column(Time)
+
+
+class WhatsAppBookingClosed(IdMixin, Base):
+    __tablename__ = "whatsapp_booking_closed"
+    __table_args__ = (UniqueConstraint("tenant_id", "day", name="uq_wa_booking_closed_day"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date)
+    reason: Mapped[str | None] = mapped_column(String(120))
+
+
+class WhatsAppBooking(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_bookings"
+    __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_wa_booking_code"), CheckConstraint(_in("status", BOOKING_STATUSES), name="ck_wa_booking_status"),
+                      CheckConstraint(_in("source", BOOKING_SOURCES), name="ck_wa_booking_source"), Index("ix_wa_booking_tenant_start", "tenant_id", "starts_at"),
+                      Index("uq_wa_booking_idem", "tenant_id", "idem_key", unique=True, postgresql_where=text("idem_key IS NOT NULL")))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    contact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="CASCADE"), index=True)
+    service_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_booking_services.id", ondelete="SET NULL"))
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversations.id", ondelete="SET NULL"))
+    code: Mapped[str] = mapped_column(String(10))
+    service_name: Mapped[str] = mapped_column(String(120))  # a copy, so renaming or removing a service never rewrites history
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    price_inr: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    blocks_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # ends_at plus the service's buffer: the time this booking keeps its place taken
+    status: Mapped[str] = mapped_column(String(10), default="booked")
+    source: Mapped[str] = mapped_column(String(10))
+    note: Mapped[str | None] = mapped_column(String(300))
+    idem_key: Mapped[str | None] = mapped_column(String(120))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str | None] = mapped_column(String(120))
+    reminder_day_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reminder_day_result: Mapped[str | None] = mapped_column(String(40))
+    reminder_soon_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reminder_soon_result: Mapped[str | None] = mapped_column(String(40))

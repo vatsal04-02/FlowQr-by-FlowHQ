@@ -134,7 +134,7 @@ Result: ______________________  Date: ____________
 ## 10. The category Meta gives appointment reminders (needed before Phase 9 sends any)
 **Why it matters:** reminders are fixed approved templates. If Meta calls them utility they can go to customers who agreed to visit updates. If Meta calls them marketing, or the category is not yet known, FlowQR fails closed (like greetings) and also needs offers consent, which booking-only customers do not have, so they would not get reminders.
 
-**Do:** when the reminder templates exist, submit them, then record the category Meta assigns and the time it took.
+**Do:** the two reminder templates exist now (`booking_reminder_day`, `booking_reminder_soon`, asked for as utility). In WhatsApp > Bookings > Set up press "Send for approval" for a real connected number, refresh the message statuses on the Messages page so WhatsApp's status listing arrives, then record the category Meta assigns and the time it took. Until Meta reports it, FlowQR also requires offers consent for a reminder (fail closed).
 
 Result: ______________________  Date: ____________
 

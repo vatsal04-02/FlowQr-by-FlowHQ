@@ -81,6 +81,7 @@ class Settings(BaseSettings):
     whatsapp_conversations_enabled: bool = False  # WHATSAPP_CONVERSATIONS_ENABLED: two-way conversations and the inbox (platform switch; each business also has its own). Needs WHATSAPP_ENABLED
     whatsapp_service_reply_max_chars: int = 1500  # the longest free-form reply one message may carry
     whatsapp_conversation_text_max_chars: int = 4096  # the longest customer message that is kept
+    whatsapp_booking_enabled: bool = False  # WHATSAPP_BOOKING_ENABLED: appointment booking and reminders (platform switch; each business also has its own). Needs WHATSAPP_ENABLED
     whatsapp_ai_enabled: bool = False  # WHATSAPP_AI_ENABLED: the assistant that answers customers (platform switch; each business also has its own). Needs WHATSAPP_CONVERSATIONS_ENABLED
     whatsapp_ai_kill_switch: bool = False  # WHATSAPP_AI_KILL_SWITCH: true stops every assistant reply at once and hands every conversation to a person
     whatsapp_ai_terms_verified: bool = False  # WHATSAPP_AI_TERMS_VERIFIED: the owner holds the AI provider's WRITTEN data terms (no training on our data, retention, location, sub-processors, India law). Default false: the assistant is "unavailable"
@@ -514,6 +515,8 @@ def config_problems(s: Settings) -> list[str]:
             p.append("CASHFREE_AUTHORIZATION_PAISE cannot be below 100 (Cashfree's minimum authorisation for UPI and cards is Rs 1)")
     if s.whatsapp_conversations_enabled and not s.whatsapp_enabled:
         p.append("WHATSAPP_CONVERSATIONS_ENABLED needs WHATSAPP_ENABLED")
+    if s.whatsapp_booking_enabled and not s.whatsapp_enabled:
+        p.append("WHATSAPP_BOOKING_ENABLED needs WHATSAPP_ENABLED")
     if s.whatsapp_ai_enabled and not s.whatsapp_conversations_enabled:
         p.append("WHATSAPP_AI_ENABLED needs WHATSAPP_CONVERSATIONS_ENABLED")
     if s.whatsapp_ai_terms_verified and not s.whatsapp_ai_terms_provider:

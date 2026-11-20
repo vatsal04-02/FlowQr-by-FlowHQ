@@ -53,9 +53,9 @@ def _skip(reason: str) -> SendResult:
     return SendResult("skipped", reason)
 
 
-GAP_EXEMPT = ("optin_confirm", "occasion")  # not offers: a confirmation the customer just asked for, and greetings, which have their own cap
+GAP_EXEMPT = ("optin_confirm", "occasion", "booking_reminder")  # not offers: a confirmation the customer just asked for, and greetings, which have their own cap
 # A kind that is exempt from the offer gap may only be used with its own messages, so no offer can ever be sent under a kind that skips the offer rules.
-KIND_TEMPLATES = {"optin_confirm": ("optin_confirm", "optin_confirm_offers"), "occasion": ("occasion_birthday", "occasion_festival")}
+KIND_TEMPLATES = {"optin_confirm": ("optin_confirm", "optin_confirm_offers"), "occasion": ("occasion_birthday", "occasion_festival"), "booking_reminder": ("booking_reminder_day", "booking_reminder_soon")}
 
 
 def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, template: WhatsAppTemplate, variables: list[str], *, idem_key: str, run_id: uuid.UUID | None = None,
@@ -78,6 +78,8 @@ def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, templat
         if db.scalar(select(WhatsAppMessage.id).where(WhatsAppMessage.tenant_id == tenant.id, WhatsAppMessage.contact_id == contact.id, WhatsAppMessage.kind == "occasion",
                                                        WhatsAppMessage.delivery_status != "failed", WhatsAppMessage.created_at >= since_g).limit(1)) is not None:
             return _skip("greeting_too_soon")
+    if kind == "booking_reminder" and not addons.bookings_allowed(db, tenant.id):
+        return _skip("plan_required")
     conn = connection.connected_connection(db, tenant.id)
     if template.tenant_id != tenant.id or conn is None or template.connection_id != conn.id:
         return _skip("template_mismatch")

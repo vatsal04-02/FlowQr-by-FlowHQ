@@ -54,8 +54,24 @@ GREET = {"en": "How can I help you today?", "hi": "मैं आपकी क्
 THANKS = {"en": "You're welcome! Let us know if you need anything else.", "hi": "आपका स्वागत है! और कुछ चाहिए तो बताइए।", "hinglish": "Aapka swagat hai! Aur kuch chahiye to bataiye."}
 
 
-def say(table: dict, lang: str, business: str = "") -> str:
-    return table[_l(lang)].format(business=business or "the business")
+BOOKED = {
+    "en": "Your appointment is booked: {service}, {when}.",
+    "hi": "आपकी अपॉइंटमेंट बुक हो गई है: {service}, {when}।",
+    "hinglish": "Aapki appointment book ho gayi hai: {service}, {when}.",
+}
+ASK_UPDATES = {
+    "en": "Would you like a reminder and updates about this visit on WhatsApp from {business}? Reply YES if you would.",
+    "hi": "क्या आप इस विज़िट के बारे में {business} से व्हाट्सऐप पर रिमाइंडर और अपडेट चाहते हैं? चाहें तो YES लिखें।",
+    "hinglish": "Kya aap is visit ke baare mein {business} se WhatsApp par reminder aur updates chahte hain? Chahein to YES likhein.",
+}
+UPDATES_YES = {"en": "Thank you. We will send you a reminder about this visit.", "hi": "धन्यवाद। हम आपको इस विज़िट की याद दिलाएंगे।", "hinglish": "Shukriya. Hum aapko is visit ka reminder bhejenge."}
+UPDATES_NO = {"en": "No problem, we will not send reminders. Your appointment is still booked.", "hi": "कोई बात नहीं, हम रिमाइंडर नहीं भेजेंगे। आपकी अपॉइंटमेंट बुक है।", "hinglish": "Koi baat nahi, hum reminder nahi bhejenge. Aapki appointment book hai."}
+RESCHEDULED = {"en": "Done. Your appointment is moved: {service}, {when}.", "hi": "हो गया। आपकी अपॉइंटमेंट बदल दी गई है: {service}, {when}।", "hinglish": "Ho gaya. Aapki appointment badal di gayi hai: {service}, {when}."}
+CANCELLED = {"en": "Your appointment ({service}, {when}) is cancelled.", "hi": "आपकी अपॉइंटमेंट ({service}, {when}) रद्द कर दी गई है।", "hinglish": "Aapki appointment ({service}, {when}) cancel kar di gayi hai."}
+
+
+def say(table: dict, lang: str, business: str = "", **kw) -> str:
+    return table[_l(lang)].format(business=business or "the business", **kw)
 
 
 # ---- pre-checks (customer text, before any model call)
@@ -125,6 +141,7 @@ _ADVICE = _rx(r"\byou (should|must|need to|ought to) (take|stop|start|increase|d
 _URL = re.compile(r"(?:https?://|www\.)\S+|\b[\w-]+\.(?:com|in|co|net|org|me|site|app|io)\b(?:/\S*)?", re.I)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_CLOCK = re.compile(r"(\d{1,2}):([0-5]\d)")
 
 
 def claims_human(text: str) -> bool:
@@ -153,6 +170,10 @@ def ungrounded_facts(text: str, facts: str) -> list[str]:
         d = _digits(m.group(0)).strip(".")
         if d and d not in fd and d not in {"1", "2", "3"}:  # "1 session", "2 floors" are ordinary words; any other figure must be in the facts
             bad.append(m.group(0))
+    have_times = {f"{int(h)}:{mm}" for h, mm in _CLOCK.findall(facts or "")}
+    for h, mm in _CLOCK.findall(text or ""):  # a time of day must appear exactly as written in the facts: "4:45" is not grounded just because a "4" and a "45" are
+        if f"{int(h)}:{mm}" not in have_times:
+            bad.append(f"{h}:{mm}")
     for m in list(_URL.finditer(text or "")) + list(_EMAIL.finditer(text or "")):
         if m.group(0).lower().rstrip(".,)") not in fl:
             bad.append(m.group(0))

@@ -547,6 +547,8 @@ def purge(db: Session, now: datetime | None = None) -> dict:
         orphan = select(WhatsAppContact.id).where(WhatsAppContact.tenant_id == cs.tenant_id, WhatsAppContact.source == "customer_message", WhatsAppContact.marketing_opted_out_at.is_(None),
                                                   WhatsAppContact.created_at < cutoff, ~exists().where(WhatsAppConsent.contact_id == WhatsAppContact.id),
                                                   ~exists().where(WhatsAppConversation.contact_id == WhatsAppContact.id))
+        from app.models.whatsapp import WhatsAppBooking
+        orphan = orphan.where(~exists().where(WhatsAppBooking.contact_id == WhatsAppContact.id))  # someone with a booking is not just a stranger who wrote once
         for hook in _CONTACT_KEEPERS:  # later features (bookings) add their own reasons to keep a contact
             orphan = orphan.where(~hook(WhatsAppContact.id))
         k = db.execute(delete(WhatsAppContact).where(WhatsAppContact.id.in_(orphan))).rowcount or 0

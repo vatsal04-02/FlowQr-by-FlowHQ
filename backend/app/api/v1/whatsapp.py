@@ -4,7 +4,7 @@ Everything here answers `whatsapp_disabled` (404) while WHATSAPP_ENABLED is fals
 No route returns an access token, the signup state's hash or any Meta secret. Phase 1 sends nothing."""
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, agent, ai_knowledge, automations, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, agent, ai_knowledge, automations, bookings, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -336,7 +336,7 @@ def optin_keyword_delete(keyword_id: uuid.UUID, request: Request, ctx: TenantCon
 
 # ---- templates (the fixed, neutral messages FlowQR submits to WhatsApp for the business)
 class InstallIn(BaseModel):
-    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer", "optin_confirm", "optin_confirm_offers", "occasion_birthday", "occasion_festival"]
+    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer", "optin_confirm", "optin_confirm_offers", "occasion_birthday", "occasion_festival", "booking_reminder_day", "booking_reminder_soon"]
 
 
 @router.get("/templates")
@@ -638,6 +638,226 @@ def conversation_feedback(conversation_id: uuid.UUID, message_id: uuid.UUID, bod
     _on()
     _inbox(ctx)
     return _run(ctx, lambda: agent.set_feedback(ctx.db, ctx.tenant, conversations.get(ctx.db, ctx.tenant_id, conversation_id), message_id, body.value))
+
+
+# ---- appointment booking (Phase 9)
+class BkSettingsIn(BaseModel):
+    enabled: bool | None = None
+    capacity: int | None = None
+    slot_step_minutes: int | None = None
+    min_notice_minutes: int | None = None
+    max_days_ahead: int | None = None
+    reminders_enabled: bool | None = None
+    reminder_day_hour: int | None = None
+    reminder_soon_hours: int | None = None
+
+
+class BkServiceIn(BaseModel):
+    name: str = Field(..., max_length=120)
+    duration_minutes: int
+    buffer_minutes: int = 0
+    price_inr: float | str | None = None
+    active: bool = True
+
+
+class BkHoursIn(BaseModel):
+    days: list[dict] = Field(default_factory=list, max_length=7)
+
+
+class BkClosedIn(BaseModel):
+    day: date
+    reason: str | None = Field(None, max_length=120)
+
+
+class BkCreateIn(BaseModel):
+    service_id: uuid.UUID
+    date: str = Field(..., max_length=10)
+    time: str = Field(..., max_length=5)
+    contact_id: uuid.UUID | None = None
+    phone: str | None = Field(None, max_length=32)
+    name: str | None = Field(None, max_length=120)
+    note: str | None = Field(None, max_length=300)
+    client_id: str | None = Field(None, max_length=64)
+    agreed_to_updates: bool = False
+    agreed_evidence: str | None = Field(None, max_length=400)
+
+
+class BkMoveIn(BaseModel):
+    date: str = Field(..., max_length=10)
+    time: str = Field(..., max_length=5)
+
+
+class BkCancelIn(BaseModel):
+    reason: str | None = Field(None, max_length=120)
+
+
+def _bk(ctx: TenantContext, *, active: bool = False) -> None:
+    """Bookings are business-wide (for people who see every location). `active` also needs the business's own switch."""
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "Bookings are for people who can see every location."})
+    if not bookings.platform_on():
+        raise HTTPException(status_code=404, detail={"code": "bookings_disabled", "message": "Bookings are not switched on for everyone yet."})
+    if not addons.bookings_allowed(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=403, detail={"code": "plan_required", "message": "Bookings are part of the WhatsApp Growth and Pro add-ons."})
+    if active and not bookings.enabled_for(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=409, detail={"code": "not_bookable", "message": bookings.BOOKING_WORDS["not_bookable"]})
+
+
+def _bk_state(ctx: TenantContext) -> dict:
+    return bookings.overview(ctx.db, ctx.tenant)
+
+
+@router.get("/bookings/overview")
+def bookings_overview(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "Bookings are for people who can see every location."})
+    return bookings.overview(ctx.db, ctx.tenant)
+
+
+@router.put("/bookings/settings")
+def bookings_settings(body: BkSettingsIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    _limit(f"wa-bk-settings:{ctx.tenant_id}", 120, 3600)
+
+    def go():
+        bookings.set_settings(ctx.db, ctx.tenant, ctx.user, ip=client_ip(request), **body.model_dump())
+        return _bk_state(ctx)
+    return _run(ctx, go)
+
+
+@router.put("/bookings/hours")
+def bookings_hours(body: BkHoursIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+
+    def go():
+        bookings.set_hours(ctx.db, ctx.tenant, ctx.user, body.days, ip=client_ip(request))
+        return _bk_state(ctx)
+    return _run(ctx, go)
+
+
+@router.post("/bookings/services", status_code=201)
+def bookings_service_add(body: BkServiceIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    return _run(ctx, lambda: bookings.serialize_service(bookings.save_service(ctx.db, ctx.tenant, ctx.user, None, **body.model_dump(), ip=client_ip(request))))
+
+
+@router.patch("/bookings/services/{service_id}")
+def bookings_service_edit(service_id: uuid.UUID, body: BkServiceIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    return _run(ctx, lambda: bookings.serialize_service(bookings.save_service(ctx.db, ctx.tenant, ctx.user, bookings.get_service(ctx.db, ctx.tenant_id, service_id), **body.model_dump(), ip=client_ip(request))))
+
+
+@router.delete("/bookings/services/{service_id}", status_code=204)
+def bookings_service_delete(service_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    _run(ctx, lambda: bookings.delete_service(ctx.db, ctx.tenant, ctx.user, bookings.get_service(ctx.db, ctx.tenant_id, service_id), client_ip(request)))
+    return Response(status_code=204)
+
+
+@router.post("/bookings/closed-days", status_code=201)
+def bookings_closed_add(body: BkClosedIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    return _run(ctx, lambda: {"id": bookings.add_closed_day(ctx.db, ctx.tenant, ctx.user, body.day, body.reason, client_ip(request)).id})
+
+
+@router.delete("/bookings/closed-days/{closed_id}", status_code=204)
+def bookings_closed_remove(closed_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    _run(ctx, lambda: bookings.remove_closed_day(ctx.db, ctx.tenant, ctx.user, closed_id, client_ip(request)))
+    return Response(status_code=204)
+
+
+@router.get("/bookings/slots")
+def bookings_slots(service_id: uuid.UUID, day: date, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx, active=True)
+    svc = bookings.get_service(ctx.db, ctx.tenant_id, service_id)
+    s = bookings.get_settings(ctx.db, ctx.tenant_id)
+    return {"service": bookings.serialize_service(svc), "day": day.isoformat(), "slots": [{"time": x.astimezone(bookings.IST).strftime("%H:%M"), "label": bookings.clock_text(x)}
+                                                                                         for x in bookings.slots_for_day(ctx.db, ctx.tenant_id, s, svc, day, enforce_notice=False)]}
+
+
+@router.get("/bookings")
+def bookings_list(start: date | None = None, end: date | None = None, status: str | None = Query(None, max_length=10), ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx)
+    today = datetime.now(bookings.IST).date()
+    lo = start or today
+    hi = min(end or lo + timedelta(days=13), lo + timedelta(days=92))
+    return {"start": lo.isoformat(), "end": hi.isoformat(), "items": bookings.list_bookings(ctx.db, ctx.tenant_id, start_day=lo, end_day=hi, status=status)}
+
+
+@router.post("/bookings", status_code=201)
+def bookings_create(body: BkCreateIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    """A team member books a customer in. This never gives consent by itself: say they agreed to updates (with a note of how) to record it the usual attested way."""
+    _bk(ctx, active=True)
+    _limit(f"wa-bk-create:{ctx.tenant_id}", 300, 3600)
+
+    def go():
+        svc = bookings.get_service(ctx.db, ctx.tenant_id, body.service_id)
+        if body.contact_id:
+            contact = consent.get_contact(ctx.db, ctx.tenant_id, body.contact_id)
+        elif body.phone:
+            contact, _ = consent.create_contact(ctx.db, ctx.tenant, phone=body.phone, name=body.name, tags=[], source="owner_entry", user_id=ctx.user.id)
+        else:
+            raise WaError(422, "customer_required", "Choose a customer or enter a phone number.")
+        start = bookings.parse_start(body.date, body.time)
+        b, created = bookings.book(ctx.db, ctx.tenant, contact, svc, start, source="staff", user=ctx.user, idem_key=(f"staff:{body.client_id}" if body.client_id else None), note=body.note, enforce_notice=False, ip=client_ip(request))
+        if body.agreed_to_updates and created:
+            consent.grant(ctx.db, ctx.tenant, contact, "utility", "owner_entry", user_id=ctx.user.id, attested=True, evidence=body.agreed_evidence, ip=client_ip(request))
+        return bookings.serialize(b, contact)
+    return _run(ctx, go)
+
+
+def _bk_item(ctx, booking_id):
+    from app.models.whatsapp import WhatsAppContact
+    b = bookings.get(ctx.db, ctx.tenant_id, booking_id)
+    return b, ctx.db.get(WhatsAppContact, b.contact_id)
+
+
+@router.post("/bookings/{booking_id}/reschedule")
+def bookings_reschedule(booking_id: uuid.UUID, body: BkMoveIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx, active=True)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        bookings.reschedule(ctx.db, ctx.tenant, b, bookings.parse_start(body.date, body.time), user=ctx.user, enforce_notice=False, ip=client_ip(request))
+        return bookings.serialize(b, c)
+    return _run(ctx, go)
+
+
+@router.post("/bookings/{booking_id}/cancel")
+def bookings_cancel(booking_id: uuid.UUID, body: BkCancelIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        bookings.cancel(ctx.db, ctx.tenant, b, body.reason, user=ctx.user, ip=client_ip(request))
+        return bookings.serialize(b, c)
+    return _run(ctx, go)
+
+
+@router.post("/bookings/{booking_id}/done")
+def bookings_done(booking_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    """The visit happened. It is recorded, and the review request helper (if it is on) is asked to schedule its one neutral message."""
+    _bk(ctx)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        r = bookings.mark(ctx.db, ctx.tenant, ctx.user, b, "done", ip=client_ip(request))
+        return {**bookings.serialize(b, c), "review": r["review"]}
+    return _run(ctx, go)
+
+
+@router.post("/bookings/{booking_id}/no-show")
+def bookings_no_show(booking_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        bookings.mark(ctx.db, ctx.tenant, ctx.user, b, "no_show", ip=client_ip(request))
+        return bookings.serialize(b, c)
+    return _run(ctx, go)
 
 
 # ---- birthday and festival greetings

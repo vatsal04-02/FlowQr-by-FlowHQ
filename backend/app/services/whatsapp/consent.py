@@ -229,6 +229,23 @@ def has_occasion_consent(db: Session, tenant_id: uuid.UUID, contact: WhatsAppCon
     return True, "ok"
 
 
+def has_reminder_consent(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, category: str, category_confirmed: bool) -> tuple[bool, str]:
+    """The consent an appointment reminder needs. Fail closed, like a greeting.
+    * STOP (or any opt-out) blocks a reminder: they asked us to stop messaging them.
+    * Consent for updates about their visit is always required (a booking made by a person does not give it).
+    * If WhatsApp has not yet reported the reminder's category, or it is marketing, offers consent is required too, which a booking-only customer does not have: they get no reminder."""
+    if contact.tenant_id != tenant_id:
+        return False, "wrong_business"
+    if contact.marketing_opted_out_at is not None or is_suppressed(db, tenant_id, contact.phone):
+        return False, "opted_out"
+    if active_consent(db, contact.id, "utility") is None:
+        return False, "no_utility_consent"
+    if category == "marketing" or not category_confirmed:
+        if active_consent(db, contact.id, "marketing") is None:
+            return False, "no_marketing_consent"
+    return True, "ok"
+
+
 # ---- birthday: a day and a month, never a year
 def birthday_problem(day, month) -> str | None:
     if isinstance(day, bool) or isinstance(month, bool) or not isinstance(day, int) or not isinstance(month, int):

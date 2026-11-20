@@ -217,6 +217,26 @@ def whatsapp_conversations_due():
         db.close()
 
 
+@celery_app.task(name="flowqr.whatsapp_booking_reminders")
+def whatsapp_booking_reminders():
+    """Appointment reminders that are due (the day before, and a few hours before). Does nothing unless WHATSAPP_ENABLED and WHATSAPP_BOOKING_ENABLED, and sends nothing unless sending is on and not stopped."""
+    from app.services.whatsapp import bookings as wa_bookings
+
+    if not wa_bookings.platform_on():
+        return {"held": True}
+    db = system_session()
+    try:
+        out = wa_bookings.run_reminders(db)
+        db.commit()
+        return out
+    except Exception:
+        db.rollback()
+        log.exception("whatsapp booking reminders failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.whatsapp_run_due")
 def whatsapp_run_due():
     """Send what is due: automation runs, then campaign batches. Holds everything (and sends nothing) unless WHATSAPP_ENABLED and WHATSAPP_SENDING_ENABLED are true and the emergency stop is off."""

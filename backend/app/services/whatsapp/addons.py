@@ -32,6 +32,15 @@ def occasions_allowed(db: Session, tenant_id: uuid.UUID) -> bool:
     return bool(t and t.get("occasions"))
 
 
+def bookings_allowed(db: Session, tenant_id: uuid.UUID) -> bool:
+    """Appointment booking and reminders are part of the Growth and Pro add-ons."""
+    from app.core.config import settings
+    if not settings.whatsapp_require_addon:
+        return True
+    t = tier(active_addon(db, tenant_id))
+    return bool(t and t.get("bookings"))
+
+
 def click_tracking_allowed(db: Session, tenant_id: uuid.UUID) -> bool:
     """Counting link clicks is part of the Pro add-on only."""
     from app.core.config import settings

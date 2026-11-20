@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { reminderWords, reminderStateWords, hoursSummary, WEEKDAY_NAMES, BOOKING_STATUS_WORDS, KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -362,4 +362,28 @@ test("the notes have seven sections and offers are not one of them", () => {
   assert.ok(!KNOWLEDGE_ORDER.includes("offer"));
   assert.equal(tierLabel("whatsapp_growth"), "Growth");
   assert.equal(tierLabel("x"), "x");
+});
+
+test("reminder outcomes and states are explained in plain words", () => {
+  assert.equal(reminderWords(null), null);
+  assert.equal(reminderWords("sent"), "Reminder sent");
+  assert.match(reminderWords("no_utility_consent"), /has not agreed to updates/);
+  assert.match(reminderWords("opted_out"), /replied STOP/);
+  assert.match(reminderWords("no_marketing_consent"), /also needed/);
+  assert.match(reminderWords("something_new"), /something new/);
+  const t = { key: "k", submitted: true, status: "approved", category: "utility", category_known: true, needs_offers_consent: false, body: "" };
+  assert.match(reminderStateWords(undefined), /Not submitted/);
+  assert.match(reminderStateWords({ ...t, submitted: false }), /Not submitted/);
+  assert.match(reminderStateWords({ ...t, status: "pending" }), /Waiting for WhatsApp/);
+  assert.match(reminderStateWords({ ...t, category_known: false }), /also need to have agreed to offers/);
+  assert.match(reminderStateWords(t), /Customers who agreed to visit updates get it/);
+  assert.match(reminderStateWords({ ...t, category: "marketing" }), /marketing/);
+});
+
+test("opening hours are summarised and bookings have four plain statuses", () => {
+  assert.equal(hoursSummary([]), "No opening hours set.");
+  assert.equal(hoursSummary([{ weekday: 0, opens: "09:00", closes: "18:00" }, { weekday: 1, opens: "09:00", closes: "18:00" }]), "Mon, Tue: 09:00 to 18:00");
+  assert.equal(hoursSummary([{ weekday: 5, opens: "10:00", closes: "14:00" }, { weekday: 0, opens: "09:00", closes: "18:00" }]), "Sat 10:00 to 14:00; Mon 09:00 to 18:00");
+  assert.equal(WEEKDAY_NAMES.length, 7);
+  assert.deepEqual(Object.keys(BOOKING_STATUS_WORDS), ["booked", "done", "no_show", "cancelled"]);
 });

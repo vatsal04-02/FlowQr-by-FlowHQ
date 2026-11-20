@@ -455,6 +455,7 @@ def test_row_level_security_hides_every_whatsapp_table_from_other_businesses(wa,
         assert db.execute(text("SELECT count(*) FROM whatsapp_contacts")).scalar() == 0
 
 
+BOOKING_MEMBER_ACTIONS = ("bookings", "reschedule", "cancel", "done", "no-show")
 INBOX_ACTIONS = ("read", "reply", "send-template", "take-over", "hand-back", "close", "reopen", "ai-pause", "feedback")
 
 
@@ -472,6 +473,8 @@ def test_every_owner_route_needs_a_role_and_the_manifest_knows_them():
             assert kind == "member", ln
         elif method == "POST" and path.startswith("/api/v1/whatsapp/conversations/{conversation_id}/") and path.rsplit("/", 1)[1] in INBOX_ACTIONS:
             assert kind == "member", ln  # the one deliberate exception: any team member answers customers in the inbox (replies carry their name). Settings and deleting stay owner/admin.
+        elif method == "POST" and path.startswith("/api/v1/whatsapp/bookings") and path.rsplit("/", 1)[1] in BOOKING_MEMBER_ACTIONS:
+            assert kind == "member", ln  # any team member books a customer in, moves, cancels and marks visits; setup (settings, services, hours, closed days) stays owner/admin
         else:
             assert kind == "role-admin", ln
     seen = {ln.split("	")[2].rsplit("/", 1)[1] for ln in wa_lines if ln.split("	")[1] == "POST" and "/conversations/{conversation_id}/" in ln}
@@ -1054,9 +1057,10 @@ def test_the_migrations_are_two_steps_on_top_of_the_website_builder():
     cfg = Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0057"] and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0057").down_revision == "0056" and script.get_revision("0056").down_revision == "0055" and script.get_revision("0055").down_revision == "0054" and script.get_revision("0054").down_revision == "0053" and script.get_revision("0053").down_revision == "0052" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0057"
+    assert script.get_heads() == ["0058"] and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0058").down_revision == "0057" and script.get_revision("0057").down_revision == "0056" and script.get_revision("0056").down_revision == "0055" and script.get_revision("0055").down_revision == "0054" and script.get_revision("0054").down_revision == "0053" and script.get_revision("0053").down_revision == "0052" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0058"
     tables = {r[0] for r in owner_query("SELECT tablename FROM pg_tables WHERE tablename LIKE 'whatsapp_%' OR tablename = 'tenant_addons'")}
     assert tables == {"whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
                       "whatsapp_rates", "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients", "whatsapp_optin_settings", "whatsapp_optin_keywords", "whatsapp_rate_verifications", "whatsapp_festivals", "whatsapp_festival_optins", "whatsapp_links", "whatsapp_link_clicks", "whatsapp_conversation_settings", "whatsapp_conversations", "whatsapp_conversation_messages",
-                      "whatsapp_ai_quotas", "whatsapp_ai_settings", "whatsapp_knowledge_items", "whatsapp_ai_runs", "whatsapp_unanswered_questions"}
+                      "whatsapp_ai_quotas", "whatsapp_ai_settings", "whatsapp_knowledge_items", "whatsapp_ai_runs", "whatsapp_unanswered_questions",
+                      "whatsapp_booking_settings", "whatsapp_booking_services", "whatsapp_booking_hours", "whatsapp_booking_closed", "whatsapp_bookings"}

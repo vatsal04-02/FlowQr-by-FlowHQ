@@ -512,3 +512,44 @@ export interface WaAiQuotas {
   this_month: { provider: string | null; model_version: string | null; runs: number; prompt_tokens: number; completion_tokens: number; avg_latency_ms: number }[]; note: string;
 }
 export const tierLabel = (k: string) => ({ whatsapp_starter: "Starter", whatsapp_growth: "Growth", whatsapp_pro: "Pro" } as Record<string, string>)[k] ?? k;
+
+// ---- appointment booking
+export type BookingStatus = "booked" | "done" | "no_show" | "cancelled";
+export interface WaBooking {
+  id: string; code: string; status: BookingStatus; source: "ai" | "staff" | "api"; service: string; service_id: string | null; duration_minutes: number; price_inr: number | null; starts_at: string; ends_at: string; when: string; note: string | null;
+  contact_id: string; customer: { name: string | null; phone: string } | null; reminder_day: string | null; reminder_soon: string | null; done_at: string | null; cancel_reason: string | null; review?: { scheduled: boolean; reason: string } | null;
+}
+export interface WaBookingService { id: string; name: string; duration_minutes: number; buffer_minutes: number; price_inr: number | null; active: boolean }
+export interface WaReminderTemplate { key: string; submitted: boolean; status: string | null; category: string | null; category_known: boolean; needs_offers_consent: boolean; body: string }
+export interface WaBookingOverview {
+  platform_on: boolean; plan_ok: boolean; active: boolean; timezone: string; setup_needed: string[]; reminder_note: string;
+  settings: { enabled: boolean; capacity: number; slot_step_minutes: number; min_notice_minutes: number; max_days_ahead: number; reminders_enabled: boolean; reminder_day_hour: number; reminder_soon_hours: number; limits: Record<string, [number, number]> };
+  services: WaBookingService[]; hours: { weekday: number; day: string; opens: string; closes: string }[]; closed: { id: string; day: string; reason: string | null }[]; reminder_templates: Record<string, WaReminderTemplate>;
+}
+export const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const BOOKING_STATUS_WORDS: Record<BookingStatus, { label: string; tone: "green" | "gray" | "amber" | "red" | "blue" }> = {
+  booked: { label: "Booked", tone: "blue" }, done: { label: "Visit done", tone: "green" }, no_show: { label: "Did not come", tone: "amber" }, cancelled: { label: "Cancelled", tone: "gray" },
+};
+const REMINDER_WORDS: Record<string, string> = {
+  sent: "Reminder sent", no_utility_consent: "No reminder: the customer has not agreed to updates about their visit", opted_out: "No reminder: the customer replied STOP",
+  no_marketing_consent: "No reminder: WhatsApp has not confirmed this is an update message, so the customer's agreement to offers is also needed", outside_hours: "No reminder: it would have gone out at night",
+  template_not_approved: "Waiting: the reminder message is not approved yet", plan_required: "No reminder: not part of this plan", no_customer: "No reminder: customer not found",
+};
+/** What happened (or will not happen) with a booking's reminders, in plain words. */
+export function reminderWords(result: string | null): string | null { return result ? REMINDER_WORDS[result] ?? `No reminder (${result.replace(/_/g, " ")})` : null; }
+/** Where the reminder messages stand, so an owner is never surprised. */
+export function reminderStateWords(t: WaReminderTemplate | undefined): string {
+  if (!t || !t.submitted) return "Not submitted to WhatsApp yet.";
+  if (t.status !== "approved") return t.status === "pending" ? "Waiting for WhatsApp to approve it." : `WhatsApp status: ${t.status}.`;
+  if (!t.category_known) return "Approved. WhatsApp has not told us its category yet, so customers also need to have agreed to offers until it does.";
+  return t.category === "utility" ? "Approved as an update message. Customers who agreed to visit updates get it." : "WhatsApp counts this as marketing, so customers also need to have agreed to offers.";
+}
+/** "Mon to Sat 9:00 to 18:00" style summary of the weekly hours. */
+export function hoursSummary(rows: { weekday: number; opens: string; closes: string }[]): string {
+  if (!rows.length) return "No opening hours set.";
+  const same = rows.every((r) => r.opens === rows[0].opens && r.closes === rows[0].closes);
+  const days = rows.map((r) => WEEKDAY_NAMES[r.weekday].slice(0, 3));
+  return same ? `${days.join(", ")}: ${rows[0].opens} to ${rows[0].closes}` : rows.map((r) => `${WEEKDAY_NAMES[r.weekday].slice(0, 3)} ${r.opens} to ${r.closes}`).join("; ");
+}
+export const bookingDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+export const bookingTime = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
