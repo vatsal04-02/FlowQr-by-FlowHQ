@@ -10,7 +10,7 @@ import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, type WaConvList, type WaConvSettings, type WaConvSummary, type WaConvThread } from "@/lib/whatsapp";
+import { CONV_FILTERS, entryWindowWords, referralWords, RETENTION_NOTE, senderTag, windowWords, type WaConvList, type WaConvSettings, type WaConvSummary, type WaConvThread } from "@/lib/whatsapp";
 
 const clock = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 const BUBBLE = { customer: "bg-surface-2 text-ink", staff: "bg-brand-100 text-ink", ai: "bg-blue-50 text-ink", system: "bg-ink-50 text-ink-700" } as const;
@@ -87,7 +87,7 @@ function Thread({ id, isAdmin, onClose, onChange }: { id: string; isAdmin: boole
         <div className="flex min-w-0 items-center gap-2">
           <button type="button" aria-label="Back to the list" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full hover:bg-ink-50 md:hidden"><ArrowLeft className="h-4 w-4" aria-hidden /></button>
           <div className="min-w-0"><p className="truncate font-semibold text-ink">{name} <span className="font-normal tabular-nums text-ink-500">{t.contact?.phone}</span></p>
-            <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-500">{t.contact?.no_consent && <Badge>Contact, no consent</Badge>}{t.contact?.opted_out && <Badge tone="red">Asked to stop</Badge>}{t.status === "needs_human" && <Badge tone="amber">Needs you</Badge>}{t.ai_paused_until && <Badge tone="blue">Assistant paused</Badge>}{t.assigned_name && <span>With {t.assigned_name}</span>}</p></div>
+            <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-500">{t.referral && <Badge tone="blue">{t.referral.type === "ad" ? "From an ad" : "From your page"}</Badge>}{t.contact?.no_consent && <Badge>Contact, no consent</Badge>}{t.contact?.opted_out && <Badge tone="red">Asked to stop</Badge>}{t.status === "needs_human" && <Badge tone="amber">Needs you</Badge>}{t.ai_paused_until && <Badge tone="blue">Assistant paused</Badge>}{t.assigned_name && <span>With {t.assigned_name}</span>}</p></div>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Button size="sm" variant="ghost" loading={busy === "ai"} onClick={() => void act("ai-pause", "ai", { paused: !t.ai_off })} aria-pressed={!!t.ai_off}>{t.ai_off ? "Resume assistant here" : "Pause assistant here"}</Button>
@@ -96,6 +96,7 @@ function Thread({ id, isAdmin, onClose, onChange }: { id: string; isAdmin: boole
           {isAdmin && <Button size="sm" variant="ghost" onClick={() => void remove()}>Delete</Button>}
         </div>
       </div>
+      {t.referral && <div className="border-b border-ink-100 bg-blue-50 px-3 py-2 text-[13px] text-ink-700" data-testid="referral"><p>{referralWords(t.referral)}</p>{entryWindowWords(t.entry_window) && <p className="text-ink-500">{entryWindowWords(t.entry_window)}</p>}</div>}
       {t.handoff_words && t.status === "needs_human" && <div className="border-b border-ink-100 bg-amber-50 px-3 py-2 text-[13px] text-ink-700" data-testid="why">Why you are needed: {t.handoff_words}</div>}
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3" aria-live="polite">
         {t.messages.length === 0 && <p className="text-sm text-ink-500">No messages yet.</p>}
@@ -166,7 +167,7 @@ function Inbox() {
                 <li key={c.id}><button type="button" onClick={() => setSel(c.id)} aria-current={sel === c.id} className={`w-full rounded-2xl p-3 text-left shadow-sm ${sel === c.id ? "bg-brand-50 ring-1 ring-brand-300" : "bg-surface hover:bg-ink-50"}`}>
                   <span className="flex items-center justify-between gap-2"><b className="truncate text-ink">{c.contact?.name ?? c.contact?.phone ?? "A customer"}</b><span className="shrink-0 text-[11px] text-ink-500">{clock(c.last_message_at)}</span></span>
                   <span className="mt-0.5 block truncate text-[13px] text-ink-700">{c.preview_from === "ai" ? "Assistant: " : c.preview_from === "staff" ? "You: " : ""}{c.preview ?? ""}</span>
-                  <span className="mt-1 flex flex-wrap items-center gap-1.5">{c.unread > 0 && <Badge tone="blue">{c.unread} new</Badge>}{c.status === "needs_human" && <Badge tone="amber">Needs you</Badge>}{c.contact?.no_consent && <Badge>No consent</Badge>}{!c.window_open && <Badge>Window closed</Badge>}</span>
+                  <span className="mt-1 flex flex-wrap items-center gap-1.5">{c.unread > 0 && <Badge tone="blue">{c.unread} new</Badge>}{c.status === "needs_human" && <Badge tone="amber">Needs you</Badge>}{c.referral && <Badge tone="blue">{c.referral.type === "ad" ? "Ad" : "Page"}</Badge>}{c.contact?.no_consent && <Badge>No consent</Badge>}{!c.window_open && <Badge>Window closed</Badge>}</span>
                 </button></li>))}</ul>
             )}
           </div>

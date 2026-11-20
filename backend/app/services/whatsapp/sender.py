@@ -15,6 +15,7 @@ a free-form reply to a customer who wrote first, sent only while their 24-hour w
 with the same key); a final failure is recorded on the message with Meta's error code.
 """
 import logging
+from decimal import Decimal
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -28,7 +29,7 @@ from app.core.rate_limit import hit
 from app.models import Tenant
 from app.models.base import utcnow
 from app.models.whatsapp import WhatsAppContact, WhatsAppMessage, WhatsAppTemplate
-from app.services.whatsapp import addons, connection, gate, pricing, rules
+from app.services.whatsapp import attribution, addons, connection, gate, pricing, rules
 from app.services.whatsapp.meta import MetaError, get_meta_client
 from app.services.whatsapp.templates import clean_variable, key_of, placeholders
 
@@ -105,7 +106,7 @@ def send_template(db: Session, tenant: Tenant, contact: WhatsAppContact, templat
     token = connection._token_of(conn)  # noqa: SLF001
     if not token:
         return _skip("not_connected")
-    est = pricing.est_rate_for_send(db, tenant.id, purpose)
+    est = Decimal(0) if attribution.free_now(db, tenant.id, contact.id, now) else pricing.est_rate_for_send(db, tenant.id, purpose)  # free only inside a VERIFIED entry-point window
     msg = WhatsAppMessage(tenant_id=tenant.id, connection_id=conn.id, contact_id=contact.id, phone_number_id=conn.phone_number_id, direction="outbound", category=purpose, template_id=template.id,
                           delivery_status="queued", idempotency_key=idem_key, run_id=run_id, campaign_id=campaign_id, est_rate=est, kind=kind)
     try:
@@ -181,7 +182,7 @@ def send_service_reply(db: Session, tenant: Tenant, conv, text: str, *, sender_t
     if not token:
         return _skip("not_connected")
     msg = WhatsAppMessage(tenant_id=tenant.id, connection_id=conn.id, contact_id=contact.id, phone_number_id=conn.phone_number_id, direction="outbound", category="service", template_id=None,
-                          delivery_status="queued", idempotency_key=idem_key, est_rate=pricing.est_rate_for_send(db, tenant.id, "service"), kind="service_reply")
+                          delivery_status="queued", idempotency_key=idem_key, est_rate=(Decimal(0) if attribution.free_now(db, tenant.id, contact.id, now) else pricing.est_rate_for_send(db, tenant.id, "service")), kind="service_reply")
     try:
         with db.begin_nested():
             db.add(msg)

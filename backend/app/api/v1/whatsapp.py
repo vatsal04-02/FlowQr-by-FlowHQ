@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, agent, ai_knowledge, automations, bookings, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, agent, ai_knowledge, attribution, automations, bookings, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -858,6 +858,20 @@ def bookings_no_show(booking_id: uuid.UUID, request: Request, ctx: TenantContext
         bookings.mark(ctx.db, ctx.tenant, ctx.user, b, "no_show", ip=client_ip(request))
         return bookings.serialize(b, c)
     return _run(ctx, go)
+
+
+# ---- click-to-WhatsApp attribution (Phase 11, Pro)
+@router.get("/attribution")
+def attribution_summary(days: int = Query(90, ge=1, le=365), ctx: TenantContext = Depends(get_tenant_context)):
+    """Conversations by the ad or page button they came from, and how many of those customers booked. Counts and ad names only."""
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "This is for people who can see every location."})
+    if not attribution.platform_on():
+        raise HTTPException(status_code=404, detail={"code": "attribution_disabled", "message": "Ad tracking is not switched on for everyone yet."})
+    if not addons.attribution_allowed(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=403, detail={"code": "plan_required", "message": "Ad tracking is part of the WhatsApp Pro add-on."})
+    return attribution.summary(ctx.db, ctx.tenant, days)
 
 
 # ---- birthday and festival greetings

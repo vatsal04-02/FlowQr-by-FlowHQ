@@ -450,7 +450,8 @@ export type ConvStatus = "open" | "needs_human" | "closed";
 export interface WaConvSummary {
   id: string; contact: { id: string; name: string | null; phone: string; source: string; opted_out: boolean; no_consent: boolean } | null; status: ConvStatus; handoff_reason: string | null; handoff_words: string | null;
   unread: number; needs_reply: boolean; preview: string | null; preview_from: string | null; last_message_at: string | null; window_open: boolean; window_closes_at: string | null;
-  ai_paused_until: string | null; assigned_to: string | null; source: string; ai_off?: boolean;
+  ai_paused_until: string | null; assigned_to: string | null; source: string; ai_off?: boolean; referral?: WaReferral | null;
+  entry_window?: WaEntryWindow | null;
 }
 export interface WaConvMessage {
   id: string; direction: "inbound" | "outbound"; sender_type: "customer" | "ai" | "staff" | "system"; sender_label: string | null; text: string | null; msg_type: string; status: string; created_at: string;
@@ -574,3 +575,23 @@ export function webhookUrlProblem(url: string): string | null {
   return null;
 }
 export const keyStatusWords = (k: Pick<WaApiKey, "active" | "revoked_at" | "expires_at">): string => (k.revoked_at ? "Revoked" : !k.active ? "Expired" : "Active");
+
+// ---- click-to-WhatsApp attribution
+export interface WaReferral { type: "ad" | "post"; id: string | null; headline: string | null; url: string | null; at: string | null }
+export interface WaEntryWindow { until: string | null; open: boolean; verified: boolean; counts_as_free: boolean; hours: number | null; warning: string | null }
+export interface WaAttribution { days: number; conversations_in_period: number; from_ads_or_posts: number; window_note: string | null; sources: { type: string; id: string | null; headline: string | null; conversations: number; customers_who_booked: number; last_at: string | null }[] }
+export interface WaEntryWindowRow { id: string; hours: number; effective_from: string; source: string; verified: boolean; in_force: boolean; check: { verified: boolean; note: string; at: string } | null }
+/** Where a chat started from, in a few words. */
+export function referralWords(r: WaReferral | null | undefined): string | null {
+  if (!r) return null;
+  const what = r.type === "ad" ? "an ad" : "your page";
+  return r.headline ? `Came from ${what}: ${r.headline}` : `Came from ${what}`;
+}
+/** What the free entry window means for a conversation, without ever claiming a saving that has not been checked. */
+export function entryWindowWords(w: WaEntryWindow | null | undefined): string | null {
+  if (!w) return null;
+  if (!w.open) return "The free window after the ad click has ended.";
+  if (w.counts_as_free) return "Inside the free window after the ad click: messages are estimated as free.";
+  return "Inside the window after the ad click, but its length has not been checked yet, so messages are still estimated at the normal rate.";
+}
+export const sourceLabel = (s: string) => (s === "ad" ? "From an ad" : s === "post" ? "From your page" : "Direct");

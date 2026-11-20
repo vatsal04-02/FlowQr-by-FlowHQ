@@ -123,6 +123,9 @@ platform-admin	GET	/api/v1/admin/webhooks
 platform-admin	POST	/api/v1/admin/webhooks/{event_id}/reprocess
 platform-admin	GET	/api/v1/admin/whatsapp/ai-quotas
 platform-admin	POST	/api/v1/admin/whatsapp/ai-quotas
+platform-admin	GET	/api/v1/admin/whatsapp/entry-windows
+platform-admin	POST	/api/v1/admin/whatsapp/entry-windows
+platform-admin	POST	/api/v1/admin/whatsapp/entry-windows/{window_id}/check
 platform-admin	GET	/api/v1/admin/whatsapp/festivals
 platform-admin	POST	/api/v1/admin/whatsapp/festivals
 platform-admin	PATCH	/api/v1/admin/whatsapp/festivals/{festival_id}
@@ -386,6 +389,7 @@ role-admin	POST	/api/v1/whatsapp/ai/test-chat
 member	GET	/api/v1/whatsapp/ai/unanswered
 role-admin	POST	/api/v1/whatsapp/ai/unanswered/resolve
 member	GET	/api/v1/whatsapp/ai/usage
+member	GET	/api/v1/whatsapp/attribution
 member	GET	/api/v1/whatsapp/automations
 role-admin	PUT	/api/v1/whatsapp/automations/{key}
 member	GET	/api/v1/whatsapp/automations/{key}/runs

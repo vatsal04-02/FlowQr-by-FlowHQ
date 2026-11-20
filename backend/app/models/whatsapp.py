@@ -470,6 +470,12 @@ class WhatsAppConversation(IdMixin, TimestampMixin, Base):
     ai_pseudonym: Mapped[str | None] = mapped_column(String(16))  # the only name for this customer the AI provider ever sees
     booking_consent_ask_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # the booking whose "would you like reminders? Reply YES" question is waiting for an answer
     booking_consent_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    referral_type: Mapped[str | None] = mapped_column(String(8))  # "ad" or "post": the chat started from a click-to-WhatsApp ad or page button
+    referral_id: Mapped[str | None] = mapped_column(String(64))
+    referral_headline: Mapped[str | None] = mapped_column(String(120))
+    referral_url: Mapped[str | None] = mapped_column(String(300))
+    referral_clid: Mapped[str | None] = mapped_column(String(200))
+    entry_point_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the latest click: starts the free entry-point window
 
 
 class WhatsAppConversationMessage(IdMixin, Base):
@@ -734,3 +740,29 @@ class WhatsAppWebhookDelivery(IdMixin, Base):
     last_error: Mapped[str | None] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---- Phase 11: click-to-WhatsApp attribution
+class WhatsAppEntryWindow(IdMixin, Base):
+    """GLOBAL, dated, append-only: how long the free window after an ad or page-button click lasts. Never edited: a change is a new row with a later date, and every row starts unverified."""
+
+    __tablename__ = "whatsapp_entry_windows"
+    __table_args__ = (UniqueConstraint("effective_from", name="uq_wa_entry_window_date"), CheckConstraint("hours BETWEEN 1 AND 720", name="ck_wa_entry_window_hours"))
+
+    hours: Mapped[int] = mapped_column(Integer)
+    effective_from: Mapped[date] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(String(300))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppEntryWindowCheck(IdMixin, Base):
+    """Append-only: an administrator's check of one window row against Meta's own documentation. The newest check for a row is the one that counts."""
+
+    __tablename__ = "whatsapp_entry_window_checks"
+
+    window_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_entry_windows.id", ondelete="RESTRICT"))
+    verified: Mapped[bool] = mapped_column(Boolean)
+    note: Mapped[str] = mapped_column(String(300))
+    checked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -127,7 +127,7 @@ Result: ______________________  Date: ____________
 ## 9. The free entry-point window length (click-to-WhatsApp ads and page buttons)
 **Why it matters:** when a customer starts a chat from an ad or a page button, Meta gives a free window. Sources disagree about its length (72 hours, or 7 days from 21 Sep 2026). FlowQR (Phase 11) will treat it as a dated, unverified setting and count those messages as free only once it is verified.
 
-**Do:** find the current length in Meta's documentation and confirm it on a real test conversation's billing. Record the date it applies from.
+**Do:** find the current length in Meta's documentation and confirm it on a real test conversation's billing. Then, in the admin screen "WhatsApp free window", record a check against the row (72 hours from 1 Jan 2026, or 7 days from 21 Sep 2026) that matches, or add a corrected dated row. FlowQR counts these messages as free **only after** such a check. Also start one real chat from a click-to-WhatsApp ad or page button and record the real `referral` object (with the customer's number removed): FlowQR reads `source_type`, `source_id`, `source_url`, `headline` and `ctwa_clid`, written from documentation and never seen from real traffic. If the real one differs, `clean_referral` in `services/whatsapp/attribution.py` must be corrected.
 
 Result: ______________________  Date: ____________
 

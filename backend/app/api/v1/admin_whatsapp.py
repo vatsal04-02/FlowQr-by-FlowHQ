@@ -12,7 +12,7 @@ from app.models import Tenant
 from datetime import date
 from decimal import Decimal
 
-from app.services.whatsapp import WaError, addons, agent, ai_knowledge, connection, consent, occasions, pricing, rules
+from app.services.whatsapp import WaError, addons, agent, ai_knowledge, attribution, connection, consent, occasions, pricing, rules
 
 router = APIRouter(prefix="/admin", tags=["admin-whatsapp"])
 
@@ -158,3 +158,39 @@ def add_ai_quota(body: AiQuotaIn, request: Request, ctx: AuthContext = Depends(r
         ctx.db.rollback()
         raise HTTPException(status_code=exc.status, detail=exc.detail())
     return {"id": row.id, "addon_key": row.addon_key, "monthly_replies": row.monthly_replies, "effective_from": row.effective_from, "note": row.note}
+
+
+# ---- the free entry-point window after an ad or page-button click (dated, append-only, unverified until checked)
+class EntryWindowIn(BaseModel):
+    hours: int = Field(ge=1, le=720)
+    effective_from: date
+    source: str = Field(min_length=10, max_length=300)
+
+
+@router.get("/whatsapp/entry-windows")
+def entry_windows(ctx: AuthContext = Depends(require_platform_admin)):
+    return {"items": attribution.list_windows(ctx.db), "warning": attribution.WARNING,
+            "note": "Estimates treat messages inside the window as free only when the length in force on the day of the click has been checked against Meta's own documentation. Add a change as a new dated row; rows are never edited."}
+
+
+@router.post("/whatsapp/entry-windows", status_code=201)
+def add_entry_window(body: EntryWindowIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    try:
+        w = attribution.add_window(ctx.db, ctx.user, hours=body.hours, effective_from=body.effective_from, source=body.source, ip=client_ip(request))
+        ctx.db.commit()
+    except WaError as exc:
+        ctx.db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.detail())
+    return attribution.serialize_window(ctx.db, w)
+
+
+@router.post("/whatsapp/entry-windows/{window_id}/check", status_code=201)
+def check_entry_window(window_id: uuid.UUID, body: VerifyIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
+    """Record a check of one window length against Meta's documentation. This adds a record; the row is never changed."""
+    try:
+        c = attribution.add_check(ctx.db, ctx.user, window_id, body.verified, body.note, ip=client_ip(request))
+        ctx.db.commit()
+    except WaError as exc:
+        ctx.db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.detail())
+    return {"window_id": window_id, "verified": c.verified, "note": c.note, "at": c.created_at}

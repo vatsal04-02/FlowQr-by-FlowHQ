@@ -146,7 +146,7 @@ def get_or_create(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact) -
         db.add(conv)
         db.flush()
         from app.services.whatsapp import integrations
-        integrations.emit(db, tenant_id, "conversation.created", {"conversation_id": conv.id, "source": conv.source, **integrations.customer_ref(contact)})
+        conv._new = True  # announced after the first message is stored (so it can say where the customer came from)
     return conv
 
 
@@ -178,6 +178,7 @@ def ingest(db: Session, tenant: Tenant, phone: str, msg: dict, now: datetime | N
     contact, _ = consent.create_contact(db, tenant, phone=p, name=None, tags=[], source="customer_message", user_id=None)  # a contact is not consent: none is recorded
     when = _when(msg.get("timestamp"), now)
     conv = get_or_create(db, tenant.id, contact)
+    is_new = getattr(conv, "_new", False)
     stored_at = max(when, conv.last_message_at + timedelta(milliseconds=1)) if conv.last_message_at else when  # strictly after what is already there, so the order on screen is the order it happened
     kind = (msg.get("type") or "text")[:16]
     text = _clean_text(msg.get("text")) if kind in ("text", "button", "interactive") else None
@@ -192,6 +193,10 @@ def ingest(db: Session, tenant: Tenant, phone: str, msg: dict, now: datetime | N
     conv.last_message_at = max(conv.last_message_at or stored_at, stored_at)
     conv.unread_count = (conv.unread_count or 0) + 1
     conv.awaiting_reply = True
+    if msg.get("referral"):
+        from app.services.whatsapp import attribution
+        if attribution.enabled_for(db, tenant.id):
+            attribution.apply_to_conversation(conv, msg["referral"], when)
     consent.note_reply(db, tenant, p, when)  # the time only
     if conv.status == "closed":
         conv.status, conv.handoff_reason = "open", None
@@ -200,6 +205,10 @@ def ingest(db: Session, tenant: Tenant, phone: str, msg: dict, now: datetime | N
     if contact.marketing_opted_out_at is not None or consent.is_suppressed(db, tenant.id, contact.phone):
         _mark_handoff(conv, "customer_opted_out", now)  # a customer who said STOP is never answered automatically
     db.flush()
+    if is_new:
+        from app.services.whatsapp import integrations
+        integrations.emit(db, tenant.id, "conversation.created", {"conversation_id": conv.id, "source": conv.source, "referral_type": conv.referral_type, "referral_id": conv.referral_id,
+                                                                   "referral_headline": conv.referral_headline, **integrations.customer_ref(contact)})
     return {"conversation_id": conv.id, "debounce": cs.debounce_seconds if cs else 4}
 
 
@@ -445,7 +454,8 @@ def summary(db: Session, conv: WhatsAppConversation, contact: WhatsAppContact | 
     return {"id": conv.id, "contact": c_state, "status": conv.status, "handoff_reason": conv.handoff_reason, "handoff_words": rules.HANDOFF_WORDS.get(conv.handoff_reason or ""), "unread": conv.unread_count,
             "needs_reply": needs_reply(conv), "preview": preview, "preview_from": last.sender_type if last else None, "last_message_at": conv.last_message_at, "window_open": window_open(conv, now),
             "window_closes_at": window_closes_at(conv), "ai_paused_until": conv.ai_paused_until if conv.ai_paused_until and conv.ai_paused_until > now else None, "assigned_to": conv.assigned_to,
-            "source": conv.source, "ai_off": conv.ai_off}
+            "source": conv.source, "ai_off": conv.ai_off,
+            "referral": ({"type": conv.referral_type, "id": conv.referral_id, "headline": conv.referral_headline, "url": conv.referral_url, "at": conv.entry_point_at} if conv.referral_type else None)}
 
 
 def list_conversations(db: Session, tenant_id: uuid.UUID, *, q: str | None = None, filter: str = "all", limit: int = PAGE, offset: int = 0, now: datetime | None = None) -> dict:
@@ -492,6 +502,8 @@ def thread(db: Session, tenant: Tenant, conv: WhatsAppConversation, *, before: d
             if m["id"] in fb:
                 m["feedback"], m["model_version"] = fb[m["id"]]["feedback"], fb[m["id"]]["model_version"]
     out["ai_off"] = conv.ai_off
+    from app.services.whatsapp import attribution
+    out["entry_window"] = attribution.state(db, conv, now) if conv.referral_type else None
     out["assigned_name"] = names.get(conv.assigned_to)
     out["code"] = conv.code
     out["fallback_templates"] = [] if window_open(conv, now) else fallback_templates(db, tenant, contact)

@@ -81,7 +81,13 @@ def sanitize(payload: dict) -> dict | None:
                         keep = isinstance(text, str) and len(text) <= settings.whatsapp_conversation_text_max_chars
                     else:
                         keep = isinstance(text, str) and (len(text) <= 64 or (len(text) <= 240 and CODE_FORM.search(text)))  # an opt-in message carries a code; anything else long is not kept
-                    item["messages"].append({"from": _digits(m["from"]), "id": str(m.get("id", ""))[:120], "type": str(m.get("type", ""))[:16], "text": text if keep else None, "timestamp": str(m.get("timestamp", ""))[:12]})
+                    entry = {"from": _digits(m["from"]), "id": str(m.get("id", ""))[:120], "type": str(m.get("type", ""))[:16], "text": text if keep else None, "timestamp": str(m.get("timestamp", ""))[:12]}
+                    if settings.whatsapp_attribution_enabled:  # an ad or page-button click: a few trimmed fields, no customer words (UNVERIFIED shape, see the checklist)
+                        from app.services.whatsapp import attribution
+                        ref = attribution.clean_referral(m.get("referral"))
+                        if ref:
+                            entry["referral"] = ref
+                    item["messages"].append(entry)
             for e in (v.get("message_echoes") or [])[:200] if settings.whatsapp_conversations_enabled else []:  # messages typed in the WhatsApp Business app (coexistence). UNVERIFIED shape.
                 if isinstance(e, dict) and e.get("to"):
                     etext = (e.get("text") or {}).get("body") if e.get("type") == "text" and isinstance(e.get("text"), dict) else None

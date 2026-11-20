@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deliveryWords, webhookUrlProblem, keyStatusWords, reminderWords, reminderStateWords, hoursSummary, WEEKDAY_NAMES, BOOKING_STATUS_WORDS, KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { referralWords, entryWindowWords, sourceLabel, deliveryWords, webhookUrlProblem, keyStatusWords, reminderWords, reminderStateWords, hoursSummary, WEEKDAY_NAMES, BOOKING_STATUS_WORDS, KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -401,4 +401,17 @@ test("deliveries, keys and webhook addresses are explained in plain words", () =
   assert.match(webhookUrlProblem("http://hooks.example.com"), /https/);
   assert.match(webhookUrlProblem(""), /Enter/);
   assert.match(webhookUrlProblem("https://x.example.com/" + "a".repeat(600)), /too long/);
+});
+
+
+test("where a chat came from and what the free window means are said without claiming a saving that was not checked", () => {
+  assert.equal(referralWords(null), null);
+  assert.equal(referralWords({ type: "ad", id: "1", headline: "Back pain relief", url: null, at: null }), "Came from an ad: Back pain relief");
+  assert.equal(referralWords({ type: "post", id: null, headline: null, url: null, at: null }), "Came from your page");
+  assert.equal(entryWindowWords(null), null);
+  const w = { until: "2026-11-27T00:00:00Z", open: true, verified: false, counts_as_free: false, hours: 168, warning: "x" };
+  assert.match(entryWindowWords(w), /has not been checked yet.*normal rate/);
+  assert.match(entryWindowWords({ ...w, verified: true, counts_as_free: true }), /estimated as free/);
+  assert.match(entryWindowWords({ ...w, open: false }), /has ended/);
+  assert.deepEqual(["ad", "post", "organic"].map(sourceLabel), ["From an ad", "From your page", "Direct"]);
 });
