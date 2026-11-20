@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.security import constant_time_equals
 from app.models import Tenant
 from app.models.base import utcnow
-from app.models.whatsapp import WhatsAppConnection, WhatsAppMessage, WhatsAppWebhookEvent
+from app.models.whatsapp import WhatsAppConnection, WhatsAppContact, WhatsAppMessage, WhatsAppWebhookEvent
 from app.services.whatsapp import consent, rules
 
 log = logging.getLogger("flowqr.whatsapp.webhook")
@@ -72,8 +72,27 @@ def sanitize(payload: dict) -> dict | None:
             for m in (v.get("messages") or [])[:200]:
                 if isinstance(m, dict) and m.get("from"):
                     text = (m.get("text") or {}).get("body") if m.get("type") == "text" and isinstance(m.get("text"), dict) else None
-                    keep = isinstance(text, str) and (len(text) <= 64 or (len(text) <= 240 and CODE_FORM.search(text)))  # an opt-in message carries a code; anything else long is not kept
-                    item["messages"].append({"from": _digits(m["from"]), "id": str(m.get("id", ""))[:120], "type": str(m.get("type", ""))[:16], "text": text if keep else None, "timestamp": str(m.get("timestamp", ""))[:12]})
+                    if m.get("type") == "button" and isinstance(m.get("button"), dict):
+                        text = m["button"].get("text")
+                    elif m.get("type") == "interactive" and isinstance(m.get("interactive"), dict):
+                        reply = m["interactive"].get("button_reply") or m["interactive"].get("list_reply") or {}
+                        text = reply.get("title") if isinstance(reply, dict) else None
+                    if settings.whatsapp_conversations_enabled:  # conversations need the words; they are blanked as soon as the event is processed (and after 24 hours if it never is)
+                        keep = isinstance(text, str) and len(text) <= settings.whatsapp_conversation_text_max_chars
+                    else:
+                        keep = isinstance(text, str) and (len(text) <= 64 or (len(text) <= 240 and CODE_FORM.search(text)))  # an opt-in message carries a code; anything else long is not kept
+                    entry = {"from": _digits(m["from"]), "id": str(m.get("id", ""))[:120], "type": str(m.get("type", ""))[:16], "text": text if keep else None, "timestamp": str(m.get("timestamp", ""))[:12]}
+                    if settings.whatsapp_attribution_enabled:  # an ad or page-button click: a few trimmed fields, no customer words (UNVERIFIED shape, see the checklist)
+                        from app.services.whatsapp import attribution
+                        ref = attribution.clean_referral(m.get("referral"))
+                        if ref:
+                            entry["referral"] = ref
+                    item["messages"].append(entry)
+            for e in (v.get("message_echoes") or [])[:200] if settings.whatsapp_conversations_enabled else []:  # messages typed in the WhatsApp Business app (coexistence). UNVERIFIED shape.
+                if isinstance(e, dict) and e.get("to"):
+                    etext = (e.get("text") or {}).get("body") if e.get("type") == "text" and isinstance(e.get("text"), dict) else None
+                    item.setdefault("echoes", []).append({"to": _digits(e["to"]), "id": str(e.get("id", ""))[:120], "type": str(e.get("type", ""))[:16], "timestamp": str(e.get("timestamp", ""))[:12],
+                                                          "text": etext if isinstance(etext, str) and len(etext) <= settings.whatsapp_conversation_text_max_chars else None})
             if item["field"] == "account_update":
                 item["event"] = str(v.get("event", ""))[:40]
             items.append(item)
@@ -126,6 +145,19 @@ def _when(ts: str | None) -> datetime:
         return utcnow()
 
 
+def _status_event(db: Session, msg: WhatsAppMessage) -> None:
+    """Tell anyone listening that a message moved on. Only ids, the status and the kind: never message text."""
+    from app.services.whatsapp import integrations
+    c = db.get(WhatsAppContact, msg.contact_id) if msg.contact_id else None
+    integrations.emit(db, msg.tenant_id, "message.status", {"message_id": msg.id, "status": msg.delivery_status, "error_code": msg.error_code, "kind": msg.kind or "template", "category": msg.category, **integrations.customer_ref(c)})
+
+
+def _opt_out_event(db: Session, tenant: Tenant, phone: str) -> None:
+    from app.services.whatsapp import integrations
+    c = consent.find_by_phone(db, tenant.id, phone)
+    integrations.emit(db, tenant.id, "contact.opted_out", {"at": utcnow(), **(integrations.customer_ref(c) if c else {"customer_phone": phone})})
+
+
 def apply_status(msg: WhatsAppMessage, status: str, ts: str | None, errors: list[dict]) -> bool:
     """Move a message record forward. Returns whether anything changed (False for a repeat, an out-of-order older status or a failure after delivery)."""
     when = _when(ts)
@@ -170,25 +202,55 @@ def process_event(db: Session, event_id: uuid.UUID) -> dict:
             msg = db.scalar(select(WhatsAppMessage).where(WhatsAppMessage.tenant_id == conn.tenant_id, WhatsAppMessage.phone_number_id == conn.phone_number_id, WhatsAppMessage.meta_message_id == s["id"]))
             if msg is not None and apply_status(msg, s["status"], s.get("timestamp"), s.get("errors", [])):
                 out["statuses"] += 1
+                _status_event(db, msg)
+                if msg.kind == "service_reply":
+                    from app.services.whatsapp import conversations as _conv
+                    _conv.sync_status(db, msg)
         for m in item.get("messages", []):
             if m.get("from") and rules.is_opt_out(m.get("text")) and tenant is not None:
                 if consent.opt_out_by_phone(db, tenant, "+" + m["from"]):
                     out["opt_outs"] += 1
+                    _opt_out_event(db, tenant, "+" + m["from"])
             elif m.get("from") and tenant is not None:  # not a STOP: is it a customer opting in (the QR page's message, or an opt-in keyword)?
                 from app.services.whatsapp import optin
                 joined = optin.handle_inbound(db, tenant, "+" + m["from"], m.get("text"), m.get("id") or "")
                 if joined:
                     out["opt_ins"] = out.get("opt_ins", 0) + 1
-                elif consent.note_reply(db, tenant, "+" + m["from"], _when(m.get("timestamp"))):  # an ordinary message from a known customer: remember WHEN, never what
-                    out["replies"] = out.get("replies", 0) + 1
+                else:
+                    from app.services.whatsapp import conversations as _conv
+                    if _conv.enabled_for(db, tenant.id):  # the inbox is on: keep the message, open the 24-hour window and start the short wait for more messages
+                        got = _conv.ingest(db, tenant, "+" + m["from"], m)
+                        if got and got.get("conversation_id"):
+                            out["conversation_messages"] = out.get("conversation_messages", 0) + 1
+                            out.setdefault("conversations", {})[str(got["conversation_id"])] = got["debounce"]
+                    elif consent.note_reply(db, tenant, "+" + m["from"], _when(m.get("timestamp"))):  # an ordinary message from a known customer: remember WHEN, never what
+                        out["replies"] = out.get("replies", 0) + 1
+        for e in item.get("echoes", []):
+            from app.services.whatsapp import conversations as _conv
+            if tenant is not None and _conv.enabled_for(db, tenant.id) and _conv.ingest_echo(db, tenant, "+" + e["to"], e):
+                out["echoes"] = out.get("echoes", 0) + 1
         if item.get("field") == "account_update" and item.get("event") in ATTENTION_EVENTS:
             conn.status, conn.attention_reason = "needs_attention", "Meta reported a problem with your WhatsApp account. Open WhatsApp Manager to see why."
             out["attention"] += 1
     ev.tenant_id = next(iter(tenants)) if len(tenants) == 1 else None  # a body that spans several businesses stays unattributed; each item was handled under its own tenant
     ev.status = "processed" if tenants else "ignored"
     ev.processed_at, ev.error = utcnow(), None
-    ev.payload = {"items": [{**it, "messages": [{**mm, "text": None} for mm in it.get("messages", [])]} for it in (ev.payload or {}).get("items", [])]}  # the text was only needed to recognise STOP and opt-ins: once handled it is gone
+    ev.payload = {"items": [{**it, "messages": [{**mm, "text": None} for mm in it.get("messages", [])], **({"echoes": [{**ee, "text": None} for ee in it["echoes"]]} if it.get("echoes") else {})}
+                            for it in (ev.payload or {}).get("items", [])]}  # the text was only needed to recognise STOP and opt-ins: once handled it is gone
     return out
+
+
+def scrub_old_texts(db: Session, now: datetime | None = None, hours: int = 24, limit: int = 500) -> int:
+    """Message text kept in a stored event is only there so it can be processed. An event that was never processed (failed, or waiting) loses its text after `hours`."""
+    from datetime import timedelta
+    cutoff = (now or utcnow()) - timedelta(hours=hours)
+    n = 0
+    for ev in db.scalars(select(WhatsAppWebhookEvent).where(WhatsAppWebhookEvent.received_at < cutoff).order_by(WhatsAppWebhookEvent.received_at).limit(limit)):
+        items = (ev.payload or {}).get("items", [])
+        if any(mm.get("text") for it in items for mm in it.get("messages", [])) or any(ee.get("text") for it in items for ee in it.get("echoes", [])):
+            ev.payload = {"items": [{**it, "messages": [{**mm, "text": None} for mm in it.get("messages", [])], **({"echoes": [{**ee, "text": None} for ee in it["echoes"]]} if it.get("echoes") else {})} for it in items]}
+            n += 1
+    return n
 
 
 def purge_old(db: Session, now: datetime | None = None) -> int:

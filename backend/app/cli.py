@@ -118,7 +118,7 @@ def main() -> None:
 
     ai_eval_cli.add_commands(sub)
     args = ap.parse_args()
-    if args.cmd in ("ai-eval", "ai-eval-human", "ai-eval-rescore"):
+    if args.cmd in ("ai-eval", "ai-eval-human", "ai-eval-rescore", "ai-eval-wa"):
         sys.exit(ai_eval_cli.run(args))
     if args.cmd in ("preflight", "set-admin-password", "google-write-test", "autonomy-live-test", "registration"):
         sys.exit(ops_cli.run(args))

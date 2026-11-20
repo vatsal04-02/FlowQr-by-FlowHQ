@@ -95,8 +95,17 @@ class MetaClient:
         """Submit a template for Meta's approval. The answer carries Meta's id, status and the category Meta decided on."""
         return self._call("POST", f"{waba_id}/message_templates", token=token, json=template)
 
+    def send_text(self, token: str, phone_number_id: str, to: str, body: str) -> str:
+        """Send a free-form text message. Only valid inside the customer's 24-hour window, which the sender checks before calling this. Returns Meta's message id (wamid)."""
+        out = self._call("POST", f"{phone_number_id}/messages", token=token,
+                         json={"messaging_product": "whatsapp", "recipient_type": "individual", "to": to.lstrip("+"), "type": "text", "text": {"preview_url": False, "body": body}})
+        msgs = out.get("messages") or []
+        if not msgs or not msgs[0].get("id"):
+            raise MetaError("Meta did not return a message id", status=502, retryable=True)
+        return str(msgs[0]["id"])
+
     def send_template(self, token: str, phone_number_id: str, to: str, name: str, language: str, parameters: list[str]) -> str:
-        """Send an approved template. Returns Meta's message id (wamid). Only templates are ever sent: never free text."""
+        """Send an approved template. Returns Meta's message id (wamid). Free-form text is sent only by send_text, which only the service-reply path in sender.py calls."""
         components = [{"type": "body", "parameters": [{"type": "text", "text": p} for p in parameters]}] if parameters else []
         body = self._call("POST", f"{phone_number_id}/messages", token=token,
                           json={"messaging_product": "whatsapp", "recipient_type": "individual", "to": to.lstrip("+"), "type": "template",

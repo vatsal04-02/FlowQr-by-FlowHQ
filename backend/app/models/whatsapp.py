@@ -4,11 +4,11 @@ delivery records, the webhook event log, and the manually recorded add-on. Nothi
 Every table carries tenant_id with forced row-level security (migration 0048). Access tokens are stored encrypted (Fernet, TOKEN_ENCRYPTION_KEY) in `access_token_enc` and are never returned by an
 API, exported or logged."""
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, SmallInteger, String, Text, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, SmallInteger, String, Text, Time, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -22,7 +22,7 @@ def _in(col: str, values) -> str:
 CONNECTION_STATUSES = ("pending", "connected", "needs_attention", "disconnected")
 WEBHOOK_STATUSES = ("unknown", "subscribed", "failed")
 PURPOSES = ("marketing", "utility", "occasion")  # occasion = birthday and festival greetings, a consent of its own
-CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in")
+CONSENT_SOURCES = ("qr_page", "website_form", "customer_message", "owner_entry", "csv_import", "admin_entry", "qr_click_to_chat", "keyword_opt_in", "whatsapp_booking", "api_integration")
 CUSTOMER_SOURCES = ("qr_page", "website_form", "customer_message", "qr_click_to_chat", "keyword_opt_in")  # the customer did it themselves: the only sources that can lift an opt-out
 TEMPLATE_CATEGORIES = ("marketing", "utility", "authentication")
 TEMPLATE_STATUSES = ("pending", "approved", "rejected", "paused", "disabled")
@@ -418,3 +418,351 @@ class WhatsAppLinkClick(IdMixin, Base):
     contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="CASCADE"))
     message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_messages.id", ondelete="SET NULL"))
     clicked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- two-way conversations (Phase 7). A customer's messages are kept as text for a retention period the business chooses (30 to 365 days, default 90), then purged.
+CONVERSATION_STATUSES = ("open", "needs_human", "closed")
+SENDER_TYPES = ("customer", "ai", "staff", "system")
+CONVERSATION_MESSAGE_STATUSES = ("received", "queued", "sent", "delivered", "read", "failed")
+
+
+class WhatsAppConversationSettings(IdMixin, TimestampMixin, Base):
+    """One row per business. Off until the owner turns the inbox on."""
+
+    __tablename__ = "whatsapp_conversation_settings"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_wa_conv_settings_tenant"), CheckConstraint("retention_days BETWEEN 30 AND 365", name="ck_wa_conv_retention"),
+                      CheckConstraint("takeover_minutes BETWEEN 5 AND 1440", name="ck_wa_conv_takeover"), CheckConstraint("debounce_seconds BETWEEN 2 AND 10", name="ck_wa_conv_debounce"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    retention_days: Mapped[int] = mapped_column(Integer, default=90)  # how long message text is kept
+    takeover_minutes: Mapped[int] = mapped_column(Integer, default=60)  # how long the assistant stays quiet after a person replies or takes over
+    debounce_seconds: Mapped[int] = mapped_column(Integer, default=4)  # how long to wait for more messages from the same customer before anyone answers
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True)  # email the owner and admins when a conversation needs a person
+
+
+class WhatsAppConversation(IdMixin, TimestampMixin, Base):
+    """One conversation per customer. The 24-hour customer-service window is measured from `last_customer_message_at`."""
+
+    __tablename__ = "whatsapp_conversations"
+    __table_args__ = (UniqueConstraint("tenant_id", "contact_id", name="uq_wa_conv_contact"), UniqueConstraint("tenant_id", "code", name="uq_wa_conv_code"),
+                      CheckConstraint(_in("status", CONVERSATION_STATUSES), name="ck_wa_conv_status"), Index("ix_wa_conv_tenant_last", "tenant_id", "last_message_at"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    contact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="CASCADE"))
+    code: Mapped[str] = mapped_column(String(12))  # a private nickname for this conversation: the only name an AI provider ever sees, never the customer's name or number
+    status: Mapped[str] = mapped_column(String(12), default="open")
+    last_customer_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_outbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    unread_count: Mapped[int] = mapped_column(Integer, default=0)
+    awaiting_reply: Mapped[bool] = mapped_column(Boolean, default=False)  # the customer's latest message has not been answered by anyone (kept as a flag: Meta's times are whole seconds, so times cannot order a reply against a message)
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    handoff_reason: Mapped[str | None] = mapped_column(String(40))
+    handoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ai_paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set when a person replies or takes over
+    reply_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when the wait for more messages ends and something should happen
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16), default="organic")
+    ai_off: Mapped[bool] = mapped_column(Boolean, default=False)  # the owner paused the assistant for this one conversation
+    ai_disclosed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the "automated assistant" line was sent
+    holding_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the "someone will reply" line was sent
+    ai_pseudonym: Mapped[str | None] = mapped_column(String(16))  # the only name for this customer the AI provider ever sees
+    booking_consent_ask_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # the booking whose "would you like reminders? Reply YES" question is waiting for an answer
+    booking_consent_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    referral_type: Mapped[str | None] = mapped_column(String(8))  # "ad" or "post": the chat started from a click-to-WhatsApp ad or page button
+    referral_id: Mapped[str | None] = mapped_column(String(64))
+    referral_headline: Mapped[str | None] = mapped_column(String(120))
+    referral_url: Mapped[str | None] = mapped_column(String(300))
+    referral_clid: Mapped[str | None] = mapped_column(String(200))
+    entry_point_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the latest click: starts the free entry-point window
+
+
+class WhatsAppConversationMessage(IdMixin, Base):
+    """One message in a conversation, with who sent it. Outbound free-form messages also have a row in the message ledger (whatsapp_messages) for cost and delivery."""
+
+    __tablename__ = "whatsapp_conversation_messages"
+    __table_args__ = (CheckConstraint(_in("direction", MESSAGE_DIRECTIONS), name="ck_wa_convmsg_direction"), CheckConstraint(_in("sender_type", SENDER_TYPES), name="ck_wa_convmsg_sender"),
+                      CheckConstraint(_in("delivery_status", CONVERSATION_MESSAGE_STATUSES), name="ck_wa_convmsg_status"), Index("ix_wa_convmsg_conv_created", "conversation_id", "created_at"),
+                      Index("uq_wa_convmsg_meta", "tenant_id", "meta_message_id", unique=True, postgresql_where=text("meta_message_id IS NOT NULL")))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_conversations.id", ondelete="CASCADE"))
+    direction: Mapped[str] = mapped_column(String(8))
+    sender_type: Mapped[str] = mapped_column(String(10))
+    staff_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    text: Mapped[str | None] = mapped_column(String(4096))  # None for a picture, a voice note or anything that is not text
+    msg_type: Mapped[str] = mapped_column(String(16), default="text")
+    meta_message_id: Mapped[str | None] = mapped_column(String(120))
+    ledger_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_messages.id", ondelete="SET NULL"))
+    delivery_status: Mapped[str] = mapped_column(String(10), default="received")
+    error_code: Mapped[str | None] = mapped_column(String(20))
+    template_key: Mapped[str | None] = mapped_column(String(40))  # set when the message was an approved template (the fallback outside the 24-hour window)
+    marketing_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)  # a person saw the offer warning and confirmed (logged)
+    via_app: Mapped[bool] = mapped_column(Boolean, default=False)  # typed in the WhatsApp Business app on the owner's phone (reported back by Meta)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---- Phase 8: the AI assistant
+KNOWLEDGE_KINDS = ("about", "address", "hours", "service", "faq", "policy", "booking_rule")  # no "offer": the assistant never sees offers
+AI_OUTCOMES = ("replied", "handoff", "refused", "holding", "blocked", "error")
+
+
+class WhatsAppAiQuota(IdMixin, Base):
+    """DATED, append-only: replies a month a WhatsApp tier includes. A change is a new row with a new date (never an edit), so past months can be explained."""
+
+    __tablename__ = "whatsapp_ai_quotas"
+    __table_args__ = (UniqueConstraint("addon_key", "effective_from", name="uq_wa_ai_quota"), CheckConstraint("monthly_replies >= 0", name="ck_wa_ai_quota_nonneg"), CheckConstraint(_in("addon_key", ADDON_KEYS), name="ck_wa_ai_quota_key"))
+
+    addon_key: Mapped[str] = mapped_column(String(24))
+    monthly_replies: Mapped[int] = mapped_column(Integer)
+    effective_from: Mapped[date] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(String(300))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppAiSettings(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_ai_settings"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_wa_ai_settings_tenant"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    privacy_ack_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the owner's acknowledgement that customer messages go to an AI provider
+    privacy_ack_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    tone: Mapped[str | None] = mapped_column(String(120))
+    quota_warned_month: Mapped[str | None] = mapped_column(String(7))  # "2026-11": the 80% warning went out this month
+
+
+class WhatsAppKnowledgeItem(IdMixin, TimestampMixin, Base):
+    """One thing the owner tells the assistant. The only source of what it may say about the business."""
+
+    __tablename__ = "whatsapp_knowledge_items"
+    __table_args__ = (CheckConstraint(_in("kind", KNOWLEDGE_KINDS), name="ck_wa_knowledge_kind"), CheckConstraint("price_inr IS NULL OR price_inr >= 0", name="ck_wa_knowledge_price"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(14))
+    title: Mapped[str | None] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(String(1200))
+    price_inr: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class WhatsAppAiRun(IdMixin, Base):
+    """One assistant attempt. Tokens and latency are recorded so the monthly quota can be priced from real data. Holds no phone number and no message text."""
+
+    __tablename__ = "whatsapp_ai_runs"
+    __table_args__ = (CheckConstraint(_in("outcome", AI_OUTCOMES), name="ck_wa_ai_run_outcome"), CheckConstraint("feedback IS NULL OR feedback in ('up', 'down')", name="ck_wa_ai_run_feedback"),
+                      Index("ix_wa_ai_run_tenant_created", "tenant_id", "created_at"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversations.id", ondelete="SET NULL"))
+    message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversation_messages.id", ondelete="SET NULL"))
+    provider: Mapped[str | None] = mapped_column(String(40))
+    model_version: Mapped[str | None] = mapped_column(String(80))
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(10))
+    handoff_reason: Mapped[str | None] = mapped_column(String(40))
+    counted: Mapped[bool] = mapped_column(Boolean, default=False)  # uses one reply of the month's quota
+    is_test: Mapped[bool] = mapped_column(Boolean, default=False)  # a "test it" chat run: never sent to WhatsApp, not counted
+    feedback: Mapped[str | None] = mapped_column(String(4))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppUnansweredQuestion(IdMixin, Base):
+    __tablename__ = "whatsapp_unanswered_questions"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversations.id", ondelete="CASCADE"))
+    question: Mapped[str] = mapped_column(String(300))
+    count: Mapped[int] = mapped_column(Integer, default=1)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- Phase 9: appointment booking
+BOOKING_STATUSES = ("booked", "done", "no_show", "cancelled")
+BOOKING_SOURCES = ("ai", "staff", "api")
+
+
+class WhatsAppBookingSettings(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_booking_settings"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_wa_booking_settings_tenant"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    capacity: Mapped[int] = mapped_column(Integer, default=1)  # how many bookings may overlap (chairs, rooms, practitioners)
+    slot_step_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    min_notice_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    max_days_ahead: Mapped[int] = mapped_column(Integer, default=30)
+    reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    reminder_day_hour: Mapped[int] = mapped_column(Integer, default=10)  # India time: the day-before reminder goes out at this hour
+    reminder_soon_hours: Mapped[int] = mapped_column(Integer, default=2)  # the second reminder goes out this long before
+
+
+class WhatsAppBookingService(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_booking_services"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    buffer_minutes: Mapped[int] = mapped_column(Integer, default=0)  # kept free after each booking
+    price_inr: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class WhatsAppBookingHours(IdMixin, Base):
+    __tablename__ = "whatsapp_booking_hours"
+    __table_args__ = (UniqueConstraint("tenant_id", "weekday", name="uq_wa_booking_hours_day"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    weekday: Mapped[int] = mapped_column(SmallInteger)  # 0 = Monday
+    opens: Mapped[time] = mapped_column(Time)
+    closes: Mapped[time] = mapped_column(Time)
+
+
+class WhatsAppBookingClosed(IdMixin, Base):
+    __tablename__ = "whatsapp_booking_closed"
+    __table_args__ = (UniqueConstraint("tenant_id", "day", name="uq_wa_booking_closed_day"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date)
+    reason: Mapped[str | None] = mapped_column(String(120))
+
+
+class WhatsAppBooking(IdMixin, TimestampMixin, Base):
+    __tablename__ = "whatsapp_bookings"
+    __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_wa_booking_code"), CheckConstraint(_in("status", BOOKING_STATUSES), name="ck_wa_booking_status"),
+                      CheckConstraint(_in("source", BOOKING_SOURCES), name="ck_wa_booking_source"), Index("ix_wa_booking_tenant_start", "tenant_id", "starts_at"),
+                      Index("uq_wa_booking_idem", "tenant_id", "idem_key", unique=True, postgresql_where=text("idem_key IS NOT NULL")))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    contact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_contacts.id", ondelete="CASCADE"), index=True)
+    service_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_booking_services.id", ondelete="SET NULL"))
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("whatsapp_conversations.id", ondelete="SET NULL"))
+    code: Mapped[str] = mapped_column(String(10))
+    service_name: Mapped[str] = mapped_column(String(120))  # a copy, so renaming or removing a service never rewrites history
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    price_inr: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    blocks_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # ends_at plus the service's buffer: the time this booking keeps its place taken
+    status: Mapped[str] = mapped_column(String(10), default="booked")
+    source: Mapped[str] = mapped_column(String(10))
+    note: Mapped[str | None] = mapped_column(String(300))
+    idem_key: Mapped[str | None] = mapped_column(String(120))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str | None] = mapped_column(String(120))
+    reminder_day_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reminder_day_result: Mapped[str | None] = mapped_column(String(40))
+    reminder_soon_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reminder_soon_result: Mapped[str | None] = mapped_column(String(40))
+
+
+# ---- Phase 10: integrations
+API_SCOPES = ("customers:write", "visits:write", "enquiries:write", "bookings:write")
+WEBHOOK_EVENTS = ("message.status", "contact.opted_out", "conversation.created", "booking.created", "booking.updated")
+
+
+class WhatsAppApiKey(IdMixin, Base):
+    """A business's API key. Only a hash is stored: the key itself is shown once, when it is made."""
+
+    __tablename__ = "whatsapp_api_keys"
+    __table_args__ = (UniqueConstraint("key_hash", name="uq_wa_api_key_hash"), CheckConstraint("rate_limit_per_min BETWEEN 10 AND 600", name="ck_wa_api_key_rate"))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    prefix: Mapped[str] = mapped_column(String(16))  # the first characters, so an owner can tell keys apart
+    key_hash: Mapped[str] = mapped_column(String(64))
+    scopes: Mapped[list] = mapped_column(JSONB, default=list)
+    rate_limit_per_min: Mapped[int] = mapped_column(Integer, default=60)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WhatsAppApiRequest(IdMixin, Base):
+    """The stored answer to an idempotent POST: a retry with the same key gets this, and the work is not done twice."""
+
+    __tablename__ = "whatsapp_api_requests"
+    __table_args__ = (UniqueConstraint("tenant_id", "key_id", "idem_key", name="uq_wa_api_request"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    key_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_api_keys.id", ondelete="CASCADE"))
+    idem_key: Mapped[str] = mapped_column(String(64))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    status_code: Mapped[int] = mapped_column(Integer)
+    response: Mapped[dict] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppWebhookEndpoint(IdMixin, Base):
+    __tablename__ = "whatsapp_webhook_endpoints"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(String(500))
+    secret_enc: Mapped[str] = mapped_column(Text)  # the signing secret, encrypted; shown once when made
+    secret_hint: Mapped[str] = mapped_column(String(8))
+    events: Mapped[list] = mapped_column(JSONB, default=list)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    disabled_reason: Mapped[str | None] = mapped_column(String(120))
+    failure_streak: Mapped[int] = mapped_column(Integer, default=0)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppWebhookDelivery(IdMixin, Base):
+    __tablename__ = "whatsapp_webhook_deliveries"
+    __table_args__ = (CheckConstraint(_in("status", ("pending", "delivered", "dead")), name="ck_wa_delivery_status"), Index("ix_wa_delivery_endpoint", "endpoint_id", "created_at"),
+                      Index("ix_wa_delivery_due", "next_attempt_at", postgresql_where=text("status = 'pending'")))
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    endpoint_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_webhook_endpoints.id", ondelete="CASCADE"))
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    event_type: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[dict] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status_code: Mapped[int | None] = mapped_column(Integer)
+    last_error: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---- Phase 11: click-to-WhatsApp attribution
+class WhatsAppEntryWindow(IdMixin, Base):
+    """GLOBAL, dated, append-only: how long the free window after an ad or page-button click lasts. Never edited: a change is a new row with a later date, and every row starts unverified."""
+
+    __tablename__ = "whatsapp_entry_windows"
+    __table_args__ = (UniqueConstraint("effective_from", name="uq_wa_entry_window_date"), CheckConstraint("hours BETWEEN 1 AND 720", name="ck_wa_entry_window_hours"))
+
+    hours: Mapped[int] = mapped_column(Integer)
+    effective_from: Mapped[date] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(String(300))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WhatsAppEntryWindowCheck(IdMixin, Base):
+    """Append-only: an administrator's check of one window row against Meta's own documentation. The newest check for a row is the one that counts."""
+
+    __tablename__ = "whatsapp_entry_window_checks"
+
+    window_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_entry_windows.id", ondelete="RESTRICT"))
+    verified: Mapped[bool] = mapped_column(Boolean)
+    note: Mapped[str] = mapped_column(String(300))
+    checked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

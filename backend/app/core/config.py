@@ -78,6 +78,20 @@ class Settings(BaseSettings):
     whatsapp_review_gap_days: int = 30  # WHATSAPP_REVIEW_GAP_DAYS: the least time between two review requests to the same person
     whatsapp_link_base_url: str = "https://api.flowqr.site/api/v1/l"  # WHATSAPP_LINK_BASE_URL: where tracked review links point (for now the API host; a separate short domain can replace it later, see docs)
     whatsapp_link_dedupe_seconds: int = 60  # repeat opens of one link inside this many seconds count as one click
+    whatsapp_conversations_enabled: bool = False  # WHATSAPP_CONVERSATIONS_ENABLED: two-way conversations and the inbox (platform switch; each business also has its own). Needs WHATSAPP_ENABLED
+    whatsapp_service_reply_max_chars: int = 1500  # the longest free-form reply one message may carry
+    whatsapp_conversation_text_max_chars: int = 4096  # the longest customer message that is kept
+    whatsapp_attribution_enabled: bool = False  # WHATSAPP_ATTRIBUTION_ENABLED: recognise click-to-WhatsApp ad and page-button referrals and tag conversations with them (Pro tier; platform switch). Needs WHATSAPP_CONVERSATIONS_ENABLED
+    whatsapp_integrations_enabled: bool = False  # WHATSAPP_INTEGRATIONS_ENABLED: API keys, the inbound API and signed outbound webhooks (Pro tier; platform switch). Needs WHATSAPP_ENABLED and TOKEN_ENCRYPTION_KEY
+    whatsapp_booking_enabled: bool = False  # WHATSAPP_BOOKING_ENABLED: appointment booking and reminders (platform switch; each business also has its own). Needs WHATSAPP_ENABLED
+    whatsapp_ai_enabled: bool = False  # WHATSAPP_AI_ENABLED: the assistant that answers customers (platform switch; each business also has its own). Needs WHATSAPP_CONVERSATIONS_ENABLED
+    whatsapp_ai_kill_switch: bool = False  # WHATSAPP_AI_KILL_SWITCH: true stops every assistant reply at once and hands every conversation to a person
+    whatsapp_ai_terms_verified: bool = False  # WHATSAPP_AI_TERMS_VERIFIED: the owner holds the AI provider's WRITTEN data terms (no training on our data, retention, location, sub-processors, India law). Default false: the assistant is "unavailable"
+    whatsapp_ai_terms_provider: str = ""  # WHATSAPP_AI_TERMS_PROVIDER: the provider those terms are for. The assistant is available only if it equals AI_PROVIDER, so changing provider silently never inherits an old confirmation
+    whatsapp_ai_customer_replies_per_hour: int = 6  # most assistant replies one customer gets in an hour (loop and abuse protection)
+    whatsapp_ai_max_steps: int = 3  # most model calls for one customer message (lookups and one retry)
+    whatsapp_ai_max_seconds: int = 20  # past this the customer gets the holding message and a person is asked
+    whatsapp_ai_test_chat_per_hour: int = 40  # "test it" chat messages per business per hour
     whatsapp_occasion_gap_days: int = 14  # WHATSAPP_OCCASION_GAP_DAYS: the least time between two birthday or festival greetings to the same person (greetings are not offers: the offer gap does not apply to them)
     whatsapp_send_max_attempts: int = 5  # WHATSAPP_SEND_MAX_ATTEMPTS: a failing automation send is retried with growing delays, then marked failed (the dead letter)
     whatsapp_campaign_batch: int = 40  # WHATSAPP_CAMPAIGN_BATCH: recipients one campaign sends per worker pass
@@ -501,6 +515,18 @@ def config_problems(s: Settings) -> list[str]:
             p.append("Razorpay keys must be removed while BILLING_PROVIDER=cashfree (one payment provider only)")
         if s.cashfree_authorization_paise < 100:
             p.append("CASHFREE_AUTHORIZATION_PAISE cannot be below 100 (Cashfree's minimum authorisation for UPI and cards is Rs 1)")
+    if s.whatsapp_conversations_enabled and not s.whatsapp_enabled:
+        p.append("WHATSAPP_CONVERSATIONS_ENABLED needs WHATSAPP_ENABLED")
+    if s.whatsapp_attribution_enabled and not s.whatsapp_conversations_enabled:
+        p.append("WHATSAPP_ATTRIBUTION_ENABLED needs WHATSAPP_CONVERSATIONS_ENABLED")
+    if s.whatsapp_integrations_enabled and not (s.whatsapp_enabled and s.token_encryption_key):
+        p.append("WHATSAPP_INTEGRATIONS_ENABLED needs WHATSAPP_ENABLED and TOKEN_ENCRYPTION_KEY (webhook signing secrets are stored encrypted)")
+    if s.whatsapp_booking_enabled and not s.whatsapp_enabled:
+        p.append("WHATSAPP_BOOKING_ENABLED needs WHATSAPP_ENABLED")
+    if s.whatsapp_ai_enabled and not s.whatsapp_conversations_enabled:
+        p.append("WHATSAPP_AI_ENABLED needs WHATSAPP_CONVERSATIONS_ENABLED")
+    if s.whatsapp_ai_terms_verified and not s.whatsapp_ai_terms_provider:
+        p.append("WHATSAPP_AI_TERMS_VERIFIED needs WHATSAPP_AI_TERMS_PROVIDER (the provider the written terms are for)")
     if s.whatsapp_enabled:
         if not s.token_encryption_key:
             p.append("TOKEN_ENCRYPTION_KEY is required when WHATSAPP_ENABLED is true (WhatsApp access tokens are stored encrypted)")
@@ -539,3 +565,11 @@ def assert_production_safe(s: Settings) -> None:
     problems = config_problems(s)
     if problems:
         raise RuntimeError("Unsafe " + s.app_env + " configuration:\n  - " + "\n  - ".join(problems))
+
+
+def whatsapp_passthrough_missing(environ) -> list[str]:
+    """The WhatsApp and Meta settings the app knows about that are NOT present in this process's environment. The production compose files list variables one by one, so a variable written in
+    .env.production only reaches the app if the overlay (deploy/vps/docker-compose.vps.yml) or the base file lists it. One that is not listed is silently ignored and the code default applies.
+    Logged as one warning at startup in production, and runnable by hand: python -c "from app.core.config import whatsapp_passthrough_missing as f; import os; print(f(os.environ))"."""
+    names = sorted(n.upper() for n in Settings.model_fields if n.startswith(("whatsapp_", "meta_")))
+    return [n for n in names if n not in environ]

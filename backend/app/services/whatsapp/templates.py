@@ -58,6 +58,17 @@ STANDARD = {
         "body": "Hi {{1}}, {{2}} wishes you and your family a very happy {{3}}. Warm wishes from all of us. Reply STOP to stop these messages.",
         "examples": ["Asha", "Asha Physio Clinic", "Diwali"],
     },
+    # appointment reminders. Asked for as UTILITY, but WhatsApp decides the real category. Until its status listing reports it, the category is not known and the gate also asks for offers consent (fail closed, like greetings).
+    "booking_reminder_day": {
+        "category": "utility", "variables": ["customer_name", "business_name", "service", "when"],
+        "body": "Hi {{1}}, a reminder from {{2}}: your {{3}} appointment is on {{4}}. If you need to change it, just reply to this message.",
+        "examples": ["Asha", "Asha Physio Clinic", "back pain assessment", "Sat 21 Nov at 10:30 am"],
+    },
+    "booking_reminder_soon": {
+        "category": "utility", "variables": ["customer_name", "business_name", "service", "when"],
+        "body": "Hi {{1}}, this is {{2}}. Your {{3}} appointment is today, {{4}}. We look forward to seeing you. If you cannot come, please reply to this message.",
+        "examples": ["Asha", "Asha Physio Clinic", "back pain assessment", "Sat 21 Nov at 10:30 am"],
+    },
     "offer": {
         "category": "marketing", "variables": ["customer_name", "business_name", "offer_text"],
         "body": "Hi {{1}}, {{2}} has an offer for you: {{3}}. Reply STOP to stop receiving offers.",

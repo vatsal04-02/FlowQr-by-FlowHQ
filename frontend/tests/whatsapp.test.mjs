@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
+import { referralWords, entryWindowWords, sourceLabel, deliveryWords, webhookUrlProblem, keyStatusWords, reminderWords, reminderStateWords, hoursSummary, WEEKDAY_NAMES, BOOKING_STATUS_WORDS, KNOWLEDGE_ORDER, quotaWords, tierLabel, CONV_FILTERS, RETENTION_NOTE, senderTag, windowWords, ENGAGED_CHOICES, WINBACK_NOTE, audienceSentence as aSentence, engagedNote, leftOutWords, LINK_CLICKED, linkClickWords, birthdayProblem, birthdayWords, greetingKindWords, MONTHS, categoryLabel, freeAllowanceWords, rateProblem, rateStatus, RATE_CATEGORIES, confirmWords, keywordProblem, OPTIN_PURPOSES, SOURCE_WORDS, currentStep, looksLikeMobile, setupPercent, setupProgress, stepOpen, STEP_STATE, HELPER_TITLES, audienceSentence, barPercent, fromIstInput, hourWords, offerChoices, percent, toIstInput, windowSentence, AUTOMATION_FIELDS, audienceWords, automationStatus, campaignBlockers, CAMPAIGN_STATUS, connectionWords, consentWords, csvPreview, MESSAGE_STATUS, nextStep, parseSignupMessage, reasonWords, rupees, RUN_STATUS, TEMPLATE_STATUS } from "../src/lib/whatsapp.ts";
 
 const FB = "https://www.facebook.com";
 const finish = (o = {}) => JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "100000000000001", phone_number_id: "200000000000001", ...o } });
@@ -319,4 +319,99 @@ test("what a preview left out is told in words", () => {
   assert.equal(leftOutWords({ no_consent: 0, opted_out: 0 }), "");
   assert.equal(leftOutWords({ no_consent: 2, opted_out: 1 }), "Left out: 1 asked to stop offers and 2 never agreed to receive offers.");
   assert.equal(leftOutWords({ no_consent: 0, opted_out: 4 }), "Left out: 4 asked to stop offers.");
+});
+
+test("a contact who only wrote to you is labelled as having no consent", () => {
+  assert.deepEqual(consentWords({ marketing: null, utility: null, opted_out: false, no_consent_contact: true }), { label: "Contact, no consent", tone: "gray" });
+  assert.equal(consentWords({ marketing: null, utility: null, opted_out: false }).label, "No agreement yet");
+  assert.equal(consentWords({ marketing: null, utility: null, opted_out: true, no_consent_contact: true }).label, "Asked to stop offers");
+  assert.equal(consentWords({ marketing: { since: "x", source: "owner_entry", wording_version: "v" }, utility: null, opted_out: false, no_consent_contact: false }).label, "Agreed to offers");
+});
+
+test("every message says who sent it, and the assistant is always marked automated", () => {
+  assert.equal(senderTag({ sender_type: "ai", sender_label: "Assistant (automated)", via_app: false }), "Assistant (automated)");
+  assert.equal(senderTag({ sender_type: "ai", sender_label: null, via_app: false }), "Assistant (automated)");
+  assert.equal(senderTag({ sender_type: "system", sender_label: null, via_app: false }), "Automatic message");
+  assert.equal(senderTag({ sender_type: "staff", sender_label: "Meera Shah", via_app: false }), "Meera Shah");
+  assert.equal(senderTag({ sender_type: "staff", sender_label: null, via_app: false }), "A team member");
+  assert.match(senderTag({ sender_type: "staff", sender_label: null, via_app: true }), /WhatsApp Business app/);
+  assert.equal(senderTag({ sender_type: "customer", sender_label: "Asha", via_app: false }), "Asha");
+});
+
+test("the 24-hour window is explained in plain words", () => {
+  const now = Date.parse("2026-11-20T10:00:00Z");
+  assert.match(windowWords(true, "2026-11-20T10:30:00Z", now), /30 more minutes/);
+  assert.match(windowWords(true, "2026-11-20T10:01:00Z", now), /1 more minute\b/);
+  assert.match(windowWords(true, "2026-11-20T11:05:00Z", now), /about an hour/);
+  assert.match(windowWords(true, "2026-11-21T04:00:00Z", now), /about 18 more hours/);
+  assert.match(windowWords(false, "2026-11-19T10:00:00Z", now), /approved message/);
+  assert.match(windowWords(false, null, now), /has not written to you/);
+  assert.deepEqual(CONV_FILTERS.map((f) => f.value), ["all", "needs_you", "unread", "closed"]);
+  assert.match(RETENTION_NOTE(90), /90 days.*deleted when you delete the customer/);
+});
+
+test("the assistant's allowance is explained in words an owner can act on", () => {
+  assert.match(quotaWords({ limit: 0, used: 0, remaining: 0 }), /does not include/);
+  assert.match(quotaWords({ limit: 150, used: 10, remaining: 140 }), /10 of 150 replies used/);
+  assert.match(quotaWords({ limit: 150, used: 125, remaining: 25 }), /25 of 150 replies left.*go to your team/);
+  assert.match(quotaWords({ limit: 150, used: 150, remaining: 0 }), /used up.*until next month/);
+});
+
+test("the notes have seven sections and offers are not one of them", () => {
+  assert.deepEqual(KNOWLEDGE_ORDER, ["about", "address", "hours", "service", "faq", "policy", "booking_rule"]);
+  assert.ok(!KNOWLEDGE_ORDER.includes("offer"));
+  assert.equal(tierLabel("whatsapp_growth"), "Growth");
+  assert.equal(tierLabel("x"), "x");
+});
+
+test("reminder outcomes and states are explained in plain words", () => {
+  assert.equal(reminderWords(null), null);
+  assert.equal(reminderWords("sent"), "Reminder sent");
+  assert.match(reminderWords("no_utility_consent"), /has not agreed to updates/);
+  assert.match(reminderWords("opted_out"), /replied STOP/);
+  assert.match(reminderWords("no_marketing_consent"), /also needed/);
+  assert.match(reminderWords("something_new"), /something new/);
+  const t = { key: "k", submitted: true, status: "approved", category: "utility", category_known: true, needs_offers_consent: false, body: "" };
+  assert.match(reminderStateWords(undefined), /Not submitted/);
+  assert.match(reminderStateWords({ ...t, submitted: false }), /Not submitted/);
+  assert.match(reminderStateWords({ ...t, status: "pending" }), /Waiting for WhatsApp/);
+  assert.match(reminderStateWords({ ...t, category_known: false }), /also need to have agreed to offers/);
+  assert.match(reminderStateWords(t), /Customers who agreed to visit updates get it/);
+  assert.match(reminderStateWords({ ...t, category: "marketing" }), /marketing/);
+});
+
+test("opening hours are summarised and bookings have four plain statuses", () => {
+  assert.equal(hoursSummary([]), "No opening hours set.");
+  assert.equal(hoursSummary([{ weekday: 0, opens: "09:00", closes: "18:00" }, { weekday: 1, opens: "09:00", closes: "18:00" }]), "Mon, Tue: 09:00 to 18:00");
+  assert.equal(hoursSummary([{ weekday: 5, opens: "10:00", closes: "14:00" }, { weekday: 0, opens: "09:00", closes: "18:00" }]), "Sat 10:00 to 14:00; Mon 09:00 to 18:00");
+  assert.equal(WEEKDAY_NAMES.length, 7);
+  assert.deepEqual(Object.keys(BOOKING_STATUS_WORDS), ["booked", "done", "no_show", "cancelled"]);
+});
+
+test("deliveries, keys and webhook addresses are explained in plain words", () => {
+  assert.equal(deliveryWords({ status: "delivered", attempts: 1, last_status_code: 200, last_error: null }), "Delivered.");
+  assert.equal(deliveryWords({ status: "delivered", attempts: 3, last_status_code: 200, last_error: null }), "Delivered on attempt 3.");
+  assert.equal(deliveryWords({ status: "pending", attempts: 0, last_status_code: null, last_error: null }), "Waiting to be sent.");
+  assert.match(deliveryWords({ status: "pending", attempts: 2, last_status_code: 500, last_error: "receiver answered 500" }), /Will try again \(attempt 2 failed: receiver answered 500\)/);
+  assert.match(deliveryWords({ status: "dead", attempts: 6, last_status_code: 500, last_error: "receiver answered 500" }), /Gave up after 6 attempts: receiver answered 500/);
+  assert.equal(keyStatusWords({ active: true, revoked_at: null, expires_at: null }), "Active");
+  assert.equal(keyStatusWords({ active: false, revoked_at: "2026-11-20", expires_at: null }), "Revoked");
+  assert.equal(keyStatusWords({ active: false, revoked_at: null, expires_at: "2026-11-01" }), "Expired");
+  assert.equal(webhookUrlProblem("https://hooks.example.com/x"), null);
+  assert.match(webhookUrlProblem("http://hooks.example.com"), /https/);
+  assert.match(webhookUrlProblem(""), /Enter/);
+  assert.match(webhookUrlProblem("https://x.example.com/" + "a".repeat(600)), /too long/);
+});
+
+
+test("where a chat came from and what the free window means are said without claiming a saving that was not checked", () => {
+  assert.equal(referralWords(null), null);
+  assert.equal(referralWords({ type: "ad", id: "1", headline: "Back pain relief", url: null, at: null }), "Came from an ad: Back pain relief");
+  assert.equal(referralWords({ type: "post", id: null, headline: null, url: null, at: null }), "Came from your page");
+  assert.equal(entryWindowWords(null), null);
+  const w = { until: "2026-11-27T00:00:00Z", open: true, verified: false, counts_as_free: false, hours: 168, warning: "x" };
+  assert.match(entryWindowWords(w), /has not been checked yet.*normal rate/);
+  assert.match(entryWindowWords({ ...w, verified: true, counts_as_free: true }), /estimated as free/);
+  assert.match(entryWindowWords({ ...w, open: false }), /has ended/);
+  assert.deepEqual(["ad", "post", "organic"].map(sourceLabel), ["From an ad", "From your page", "Direct"]);
 });

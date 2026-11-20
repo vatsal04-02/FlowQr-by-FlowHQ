@@ -25,7 +25,7 @@ from app.services.audit import audit
 from app.services.whatsapp import WaError
 from app.services.whatsapp import rules
 
-OWNER_SOURCES = ("owner_entry", "csv_import", "admin_entry")
+OWNER_SOURCES = ("owner_entry", "csv_import", "admin_entry", "api_integration")  # somebody other than the customer says "they agreed": attested, with a written note of how
 MAX_IMPORT_ROWS = 2000
 MAX_IMPORT_BYTES = 300_000
 MAX_TAGS = 10
@@ -229,6 +229,23 @@ def has_occasion_consent(db: Session, tenant_id: uuid.UUID, contact: WhatsAppCon
     return True, "ok"
 
 
+def has_reminder_consent(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, category: str, category_confirmed: bool) -> tuple[bool, str]:
+    """The consent an appointment reminder needs. Fail closed, like a greeting.
+    * STOP (or any opt-out) blocks a reminder: they asked us to stop messaging them.
+    * Consent for updates about their visit is always required (a booking made by a person does not give it).
+    * If WhatsApp has not yet reported the reminder's category, or it is marketing, offers consent is required too, which a booking-only customer does not have: they get no reminder."""
+    if contact.tenant_id != tenant_id:
+        return False, "wrong_business"
+    if contact.marketing_opted_out_at is not None or is_suppressed(db, tenant_id, contact.phone):
+        return False, "opted_out"
+    if active_consent(db, contact.id, "utility") is None:
+        return False, "no_utility_consent"
+    if category == "marketing" or not category_confirmed:
+        if active_consent(db, contact.id, "marketing") is None:
+            return False, "no_marketing_consent"
+    return True, "ok"
+
+
 # ---- birthday: a day and a month, never a year
 def birthday_problem(day, month) -> str | None:
     if isinstance(day, bool) or isinstance(month, bool) or not isinstance(day, int) or not isinstance(month, int):
@@ -306,6 +323,7 @@ def serialize(c: WhatsAppContact, consents: dict | None = None) -> dict:
     consents = consents or {"marketing": None, "utility": None, "occasion": None}
     return {"id": c.id, "phone": c.phone, "customer_name": c.customer_name, "tags": c.tags or [], "location_id": c.location_id, "source": c.source, "created_at": c.created_at,
             "marketing": consents.get("marketing"), "utility": consents.get("utility"), "occasion": consents.get("occasion"), "opted_out": c.marketing_opted_out_at is not None, "opted_out_at": c.marketing_opted_out_at,
+            "no_consent_contact": c.source == "customer_message" and c.marketing_opted_out_at is None and not any(consents.get(k) for k in ("marketing", "utility", "occasion")),  # exists only because they wrote to us
             "birth_day": c.birth_day, "birth_month": c.birth_month, "last_visit_at": c.last_visit_at, "last_replied_at": c.last_replied_at, "last_enquiry_at": c.last_enquiry_at}
 
 

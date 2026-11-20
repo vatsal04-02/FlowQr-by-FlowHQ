@@ -4,10 +4,10 @@ Everything here answers `whatsapp_disabled` (404) while WHATSAPP_ENABLED is fals
 No route returns an access token, the signup state's hash or any Meta secret. Phase 1 sends nothing."""
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
@@ -19,7 +19,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import Role
 from app.models.whatsapp import WhatsAppCampaign, WhatsAppTemplate
 from datetime import datetime as _dt
-from app.services.whatsapp import WaError, addons, automations, campaigns, connection, consent, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
+from app.services.whatsapp import WaError, addons, agent, ai_knowledge, attribution, automations, bookings, campaigns, connection, consent, conversations, occasions, optin, pricing, rules, setup as wa_setup, templates as wa_templates, usage
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -336,7 +336,7 @@ def optin_keyword_delete(keyword_id: uuid.UUID, request: Request, ctx: TenantCon
 
 # ---- templates (the fixed, neutral messages FlowQR submits to WhatsApp for the business)
 class InstallIn(BaseModel):
-    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer", "optin_confirm", "optin_confirm_offers", "occasion_birthday", "occasion_festival"]
+    key: Literal["review_followup", "enquiry_followup", "enquiry_ack", "offer", "optin_confirm", "optin_confirm_offers", "occasion_birthday", "occasion_festival", "booking_reminder_day", "booking_reminder_soon"]
 
 
 @router.get("/templates")
@@ -366,6 +366,512 @@ def templates_install(body: InstallIn, request: Request, ctx: TenantContext = De
 class AutomationIn(BaseModel):
     status: Literal["on", "paused", "off"]
     config: dict | None = None
+
+
+# ---- conversations and the inbox
+class ConvSettingsIn(BaseModel):
+    enabled: bool | None = None
+    retention_days: int | None = None
+    takeover_minutes: int | None = None
+    debounce_seconds: int | None = None
+    notify_email: bool | None = None
+
+
+class ReplyIn(BaseModel):
+    text: str = Field(min_length=1, max_length=4096)
+    confirm_marketing: bool = False
+    client_id: str | None = Field(default=None, max_length=64)  # one per press of Send, so a double click never sends twice
+
+
+class ConvTemplateIn(BaseModel):
+    key: str = Field(max_length=40)
+    client_id: str | None = Field(default=None, max_length=64)
+
+
+def _inbox(ctx: TenantContext) -> None:
+    """The inbox is business-wide, so it is for people who see every location, and only while it is switched on."""
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "The inbox is for people who can see every location."})
+    if not conversations.enabled_for(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=404, detail={"code": "conversations_disabled", "message": "The inbox is not switched on."})
+
+
+@router.get("/conversations/settings")
+def conversation_settings(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    return {"settings": conversations.serialize_settings(conversations.get_settings(ctx.db, ctx.tenant_id)), "platform_on": conversations.platform_on(), "addon_ok": bool(addons.active_addon(ctx.db, ctx.tenant_id)) or not settings.whatsapp_require_addon,
+            "active": conversations.enabled_for(ctx.db, ctx.tenant_id)}
+
+
+@router.put("/conversations/settings")
+def conversation_settings_put(body: ConvSettingsIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _limit(f"wa-conv-settings:{ctx.tenant_id}", 60, 3600)
+
+    def go():
+        conversations.set_settings(ctx.db, ctx.tenant, ctx.user, ip=client_ip(request), **body.model_dump())
+        return {"settings": conversations.serialize_settings(conversations.get_settings(ctx.db, ctx.tenant_id)), "platform_on": conversations.platform_on(), "active": conversations.enabled_for(ctx.db, ctx.tenant_id)}
+    return _run(ctx, go)
+
+
+@router.get("/conversations")
+def conversation_list(q: str | None = Query(default=None, max_length=80), filter: Literal["all", "needs_you", "unread", "closed"] = "all", limit: int = 50, offset: int = 0, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return conversations.list_conversations(ctx.db, ctx.tenant_id, q=q, filter=filter, limit=limit, offset=offset)
+
+
+@router.get("/conversations/{conversation_id}")
+def conversation_get(conversation_id: uuid.UUID, before: _dt | None = None, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.thread(ctx.db, ctx.tenant, conversations.get(ctx.db, ctx.tenant_id, conversation_id), before=before))
+
+
+@router.post("/conversations/{conversation_id}/read")
+def conversation_read(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+
+    def go():
+        c = conversations.get(ctx.db, ctx.tenant_id, conversation_id)
+        conversations.mark_read(c)
+        return {"unread": c.unread_count}
+    return _run(ctx, go)
+
+
+@router.post("/conversations/{conversation_id}/reply")
+def conversation_reply(conversation_id: uuid.UUID, body: ReplyIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    _limit(f"wa-reply:{ctx.tenant_id}:{ctx.user.id}", 60, 60)
+    return _run(ctx, lambda: conversations.staff_reply(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), body.text, confirm_marketing=body.confirm_marketing,
+                                                       client_id=body.client_id, ip=client_ip(request)), commit_on_error=True)
+
+
+@router.post("/conversations/{conversation_id}/send-template")
+def conversation_send_template(conversation_id: uuid.UUID, body: ConvTemplateIn, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    _limit(f"wa-reply:{ctx.tenant_id}:{ctx.user.id}", 60, 60)
+    return _run(ctx, lambda: conversations.send_fallback_template(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), body.key, client_id=body.client_id), commit_on_error=True)
+
+
+@router.post("/conversations/{conversation_id}/take-over")
+def conversation_take_over(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.summary(ctx.db, conversations.take_over(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id)), None))
+
+
+@router.post("/conversations/{conversation_id}/hand-back")
+def conversation_hand_back(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.summary(ctx.db, conversations.hand_back(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id)), None))
+
+
+@router.post("/conversations/{conversation_id}/close")
+def conversation_close(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+
+    def go():
+        c = conversations.get(ctx.db, ctx.tenant_id, conversation_id)
+        conversations.close(c)
+        return {"status": c.status}
+    return _run(ctx, go)
+
+
+@router.post("/conversations/{conversation_id}/reopen")
+def conversation_reopen(conversation_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+
+    def go():
+        c = conversations.get(ctx.db, ctx.tenant_id, conversation_id)
+        conversations.reopen(c)
+        return {"status": c.status}
+    return _run(ctx, go)
+
+
+@router.delete("/conversations/{conversation_id}", status_code=204)
+def conversation_delete(conversation_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _on()
+    _inbox(ctx)
+    _run(ctx, lambda: conversations.delete_conversation(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), client_ip(request)))
+    return Response(status_code=204)
+
+
+# ---- the assistant (Phase 8): notes, settings, "test it", ratings, unanswered questions
+class KnowledgeIn(BaseModel):
+    kind: str = Field(..., max_length=14)
+    title: str | None = Field(None, max_length=120)
+    body: str = Field(..., max_length=ai_knowledge.MAX_BODY + 400)
+    price_inr: float | str | None = None
+
+
+class KnowledgePatch(BaseModel):
+    title: str | None = Field(None, max_length=120)
+    body: str | None = Field(None, max_length=ai_knowledge.MAX_BODY + 400)
+    price_inr: float | str | None = None
+    active: bool | None = None
+
+
+class AiSettingsIn(BaseModel):
+    enabled: bool | None = None
+    acknowledge_privacy: bool = False
+    tone: str | None = Field(None, max_length=200)
+
+
+class TestChatIn(BaseModel):
+    message: str = Field(..., min_length=1, max_length=600)
+    history: list[dict] = Field(default_factory=list, max_length=12)
+
+
+class FeedbackIn(BaseModel):
+    value: str | None = None
+
+
+class PauseIn(BaseModel):
+    paused: bool
+
+
+class ResolveIn(BaseModel):
+    ids: list[uuid.UUID] = Field(..., max_length=50)
+
+
+def _ai_ctx(ctx: TenantContext) -> None:
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "The assistant settings are for people who can see every location."})
+
+
+@router.get("/ai/status")
+def ai_status(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    return agent.ai_status(ctx.db, ctx.tenant)
+
+
+@router.put("/ai/settings")
+def ai_settings_put(body: AiSettingsIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-settings:{ctx.tenant_id}", 60, 3600)
+
+    def go():
+        agent.set_ai_settings(ctx.db, ctx.tenant, ctx.user, enabled=body.enabled, acknowledge_privacy=body.acknowledge_privacy, tone=body.tone, set_tone="tone" in body.model_fields_set, ip=client_ip(request))
+        return agent.ai_status(ctx.db, ctx.tenant)
+    return _run(ctx, go)
+
+
+@router.get("/ai/knowledge")
+def ai_knowledge_list(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    items = ai_knowledge.list_items(ctx.db, ctx.tenant_id)
+    return {"items": [ai_knowledge.serialize_item(i) for i in items], "readiness": ai_knowledge.readiness(items), "suggestions": ai_knowledge.suggestions(ctx.tenant), "max_items": ai_knowledge.MAX_ITEMS}
+
+
+@router.post("/ai/knowledge", status_code=201)
+def ai_knowledge_add(body: KnowledgeIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-knowledge:{ctx.tenant_id}", 200, 3600)
+    return _run(ctx, lambda: ai_knowledge.serialize_item(ai_knowledge.create_item(ctx.db, ctx.tenant, ctx.user, kind=body.kind, title=body.title, body=body.body, price_inr=body.price_inr, ip=client_ip(request))))
+
+
+@router.post("/ai/knowledge/import")
+def ai_knowledge_import(request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Pre-fill from the business's own details already in FlowQR. Offers are never copied. Nothing is fetched from a website."""
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-import:{ctx.tenant_id}", 20, 3600)
+    return _run(ctx, lambda: ai_knowledge.import_existing(ctx.db, ctx.tenant, ctx.user, ip=client_ip(request)))
+
+
+@router.patch("/ai/knowledge/{item_id}")
+def ai_knowledge_edit(item_id: uuid.UUID, body: KnowledgePatch, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    return _run(ctx, lambda: ai_knowledge.serialize_item(ai_knowledge.update_item(ctx.db, ctx.tenant, ctx.user, ai_knowledge.get_item(ctx.db, ctx.tenant_id, item_id), title=body.title, body=body.body, price_inr=body.price_inr,
+                                                                                    active=body.active, set_price="price_inr" in body.model_fields_set, ip=client_ip(request))))
+
+
+@router.delete("/ai/knowledge/{item_id}", status_code=204)
+def ai_knowledge_delete(item_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    _run(ctx, lambda: ai_knowledge.delete_item(ctx.db, ctx.tenant, ctx.user, ai_knowledge.get_item(ctx.db, ctx.tenant_id, item_id), client_ip(request)))
+    return Response(status_code=204)
+
+
+@router.post("/ai/test-chat")
+def ai_test_chat(body: TestChatIn, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Try the assistant as a customer would. Never sent to WhatsApp, never counted against the quota."""
+    _ai_ctx(ctx)
+    _limit(f"wa-ai-test:{ctx.tenant_id}", 60, 3600)
+    return _run(ctx, lambda: agent.test_chat(ctx.db, ctx.tenant, body.message, body.history), commit_on_error=True)
+
+
+@router.get("/ai/unanswered")
+def ai_unanswered(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    return {"items": agent.list_unanswered(ctx.db, ctx.tenant_id)}
+
+
+@router.post("/ai/unanswered/resolve")
+def ai_unanswered_resolve(body: ResolveIn, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _ai_ctx(ctx)
+    return _run(ctx, lambda: {"resolved": agent.resolve_unanswered(ctx.db, ctx.tenant_id, body.ids)})
+
+
+@router.get("/ai/usage")
+def ai_usage_summary(ctx: TenantContext = Depends(get_tenant_context)):
+    _ai_ctx(ctx)
+    return {**agent.usage_summary(ctx.db, ctx.tenant_id), "quota": ai_knowledge.quota_status(ctx.db, ctx.tenant_id)}
+
+
+@router.post("/conversations/{conversation_id}/ai-pause")
+def conversation_ai_pause(conversation_id: uuid.UUID, body: PauseIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: conversations.summary(ctx.db, agent.pause_conversation(ctx.db, ctx.tenant, ctx.user, conversations.get(ctx.db, ctx.tenant_id, conversation_id), body.paused, client_ip(request)), None))
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/feedback")
+def conversation_feedback(conversation_id: uuid.UUID, message_id: uuid.UUID, body: FeedbackIn, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    _inbox(ctx)
+    return _run(ctx, lambda: agent.set_feedback(ctx.db, ctx.tenant, conversations.get(ctx.db, ctx.tenant_id, conversation_id), message_id, body.value))
+
+
+# ---- appointment booking (Phase 9)
+class BkSettingsIn(BaseModel):
+    enabled: bool | None = None
+    capacity: int | None = None
+    slot_step_minutes: int | None = None
+    min_notice_minutes: int | None = None
+    max_days_ahead: int | None = None
+    reminders_enabled: bool | None = None
+    reminder_day_hour: int | None = None
+    reminder_soon_hours: int | None = None
+
+
+class BkServiceIn(BaseModel):
+    name: str = Field(..., max_length=120)
+    duration_minutes: int
+    buffer_minutes: int = 0
+    price_inr: float | str | None = None
+    active: bool = True
+
+
+class BkHoursIn(BaseModel):
+    days: list[dict] = Field(default_factory=list, max_length=7)
+
+
+class BkClosedIn(BaseModel):
+    day: date
+    reason: str | None = Field(None, max_length=120)
+
+
+class BkCreateIn(BaseModel):
+    service_id: uuid.UUID
+    date: str = Field(..., max_length=10)
+    time: str = Field(..., max_length=5)
+    contact_id: uuid.UUID | None = None
+    phone: str | None = Field(None, max_length=32)
+    name: str | None = Field(None, max_length=120)
+    note: str | None = Field(None, max_length=300)
+    client_id: str | None = Field(None, max_length=64)
+    agreed_to_updates: bool = False
+    agreed_evidence: str | None = Field(None, max_length=400)
+
+
+class BkMoveIn(BaseModel):
+    date: str = Field(..., max_length=10)
+    time: str = Field(..., max_length=5)
+
+
+class BkCancelIn(BaseModel):
+    reason: str | None = Field(None, max_length=120)
+
+
+def _bk(ctx: TenantContext, *, active: bool = False) -> None:
+    """Bookings are business-wide (for people who see every location). `active` also needs the business's own switch."""
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "Bookings are for people who can see every location."})
+    if not bookings.platform_on():
+        raise HTTPException(status_code=404, detail={"code": "bookings_disabled", "message": "Bookings are not switched on for everyone yet."})
+    if not addons.bookings_allowed(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=403, detail={"code": "plan_required", "message": "Bookings are part of the WhatsApp Growth and Pro add-ons."})
+    if active and not bookings.enabled_for(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=409, detail={"code": "not_bookable", "message": bookings.BOOKING_WORDS["not_bookable"]})
+
+
+def _bk_state(ctx: TenantContext) -> dict:
+    return bookings.overview(ctx.db, ctx.tenant)
+
+
+@router.get("/bookings/overview")
+def bookings_overview(ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "Bookings are for people who can see every location."})
+    return bookings.overview(ctx.db, ctx.tenant)
+
+
+@router.put("/bookings/settings")
+def bookings_settings(body: BkSettingsIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    _limit(f"wa-bk-settings:{ctx.tenant_id}", 120, 3600)
+
+    def go():
+        bookings.set_settings(ctx.db, ctx.tenant, ctx.user, ip=client_ip(request), **body.model_dump())
+        return _bk_state(ctx)
+    return _run(ctx, go)
+
+
+@router.put("/bookings/hours")
+def bookings_hours(body: BkHoursIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+
+    def go():
+        bookings.set_hours(ctx.db, ctx.tenant, ctx.user, body.days, ip=client_ip(request))
+        return _bk_state(ctx)
+    return _run(ctx, go)
+
+
+@router.post("/bookings/services", status_code=201)
+def bookings_service_add(body: BkServiceIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    return _run(ctx, lambda: bookings.serialize_service(bookings.save_service(ctx.db, ctx.tenant, ctx.user, None, **body.model_dump(), ip=client_ip(request))))
+
+
+@router.patch("/bookings/services/{service_id}")
+def bookings_service_edit(service_id: uuid.UUID, body: BkServiceIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    return _run(ctx, lambda: bookings.serialize_service(bookings.save_service(ctx.db, ctx.tenant, ctx.user, bookings.get_service(ctx.db, ctx.tenant_id, service_id), **body.model_dump(), ip=client_ip(request))))
+
+
+@router.delete("/bookings/services/{service_id}", status_code=204)
+def bookings_service_delete(service_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    _run(ctx, lambda: bookings.delete_service(ctx.db, ctx.tenant, ctx.user, bookings.get_service(ctx.db, ctx.tenant_id, service_id), client_ip(request)))
+    return Response(status_code=204)
+
+
+@router.post("/bookings/closed-days", status_code=201)
+def bookings_closed_add(body: BkClosedIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    return _run(ctx, lambda: {"id": bookings.add_closed_day(ctx.db, ctx.tenant, ctx.user, body.day, body.reason, client_ip(request)).id})
+
+
+@router.delete("/bookings/closed-days/{closed_id}", status_code=204)
+def bookings_closed_remove(closed_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    _bk(ctx)
+    _run(ctx, lambda: bookings.remove_closed_day(ctx.db, ctx.tenant, ctx.user, closed_id, client_ip(request)))
+    return Response(status_code=204)
+
+
+@router.get("/bookings/slots")
+def bookings_slots(service_id: uuid.UUID, day: date, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx, active=True)
+    svc = bookings.get_service(ctx.db, ctx.tenant_id, service_id)
+    s = bookings.get_settings(ctx.db, ctx.tenant_id)
+    return {"service": bookings.serialize_service(svc), "day": day.isoformat(), "slots": [{"time": x.astimezone(bookings.IST).strftime("%H:%M"), "label": bookings.clock_text(x)}
+                                                                                         for x in bookings.slots_for_day(ctx.db, ctx.tenant_id, s, svc, day, enforce_notice=False)]}
+
+
+@router.get("/bookings")
+def bookings_list(start: date | None = None, end: date | None = None, status: str | None = Query(None, max_length=10), ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx)
+    today = datetime.now(bookings.IST).date()
+    lo = start or today
+    hi = min(end or lo + timedelta(days=13), lo + timedelta(days=92))
+    return {"start": lo.isoformat(), "end": hi.isoformat(), "items": bookings.list_bookings(ctx.db, ctx.tenant_id, start_day=lo, end_day=hi, status=status)}
+
+
+@router.post("/bookings", status_code=201)
+def bookings_create(body: BkCreateIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    """A team member books a customer in. This never gives consent by itself: say they agreed to updates (with a note of how) to record it the usual attested way."""
+    _bk(ctx, active=True)
+    _limit(f"wa-bk-create:{ctx.tenant_id}", 300, 3600)
+
+    def go():
+        svc = bookings.get_service(ctx.db, ctx.tenant_id, body.service_id)
+        if body.contact_id:
+            contact = consent.get_contact(ctx.db, ctx.tenant_id, body.contact_id)
+        elif body.phone:
+            contact, _ = consent.create_contact(ctx.db, ctx.tenant, phone=body.phone, name=body.name, tags=[], source="owner_entry", user_id=ctx.user.id)
+        else:
+            raise WaError(422, "customer_required", "Choose a customer or enter a phone number.")
+        start = bookings.parse_start(body.date, body.time)
+        b, created = bookings.book(ctx.db, ctx.tenant, contact, svc, start, source="staff", user=ctx.user, idem_key=(f"staff:{body.client_id}" if body.client_id else None), note=body.note, enforce_notice=False, ip=client_ip(request))
+        if body.agreed_to_updates and created:
+            consent.grant(ctx.db, ctx.tenant, contact, "utility", "owner_entry", user_id=ctx.user.id, attested=True, evidence=body.agreed_evidence, ip=client_ip(request))
+        return bookings.serialize(b, contact)
+    return _run(ctx, go)
+
+
+def _bk_item(ctx, booking_id):
+    from app.models.whatsapp import WhatsAppContact
+    b = bookings.get(ctx.db, ctx.tenant_id, booking_id)
+    return b, ctx.db.get(WhatsAppContact, b.contact_id)
+
+
+@router.post("/bookings/{booking_id}/reschedule")
+def bookings_reschedule(booking_id: uuid.UUID, body: BkMoveIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx, active=True)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        bookings.reschedule(ctx.db, ctx.tenant, b, bookings.parse_start(body.date, body.time), user=ctx.user, enforce_notice=False, ip=client_ip(request))
+        return bookings.serialize(b, c)
+    return _run(ctx, go)
+
+
+@router.post("/bookings/{booking_id}/cancel")
+def bookings_cancel(booking_id: uuid.UUID, body: BkCancelIn, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        bookings.cancel(ctx.db, ctx.tenant, b, body.reason, user=ctx.user, ip=client_ip(request))
+        return bookings.serialize(b, c)
+    return _run(ctx, go)
+
+
+@router.post("/bookings/{booking_id}/done")
+def bookings_done(booking_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    """The visit happened. It is recorded, and the review request helper (if it is on) is asked to schedule its one neutral message."""
+    _bk(ctx)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        r = bookings.mark(ctx.db, ctx.tenant, ctx.user, b, "done", ip=client_ip(request))
+        return {**bookings.serialize(b, c), "review": r["review"]}
+    return _run(ctx, go)
+
+
+@router.post("/bookings/{booking_id}/no-show")
+def bookings_no_show(booking_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(get_tenant_context)):
+    _bk(ctx)
+
+    def go():
+        b, c = _bk_item(ctx, booking_id)
+        bookings.mark(ctx.db, ctx.tenant, ctx.user, b, "no_show", ip=client_ip(request))
+        return bookings.serialize(b, c)
+    return _run(ctx, go)
+
+
+# ---- click-to-WhatsApp attribution (Phase 11, Pro)
+@router.get("/attribution")
+def attribution_summary(days: int = Query(90, ge=1, le=365), ctx: TenantContext = Depends(get_tenant_context)):
+    """Conversations by the ad or page button they came from, and how many of those customers booked. Counts and ad names only."""
+    _on()
+    if ctx.location_ids is not None:
+        raise HTTPException(status_code=403, detail={"code": "not_for_your_role", "message": "This is for people who can see every location."})
+    if not attribution.platform_on():
+        raise HTTPException(status_code=404, detail={"code": "attribution_disabled", "message": "Ad tracking is not switched on for everyone yet."})
+    if not addons.attribution_allowed(ctx.db, ctx.tenant_id):
+        raise HTTPException(status_code=403, detail={"code": "plan_required", "message": "Ad tracking is part of the WhatsApp Pro add-on."})
+    return attribution.summary(ctx.db, ctx.tenant, days)
 
 
 # ---- birthday and festival greetings

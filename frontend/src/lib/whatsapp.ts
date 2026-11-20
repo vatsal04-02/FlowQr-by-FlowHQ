@@ -13,7 +13,7 @@ export interface WaStatus {
 export interface WaConsentInfo { since: string; source: string; wording_version: string }
 export interface WaContact {
   id: string; phone: string; customer_name: string | null; tags: string[]; location_id?: string | null; source: string; created_at: string; marketing: WaConsentInfo | null; utility: WaConsentInfo | null; opted_out: boolean; opted_out_at: string | null;
-  occasion?: WaConsentInfo | null; birth_day?: number | null; birth_month?: number | null; last_visit_at?: string | null; last_replied_at?: string | null; last_enquiry_at?: string | null;
+  occasion?: WaConsentInfo | null; birth_day?: number | null; birth_month?: number | null; last_visit_at?: string | null; last_replied_at?: string | null; last_enquiry_at?: string | null; no_consent_contact?: boolean;
 }
 export interface WaContacts { total: number; items: WaContact[]; counts: WaStatus["counts"]; wording: { marketing: string; utility: string; occasion?: string } }
 export interface WaChecklist { connected: boolean; templates_installed: boolean; templates_approved: boolean; missing: string[]; waiting: string[]; refused: string[] }
@@ -59,8 +59,9 @@ export function connectionWords(c: WaConnection | null): { label: string; tone: 
 }
 
 /** What a customer has agreed to, in words an owner understands. */
-export function consentWords(c: Pick<WaContact, "marketing" | "utility" | "opted_out">): { label: string; tone: "green" | "blue" | "gray" | "red" } {
+export function consentWords(c: Pick<WaContact, "marketing" | "utility" | "opted_out"> & { no_consent_contact?: boolean }): { label: string; tone: "green" | "blue" | "gray" | "red" } {
   if (c.opted_out) return { label: "Asked to stop offers", tone: "red" };
+  if (c.no_consent_contact) return { label: "Contact, no consent", tone: "gray" };  // someone who wrote to you: kept so you can reply, never messaged first
   if (c.marketing && c.utility) return { label: "Agreed to offers and visit updates", tone: "green" };
   if (c.marketing) return { label: "Agreed to offers", tone: "green" };
   if (c.utility) return { label: "Agreed to visit updates", tone: "blue" };
@@ -443,3 +444,154 @@ export function leftOutWords(x: { no_consent: number; opted_out: number } | unde
   if (x.no_consent) bits.push(`${x.no_consent} never agreed to receive offers`);
   return `Left out: ${bits.join(" and ")}.`;
 }
+
+// ---- conversations and the inbox
+export type ConvStatus = "open" | "needs_human" | "closed";
+export interface WaConvSummary {
+  id: string; contact: { id: string; name: string | null; phone: string; source: string; opted_out: boolean; no_consent: boolean } | null; status: ConvStatus; handoff_reason: string | null; handoff_words: string | null;
+  unread: number; needs_reply: boolean; preview: string | null; preview_from: string | null; last_message_at: string | null; window_open: boolean; window_closes_at: string | null;
+  ai_paused_until: string | null; assigned_to: string | null; source: string; ai_off?: boolean; referral?: WaReferral | null;
+  entry_window?: WaEntryWindow | null;
+}
+export interface WaConvMessage {
+  id: string; direction: "inbound" | "outbound"; sender_type: "customer" | "ai" | "staff" | "system"; sender_label: string | null; text: string | null; msg_type: string; status: string; created_at: string;
+  template_key: string | null; via_app: boolean; marketing_confirmed: boolean; error_code: string | null; feedback?: "up" | "down" | null; model_version?: string | null;
+}
+export interface WaConvThread extends WaConvSummary {
+  messages: WaConvMessage[]; assigned_name: string | null; code: string; window_note: string | null;
+  fallback_templates: { key: string; label: string; can_send: boolean; reason: string | null; text: string | null }[];
+}
+export interface WaConvList { total: number; unread_total: number; needs_you: number; items: WaConvSummary[] }
+export interface WaConvSettings {
+  settings: { enabled: boolean; retention_days: number; takeover_minutes: number; debounce_seconds: number; notify_email: boolean; limits: Record<string, [number, number]> };
+  platform_on: boolean; addon_ok: boolean; active: boolean;
+}
+export const CONV_FILTERS: { value: "all" | "needs_you" | "unread" | "closed"; label: string }[] = [
+  { value: "all", label: "All" }, { value: "needs_you", label: "Needs you" }, { value: "unread", label: "Unread" }, { value: "closed", label: "Closed" },
+];
+/** Who a message is from, in the words shown above it. A customer's own name, the assistant clearly marked as automated, or the named team member. */
+export function senderTag(m: Pick<WaConvMessage, "sender_type" | "sender_label" | "via_app">): string {
+  if (m.sender_type === "ai") return "Assistant (automated)";
+  if (m.sender_type === "system") return "Automatic message";
+  if (m.sender_type === "staff") return m.via_app ? "You, on the WhatsApp Business app" : m.sender_label ?? "A team member";
+  return m.sender_label ?? "A customer";
+}
+/** What the customer's 24-hour window means for the owner right now. */
+export function windowWords(open: boolean, closesAt: string | null, now: number = Date.now()): string {
+  if (!closesAt) return "This customer has not written to you, so only an approved message can be sent.";
+  if (!open) return "The 24-hour window has closed. WhatsApp only allows an approved message now.";
+  const mins = Math.max(0, Math.round((new Date(closesAt).getTime() - now) / 60000));
+  return mins >= 120 ? `You can reply freely for about ${Math.round(mins / 60)} more hours.` : mins >= 60 ? "You can reply freely for about an hour more." : `You can reply freely for ${mins} more minute${mins === 1 ? "" : "s"}.`;
+}
+export const RETENTION_NOTE = (days: number) => `Messages are kept for ${days} days, then deleted. They are also deleted when you delete the customer.`;
+
+// ---- the assistant (auto-reply)
+export type KnowledgeKind = "about" | "address" | "hours" | "service" | "faq" | "policy" | "booking_rule";
+export interface WaKnowledgeItem { id: string; kind: KnowledgeKind; title: string | null; body: string; price_inr: number | null; active: boolean; position: number; updated_at: string }
+export interface WaKnowledge {
+  items: WaKnowledgeItem[]; readiness: { ready: boolean; missing: string[]; count: number }; max_items: number;
+  suggestions: { business_type: string; questions: string[]; sections: { kind: KnowledgeKind; label: string; single: boolean }[]; warning: string; examples: Record<string, string> };
+}
+export interface WaAiStatus {
+  available: boolean; reason: string | null; reason_words: string | null; platform: { on: boolean; reason: string | null; words: string | null; terms_verified: boolean };
+  settings: { enabled: boolean; privacy_ack_at: string | null; tone: string | null }; readiness: { ready: boolean; missing: string[]; count: number };
+  quota: { limit: number; used: number; remaining: number; month: string; near_limit: boolean; tier: string | null }; privacy_notice: string; unanswered: number;
+}
+export interface WaAiTestReply { reply: string; kind: "reply" | "refuse" | "handoff" | "holding"; reason: string | null; reason_words: string | null; sources: string[]; sent_to_whatsapp: false; model_version: string | null }
+export interface WaUnanswered { question: string; count: number; last_asked_at: string | null; ids: string[] }
+export const KNOWLEDGE_ORDER: KnowledgeKind[] = ["about", "address", "hours", "service", "faq", "policy", "booking_rule"];
+/** How full the month's allowance is, in words an owner can act on. */
+export function quotaWords(q: Pick<WaAiStatus["quota"], "limit" | "used" | "remaining">): string {
+  if (q.limit <= 0) return "Your plan does not include assistant replies.";
+  if (q.remaining <= 0) return "This month's replies are used up. Customers go to your team until next month.";
+  if (q.used >= q.limit * 0.8) return `${q.remaining} of ${q.limit} replies left this month. Customers go to your team when they run out.`;
+  return `${q.used} of ${q.limit} replies used this month.`;
+}
+export interface WaAiQuotas {
+  items: { id: string; addon_key: string; monthly_replies: number; effective_from: string; note: string }[];
+  platform: { on: boolean; reason: string | null; terms_verified: boolean; terms_provider: string | null; provider: string };
+  this_month: { provider: string | null; model_version: string | null; runs: number; prompt_tokens: number; completion_tokens: number; avg_latency_ms: number }[]; note: string;
+}
+export const tierLabel = (k: string) => ({ whatsapp_starter: "Starter", whatsapp_growth: "Growth", whatsapp_pro: "Pro" } as Record<string, string>)[k] ?? k;
+
+// ---- appointment booking
+export type BookingStatus = "booked" | "done" | "no_show" | "cancelled";
+export interface WaBooking {
+  id: string; code: string; status: BookingStatus; source: "ai" | "staff" | "api"; service: string; service_id: string | null; duration_minutes: number; price_inr: number | null; starts_at: string; ends_at: string; when: string; note: string | null;
+  contact_id: string; customer: { name: string | null; phone: string } | null; reminder_day: string | null; reminder_soon: string | null; done_at: string | null; cancel_reason: string | null; review?: { scheduled: boolean; reason: string } | null;
+}
+export interface WaBookingService { id: string; name: string; duration_minutes: number; buffer_minutes: number; price_inr: number | null; active: boolean }
+export interface WaReminderTemplate { key: string; submitted: boolean; status: string | null; category: string | null; category_known: boolean; needs_offers_consent: boolean; body: string }
+export interface WaBookingOverview {
+  platform_on: boolean; plan_ok: boolean; active: boolean; timezone: string; setup_needed: string[]; reminder_note: string;
+  settings: { enabled: boolean; capacity: number; slot_step_minutes: number; min_notice_minutes: number; max_days_ahead: number; reminders_enabled: boolean; reminder_day_hour: number; reminder_soon_hours: number; limits: Record<string, [number, number]> };
+  services: WaBookingService[]; hours: { weekday: number; day: string; opens: string; closes: string }[]; closed: { id: string; day: string; reason: string | null }[]; reminder_templates: Record<string, WaReminderTemplate>;
+}
+export const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const BOOKING_STATUS_WORDS: Record<BookingStatus, { label: string; tone: "green" | "gray" | "amber" | "red" | "blue" }> = {
+  booked: { label: "Booked", tone: "blue" }, done: { label: "Visit done", tone: "green" }, no_show: { label: "Did not come", tone: "amber" }, cancelled: { label: "Cancelled", tone: "gray" },
+};
+const REMINDER_WORDS: Record<string, string> = {
+  sent: "Reminder sent", no_utility_consent: "No reminder: the customer has not agreed to updates about their visit", opted_out: "No reminder: the customer replied STOP",
+  no_marketing_consent: "No reminder: WhatsApp has not confirmed this is an update message, so the customer's agreement to offers is also needed", outside_hours: "No reminder: it would have gone out at night",
+  template_not_approved: "Waiting: the reminder message is not approved yet", plan_required: "No reminder: not part of this plan", no_customer: "No reminder: customer not found",
+};
+/** What happened (or will not happen) with a booking's reminders, in plain words. */
+export function reminderWords(result: string | null): string | null { return result ? REMINDER_WORDS[result] ?? `No reminder (${result.replace(/_/g, " ")})` : null; }
+/** Where the reminder messages stand, so an owner is never surprised. */
+export function reminderStateWords(t: WaReminderTemplate | undefined): string {
+  if (!t || !t.submitted) return "Not submitted to WhatsApp yet.";
+  if (t.status !== "approved") return t.status === "pending" ? "Waiting for WhatsApp to approve it." : `WhatsApp status: ${t.status}.`;
+  if (!t.category_known) return "Approved. WhatsApp has not told us its category yet, so customers also need to have agreed to offers until it does.";
+  return t.category === "utility" ? "Approved as an update message. Customers who agreed to visit updates get it." : "WhatsApp counts this as marketing, so customers also need to have agreed to offers.";
+}
+/** "Mon to Sat 9:00 to 18:00" style summary of the weekly hours. */
+export function hoursSummary(rows: { weekday: number; opens: string; closes: string }[]): string {
+  if (!rows.length) return "No opening hours set.";
+  const same = rows.every((r) => r.opens === rows[0].opens && r.closes === rows[0].closes);
+  const days = rows.map((r) => WEEKDAY_NAMES[r.weekday].slice(0, 3));
+  return same ? `${days.join(", ")}: ${rows[0].opens} to ${rows[0].closes}` : rows.map((r) => `${WEEKDAY_NAMES[r.weekday].slice(0, 3)} ${r.opens} to ${r.closes}`).join("; ");
+}
+export const bookingDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+export const bookingTime = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
+
+// ---- integrations
+export interface WaApiKey { id: string; name: string; prefix: string; scopes: string[]; rate_limit_per_min: number; created_at: string; last_used_at: string | null; expires_at: string | null; revoked_at: string | null; active: boolean; key?: string; note?: string }
+export interface WaWebhookEndpoint { id: string; url: string; events: string[]; active: boolean; disabled_reason: string | null; secret_hint: string; failure_streak: number; last_success_at: string | null; last_failure_at: string | null; created_at: string; secret?: string; note?: string }
+export interface WaDelivery { id: string; endpoint_id: string; event_id: string; event_type: string; status: "pending" | "delivered" | "dead"; attempts: number; next_attempt_at: string | null; last_status_code: number | null; last_error: string | null; created_at: string; delivered_at: string | null }
+export interface WaIntegrations { platform_on: boolean; plan_ok: boolean; keys: WaApiKey[]; endpoints: WaWebhookEndpoint[]; scopes: Record<string, string>; events: Record<string, string>; api_version: string; base_path: string; limits: { keys: number; endpoints: number } }
+/** One plain sentence for a delivery: what happened and what happens next. */
+export function deliveryWords(d: Pick<WaDelivery, "status" | "attempts" | "last_status_code" | "last_error">): string {
+  if (d.status === "delivered") return d.attempts > 1 ? `Delivered on attempt ${d.attempts}.` : "Delivered.";
+  if (d.status === "dead") return `Gave up after ${d.attempts} attempts${d.last_error ? `: ${d.last_error}` : ""}.`;
+  return d.attempts === 0 ? "Waiting to be sent." : `Will try again (attempt ${d.attempts} failed${d.last_error ? `: ${d.last_error}` : ""}).`;
+}
+/** A webhook address must be https; this is only a quick check before asking the server, which does the real one. */
+export function webhookUrlProblem(url: string): string | null {
+  const u = url.trim();
+  if (!u) return "Enter the address that should receive events.";
+  if (!/^https:\/\//i.test(u)) return "The address must start with https://";
+  if (u.length > 500) return "That address is too long.";
+  return null;
+}
+export const keyStatusWords = (k: Pick<WaApiKey, "active" | "revoked_at" | "expires_at">): string => (k.revoked_at ? "Revoked" : !k.active ? "Expired" : "Active");
+
+// ---- click-to-WhatsApp attribution
+export interface WaReferral { type: "ad" | "post"; id: string | null; headline: string | null; url: string | null; at: string | null }
+export interface WaEntryWindow { until: string | null; open: boolean; verified: boolean; counts_as_free: boolean; hours: number | null; warning: string | null }
+export interface WaAttribution { days: number; conversations_in_period: number; from_ads_or_posts: number; window_note: string | null; sources: { type: string; id: string | null; headline: string | null; conversations: number; customers_who_booked: number; last_at: string | null }[] }
+export interface WaEntryWindowRow { id: string; hours: number; effective_from: string; source: string; verified: boolean; in_force: boolean; check: { verified: boolean; note: string; at: string } | null }
+/** Where a chat started from, in a few words. */
+export function referralWords(r: WaReferral | null | undefined): string | null {
+  if (!r) return null;
+  const what = r.type === "ad" ? "an ad" : "your page";
+  return r.headline ? `Came from ${what}: ${r.headline}` : `Came from ${what}`;
+}
+/** What the free entry window means for a conversation, without ever claiming a saving that has not been checked. */
+export function entryWindowWords(w: WaEntryWindow | null | undefined): string | null {
+  if (!w) return null;
+  if (!w.open) return "The free window after the ad click has ended.";
+  if (w.counts_as_free) return "Inside the free window after the ad click: messages are estimated as free.";
+  return "Inside the window after the ad click, but its length has not been checked yet, so messages are still estimated at the normal rate.";
+}
+export const sourceLabel = (s: string) => (s === "ad" ? "From an ad" : s === "post" ? "From your page" : "Direct");

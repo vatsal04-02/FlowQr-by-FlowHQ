@@ -25,6 +25,10 @@ def preflight(db: Session, tenant_id: uuid.UUID, contact: WhatsAppContact, purpo
         return False, "not_connected"
     if connection.token_state(conn) in ("missing", "expired"):
         return False, "token_expired"
+    if kind == "service_reply":  # a reply to a customer who wrote first: no consent is needed or created; the sender checks the 24-hour window and the content
+        return True, "ok"
     if kind == "occasion":  # a birthday or festival greeting: occasion consent always, plus offers consent while its category is marketing or not yet known
         return consent.has_occasion_consent(db, tenant_id, contact, purpose, bool(template is not None and template.category_confirmed))
+    if kind == "booking_reminder":  # a reminder about a visit: updates consent, plus offers consent while WhatsApp has not confirmed the category is utility (fail closed)
+        return consent.has_reminder_consent(db, tenant_id, contact, purpose, bool(template is not None and template.category_confirmed))
     return consent.has_consent(db, tenant_id, contact, purpose)
