@@ -32,7 +32,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null,
           if (!items.length) return null;
           return (
             <div key={g} className={clsx(g !== "main" && "mt-4")}>
-              {GROUP_LABEL[g] && !collapsed && <p className="px-3 pb-1 text-[12px] font-medium text-muted">{GROUP_LABEL[g]}</p>}
+              {GROUP_LABEL[g] && !collapsed && <p className="px-3 pb-1 text-[13px] font-medium text-muted">{GROUP_LABEL[g]}</p>}
               {GROUP_LABEL[g] && collapsed && <div aria-hidden className="mx-3 mb-1 mt-1 border-t border-ink-100" />}
               <ul className="space-y-0.5">
                 {items.map((d) => {
@@ -51,7 +51,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null,
                           <d.icon className={clsx("h-[19px] w-[19px] shrink-0 transition-[transform,color] duration-200 ease-spring group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100", on ? "text-accent-ink" : "text-ink-500 group-hover:text-ink")} strokeWidth={on ? 2 : 1.75} aria-hidden />
                           {collapsed ? <span className="sr-only">{d.label}</span> : <span className="min-w-0 flex-1 truncate">{d.label}</span>}
                           {badge !== null && (
-                            <span className={clsx("num grid min-w-[20px] place-items-center rounded-full bg-accent px-1.5 text-[11px] font-semibold leading-5 text-on-accent motion-safe:animate-[fq-badge_.45s_cubic-bezier(.3,1.35,.5,1)_both]",
+                            <span className={clsx("num grid min-w-[20px] place-items-center rounded-full bg-accent px-1.5 text-[12px] font-semibold leading-5 text-on-accent motion-safe:animate-[fq-badge_.45s_cubic-bezier(.3,1.35,.5,1)_both]",
                               collapsed ? "absolute right-1.5 top-0.5 !min-w-[18px] !px-1 !leading-[18px] ring-2 ring-surface" : on && kids.length > 1 ? "mr-8" : "")}>
                               <span aria-hidden>{badge > 99 ? "99+" : badge}</span><span className="sr-only">{badge} waiting</span>
                             </span>
@@ -73,7 +73,7 @@ export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null,
                                 <Link href={c.href} aria-current={cOn ? "page" : undefined}
                                   className={clsx("group/kid relative flex min-h-9 items-center rounded-lg px-3 text-[13px] transition-colors", cOn ? "bg-accent-tint font-semibold text-accent-ink" : "text-ink-600 hover:bg-surface-2 hover:text-ink")}>
                                   <span className="min-w-0 flex-1 truncate transition-transform duration-200 ease-out group-hover/kid:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover/kid:translate-x-0">{c.label}</span>
-                                  {childBadge(c.href, counts) !== null && <span className="num ml-2 rounded-full bg-surface-3 px-1.5 text-[11px] font-semibold leading-[18px] text-ink-700"><span aria-hidden>{childBadge(c.href, counts)}</span><span className="sr-only"> waiting</span></span>}
+                                  {childBadge(c.href, counts) !== null && <span className="num ml-2 rounded-full bg-surface-3 px-1.5 text-[12px] font-semibold leading-[18px] text-ink-700"><span aria-hidden>{childBadge(c.href, counts)}</span><span className="sr-only"> waiting</span></span>}
                                 </Link>
                               </li>
                             );
@@ -119,7 +119,7 @@ function PlanCard({ s }: { s: SubscriptionInfo }) {
   return (
     <div className="rounded-[14px] bg-white/[.06] p-3 ring-1 ring-white/10">
       <p className="text-[13px] font-semibold leading-tight">{title}</p>
-      <p className="mt-0.5 text-[12px] text-muted">{line}</p>
+      <p className="mt-0.5 text-[13px] text-muted">{line}</p>
       <Link href="/settings/billing" className="mt-2.5 flex min-h-9 items-center justify-center rounded-[10px] bg-white text-[13px] font-semibold text-[#11173F] transition-transform duration-200 ease-spring hover:-translate-y-px active:scale-[.98]">{cta}</Link>
     </div>
   );

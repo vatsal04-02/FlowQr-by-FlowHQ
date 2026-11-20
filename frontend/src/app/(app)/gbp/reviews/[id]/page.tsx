@@ -31,7 +31,7 @@ function Tracker({ status }: { status: "none" | "draft" | "approved" | "publishi
         const done = i < at || (status === "published" && i === 2), cur = i === at && status !== "published", bad = status === "failed" && i === 2;
         return (
           <li key={s} className="flex items-center gap-2" aria-current={cur ? "step" : undefined}>
-            <span className={clsx("grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold", done ? "bg-ok text-white" : cur ? "bg-brand-600 text-navy" : bad ? "bg-red-600 text-white" : "bg-ink-100 text-ink-500")}>{done ? <Check className="h-2.5 w-2.5" strokeWidth={3.5} /> : i + 1}</span>
+            <span className={clsx("grid h-4 w-4 place-items-center rounded-full text-[12px] font-bold", done ? "bg-ok text-white" : cur ? "bg-brand-600 text-navy" : bad ? "bg-red-600 text-white" : "bg-ink-100 text-ink-500")}>{done ? <Check className="h-2.5 w-2.5" strokeWidth={3.5} /> : i + 1}</span>
             <span className={clsx("font-medium", done || cur ? "text-ink" : "text-ink-500")}>{s}</span>
             {i < 2 && <span aria-hidden className={clsx("h-px w-5", done ? "bg-ok" : "bg-ink-200")} />}
           </li>

@@ -139,7 +139,7 @@ function Compose({ gid, onCreated }: { gid: string; onCreated: () => void }) {
               <ul className="grid gap-2 lg:grid-cols-3">
                 {ideas.map((i) => (
                   <li key={i.title + i.text.slice(0, 12)} className="flex flex-col rounded-xl bg-white p-3 ring-1 ring-ink-100">
-                    <span className="text-[12px] font-medium text-muted">{i.type.replace("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())}</span>
+                    <span className="text-[13px] font-medium text-muted">{i.type.replace("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase())}</span>
                     <p className="mt-0.5 text-sm font-bold text-navy">{i.title}</p>
                     <p className="mt-1 flex-1 text-[13px] leading-snug text-ink-700">{i.text}</p>
                     {i.image && <p className="mt-2 text-xs text-ink-500"><span className="font-semibold">Photo to take:</span> {i.image}</p>}

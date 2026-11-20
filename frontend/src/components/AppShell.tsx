@@ -185,7 +185,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const account = (
     <PopoverButton label="Account menu" align="right"
       buttonClass="grid h-11 w-11 place-items-center rounded-full transition-transform duration-300 ease-spring hover:scale-105 motion-reduce:transition-none motion-reduce:hover:transform-none"
-      icon={<Avatar src={me.user.picture_url} initials={initials(me.user.full_name, me.user.email)} className="h-8 w-8 ring-1 ring-line sm:h-9 sm:w-9" textClass="text-[12px] sm:text-[13px]" />}>
+      icon={<Avatar src={me.user.picture_url} initials={initials(me.user.full_name, me.user.email)} className="h-8 w-8 ring-1 ring-line sm:h-9 sm:w-9" textClass="text-[13px] sm:text-[13px]" />}>
       {(close) => (
         <div className="p-1">
           <div className="flex items-center gap-3 px-3 pb-3 pt-2">

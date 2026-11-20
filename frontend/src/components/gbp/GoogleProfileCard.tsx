@@ -107,7 +107,7 @@ export function GoogleProfileCard() {
               )}
             </div>
           )}
-          {photos.length > 0 && <Link href="/gbp/photos" className="absolute bottom-2 right-2 inline-flex min-h-8 items-center gap-1.5 rounded-full bg-black/65 px-3 text-[12.5px] font-semibold text-white backdrop-blur hover:bg-black/80"><ImageIcon className="h-3.5 w-3.5" aria-hidden />{photos.length} {photos.length === 1 ? "photo" : "photos"}</Link>}
+          {photos.length > 0 && <Link href="/gbp/photos" className="absolute bottom-2 right-2 inline-flex min-h-8 items-center gap-1.5 rounded-full bg-black/65 px-3 text-[13px] font-semibold text-white backdrop-blur hover:bg-black/80"><ImageIcon className="h-3.5 w-3.5" aria-hidden />{photos.length} {photos.length === 1 ? "photo" : "photos"}</Link>}
         </div>
 
         <div className="min-w-0">

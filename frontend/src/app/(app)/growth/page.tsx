@@ -92,7 +92,7 @@ export default function GoalsPage() {
           {score.loading && !rv ? <Skeleton className="mt-3 h-36" /> : (
             <div className="mt-3 flex flex-wrap items-center gap-5">
               <Ring value={rv && rv.goal ? Math.min(100, ((rv.count ?? 0) / rv.goal) * 100) : null} tone={paceTone(rv)} size={120} stroke={11} label={`${rv?.count ?? 0} of ${rv?.goal ?? "–"} reviews this month`}>
-                <span><b className="num block text-[30px] font-semibold leading-none">{rv?.count == null ? "–" : <CountUp value={rv.count} />}</b><span className="num text-[12px] text-muted">of {rv?.goal ?? "–"}</span></span>
+                <span><b className="num block text-[30px] font-semibold leading-none">{rv?.count == null ? "–" : <CountUp value={rv.count} />}</b><span className="num text-[13px] text-muted">of {rv?.goal ?? "–"}</span></span>
               </Ring>
               <div className="min-w-0 flex-1 space-y-1 text-[14px]">
                 <p><b className="num text-[20px] font-semibold">{rv?.to_go == null ? "–" : <CountUp value={rv.to_go} />}</b> <span className="text-muted">to go</span></p>

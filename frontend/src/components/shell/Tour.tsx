@@ -62,7 +62,7 @@ export function Tour({ open, onClose }: { open: boolean; onClose: () => void }) 
       <div data-tour role="status" aria-live="polite" className="fq-enter fixed bottom-6 left-1/2 z-[100] flex max-w-[92vw] -translate-x-1/2 items-center gap-3 rounded-full bg-ink-solid py-2 pl-5 pr-2 text-[13.5px] font-medium text-ink-on shadow-float">
         <span className="min-w-0 truncate">{STEPS[i].text}</span>
         <span aria-hidden className="hidden gap-1 sm:flex">{STEPS.map((_, n) => <i key={n} className={clsx("h-1 w-5 rounded-full", n <= i ? "bg-accent" : "bg-white/25")} />)}</span>
-        <button type="button" onClick={stop} className="!min-h-8 rounded-full bg-white/15 px-3 text-[12.5px] font-semibold">Stop</button>
+        <button type="button" onClick={stop} className="!min-h-8 rounded-full bg-white/15 px-3 text-[13px] font-semibold">Stop</button>
       </div>
     </>
   );

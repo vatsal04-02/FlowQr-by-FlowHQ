@@ -32,7 +32,7 @@ export function PostCalendar() {
             return (
               <div key={iso(d)} role="gridcell" className={`min-h-[84px] bg-white p-1.5 ${inMonth ? "" : "opacity-50"}`}>
                 <p className="text-xs text-ink-500">{d.getDate()}</p>
-                {items.map((p) => <p key={p.id} title={p.summary} className="mt-1 truncate rounded bg-ink-50 px-1 py-0.5 text-[11px]"><Status tone={POST_LABEL[p.status].tone} className="!text-[11px]">{p.status === "published" ? "Published" : POST_LABEL[p.status].label}</Status></p>)}
+                {items.map((p) => <p key={p.id} title={p.summary} className="mt-1 truncate rounded bg-ink-50 px-1 py-0.5 text-[12px]"><Status tone={POST_LABEL[p.status].tone} className="!text-[12px]">{p.status === "published" ? "Published" : POST_LABEL[p.status].label}</Status></p>)}
               </div>);
           })}
         </div></div>)}

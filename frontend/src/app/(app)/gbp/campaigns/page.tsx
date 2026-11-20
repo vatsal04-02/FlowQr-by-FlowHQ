@@ -81,7 +81,7 @@ export default function CampaignsPage() {
                 </Link>
                 <dl className="mt-auto grid grid-cols-4 divide-x divide-ink-100 border-t border-ink-100 text-center">
                   {([["Scans", c.stats.scans], ["Feedback", c.stats.feedback_submitted], ["Approved", c.stats.drafts_approved], ["To Google", c.stats.google_redirects]] as const).map(([k, v]) => (
-                    <div key={k} className="px-1 py-2"><dd className="num text-sm font-semibold">{fmtNum(v)}</dd><dt className="text-[11px] text-ink-500">{k}</dt></div>))}
+                    <div key={k} className="px-1 py-2"><dd className="num text-sm font-semibold">{fmtNum(v)}</dd><dt className="text-[12px] text-ink-500">{k}</dt></div>))}
                 </dl>
                 <div className="flex items-center justify-between gap-2 border-t border-ink-100 px-4 py-2 text-xs text-ink-500">
                   <span>Created {timeAgo(c.created_at)}{!c.review_url_ready && <span className="ml-2 font-medium text-amber-800">No Google link</span>}</span>

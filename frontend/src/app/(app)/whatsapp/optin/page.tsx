@@ -1,17 +1,24 @@
 "use client";
-import { ExternalLink, Trash2 } from "lucide-react";
+import clsx from "clsx";
+import { Bell, ExternalLink, Layers, Megaphone, MessageCircle, Plus, QrCode, Trash2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, Card, PageHeader, Skeleton } from "@/components/ui/Card";
-import { Input, Select } from "@/components/ui/Form";
+import { Alert, Badge, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Form";
 import { useToast } from "@/components/ui/Toast";
+import { Bubble, IconButton, IconTile, Note, PhonePreview, Switch } from "@/components/whatsapp/ui";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/use-api";
 import { confirmWords, keywordProblem, OPTIN_PURPOSES, type OptinPurpose, type WaOptin, type WaOptinKeyword } from "@/lib/whatsapp";
 
-const purposeLabel = (p: OptinPurpose) => OPTIN_PURPOSES.find((x) => x.value === p)?.label ?? p;
+/** What each choice is called on screen. The full wording (the `label` in OPTIN_PURPOSES) is kept as the name for screen readers and in the hint under the choice. */
+const SHORT: Record<OptinPurpose, { word: string; icon: LucideIcon }> = {
+  utility: { word: "Visit updates", icon: Bell },
+  marketing: { word: "Offers", icon: Megaphone },
+  both: { word: "Both", icon: Layers },
+};
 
 function Keyword({ k, canEdit, onChange }: { k: WaOptinKeyword; canEdit: boolean; onChange: () => void }) {
   const toast = useToast();
@@ -20,18 +27,21 @@ function Keyword({ k, canEdit, onChange }: { k: WaOptinKeyword; canEdit: boolean
     setBusy(true); setErr(null);
     try { await fn(); toast(done); onChange(); } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
+  const S = SHORT[k.purpose];
   return (
     <li className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex items-center gap-2"><b className="font-mono text-[15px] text-ink">{k.keyword}</b><Badge tone={k.enabled ? "green" : "gray"}>{k.enabled ? "On" : "Off"}</Badge><span className="text-[13px] text-ink-500">{purposeLabel(k.purpose)}</span></span>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1"><b className={clsx("font-mono text-[17px] tracking-wide", k.enabled ? "text-ink" : "text-ink-400")}>{k.keyword}</b><span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[13px] font-medium text-ink-700"><S.icon className="h-3.5 w-3.5" aria-hidden />{S.word}</span></p>
+        </div>
         {canEdit && (
-          <span className="flex gap-2">
-            <Button variant="secondary" size="sm" loading={busy} onClick={() => void run(() => api(`/whatsapp/optin/keywords/${k.id}`, { method: "PATCH", body: { enabled: !k.enabled } }), k.enabled ? "Switched off." : "Switched on.")}>{k.enabled ? "Switch off" : "Switch on"}</Button>
-            <Button variant="ghost" size="sm" aria-label={`Delete ${k.keyword}`} disabled={busy} onClick={() => void run(() => api(`/whatsapp/optin/keywords/${k.id}`, { method: "DELETE" }), "Deleted.")}><Trash2 className="h-4 w-4" aria-hidden /></Button>
-          </span>
+          <>
+            <Switch checked={k.enabled} busy={busy} label={`${k.keyword}: ${k.enabled ? "on" : "off"}`} onChange={(v) => void run(() => api(`/whatsapp/optin/keywords/${k.id}`, { method: "PATCH", body: { enabled: v } }), v ? "Switched on." : "Switched off.")} />
+            <button type="button" aria-label={`Delete ${k.keyword}`} disabled={busy} onClick={() => void run(() => api(`/whatsapp/optin/keywords/${k.id}`, { method: "DELETE" }), "Deleted.")} className="grid h-11 w-11 place-items-center rounded-full text-ink-400 hover:bg-neg-tint hover:text-neg disabled:opacity-50"><Trash2 className="h-[18px] w-[18px]" aria-hidden /></button>
+          </>
         )}
       </div>
-      <p className="mt-1 text-[13px] text-ink-500">What it means when a customer sends it: {k.wording}</p>
+      <p className="mt-1 text-[13px] leading-5 text-muted">{k.wording}</p>
       {err && <div className="mt-2"><Alert tone="warning">{err}</Alert></div>}
     </li>
   );
@@ -64,57 +74,93 @@ export default function Optin() {
   const needTemplate = purpose === "marketing" ? "optin_confirm_offers" : "optin_confirm";
   const confirmStatus = o ? (purpose === "both" ? o.confirm_templates.optin_confirm : o.confirm_templates[needTemplate]) : null;
   const cw = confirmWords(confirmStatus);
+  const chosen = OPTIN_PURPOSES.find((p) => p.value === purpose);
+  const showing = !!s?.qr_enabled;
   return (
     <>
-      <PageHeader title="Sign-ups" subtitle="Let customers join by messaging you. No phone number is typed on any page, and their own message is their agreement." />
+      <PageHeader title="Sign-ups" />
       {q.error && <Alert tone="error">{q.error}</Alert>}
       {!o ? <Skeleton className="h-64" /> : (
-        <div className="space-y-4">
-          {!o.connected && <Alert tone="info" title="Connect your WhatsApp number first">Sign-ups arrive on your own WhatsApp number. <Link href="/whatsapp/connect" className="font-semibold text-brand-700 hover:underline">Connect it</Link></Alert>}
+        <div className="space-y-3 sm:space-y-4">
+          {!o.connected && <Alert tone="info" title="Connect your number first"><Link href="/whatsapp/connect" className="font-semibold text-brand-700 hover:underline">Connect it</Link></Alert>}
           {err && <Alert tone="warning">{err}</Alert>}
 
-          <Card>
-            <div className="flex items-start justify-between gap-3"><h2 className="text-lg font-semibold text-ink">A WhatsApp button on your QR page</h2><Badge tone={o.link_live ? "green" : "gray"}>{o.link_live ? "Showing" : "Not showing"}</Badge></div>
-            <p className="mt-1 text-sm text-ink-700">Customers see an optional button. It opens WhatsApp with a message already written. They agree only by sending it, and only to what the message says.</p>
-            <fieldset className="mt-4" disabled={!isAdmin}>
-              <legend className="text-[13px] font-semibold text-ink-700">What do they agree to?</legend>
-              <div className="mt-2 space-y-2">{OPTIN_PURPOSES.map((p) => (
-                <label key={p.value} className="flex cursor-pointer items-start gap-2 text-sm text-ink-700"><input type="radio" name="purpose" className="mt-1 accent-[#BD3E1B]" checked={purpose === p.value} onChange={() => void save({ purpose: p.value }, "Saved.")} /><span><b className="text-ink">{p.label}</b><br /><span className="text-[13px] text-ink-500">{p.hint}</span></span></label>
-              ))}</div>
-            </fieldset>
-            {s && (
-              <div className="mt-4 rounded-xl bg-ink-50 p-3 text-[13px] text-ink-700">
-                <p className="font-semibold text-ink">The message the customer sends</p>
-                <p className="mt-1 break-words">{s.prefill_text}</p>
-                <p className="mt-2 text-ink-500">Only this exact message counts. If a customer changes the words, they are not signed up.</p>
+          <section className="panel p-5 sm:p-6" aria-label="Button on your QR page">
+            <div className="flex items-center gap-3">
+              <IconTile icon={QrCode} tone={showing ? "pos" : "neutral"} size={44} />
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[17px] font-semibold leading-6 text-ink">Button on your QR page</h2>
+                <p className="text-[13px] leading-4 text-muted">{o.link_live ? "Customers can see it" : showing ? "Switched on, not showing yet" : "Hidden"}</p>
               </div>
-            )}
-            <label className="mt-4 flex items-start gap-2 text-sm text-ink-700"><input type="checkbox" className="mt-1 h-4 w-4 accent-[#BD3E1B]" disabled={!isAdmin} checked={s?.confirm_reply ?? true} onChange={(e) => void save({ confirm_reply: e.target.checked }, "Saved.")} />Send one short thank-you message when someone joins</label>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-ink-500"><span>Thank-you message:</span><Badge tone={cw.tone}>{cw.label}</Badge>{isAdmin && confirmStatus === null && <Button variant="secondary" size="sm" loading={busy === "prepare"} onClick={() => void prepare()}>Send for approval</Button>}</div>
-            {isAdmin ? (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <Button variant="brand" loading={busy === "save"} onClick={() => void save({ qr_enabled: !(s?.qr_enabled ?? false) }, s?.qr_enabled ? "Button hidden." : "Button switched on.")}>{s?.qr_enabled ? "Hide the button" : "Show the button on my QR page"}</Button>
-                {o.link_example && <a href={o.link_example} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand-700 hover:underline">Try it yourself<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
-              </div>
-            ) : <p className="mt-3 text-[13px] text-ink-500">Only the owner or an admin can change this.</p>}
-            <p className="mt-3 text-[12px] text-ink-500">Customers can reply STOP at any time. If they do, only they can sign up again.</p>
-          </Card>
+              {isAdmin && <Switch checked={showing} busy={busy === "save"} label="Show the WhatsApp button on my QR page" onChange={(v) => void save({ qr_enabled: v }, v ? "Button switched on." : "Button hidden.")} />}
+            </div>
 
-          <Card>
-            <h2 className="text-lg font-semibold text-ink">Keywords</h2>
-            <p className="mt-1 text-sm text-ink-700">A word on a poster or counter card, like <b>JOINUS</b>. A customer who sends only that word, to your number, agrees to what it stands for. You can have up to {o.max_keywords}.</p>
-            {o.keywords.length === 0 ? <p className="mt-3 text-[13px] text-ink-500">No keywords yet.</p> : <ul className="mt-2 divide-y divide-ink-100">{o.keywords.map((k) => <Keyword key={k.id} k={k} canEdit={isAdmin} onChange={() => void q.reload()} />)}</ul>}
+            <div className="mt-5 grid gap-6 lg:grid-cols-[250px_1fr] lg:items-center">
+              <PhonePreview label="What a customer sees on your QR page">
+                <div className="mx-auto mt-1 h-2.5 w-24 rounded-full bg-surface-3" />
+                <div className="mx-auto mt-1 grid h-16 w-16 place-items-center rounded-xl bg-surface-2 text-ink-300"><QrCode className="h-9 w-9" aria-hidden /></div>
+                <div className="mx-auto h-2 w-32 rounded-full bg-surface-2" />
+                <div className={clsx("mt-auto flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-[13px] font-semibold", showing ? "bg-[#1FA855] text-white" : "border border-dashed border-ink-200 text-ink-400")}>
+                  <MessageCircle className="h-4 w-4" aria-hidden />{showing ? "Join on WhatsApp" : "Hidden"}
+                </div>
+              </PhonePreview>
+
+              <div>
+                <p className="text-[13px] font-semibold text-ink-700" id="optin-agree">What do they agree to?</p>
+                <div role="radiogroup" aria-labelledby="optin-agree" className="mt-2 grid grid-cols-3 gap-2">
+                  {OPTIN_PURPOSES.map((p) => {
+                    const S = SHORT[p.value]; const on = purpose === p.value;
+                    return (
+                      <button key={p.value} type="button" role="radio" aria-checked={on} aria-label={`${p.label}. ${p.hint}`} disabled={!isAdmin || busy === "save"} onClick={() => { if (!on) void save({ purpose: p.value }, "Saved."); }}
+                        className={clsx("flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-center transition-colors motion-reduce:transition-none disabled:cursor-not-allowed", on ? "bg-brand-50 text-brand-700 ring-2 ring-brand-600" : "bg-surface-2 text-ink-700 hover:bg-surface-3")}>
+                        <S.icon className="h-6 w-6" strokeWidth={1.75} aria-hidden /><span className="text-[14px] font-semibold leading-4">{S.word}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {chosen && <p className="mt-2 text-[13px] leading-5 text-muted" aria-live="polite">{chosen.label}. {chosen.hint}</p>}
+
+                {s && (
+                  <div className="mt-4 flex flex-col rounded-2xl bg-surface-2 p-3">
+                    <p className="mb-2 text-[13px] font-medium text-muted">The customer sends</p>
+                    <Bubble side="out" className="max-w-full break-words">{s.prefill_text}</Bubble>
+                    <Note className="mt-2.5">Only this exact message counts.</Note>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3 border-t border-line pt-4">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1"><p className="text-[15px] font-medium leading-5 text-ink">Thank-you message</p><p className="mt-1"><Badge tone={cw.tone}>{cw.label}</Badge></p></div>
+                {isAdmin && <Switch checked={s?.confirm_reply ?? true} busy={busy === "save"} label="Send one short thank-you message when someone joins" onChange={(v) => void save({ confirm_reply: v }, "Saved.")} />}
+              </div>
+              {isAdmin && confirmStatus === null && <Button variant="secondary" className="w-full sm:w-auto" loading={busy === "prepare"} onClick={() => void prepare()}>Send for approval</Button>}
+              {o.link_example && <a href={o.link_example} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 text-[14px] font-semibold text-brand-700 hover:underline">Try it yourself<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
+            </div>
+            {!isAdmin && <Note className="mt-3">Only the owner or an admin can change this.</Note>}
+            <Note className="mt-3">Customers can reply STOP at any time. Then only they can sign up again.</Note>
+          </section>
+
+          <section className="panel p-5 sm:p-6" aria-label="Keywords">
+            <div className="flex items-center justify-between gap-3"><h2 className="text-[17px] font-semibold text-ink">Keywords</h2><span className="num rounded-full bg-surface-2 px-3 py-1 text-[13px] font-semibold text-ink-700" aria-label={`${o.keywords.length} of ${o.max_keywords} keywords`}>{o.keywords.length}/{o.max_keywords}</span></div>
+            <p className="mt-1 text-[14px] leading-5 text-muted">A word on a poster, like <b className="text-ink">JOINUS</b>. A customer who sends only that word agrees to what it stands for.</p>
+            {o.keywords.length === 0 ? <p className="mt-4 rounded-2xl bg-surface-2 px-4 py-5 text-center text-[14px] text-muted">No keywords yet</p> : <ul className="mt-2 divide-y divide-line">{o.keywords.map((k) => <Keyword key={k.id} k={k} canEdit={isAdmin} onChange={() => void q.reload()} />)}</ul>}
             {isAdmin && o.keywords.length < o.max_keywords && (
-              <div className="mt-4 grid items-start gap-3 sm:grid-cols-[1fr_1fr_auto]">
+              <div className="mt-4 space-y-3 border-t border-line pt-4">
                 <Input label="New keyword" value={word} maxLength={20} error={wordErr ?? undefined} onChange={(e) => { setWord(e.target.value); setWordErr(null); }} hint="3 to 20 letters or numbers." />
-                <Select label="They agree to" value={wordPurpose} onChange={(e) => setWordPurpose(e.target.value as OptinPurpose)}>{OPTIN_PURPOSES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</Select>
-                <Button variant="secondary" className="sm:mt-6" loading={busy === "word"} onClick={() => void addWord()}>Add keyword</Button>
+                <div role="radiogroup" aria-label="They agree to" className="grid grid-cols-3 gap-2">
+                  {OPTIN_PURPOSES.map((p) => { const S = SHORT[p.value]; const on = wordPurpose === p.value; return (
+                    <button key={p.value} type="button" role="radio" aria-checked={on} aria-label={p.label} onClick={() => setWordPurpose(p.value)} className={clsx("inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-2 text-[13.5px] font-medium", on ? "bg-ink-solid text-ink-on" : "bg-surface-2 text-ink-700 hover:bg-surface-3")}><S.icon className="h-4 w-4" aria-hidden />{S.word}</button>
+                  ); })}
+                </div>
+                <Button variant="brand" size="lg" className="w-full" icon={<Plus className="h-4 w-4" />} loading={busy === "word"} onClick={() => void addWord()}>Add keyword</Button>
               </div>
             )}
-            {o.keywords.length >= o.max_keywords && <p className="mt-3 text-[13px] text-ink-500">You have the most keywords you can have. Delete one to add another.</p>}
-          </Card>
+            {o.keywords.length >= o.max_keywords && <Note className="mt-3">That is the most you can have. Delete one to add another.</Note>}
+          </section>
 
-          <p className="text-[13px] text-ink-500">Each customer who joins this way shows on <Link href="/whatsapp/contacts" className="font-semibold text-brand-700 hover:underline">Customers</Link> with how they joined, and in your customer export.</p>
+          <Note className="px-1">Everyone who joins shows on <Link href="/whatsapp/contacts" className="font-semibold text-brand-700 hover:underline">Customers</Link>.</Note>
         </div>
       )}
     </>

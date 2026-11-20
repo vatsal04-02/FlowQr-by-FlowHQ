@@ -52,7 +52,7 @@ export function YourDataPanel() {
       {owner && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="min-w-0 flex-1 text-sm text-ink-700"><b>Download your data.</b> A ZIP of JSON files: locations, reviews and replies, QR campaigns and cards, scans, team, billing and audit records. Google tokens and password hashes are never included.</p>
+            <p className="min-w-0 flex-1 basis-64 text-[15px] leading-[22px] text-ink-700"><b>Download your data.</b> A ZIP of JSON files: locations, reviews and replies, QR campaigns and cards, scans, team, billing and audit records. Google tokens and password hashes are never included.</p>
             <Button variant="secondary" icon={<Download className="h-4 w-4" />} loading={exporting} onClick={() => void exportData()}>Download</Button>
           </div>
           {exportError && <Alert tone="error" title="Export failed">{exportError}</Alert>}
@@ -63,7 +63,7 @@ export function YourDataPanel() {
                 Until then everything works as normal. After that date the business and all its data are permanently deleted and cannot be recovered.</Alert>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="min-w-0 flex-1 text-sm text-ink-700"><b>Delete this business.</b> Removes the business and all its data after a {del.data?.grace_days ?? 14}-day grace period you can cancel. Printed cards stop opening your page. <a className="text-brand-700 underline" href="/data-deletion">What is deleted</a></p>
+                <p className="min-w-0 flex-1 basis-64 text-[15px] leading-[22px] text-ink-700"><b>Delete this business.</b> Removes the business and all its data after a {del.data?.grace_days ?? 14}-day grace period you can cancel. Printed cards stop opening your page. <a className="text-brand-700 underline" href="/data-deletion">What is deleted</a></p>
                 <Button variant="danger" icon={<Trash2 className="h-4 w-4" />} onClick={() => { setError(null); setOpen(true); }}>Delete business…</Button>
               </div>)}
             {del.error && <p className="mt-2 text-xs text-red-700">{del.error}</p>}

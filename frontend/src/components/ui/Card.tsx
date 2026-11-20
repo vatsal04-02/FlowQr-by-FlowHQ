@@ -10,7 +10,7 @@ export function Card({ children, className, pad = true }: { children: ReactNode;
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-lg font-semibold leading-6">{title}</h2>{subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}</div>
+      <div><h2 className="text-[18px] font-semibold leading-6">{title}</h2>{subtitle && <p className="mt-0.5 text-[15px] leading-[22px] text-muted">{subtitle}</p>}</div>
       {action}
     </div>
   );
@@ -22,8 +22,8 @@ export function PageHeader({ title, subtitle, actions, eyebrow }: { title: strin
     <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 sm:mb-5 lg:mb-6">
       <div className="min-w-0">
         {/* `eyebrow` is accepted for older callers but not shown: the section pill and the rail already say where you are. */}
-        <h1 className="text-[22px] font-semibold leading-7 tracking-[-.015em] text-ink sm:text-[26px] sm:leading-8 lg:text-[30px] lg:leading-9">{title}</h1>
-        {subtitle && <div className="mt-1 max-w-2xl text-[14px] leading-5 text-muted sm:text-[15px] sm:leading-6">{subtitle}</div>}
+        <h1 className="text-[30px] font-bold leading-[36px] tracking-[-.015em] text-ink sm:text-[32px] sm:leading-10 lg:text-[34px]">{title}</h1>
+        {subtitle && <div className="mt-1.5 max-w-2xl text-[15px] leading-[22px] text-muted sm:text-base sm:leading-6">{subtitle}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -35,7 +35,7 @@ export function Stat({ label, value, hint, icon }: { label: string; value: React
   return (
     <div className="panel min-w-0 p-5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-muted">{label}</p>
+        <p className="text-[15px] font-medium text-muted">{label}</p>
         {icon && <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-ink" aria-hidden>{icon}</span>}
       </div>
       <p className="num mt-3 text-[32px] font-semibold leading-9 tracking-[-.02em]">{value}</p>
@@ -50,7 +50,7 @@ const badgeTones = {
   amber: "bg-warn-tint text-warn", red: "bg-neg-tint text-neg",
 };
 export function Badge({ children, tone = "gray" }: { children: ReactNode; tone?: keyof typeof badgeTones }) {
-  return <span className={clsx("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", badgeTones[tone])}>{children}</span>;
+  return <span className={clsx("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] font-semibold leading-4", badgeTones[tone])}>{children}</span>;
 }
 
 /** Soft alert card (DESIGN.md §5): tinted, 22px radius, icon in a circle. Only warning, error and success carry colour. */

@@ -89,12 +89,12 @@ export default function CardsPage() {
                   </Link>
                   <div className="mt-3 flex items-start justify-between gap-3">
                     <div className="min-w-0"><p className="card-code text-sm font-medium">{c.card_code}</p><p className="truncate text-[13px] text-ink-500">{c.label ?? "No label"} · {c.location_name ?? "No location"}</p>
-                      {c.campaign_name && <p className="truncate text-[12px] text-ink-500">Campaign: {c.campaign_name}</p>}</div>
+                      {c.campaign_name && <p className="truncate text-[13px] text-ink-500">Campaign: {c.campaign_name}</p>}</div>
                     <Status tone={CARD_STATUS[c.status].tone}>{CARD_STATUS[c.status].label}</Status>
                   </div>
                   <dl className="mt-2 grid grid-cols-4 divide-x divide-ink-100 rounded-lg border border-ink-100 bg-white text-center">
                     {[["QR", c.stats.qr_scan], ["NFC", c.stats.nfc_scan], ["Visits", c.stats.landing_view], ["Clicks", c.stats.google_click]].map(([k, v]) => (
-                      <div key={k as string} className="px-1 py-1.5"><dd className="num text-sm font-semibold">{fmtNum((v as number) ?? 0)}</dd><dt className="text-[11px] text-ink-500">{k as string}</dt></div>))}
+                      <div key={k as string} className="px-1 py-1.5"><dd className="num text-sm font-semibold">{fmtNum((v as number) ?? 0)}</dd><dt className="text-[12px] text-ink-500">{k as string}</dt></div>))}
                   </dl>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 text-xs text-ink-500">
                     <span>Last scan {c.last_scan_at ? timeAgo(c.last_scan_at) : "never"}</span>

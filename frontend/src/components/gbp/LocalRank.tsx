@@ -112,7 +112,7 @@ export function LocalRank({ gid }: { gid: string }) {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                       <div className={clsx("grid h-12 w-16 shrink-0 place-items-center rounded-tile text-center", c?.status === "ok" ? rankTone(c.rank) : "bg-surface-2 text-muted")}
                         aria-label={!c ? "Not checked yet" : c.status === "error" ? "Check failed" : c.rank ? `Position ${c.rank}` : "Not in the first 20 results"}>
-                        {!c ? <span className="text-xs">–</span> : c.status === "error" ? <span className="text-xs font-semibold">Failed</span> : c.rank ? <span className="text-xl font-semibold tabular-nums">#{c.rank}</span> : <span className="px-1 text-[11px] font-semibold leading-tight">Not in top 20</span>}
+                        {!c ? <span className="text-xs">–</span> : c.status === "error" ? <span className="text-xs font-semibold">Failed</span> : c.rank ? <span className="text-xl font-semibold tabular-nums">#{c.rank}</span> : <span className="px-1 text-[12px] font-semibold leading-tight">Not in top 20</span>}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p data-words="skip" className="truncate font-semibold">{k.keyword}</p>

@@ -77,7 +77,7 @@ function ChangeNote({ c }: { c: Change | null }) {
 }
 
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return <div className="rounded-tile bg-surface-2 p-3"><p className="text-xs text-muted">{label}</p><p className="num mt-0.5 text-xl font-semibold">{value}</p><p className="text-[11px] text-muted">{hint}</p></div>;
+  return <div className="rounded-tile bg-surface-2 p-3"><p className="text-xs text-muted">{label}</p><p className="num mt-0.5 text-xl font-semibold">{value}</p><p className="text-[12px] text-muted">{hint}</p></div>;
 }
 
 function NewGrid({ gid, ov, onDone }: { gid: string; ov: Overview; onDone: () => void }) {
