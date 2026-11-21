@@ -48,7 +48,8 @@ def test_table_has_forced_rls_a_tenant_policy_and_no_delete_for_the_app_role():
     assert rows and rows[0][0] is True and rows[0][1] is True
     assert owner_query("select count(*) from pg_policies where tablename = 'gbp_metric_daily' and policyname = 'tenant_isolation'")[0][0] == 1
     privs = {r[0] for r in owner_query("select privilege_type from information_schema.role_table_grants where table_name = 'gbp_metric_daily' and grantee = 'flowqr_app'")}
-    assert {"SELECT", "INSERT", "UPDATE"} <= privs and "DELETE" not in privs
+    assert {"SELECT", "INSERT", "UPDATE"} <= privs  # 0035 gave no DELETE on purpose; migration 0064 adds it for ONE reason: the Google-content retention job (services/google_retention.py, off by default) must be able to expire old daily metrics
+    assert "DELETE" in privs  # so a missing grant would make that job fail, and removing it again needs a new migration, not a silent change
 
 
 def test_one_row_per_location_metric_and_day_and_values_are_never_negative(connected, fake, gid):  # noqa: F811

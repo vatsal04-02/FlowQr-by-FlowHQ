@@ -459,7 +459,7 @@ def test_one_failing_step_is_reported_and_does_not_stop_the_others(retention_on,
 def test_the_retention_job_is_scheduled_once_on_the_existing_beat_and_the_periods_are_the_approved_ones():
     from app.workers.celery_app import celery_app
     assert celery_app.conf.beat_schedule["privacy-retention"]["task"] == "flowqr.privacy_retention"
-    assert [t for t in celery_app.conf.beat_schedule if "retention" in t] == ["autonomy-retention", "privacy-retention"]
+    assert sorted(t for t in celery_app.conf.beat_schedule if "retention" in t) == ["autonomy-retention", "google-content-retention", "privacy-retention"]  # 0064 adds the Google-content job (off unless GOOGLE_CONTENT_RETENTION_ENABLED)
     from app.core.config import Settings
     s = Settings()
     assert (s.session_retention_days, s.password_reset_token_retention_days, s.audit_ip_retention_days, s.lead_retention_days, s.privacy_retention_enabled) == (30, 30, 365, 365, False)
