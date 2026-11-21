@@ -1,5 +1,5 @@
 from app.models.business import (  # noqa: F401
-    GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, ReplyDraft, ReplyLog, ReplyStatus, Review,
+    GoogleAgencyAccount, GoogleAgencyAuthorization, GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, ReplyDraft, ReplyLog, ReplyStatus, Review,
 )
 from app.models.cards import (  # noqa: F401
     CardDestinationHistory,

@@ -61,6 +61,11 @@ class GoogleConnection(IdMixin, TimestampMixin, Base):
     # OAuth login succeeding says nothing about this; it is learned from real API responses.
     api_access: Mapped[str] = mapped_column(String(24), default="unknown", server_default="unknown")
     api_access_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Whose Google login acts on this client's profile: the client's own OAuth token (today's behaviour) or a FlowQR agency account that the client invited as MANAGER
+    # (docs/audits/GOOGLE_CLIENT_ACCOUNT_OPTIONS.md, Option B). Nothing sets agency_account unless GOOGLE_AGENCY_MANAGER_ENABLED is on.
+    auth_mode: Mapped[str] = mapped_column(String(16), default="client_token", server_default="client_token")  # client_token | agency_account
+    agency_account_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("google_agency_accounts.id", ondelete="RESTRICT"))
+    agency_switched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     google_locations: Mapped[list["GoogleLocation"]] = relationship(back_populates="connection")
 
@@ -91,8 +96,75 @@ class GoogleLocation(IdMixin, TimestampMixin, Base):
     last_sync_error: Mapped[str | None] = mapped_column(Text)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
     next_sync_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    client_google_account_name: Mapped[str | None] = mapped_column(String(120))  # the account the client's own login saw, kept when an agency switch re-points google_account_name
 
     connection: Mapped[GoogleConnection] = relationship(back_populates="google_locations")
+
+
+class GoogleAgencyAccount(IdMixin, TimestampMixin, Base):
+    """A FlowQR agency Google login. PLATFORM-ONLY (row-level security admits the bypass context only); tokens are encrypted with AGENCY_TOKEN_ENCRYPTION_KEY, never the client-token key.
+    Read and refreshed only through services/google/agency.py. Several may exist; a connection records which one it uses."""
+
+    __tablename__ = "google_agency_accounts"
+
+    label: Mapped[str] = mapped_column(String(80), unique=True)
+    google_email: Mapped[str] = mapped_column(String(254), unique=True)
+    google_sub: Mapped[str | None] = mapped_column(String(64))
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(Text)
+    access_token_encrypted: Mapped[str | None] = mapped_column(Text)
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(12), default="active", server_default="active")  # active | disabled | revoked
+    max_locations: Mapped[int | None] = mapped_column(Integer)  # NULL = no cap recorded: Google's limit for one account is NOT verified
+    location_group_name: Mapped[str | None] = mapped_column(String(120))  # the FlowQR LocationGroup this login belongs to (accounts/<id>); NULL = can only be invited as an individual
+    last_error: Mapped[str | None] = mapped_column(String(300))
+
+
+class GoogleAgencyAuthorization(IdMixin, TimestampMixin, Base):
+    """One client location and the story of FlowQR becoming, and stopping being, its manager: the stored consent, invite, acceptance, the separate notice, removal.
+    Holds no Google content and no token."""
+
+    __tablename__ = "google_agency_authorizations"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("google_connections.id", ondelete="CASCADE"))
+    google_location_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("google_locations.id", ondelete="CASCADE"))
+    agency_account_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("google_agency_accounts.id", ondelete="RESTRICT"))
+    status: Mapped[str] = mapped_column(String(16), default="consented", server_default="consented")
+    consent_version: Mapped[str] = mapped_column(String(40))
+    consent_text_sha256: Mapped[str] = mapped_column(String(64))
+    consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consented_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    consented_by_email: Mapped[str | None] = mapped_column(String(254))  # snapshot: the evidence survives the user's deletion; also where the notice goes
+    admin_resource_name: Mapped[str | None] = mapped_column(String(200))  # locations/{id}/admins/{admin}: what removal needs
+    invitation_name: Mapped[str | None] = mapped_column(String(200))
+    target_type: Mapped[str] = mapped_column(String(24), default="individual_agency_user", server_default="individual_agency_user")  # individual_agency_user | flowhq_location_group
+    target_account_name: Mapped[str | None] = mapped_column(String(120))  # the LocationGroup that was invited (accounts/<id>); only for a group target
+    google_location_resource: Mapped[str | None] = mapped_column(String(120))  # `locations/<id>`: the SAME for every business, so ONE open authorization per Google location can be enforced platform-wide
+    invite_scope: Mapped[str] = mapped_column(String(16), default="location", server_default="location")  # what the client chose: location | business_group
+    consent_request_id: Mapped[str | None] = mapped_column(String(64))  # replay protection: the client's request id for this consent
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when Google was last asked about this invitation
+    receiving_account_name: Mapped[str | None] = mapped_column(String(120))  # the account whose invitation list the pending invitation was FOUND under (read from Google)
+    agency_account_name: Mapped[str | None] = mapped_column(String(120))  # accounts/{a}: where the AGENCY login sees this location (read after acceptance, never assumed)
+    invite_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    switched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    client_token_revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    client_token_revoke_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    notice_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notice_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notice_overdue_alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removal_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removal_requested_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    removal_deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removal_alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lost_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_code: Mapped[str | None] = mapped_column(String(40))
+    last_error: Mapped[str | None] = mapped_column(String(300))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ReplyStatus(str, enum.Enum):

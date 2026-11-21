@@ -15,6 +15,11 @@ class GoogleScopeMissing(GoogleAuthRevoked):
     screen, or the token was issued without it). The only fix is to reconnect and grant it, so it is handled like a revocation."""
 
 
+class GoogleAgencyUnavailable(GoogleAuthRevoked):
+    """The agency account cannot act: agency management is switched off, the agency login was revoked, or the key is missing. Handled like a revoked connection by every caller
+    (nothing is sent to Google), but it does NOT change the connection's stored state: switching the flag back on resumes it."""
+
+
 class GoogleRateLimited(GoogleError):
     def __init__(self, retry_after: int | None = None, quota_metric: str | None = None):
         super().__init__("Google API quota/rate limit reached")

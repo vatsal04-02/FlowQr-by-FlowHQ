@@ -159,6 +159,12 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
         gloc = db.get(GoogleLocation, gloc.id)
         _fail(gloc, "error", str(exc), None)
         result["status"] = "error"
+        if exc.status == 403 and conn.auth_mode == "agency_account":  # FlowQR may have been removed in Google: check once, and stop everything if so (no retry against that profile)
+            db.commit()
+            from app.services.google import agency
+
+            if agency.on_permission_denied(db, conn.id) == "lost":
+                result["status"] = "lost"
     db.commit()
     return result
 

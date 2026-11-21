@@ -263,6 +263,10 @@ role-admin	POST	/api/v1/gbp/{google_location_id}/rank/keywords
 role-admin	DELETE	/api/v1/gbp/{google_location_id}/rank/keywords/{keyword_id}
 member	GET	/api/v1/gbp/{google_location_id}/rank/keywords/{keyword_id}/history
 public-bypass-db	GET	/api/v1/go/{token}
+role-admin	POST	/api/v1/google/agency/connections/{connection_id}/advance
+role-admin	POST	/api/v1/google/agency/connections/{connection_id}/stop
+role-admin	POST	/api/v1/google/agency/consent
+member	GET	/api/v1/google/agency/status
 public	GET	/api/v1/google/callback
 role-admin	POST	/api/v1/google/connect
 role-admin	DELETE	/api/v1/google/connections/{connection_id}

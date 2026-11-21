@@ -2,6 +2,7 @@
 import { Check, Link2, RefreshCw, Unplug, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { AgencyManager } from "@/components/gbp/AgencyManager";
 import { Button } from "@/components/ui/Button";
 import { Alert, Skeleton } from "@/components/ui/Card";
 import { Panel, Status } from "@/components/ui/kit";
@@ -103,6 +104,8 @@ function Inner() {
       <div className="mt-4 space-y-4">
         {conns.map((c) => <ConnectionPanel key={c.id} conn={c} canEdit={isAdmin} onChanged={reload} onDisconnect={() => setDisconnectId(c.id)} onReconnect={() => void connect()} />)}
       </div>
+
+      <AgencyManager />
 
       <details className="panel mt-4 p-4 text-sm">
         <summary className="cursor-pointer text-[13px] font-semibold">What FlowQR accesses</summary>

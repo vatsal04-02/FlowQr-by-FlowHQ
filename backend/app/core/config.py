@@ -1,4 +1,5 @@
 """Application settings, loaded from environment variables (see .env.example)."""
+import re
 from functools import lru_cache
 
 from pydantic import Field
@@ -104,6 +105,25 @@ class Settings(BaseSettings):
     google_redirect_uri: str = "http://localhost:3000/api/v1/google/callback"
     google_scopes: str = "https://www.googleapis.com/auth/business.manage"
     review_sync_interval_minutes: int = 30
+
+    # Agency manager account (docs/audits/GOOGLE_CLIENT_ACCOUNT_OPTIONS.md, Option B). OFF: nothing below has any effect and every Google call behaves as it always did.
+    google_agency_manager_enabled: bool = False  # GOOGLE_AGENCY_MANAGER_ENABLED: master switch and kill switch. Turning it off also stops every agency-mode connection (fail closed).
+    agency_token_encryption_key: str = ""  # AGENCY_TOKEN_ENCRYPTION_KEY: Fernet key for the agency Google accounts' tokens. MUST differ from TOKEN_ENCRYPTION_KEY and SECRET_KEY.
+    google_agency_notice_hours: int = 48  # separate notice to the client within this many hours of FlowQR becoming a manager (Google policy; verify the current wording)
+    google_agency_removal_business_days: int = 7  # after a stop request, FlowQR removes itself within this many business days (Google policy; verify)
+    google_agency_verify_interval_hours: int = 6  # how often an agency-mode location is re-checked for "FlowQR is still a manager"
+    google_agency_visibility_wait_hours: int = 48  # how long to wait for a location to show up for the agency account after it accepted, before asking a person to look
+    google_agency_location_group_id: str = ""  # GOOGLE_AGENCY_LOCATION_GROUP_ID: the FlowQR Location Group clients invite as Manager, as its API RESOURCE NAME, e.g. `accounts/114863040359228435467` (the value accounts.list returns as `name`). NOT the short accountNumber (`5488245563`) that Business Profile Manager shows: the API does not know it. The default for `google-agency-register`; each agency login records its own.
+    google_agency_operations_enabled: bool = False  # GOOGLE_AGENCY_OPERATIONS_ENABLED: lets an agency-managed connection ACT (sync, replies, posts, edits) and lets onboarding switch to the agency login and revoke the client's token. OFF: onboarding stops at "access verified" and nothing runs.
+    google_agency_policy_reference: str = ""  # GOOGLE_AGENCY_POLICY_REFERENCE: where Google's written answer about shared-project, multi-business use is recorded (a case id or document). The operations switch is refused without it in production.
+    google_agency_poll_minutes: int = 60  # the longest pause between two looks at a pending invitation (the pauses grow to this; Google offers no notification, so this is polling and kept conservative)
+    google_agency_withdrawn_after_minutes: int = 30  # an invitation is only called withdrawn after it has been absent from every list for this long (a new invitation can take a moment to appear)
+    google_agency_organization_id: str = ""  # GOOGLE_AGENCY_ORGANIZATION_ID: FlowQR's Google ORGANISATION as its resource name, e.g. `accounts/110178313486978980497` (not its accountNumber 5234249121). Never used to call Google: it only exists so the group id can be refused if it is the organisation's
+    google_agency_invitation_discovery: bool = False  # GOOGLE_AGENCY_INVITATION_DISCOVERY: if a group invitation is not in the Location Group's own invitation list, also search every account the agency user can see (a diagnostic, off by default)
+    google_agency_individual_fallback: bool = False  # GOOGLE_AGENCY_INDIVIDUAL_FALLBACK: allow inviting ONE PERSON's e-mail as Manager when no group-capable agency login exists. Documented fallback only (section 11); off = fail closed.
+    google_agency_max_locations_per_account: int = 0  # 0 = UNKNOWN, not "unlimited". Google's limit for one account is not verified (TODO(verify)); set it only from a written Google answer.
+    google_agency_adopt_existing_access: bool = False  # GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS: a client who ALREADY added FlowQR's group in Google (the location is listed under the group) is verified directly instead of being invited again. Off = every client is invited as before. Needs the agency switch.
+    google_agency_client_token_keep_hours: int = 0  # GOOGLE_AGENCY_CLIENT_TOKEN_KEEP_HOURS: how long the client's own (encrypted) token is kept, unused, after the switch so it can be rolled back. 0 = revoke at once (the behaviour and the consent wording of today).
 
     # "Continue with Google" sign-in. A SEPARATE OAuth client from the Business Profile one above: it only ever
     # requests openid/email/profile (no Google verification review) and shares no credentials, scopes or tokens.
@@ -430,6 +450,38 @@ def config_problems(s: Settings) -> list[str]:
             p.append("TOKEN_ENCRYPTION_KEY is not a valid Fernet key")
         if s.token_encryption_key == s.secret_key:
             p.append("TOKEN_ENCRYPTION_KEY must differ from SECRET_KEY")
+    if s.google_agency_manager_enabled:
+        if not s.agency_token_encryption_key:
+            p.append("GOOGLE_AGENCY_MANAGER_ENABLED needs AGENCY_TOKEN_ENCRYPTION_KEY (the agency Google accounts' tokens are stored encrypted with their own key)")
+        else:
+            try:
+                from cryptography.fernet import Fernet
+
+                Fernet(s.agency_token_encryption_key.encode())
+            except Exception:
+                p.append("AGENCY_TOKEN_ENCRYPTION_KEY is not a valid Fernet key")
+            if s.agency_token_encryption_key in (s.token_encryption_key, s.secret_key):
+                p.append("AGENCY_TOKEN_ENCRYPTION_KEY must differ from TOKEN_ENCRYPTION_KEY and SECRET_KEY")
+        if not s.google_configured:
+            p.append("GOOGLE_AGENCY_MANAGER_ENABLED needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET")
+        if s.google_agency_location_group_id and not re.fullmatch(r"(accounts/)?[0-9]+", s.google_agency_location_group_id.strip()):
+            p.append("GOOGLE_AGENCY_LOCATION_GROUP_ID must be a numeric account id: the API resource name accounts/114863040359228435467 as accounts.list returns it (not the short accountNumber that Business Profile Manager shows)")
+        if s.google_agency_organization_id and not re.fullmatch(r"(accounts/)?[0-9]+", s.google_agency_organization_id.strip()):
+            p.append("GOOGLE_AGENCY_ORGANIZATION_ID must be a numeric account id: the API resource name accounts/110178313486978980497 as accounts.list returns it (not the short accountNumber)")
+        if s.google_agency_operations_enabled and not s.google_agency_policy_reference.strip():
+            p.append("GOOGLE_AGENCY_OPERATIONS_ENABLED needs GOOGLE_AGENCY_POLICY_REFERENCE: Google's published restriction on shared-project, multi-business use must be answered in writing first, and the answer recorded")
+        if s.google_agency_organization_id and s.google_agency_location_group_id and s.google_agency_organization_id.strip().removeprefix("accounts/") == s.google_agency_location_group_id.strip().removeprefix("accounts/"):
+            p.append("GOOGLE_AGENCY_LOCATION_GROUP_ID is the same as GOOGLE_AGENCY_ORGANIZATION_ID: an organisation is not a Location Group")
+        if not s.google_agency_location_group_id and not s.google_agency_individual_fallback:
+            p.append("GOOGLE_AGENCY_MANAGER_ENABLED needs GOOGLE_AGENCY_LOCATION_GROUP_ID (group delegation), or GOOGLE_AGENCY_INDIVIDUAL_FALLBACK=true to accept the documented one-person fallback")
+        if not s.platform_admin_email_set:
+            p.append("GOOGLE_AGENCY_MANAGER_ENABLED needs PLATFORM_ADMIN_EMAILS (overdue notices and lost-access alerts are emailed there)")
+        if s.google_agency_adopt_existing_access and not s.google_agency_location_group_id:
+            p.append("GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS needs GOOGLE_AGENCY_LOCATION_GROUP_ID (it only verifies a location already listed under FlowQR's group)")
+    if s.google_agency_adopt_existing_access and not s.google_agency_manager_enabled:
+        p.append("GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS needs GOOGLE_AGENCY_MANAGER_ENABLED (on its own it does nothing)")
+    if not 0 <= s.google_agency_client_token_keep_hours <= 720:
+        p.append("GOOGLE_AGENCY_CLIENT_TOKEN_KEEP_HOURS must be between 0 (revoke at once) and 720 (30 days)")
     if not s.cookie_secure:
         p.append("COOKIE_SECURE must be true")
     if not s.require_verified_email:

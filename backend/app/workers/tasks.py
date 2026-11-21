@@ -37,6 +37,19 @@ def sync_due_locations():
     return {"queued": len(ids)}
 
 
+@celery_app.task(name="flowqr.agency_housekeeping")
+def agency_housekeeping():
+    """Hourly: agency manager accounts (services/google/agency.py). Always: finish removals a client asked for, retry a client-token revoke Google did not confirm, send the 48-hour notice and
+    alert when it is overdue. Only while GOOGLE_AGENCY_MANAGER_ENABLED is on: move waiting clients forward and re-check that FlowQR is still a manager. Does nothing when there is no agency state."""
+    from app.services.google import agency
+
+    db = system_session()
+    try:
+        return agency.housekeeping(db)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.billing_reconcile")
 def billing_reconcile():
     """Hourly: Cashfree does not replay missed webhooks, so read and apply the truth for every subscription that is in motion."""

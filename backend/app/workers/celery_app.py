@@ -13,6 +13,7 @@ celery_app.conf.update(
             "task": "flowqr.sync_due_locations",
             "schedule": settings.review_sync_interval_minutes * 60 / 2,  # check twice per interval
         },
+        "agency-housekeeping": {"task": "flowqr.agency_housekeeping", "schedule": 3600.0},  # agency manager accounts: removals, notices, access checks (a no-op while there is no agency state)
         "billing-housekeeping": {"task": "flowqr.billing_refresh", "schedule": 3600.0},
         "whatsapp-run-due": {"task": "flowqr.whatsapp_run_due", "schedule": 60.0},  # automations and campaigns due now (does nothing unless sending is enabled and not stopped)
         "whatsapp-conversations-due": {"task": "flowqr.whatsapp_conversations_due", "schedule": 30.0},  # safety net for the short wait before a conversation is looked at (no-op unless WHATSAPP_CONVERSATIONS_ENABLED)

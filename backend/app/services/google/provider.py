@@ -63,6 +63,8 @@ class TokenSet:
 class GAccount:
     name: str  # accounts/123
     title: str | None = None
+    type: str | None = None  # Account.type: PERSONAL | LOCATION_GROUP | USER_GROUP | ORGANIZATION (accounts.list returns it)
+    account_number: str | None = None  # Account.accountNumber: Google's short DISPLAY reference (10 digits seen). It is NOT the resource id: `accounts/<accountNumber>` is 404 at the API
 
 
 @dataclass
@@ -281,7 +283,7 @@ class HttpGoogleProvider:
         out, token = [], None
         while True:
             j = self._get(ACCOUNTS_URL, access_token, {"pageSize": 20, **({"pageToken": token} if token else {})})  # 20 = default and max
-            out += [GAccount(name=a["name"], title=a.get("accountName")) for a in j.get("accounts", [])]
+            out += [GAccount(name=a["name"], title=a.get("accountName"), type=a.get("type"), account_number=a.get("accountNumber")) for a in j.get("accounts", [])]
             token = j.get("nextPageToken")
             if not token:
                 return out

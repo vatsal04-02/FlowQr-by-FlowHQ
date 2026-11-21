@@ -21,6 +21,10 @@ def get_access_token(db: Session, conn: GoogleConnection, provider=None) -> str:
     """Return a valid access token, refreshing if needed. Marks the connection revoked on invalid_grant."""
     if conn.status in (GoogleConnectionStatus.disconnected, GoogleConnectionStatus.revoked):
         raise g.GoogleAuthRevoked("Connection is not active")
+    if conn.auth_mode == "agency_account":  # the client invited a FlowQR agency account as manager (services/google/agency.py); the client's own token is not used
+        from app.services.google import agency
+
+        return agency.token_for_connection(db, conn, provider)
     cipher = get_cipher()
     if conn.access_token_encrypted and conn.access_token_expires_at and conn.access_token_expires_at > utcnow() + timedelta(seconds=60):
         return cipher.decrypt(conn.access_token_encrypted)

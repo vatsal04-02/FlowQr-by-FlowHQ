@@ -14,7 +14,7 @@ from app.core.deps import SESSION_COOKIE, TenantContext, ensure_verified, get_te
 from app.core.rate_limit import client_ip
 from app.core.security import get_cipher, new_token, sign_state, verify_state
 from app.models import (
-    GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, Membership, Role, Subscription,
+    GoogleAgencyAuthorization, GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, Membership, Role, Subscription,
 )
 from app.models.base import utcnow
 from app.models.tenancy import ROLE_RANK, User
@@ -188,6 +188,10 @@ def list_google_locations(connection_id: uuid.UUID, ctx: TenantContext = Depends
 @router.post("/connections/{connection_id}/refresh-locations", response_model=list[GoogleLocationOut])
 def refresh_locations(connection_id: uuid.UUID, ctx: TenantContext = Depends(require_role(Role.admin))):
     conn = _conn_or_404(ctx, connection_id)
+    if conn.auth_mode == "agency_account":
+        # The token of such a connection is FlowQR's agency login, which sees EVERY client of FlowQR's group. Listing what it sees and storing it here would copy other businesses' names and
+        # addresses into this one's records (and overwrite its own). The client's locations were fixed when they consented; nothing is listed again.
+        raise HTTPException(status_code=409, detail={"code": "managed_by_flowqr", "message": "FlowQR manages this profile as your Manager, so the list of locations can't be refreshed here."})
     provider = g.get_google_provider() if settings.google_configured else None
     if not provider:
         raise HTTPException(status_code=503, detail="Google integration is awaiting configuration on the server.")
@@ -271,6 +275,11 @@ def sync_now(ctx: TenantContext = Depends(require_role(Role.admin))):
 @router.delete("/connections/{connection_id}", status_code=204)
 def disconnect(connection_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     conn = _conn_or_404(ctx, connection_id)
+    if conn.auth_mode == "agency_account" or ctx.db.scalar(select(func.count()).select_from(GoogleAgencyAuthorization).where(
+            GoogleAgencyAuthorization.connection_id == conn.id, GoogleAgencyAuthorization.status.in_(("invited", "accepted", "verified", "needs_attention", "active")))):
+        from app.services.google import agency  # FlowQR is (or is about to be) a manager: stop its work and remove it from the profile, then end the connection as usual
+
+        agency.request_stop(ctx.db, conn, user=ctx.user)
     if conn.refresh_token_encrypted:
         try:
             token = get_cipher().decrypt(conn.refresh_token_encrypted)

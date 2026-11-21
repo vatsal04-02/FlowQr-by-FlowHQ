@@ -56,6 +56,8 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   "prepaid_orders", "prepaid_price_overrides", "card_destination_history",
                   # admin-managed businesses: the offline agreement an administrator recorded
                   "tenant_agreements",
+                  # agency manager account: the client's stored consent and the invite, accept, notice and removal dates for each location (no tokens, no Google content)
+                  "google_agency_authorizations",
                   # and the administrator-handled export / deletion requests for a business that has no owner login (a person's own requests about their business are their data too)
                   "data_requests", "data_request_events",
                   # the website builder: the business's own website content, hostnames, image metadata, enquiries and publish history (image FILES are added to the ZIP by build_export)
@@ -156,6 +158,9 @@ def delete_tenant(db: Session, tenant_id: uuid.UUID, *, provider=None) -> dict:
                 revoked += 1
             except Exception as exc:  # noqa: BLE001
                 log.warning("Google revoke failed during account deletion: %s", type(exc).__name__)
+    from app.services.google import agency as google_agency
+
+    google_agency.on_tenant_delete(db, tenant_id)  # FlowQR leaves the profiles it manages as an agency before the records of that go (best effort; never blocks the deletion)
     from app.services.sites import service as sites_svc
 
     from app.services.whatsapp import connection as wa_connection
