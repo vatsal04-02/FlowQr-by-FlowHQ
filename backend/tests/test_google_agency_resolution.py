@@ -59,8 +59,8 @@ def test_resolution_is_recorded_in_the_audit_trail_without_secrets_or_google_con
     biz, s = active("Audit Clinic")
     with closing(system_session()) as db:
         sync_google_location(db, db.get(GoogleLocation, s.gids[0]), gfake, sleep=lambda x: None)
-    rows = audit_rows("google.agency.used")
-    assert len(rows) == 1 and str(rows[0][0]) == str(biz.tenant_id)
+    rows = [r for r in audit_rows("google.agency.used") if str(r[0]) == str(biz.tenant_id)]  # (the audit table is not emptied between tests)
+    assert len(rows) == 1
     meta = json.dumps(rows[0][2])
     assert f"locations/{s.key[0]}" in meta and AGENCY_ACCESS not in meta and AGENCY_EMAIL not in meta
 
