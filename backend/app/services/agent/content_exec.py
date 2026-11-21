@@ -189,7 +189,7 @@ def govern(db: Session, sub: Subject, *, provider=None, now: datetime | None = N
     # ---- read back from Google, separately, and compare
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider)
+        token = get_access_token(db, conn, provider, gloc=gloc)
         ver = sub.verify(provider, token, payload or {})
     except Exception as exc:  # noqa: BLE001 - cannot read Google now: NOT verified, never "assumed fine"
         ver = {"matched": False, "detail": f"Google could not be read to confirm it ({type(exc).__name__}).", "unreadable": True}
@@ -359,7 +359,7 @@ def recover_stuck(db: Session, *, provider=None, now: datetime | None = None, li
                 s = {"post": lambda: post_subject(db, row), "photo": lambda: photo_subject(db, row), "reply": lambda: reply_subject(db, row, by_user=row.approved_by)}[a.subject_type]()
                 gloc = db.get(GoogleLocation, a.google_location_id)
                 conn = db.get(GoogleConnection, gloc.connection_id)
-                ver = s.verify(provider, get_access_token(db, conn, provider), {"name": getattr(row, "google_post_name", None) or getattr(row, "google_media_name", None),
+                ver = s.verify(provider, get_access_token(db, conn, provider, gloc=gloc), {"name": getattr(row, "google_post_name", None) or getattr(row, "google_media_name", None),
                                                                                   "_gloc": (gloc.google_account_name, gloc.google_location_name)})
             except Exception as exc:  # noqa: BLE001
                 log.warning("content recovery could not read Google for %s: %s", aid, exc)

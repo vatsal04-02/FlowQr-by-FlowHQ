@@ -170,7 +170,7 @@ def publish(db: Session, m: ScheduledMedia, *, provider=None, now: datetime | No
     m.attempts += 1
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider)
+        token = get_access_token(db, conn, provider, gloc=gloc)
         created = provider.upload_media_bytes(token, gloc.google_account_name, gloc.google_location_name, m.data, m.content_type, m.category, m.description)
     except Exception as exc:  # noqa: BLE001 - every failure is recorded
         reason, may_retry = describe_failure(exc)
@@ -208,7 +208,7 @@ def check_processing(db: Session, m: ScheduledMedia, *, provider=None) -> bool:
     if not m.google_media_name or conn is None or conn.status != GoogleConnectionStatus.active:
         return False
     provider = provider or g.get_google_provider()
-    item = provider.get_media(get_access_token(db, conn, provider), m.google_media_name)
+    item = provider.get_media(get_access_token(db, conn, provider, gloc=gloc), m.google_media_name)
     m.google_checked_at = utcnow()
     if item.get("google_url"):
         m.google_url = item["google_url"]

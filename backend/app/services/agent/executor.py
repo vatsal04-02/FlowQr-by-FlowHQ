@@ -412,7 +412,7 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
     # ---- read the live profile and re-verify the premises
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider)
+        token = get_access_token(db, conn, provider, gloc=gloc)
         live = provider.get_location_details(token, gloc.google_location_name)
     except Exception as exc:  # noqa: BLE001
         reason, may_retry = describe_failure(exc)
@@ -575,7 +575,7 @@ def recover_stuck(db: Session, *, provider=None, now: datetime | None = None, li
         gloc, conn = _gloc_conn(db, a)
         try:
             provider = provider or g.get_google_provider()
-            actual = pol.field_value(provider.get_location_details(get_access_token(db, conn, provider), gloc.google_location_name), a.field_key)
+            actual = pol.field_value(provider.get_location_details(get_access_token(db, conn, provider, gloc=gloc), gloc.google_location_name), a.field_key)
         except Exception as exc:  # noqa: BLE001
             log.warning("autonomy recovery could not read Google for %s: %s", aid, exc)
             out["deferred"] += 1

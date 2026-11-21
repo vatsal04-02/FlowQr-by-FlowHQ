@@ -41,6 +41,7 @@ import logging
 import secrets
 import uuid
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
@@ -309,15 +310,95 @@ def agency_access_token(account_id: uuid.UUID, provider=None) -> str:
         return ts.access_token
 
 
-def token_for_connection(db: Session, conn: GoogleConnection, provider=None) -> str:
-    """Called by tokens.get_access_token ONLY for agency_account connections. Fails closed when the switch is off."""
+class AgencyResolutionError(g.GoogleAgencyUnavailable):
+    """The agency connection could not be resolved to ONE explicit, active, authorized mapping, so nothing is sent to Google. Handled like any unavailable agency login by every caller (the client's
+    stored connection is NOT changed), but it carries a stable `code` so the cause is visible: it never silently falls back to another tenant, account or location."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+@dataclass(frozen=True)
+class AgencyAccess:
+    """What a resolved agency connection may use: ids only, never a token."""
+    tenant_id: uuid.UUID
+    connection_id: uuid.UUID
+    agency_account_id: uuid.UUID
+    group_name: str | None
+    authorization_ids: tuple[uuid.UUID, ...]
+    location_resource: str | None
+
+
+def _deny(conn: GoogleConnection, code: str, message: str, gloc: GoogleLocation | None = None) -> AgencyResolutionError:
+    """Record WHY a resolution was refused (no token, e-mail, review text or Google content) in a session of its own, so a refusal is kept even if the caller rolls back, and return the error to raise."""
+    try:
+        with _platform() as s:
+            audit(s, action="google.agency.resolution_denied", tenant_id=conn.tenant_id, entity_type="google_connection", entity_id=conn.id,
+                  meta={"code": code, "location": location_resource(gloc) if gloc is not None else None})
+            s.commit()
+    except Exception:  # noqa: BLE001 - the audit write must never turn a refusal into a different failure
+        log.warning("could not record an agency resolution refusal (%s)", code)
+    return AgencyResolutionError(code, message)
+
+
+def resolve_agency_access(db: Session, conn: GoogleConnection, gloc: GoogleLocation | None = None) -> AgencyAccess:
+    """Resolve an agency_account connection to its explicit authorization(s), or refuse with a specific code. Called for EVERY use of the agency login (see tokens.get_access_token).
+
+    With a location (`gloc`) the mapping must be exactly one ACTIVE authorization for that tenant, connection, agency login and Google location, the location must sit under the group the authorization
+    targets, and no other business may hold an open authorization for the same Google location. Without one (a connection-level call) at least one active authorization of this connection must exist and
+    every one of them must belong to this tenant and this agency login. There is no fallback: a missing or ambiguous mapping is a refusal, never another tenant's, account's or location's token.
+    This reads the database only. It does not ask Google (the group membership was verified when the authorization became active, and the periodic verification repeats it)."""
+    if conn.auth_mode != "agency_account":
+        raise _deny(conn, "not_agency_connection", "This connection does not run on the agency login", gloc)
     if not enabled():
         raise g.GoogleAgencyUnavailable("Agency management is switched off")
     if not operations_enabled():
         raise g.GoogleAgencyUnavailable("Agency operations are switched off")  # verified access is not permission to run: nothing is sent to Google on this connection's behalf
     if not conn.agency_account_id:
-        raise g.GoogleAgencyUnavailable("No agency account is recorded for this connection")
-    return agency_access_token(conn.agency_account_id, provider)
+        raise _deny(conn, "no_agency_account", "No agency account is recorded for this connection", gloc)
+    if gloc is not None and (gloc.connection_id != conn.id or gloc.tenant_id != conn.tenant_id):
+        raise _deny(conn, "tenant_mismatch", "That location does not belong to this connection", gloc)
+    with _platform() as s:
+        row = s.get(GoogleAgencyAccount, conn.agency_account_id)
+        group = row.location_group_name if row is not None else None
+        row_ok = row is not None and row.status == "active"
+        others = 0
+        if gloc is not None:
+            others = s.scalar(select(func.count()).select_from(Auth).where(
+                Auth.google_location_resource == location_resource(gloc), Auth.tenant_id != conn.tenant_id, Auth.status.in_(LIVE))) or 0
+    if not row_ok:
+        raise _deny(conn, "agency_account_inactive", "The agency account is not active", gloc)
+    q = select(Auth).where(Auth.connection_id == conn.id, Auth.status == "active")
+    if gloc is not None:
+        q = q.where(Auth.google_location_id == gloc.id)
+    auths = list(db.scalars(q))
+    if not auths:
+        raise _deny(conn, "no_mapping", "No active authorization maps this location to the agency login" if gloc is not None else "No active authorization exists for this connection", gloc)
+    if gloc is not None and len(auths) > 1:
+        raise _deny(conn, "duplicate_mapping", "More than one active authorization exists for this location", gloc)
+    if any(a.tenant_id != conn.tenant_id or a.agency_account_id != conn.agency_account_id for a in auths):
+        raise _deny(conn, "tenant_mismatch", "An authorization does not match this tenant and agency login", gloc)
+    if gloc is not None:
+        a = auths[0]
+        if others:
+            raise _deny(conn, "duplicate_mapping", "Another business also holds an open authorization for this Google location", gloc)
+        if a.target_type == GROUP and (not group or a.target_account_name != group):
+            raise _deny(conn, "group_mismatch", "The location's authorization targets a different Location Group than the agency login's", gloc)
+        resource = location_resource(gloc)
+        if a.google_location_resource and a.google_location_resource != resource:
+            raise _deny(conn, "location_mismatch", "The authorization was recorded for a different Google location", gloc)
+        if not a.agency_account_name or gloc.google_account_name != a.agency_account_name:
+            raise _deny(conn, "location_not_in_group", "The location is not recorded under the account the agency login sees it through", gloc)
+        audit(db, action="google.agency.used", tenant_id=conn.tenant_id, entity_type="google_agency_authorization", entity_id=a.id, meta={"location": resource, "group": bool(group)})
+        return AgencyAccess(conn.tenant_id, conn.id, conn.agency_account_id, group, (a.id,), resource)
+    return AgencyAccess(conn.tenant_id, conn.id, conn.agency_account_id, group, tuple(a.id for a in auths), None)
+
+
+def token_for_connection(db: Session, conn: GoogleConnection, provider=None, gloc: GoogleLocation | None = None) -> str:
+    """Called by tokens.get_access_token ONLY for agency_account connections. Resolves the explicit mapping first (resolve_agency_access: it fails closed), then returns the agency login's token."""
+    access = resolve_agency_access(db, conn, gloc)
+    return agency_access_token(access.agency_account_id, provider)
 
 
 def _agency_email(account_id: uuid.UUID) -> str:

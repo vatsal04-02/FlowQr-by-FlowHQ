@@ -26,7 +26,7 @@ def publish_draft(db: Session, draft: ReplyDraft, *, by_user, provider=None) -> 
     http_status, error, ok = None, None, False
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider)
+        token = get_access_token(db, conn, provider, gloc=gloc)
         reply = provider.reply_to_review(token, gloc.google_account_name, gloc.google_location_name, review.external_id, draft.body) or {}
         http_status = 200
         review.google_reply_state, review.google_reply_policy_violation = reply.get("state"), reply.get("policy_violation")

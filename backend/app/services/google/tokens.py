@@ -17,14 +17,16 @@ def store_tokens(conn: GoogleConnection, *, refresh_token: str | None, access_to
     conn.access_token_expires_at = utcnow() + timedelta(seconds=expires_in)
 
 
-def get_access_token(db: Session, conn: GoogleConnection, provider=None) -> str:
-    """Return a valid access token, refreshing if needed. Marks the connection revoked on invalid_grant."""
+def get_access_token(db: Session, conn: GoogleConnection, provider=None, gloc=None) -> str:
+    """Return a valid access token, refreshing if needed. Marks the connection revoked on invalid_grant.
+
+    `gloc` is the Google location about to be used. An agency-managed connection requires the explicit tenant-to-location mapping for it (agency.resolve_agency_access); pass it wherever the call is for one location."""
     if conn.status in (GoogleConnectionStatus.disconnected, GoogleConnectionStatus.revoked):
         raise g.GoogleAuthRevoked("Connection is not active")
     if conn.auth_mode == "agency_account":  # the client invited a FlowQR agency account as manager (services/google/agency.py); the client's own token is not used
         from app.services.google import agency
 
-        return agency.token_for_connection(db, conn, provider)
+        return agency.token_for_connection(db, conn, provider, gloc)
     cipher = get_cipher()
     if conn.access_token_encrypted and conn.access_token_expires_at and conn.access_token_expires_at > utcnow() + timedelta(seconds=60):
         return cipher.decrypt(conn.access_token_encrypted)

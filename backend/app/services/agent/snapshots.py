@@ -60,7 +60,7 @@ def refresh(db: Session, gloc: GoogleLocation, *, provider=None, today: date | N
         return snap
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider)
+        token = get_access_token(db, conn, provider, gloc=gloc)
     except g.GoogleError as exc:
         snap.error = f"Could not authorise with Google: {exc}"[:400]
         return snap

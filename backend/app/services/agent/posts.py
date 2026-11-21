@@ -344,7 +344,7 @@ def publish(db: Session, post: ScheduledPost, *, provider=None, now: datetime | 
     db.commit()  # the atomic claim: durable before any external call
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider)
+        token = get_access_token(db, conn, provider, gloc=gloc)
         if earlier_attempt:
             existing = find_on_google(db, post, provider.list_posts(token, gloc.google_account_name, gloc.google_location_name))
             if existing:
@@ -397,7 +397,7 @@ def recover_stuck(db: Session, *, provider=None, now: datetime | None = None, li
             continue
         try:
             provider = provider or g.get_google_provider()
-            token = get_access_token(db, conn, provider)
+            token = get_access_token(db, conn, provider, gloc=gloc)
             found = find_on_google(db, post, provider.list_posts(token, gloc.google_account_name, gloc.google_location_name))
         except Exception as exc:  # noqa: BLE001 - cannot ask Google now: leave it, try again later
             log.warning("recover_stuck: could not read Google for post %s: %s", pid, exc)

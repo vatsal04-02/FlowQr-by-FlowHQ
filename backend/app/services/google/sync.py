@@ -120,7 +120,7 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
     db.commit()
     since = (gloc.last_synced_at - timedelta(days=1)) if gloc.last_synced_at else None
     try:
-        token = get_access_token(db, conn, provider)
+        token = get_access_token(db, conn, provider, gloc=gloc)
         page_token = None
         for _ in range(MAX_PAGES):
             page = with_backoff(lambda: provider.list_reviews(token, gloc.google_account_name, gloc.google_location_name, page_token), sleep=sleep)
@@ -144,10 +144,13 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
         note_api_access(db.get(GoogleConnection, gloc.connection_id), "awaiting_approval")
         _fail(gloc, "awaiting_approval", "Awaiting Google Business Profile API approval; will re-check automatically.", 6 * 3600)
         result["status"] = "awaiting_approval"
-    except g.GoogleAuthRevoked:
+    except g.GoogleAuthRevoked as exc:
         db.rollback()
         gloc = db.get(GoogleLocation, gloc.id)
-        gloc.last_sync_status, gloc.last_sync_error = "error", "Google access revoked. Reconnect your Google account."
+        code = getattr(exc, "code", None) if isinstance(exc, g.GoogleAgencyUnavailable) else None
+        gloc.last_sync_status = "error"
+        gloc.last_sync_error = (f"FlowQR could not confirm its access to this profile ({code}). Nothing was sent to Google and nothing was changed." if code
+                                else "Google access revoked. Reconnect your Google account.")
         result["status"] = "revoked"
     except g.GoogleRateLimited as exc:
         db.rollback()
