@@ -38,3 +38,9 @@ The 30-day limit above is a stated condition for any content "provided through t
 | Whether FlowQR's review storage meets the 30-day text | **Not established**; the text, read literally, does not allow it |
 | Whether AI use of review data is allowed | **Not established** (page silent) |
 | Agency API reads of one client location, read-only | Worked on 2026-11-21 (see the migration runbook). That is evidence the API answers, **not** approval |
+
+## Update, same day (second pass)
+
+* **Retention mechanism now exists** (migration 0064, off by default): `GOOGLE_RETENTION_ARCHITECTURE.md`. It is the mechanism, not a compliance claim; the 30-day text is still unanswered for FlowQR's service (R-1).
+* **The exact questions and the channel are written down** in `GOOGLE_QUESTIONS_TO_SUBMIT.md`. Nothing has been sent, so there is no reference to record and agency operations stay off.
+* **Statuses:** agency operations BLOCKED (no written answer); retention mechanism IMPLEMENTED and TESTED, not ENABLED; Google policy compliance NOT established.

@@ -43,6 +43,8 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 
 `GEMINI_DATA_TERMS_VERIFIED` (**false**: review data is not sent to Gemini until the owner has written evidence of the key's data-use terms), `AI_REVIEW_DATA_KILL_SWITCH` (false; true stops review data going to any provider), `PRIVACY_RETENTION_ENABLED` (**false**; the provisional retention job is off until true), `SESSION_RETENTION_DAYS` (30), `PASSWORD_RESET_TOKEN_RETENTION_DAYS` (30), `AUDIT_IP_RETENTION_DAYS` (365), `LEAD_RETENTION_DAYS` (365), `USER_DELETION_CONFIRM_HOURS` (24), `REAUTH_WINDOW_MINUTES` (15) (see `docs/PRIVACY_COMPLIANCE_AUDIT.md` §8-§9), `AI_PROVIDER` (`gemini` default), `GEMINI_API_KEY` (**S**), `GEMINI_MODEL`, `OPENROUTER_*`, `OPENAI_COMPAT_*` (**S** keys), `AI_TIMEOUT_SECONDS`, `AI_REVIEW_RISK_CHECK`, `REVIEW_*`.
 
+`GOOGLE_CONTENT_RETENTION_ENABLED` (**false**), `GOOGLE_CONTENT_RETENTION_DAYS` (30; must be 1 to 30 while enabled), `GOOGLE_CONTENT_RETENTION_ACTION` (`redact` or `delete`), `GOOGLE_CONTENT_DELETE_ON_DISCONNECT` (**false**): expiry of content taken from the Google Business Profile APIs (`services/google_retention.py`, `docs/audits/GOOGLE_RETENTION_ARCHITECTURE.md`). **Off: deploying the code deletes nothing.** Not in the VPS overlay, so it cannot reach the app until added there on purpose. Turn on only after Google's written answer (`docs/audits/GOOGLE_QUESTIONS_TO_SUBMIT.md`); run `python -m app.cli google-retention-report` first.
+
 ## Money: plans, prices, budgets (Phase 2)
 
 | Variable | Default | Notes |
