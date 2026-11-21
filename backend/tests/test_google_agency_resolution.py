@@ -216,3 +216,24 @@ def test_the_audit_trail_for_a_refusal_survives_the_callers_rollback(gfake):
             agency.resolve_agency_access(db, db.get(GoogleConnection, s.conn_id), db.get(GoogleLocation, s.gids[0]))
         db.rollback()
     assert [r for r in audit_rows("google.agency.resolution_denied") if str(r[0]) == str(biz.tenant_id)]
+
+
+# ------------------------------------------------------------------ the compliance gate
+def test_in_production_agency_operations_stay_off_without_a_recorded_policy_reference(gfake, monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "google_agency_policy_reference", "")
+    assert agency.operations_enabled() is False  # even with both switches on
+    with closing(system_session()) as db:
+        any_conn = db.scalar(select(GoogleConnection).limit(1))
+        if any_conn is not None and any_conn.auth_mode == "agency_account":
+            with pytest.raises(g.GoogleAgencyUnavailable):
+                agency.token_for_connection(db, any_conn, gfake)
+    monkeypatch.setattr(settings, "google_agency_policy_reference", "case-recorded-by-a-person")
+    assert agency.operations_enabled() is True
+    monkeypatch.setattr(settings, "google_agency_operations_enabled", False)
+    assert agency.operations_enabled() is False
+
+
+def test_by_default_nothing_is_switched_on():
+    fresh = type(settings)(_env_file=None)
+    assert fresh.google_agency_manager_enabled is False and fresh.google_agency_operations_enabled is False and fresh.google_agency_policy_reference == ""

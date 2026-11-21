@@ -133,7 +133,11 @@ def enabled() -> bool:
 def operations_enabled() -> bool:
     """May an agency-managed connection ACT (sync, replies, posts, edits), and may onboarding switch to the agency login and revoke the client's token? Off by default and, in production, refused
     without GOOGLE_AGENCY_POLICY_REFERENCE: Google's published restriction on shared-project, multi-business access is not resolved by an invitation being accepted."""
-    return enabled() and bool(settings.google_agency_operations_enabled)
+    if not (enabled() and settings.google_agency_operations_enabled):
+        return False
+    if settings.is_production and not settings.google_agency_policy_reference.strip():
+        return False  # defence in depth: the start-up guard refuses this combination, and the run-time answer is no as well
+    return True
 
 
 def add_business_days(start: datetime, n: int) -> datetime:
