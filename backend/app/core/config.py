@@ -115,6 +115,7 @@ class Settings(BaseSettings):
     google_agency_visibility_wait_hours: int = 48  # how long to wait for a location to show up for the agency account after it accepted, before asking a person to look
     google_agency_location_group_id: str = ""  # GOOGLE_AGENCY_LOCATION_GROUP_ID: the FlowQR Location Group clients invite as Manager, as its API RESOURCE NAME, e.g. `accounts/114863040359228435467` (the value accounts.list returns as `name`). NOT the short accountNumber (`5488245563`) that Business Profile Manager shows: the API does not know it. The default for `google-agency-register`; each agency login records its own.
     google_agency_operations_enabled: bool = False  # GOOGLE_AGENCY_OPERATIONS_ENABLED: lets an agency-managed connection ACT (sync, replies, posts, edits) and lets onboarding switch to the agency login and revoke the client's token. OFF: onboarding stops at "access verified" and nothing runs.
+    google_agency_project_model: str = ""  # GOOGLE_AGENCY_PROJECT_MODEL: which Google API project the agency path may use. Empty = undecided (the agency path stays off in production). Only `flowhq_own_project` exists: FlowHQ's own approved project, used by FlowHQ's own agency login and never handed to another agency or client. Set it only after Google answers in writing (docs/audits/GOOGLE_PROJECT_ARCHITECTURE_OPTIONS.md)
     google_agency_policy_reference: str = ""  # GOOGLE_AGENCY_POLICY_REFERENCE: where Google's written answer about shared-project, multi-business use is recorded (a case id or document). The operations switch is refused without it in production.
     google_agency_poll_minutes: int = 60  # the longest pause between two looks at a pending invitation (the pauses grow to this; Google offers no notification, so this is polling and kept conservative)
     google_agency_withdrawn_after_minutes: int = 30  # an invitation is only called withdrawn after it has been absent from every list for this long (a new invitation can take a moment to appear)
@@ -474,6 +475,10 @@ def config_problems(s: Settings) -> list[str]:
             p.append("GOOGLE_AGENCY_LOCATION_GROUP_ID must be a numeric account id: the API resource name accounts/114863040359228435467 as accounts.list returns it (not the short accountNumber that Business Profile Manager shows)")
         if s.google_agency_organization_id and not re.fullmatch(r"(accounts/)?[0-9]+", s.google_agency_organization_id.strip()):
             p.append("GOOGLE_AGENCY_ORGANIZATION_ID must be a numeric account id: the API resource name accounts/110178313486978980497 as accounts.list returns it (not the short accountNumber)")
+        if s.google_agency_project_model not in ("", "flowhq_own_project"):
+            p.append("GOOGLE_AGENCY_PROJECT_MODEL must be empty or flowhq_own_project: no other project model is supported (a client-owned or borrowed project is not a compliant substitute)")
+        if s.google_agency_operations_enabled and s.google_agency_project_model != "flowhq_own_project":
+            p.append("GOOGLE_AGENCY_OPERATIONS_ENABLED needs GOOGLE_AGENCY_PROJECT_MODEL=flowhq_own_project: the permitted Google project model must be decided first, never assumed")
         if s.google_agency_operations_enabled and not s.google_agency_policy_reference.strip():
             p.append("GOOGLE_AGENCY_OPERATIONS_ENABLED needs GOOGLE_AGENCY_POLICY_REFERENCE: Google's published restriction on shared-project, multi-business use must be answered in writing first, and the answer recorded")
         if s.google_agency_organization_id and s.google_agency_location_group_id and s.google_agency_organization_id.strip().removeprefix("accounts/") == s.google_agency_location_group_id.strip().removeprefix("accounts/"):

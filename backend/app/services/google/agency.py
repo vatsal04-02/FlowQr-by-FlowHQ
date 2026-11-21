@@ -135,8 +135,8 @@ def operations_enabled() -> bool:
     without GOOGLE_AGENCY_POLICY_REFERENCE: Google's published restriction on shared-project, multi-business access is not resolved by an invitation being accepted."""
     if not (enabled() and settings.google_agency_operations_enabled):
         return False
-    if settings.is_production and not settings.google_agency_policy_reference.strip():
-        return False  # defence in depth: the start-up guard refuses this combination, and the run-time answer is no as well
+    if settings.is_production and (not settings.google_agency_policy_reference.strip() or settings.google_agency_project_model != "flowhq_own_project"):
+        return False  # defence in depth: the start-up guard refuses this combination, and the run-time answer is no as well. No project model decided = no agency token is used
     return True
 
 
@@ -394,7 +394,8 @@ def resolve_agency_access(db: Session, conn: GoogleConnection, gloc: GoogleLocat
             raise _deny(conn, "location_mismatch", "The authorization was recorded for a different Google location", gloc)
         if not a.agency_account_name or gloc.google_account_name != a.agency_account_name:
             raise _deny(conn, "location_not_in_group", "The location is not recorded under the account the agency login sees it through", gloc)
-        audit(db, action="google.agency.used", tenant_id=conn.tenant_id, entity_type="google_agency_authorization", entity_id=a.id, meta={"location": resource, "group": bool(group)})
+        audit(db, action="google.agency.used", tenant_id=conn.tenant_id, entity_type="google_agency_authorization", entity_id=a.id,
+              meta={"location": resource, "group": bool(group), "project": settings.google_agency_project_model or "undecided"})
         return AgencyAccess(conn.tenant_id, conn.id, conn.agency_account_id, group, (a.id,), resource)
     return AgencyAccess(conn.tenant_id, conn.id, conn.agency_account_id, group, tuple(a.id for a in auths), None)
 

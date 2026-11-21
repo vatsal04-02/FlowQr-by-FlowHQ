@@ -225,6 +225,7 @@ def main() -> None:
     sub.add_parser("privacy-retention-report", help="COUNT what the provisional privacy retention job would remove (ended sessions, reset tokens, audit-log IPs, demo leads). Deletes nothing.")
     sub.add_parser("google-retention-report", help="COUNT what the Google-content retention job would expire (reviews, snapshots, metrics, drafts, AI outputs, agent tasks). Changes nothing. --days-ahead N counts what would expire N days from now.")
     sub.choices["google-retention-report"].add_argument("--days-ahead", type=int, default=0)
+    sub.add_parser("google-agency-activation-check", help="READ-ONLY readiness check for switching the agency path on: every precondition is its own PASS/BLOCK line, with who has to act (config, Google, data). Changes nothing.")
     sub.add_parser("google-agency-auth-url", help="print the Google sign-in URL a PERSON opens while signed in to a FlowQR AGENCY Google account (the only live step of registering one)")
     ar = sub.add_parser("google-agency-register", help="store an agency Google login from the authorization code that sign-in produced (tokens are encrypted with AGENCY_TOKEN_ENCRYPTION_KEY, never printed)")
     ar.add_argument("--label", required=True, help="a name for this agency account, e.g. agency-1")
@@ -268,6 +269,20 @@ def main() -> None:
             db.close()
         print(f"DRY RUN: nothing was changed. Would remove: {out['counts']}; errors: {out['errors'] or 'none'}")
         sys.exit(1 if out["errors"] else 0)
+    if args.cmd == "google-agency-activation-check":
+        from app.core.db import system_session
+        from app.services.google import agency_activation
+
+        db = system_session()
+        try:
+            items = agency_activation.lines(db)
+        finally:
+            db.close()
+        for i in items:
+            print(f"[{i.status}] {i.name.ljust(26)} {('(' + i.who + ') ') if i.who != '-' else ''}{i.detail}")
+        ok = agency_activation.ready(items)
+        print(("\n" + "AGENCY PATH READY: every precondition is met.") if ok else ("\n" + "AGENCY PATH NOT READY: " + str(sum(1 for i in items if i.status == "BLOCK")) + " precondition(s) are not met (nothing was changed)."))
+        sys.exit(0 if ok else 1)
     if args.cmd == "google-retention-report":
         from app.core.db import system_session
         from app.services import google_retention
