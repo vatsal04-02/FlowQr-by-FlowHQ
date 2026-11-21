@@ -482,6 +482,18 @@ def privacy_retention():
         db.close()
 
 
+@celery_app.task(name="flowqr.google_content_retention")
+def google_content_retention():
+    """Daily: expire content taken from the Google Business Profile APIs past GOOGLE_CONTENT_RETENTION_DAYS (services/google_retention.py). Does nothing at all unless GOOGLE_CONTENT_RETENTION_ENABLED=true."""
+    from app.services import google_retention
+
+    db = system_session()
+    try:
+        return google_retention.run(db)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="flowqr.autonomy_retention")
 def autonomy_retention():
     """Daily: erase finished autonomy records and old map scans past their retention period (docs/DATA_RETENTION.md). Whole records only, counted in the audit log."""

@@ -209,6 +209,12 @@ class Settings(BaseSettings):
     password_reset_token_retention_days: int = 30  # password-reset tokens, whether used or not (they stop working after minutes; this removes the rows)
     audit_ip_retention_days: int = 365  # only the IP address is removed from an audit entry; the entry itself stays
     lead_retention_days: int = 365  # demo requests from the marketing site
+    # Content taken from the Google Business Profile APIs (services/google_retention.py, docs/audits/GOOGLE_RETENTION_ARCHITECTURE.md). Google's API policy text says such content may be stored for
+    # "no more than 30 calendar days"; whether and how that applies to FlowQR is not settled by a written Google answer, so the job is OFF and deletes nothing until a person sets it.
+    google_content_retention_enabled: bool = False  # GOOGLE_CONTENT_RETENTION_ENABLED
+    google_content_retention_days: int = 30  # GOOGLE_CONTENT_RETENTION_DAYS: age is the last re-fetch from Google, not the review's own date
+    google_content_retention_action: str = "redact"  # GOOGLE_CONTENT_RETENTION_ACTION: redact (clear text, names, reply copy; keep rating, dates, ids) | delete (remove the review rows)
+    google_content_delete_on_disconnect: bool = False  # GOOGLE_CONTENT_DELETE_ON_DISCONNECT: disconnecting a Google connection also removes everything taken from Google for it (today it is kept as history)
     # AI safeguard (docs/PRIVACY_COMPLIANCE_AUDIT.md, finding 26e). Review text and customers' typed words are personal data. Gemini's data-use terms for this project's key have NOT been
     # confirmed, so review data is not sent to Gemini unless GEMINI_DATA_TERMS_VERIFIED=true (set only after the owner has the evidence). AI_REVIEW_DATA_KILL_SWITCH=true stops review data
     # going to ANY provider, at once. Neither setting changes AI that works only from the owner's own business facts (posts, ideas).
@@ -609,6 +615,10 @@ def config_problems(s: Settings) -> list[str]:
         if cd and base and (base == cd or base.endswith("." + cd)) and not s.sites_accept_shared_cookie_scope:
             p.append(f"SITES_BASE_DOMAIN '{base}' is inside COOKIE_DOMAIN '{s.cookie_domain}': the session and CSRF cookies are sent to every business website. Use a separate registrable domain, or set "
                      "SITES_ACCEPT_SHARED_COOKIE_SCOPE=true only after reading docs/WEBSITE_BUILDER.md (section Cookie and origin isolation): the sites ship no JavaScript and the Worker never reads or sets cookies")
+    if s.google_content_retention_action not in ("redact", "delete"):
+        p.append("GOOGLE_CONTENT_RETENTION_ACTION must be redact or delete")
+    if s.google_content_retention_enabled and not 1 <= s.google_content_retention_days <= 30:
+        p.append("GOOGLE_CONTENT_RETENTION_DAYS must be between 1 and 30 while GOOGLE_CONTENT_RETENTION_ENABLED is on (Google's published storage limit is 30 calendar days)")
     return p
 
 

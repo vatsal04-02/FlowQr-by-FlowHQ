@@ -293,7 +293,11 @@ def disconnect(connection_id: uuid.UUID, request: Request, ctx: TenantContext = 
     conn.status = GoogleConnectionStatus.disconnected
     conn.disconnected_at = utcnow()
     for gl in ctx.db.scalars(select(GoogleLocation).where(GoogleLocation.connection_id == conn.id)):
-        gl.selected = False  # stop syncing; synced reviews are kept as history
+        gl.selected = False  # stop syncing; synced reviews are kept as history (unless GOOGLE_CONTENT_DELETE_ON_DISCONNECT)
+    if settings.google_content_delete_on_disconnect:
+        from app.services import google_retention
+
+        google_retention.purge_connection(ctx.db, conn.id, tenant_id=ctx.tenant_id)
     audit(ctx.db, action="google.disconnect", tenant_id=ctx.tenant_id, user_id=ctx.user.id,
           entity_type="google_connection", entity_id=conn.id, ip=client_ip(request))
     ctx.db.commit()

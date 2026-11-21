@@ -32,7 +32,8 @@ celery_app.conf.update(
         "autonomy-housekeeping": {"task": "flowqr.autonomy_housekeeping", "schedule": 300.0},
         "autonomy-followups": {"task": "flowqr.autonomy_followups", "schedule": 3600.0},
         "autonomy-retention": {"task": "flowqr.autonomy_retention", "schedule": 86400.0},
-        "privacy-retention": {"task": "flowqr.privacy_retention", "schedule": 86400.0},  # does nothing unless PRIVACY_RETENTION_ENABLED=true
+        "privacy-retention": {"task": "flowqr.privacy_retention", "schedule": 86400.0},
+        "google-content-retention": {"task": "flowqr.google_content_retention", "schedule": 86400.0},  # does nothing unless GOOGLE_CONTENT_RETENTION_ENABLED=true  # does nothing unless PRIVACY_RETENTION_ENABLED=true
         "autonomy-scan": {"task": "flowqr.autonomy_scan", "schedule": 21600.0},
         "daily-agent": {"task": "flowqr.daily_agent", "schedule": 1800.0},
         "purge-deleted-accounts": {"task": "flowqr.purge_deleted_accounts", "schedule": 3600.0},

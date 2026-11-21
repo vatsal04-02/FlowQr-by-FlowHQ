@@ -92,6 +92,7 @@ class GoogleLocation(IdMixin, TimestampMixin, Base):
     review_url: Mapped[str | None] = mapped_column(String(1000))
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_full_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the last sync that read the WHOLE review list (refreshes every review's fetch time)
     last_sync_status: Mapped[str | None] = mapped_column(String(24))  # ok | error | rate_limited | running
     last_sync_error: Mapped[str | None] = mapped_column(Text)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
@@ -202,6 +203,9 @@ class Review(IdMixin, TimestampMixin, Base):
     # A REJECTED reply is not public, so google_reply_text stays NULL for it.
     google_reply_state: Mapped[str | None] = mapped_column(String(16))
     google_reply_policy_violation: Mapped[str | None] = mapped_column(String(64))
+    # Retention of Google content (services/google_retention.py): the last time Google returned this review, and when its text was cleared by the retention job.
+    google_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    google_content_expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     drafts: Mapped[list["ReplyDraft"]] = relationship(back_populates="review", order_by="ReplyDraft.created_at")
 

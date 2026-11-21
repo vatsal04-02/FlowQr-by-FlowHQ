@@ -223,6 +223,7 @@ def main() -> None:
     r = sub.add_parser("google-readiness", help="Milestone 2: reads and validateOnly patches on ONE designated test profile (never writes)")
     readiness.add_arguments(r)
     sub.add_parser("privacy-retention-report", help="COUNT what the provisional privacy retention job would remove (ended sessions, reset tokens, audit-log IPs, demo leads). Deletes nothing.")
+    sub.add_parser("google-retention-report", help="COUNT what the Google-content retention job would expire (reviews, snapshots, metrics, drafts, agent tasks). Changes nothing.")
     sub.add_parser("google-agency-auth-url", help="print the Google sign-in URL a PERSON opens while signed in to a FlowQR AGENCY Google account (the only live step of registering one)")
     ar = sub.add_parser("google-agency-register", help="store an agency Google login from the authorization code that sign-in produced (tokens are encrypted with AGENCY_TOKEN_ENCRYPTION_KEY, never printed)")
     ar.add_argument("--label", required=True, help="a name for this agency account, e.g. agency-1")
@@ -265,6 +266,17 @@ def main() -> None:
         finally:
             db.close()
         print(f"DRY RUN: nothing was changed. Would remove: {out['counts']}; errors: {out['errors'] or 'none'}")
+        sys.exit(1 if out["errors"] else 0)
+    if args.cmd == "google-retention-report":
+        from app.core.db import system_session
+        from app.services import google_retention
+
+        db = system_session()
+        try:
+            out = google_retention.run(db, dry_run=True)
+        finally:
+            db.close()
+        print(f"DRY RUN: nothing was changed. Would expire: {out['counts']}; errors: {out['errors'] or 'none'}")
         sys.exit(1 if out["errors"] else 0)
     if args.cmd in ("google-agency-auth-url", "google-agency-register", "google-agency-status", "google-agency-check", "google-agency-rollback"):
         sys.exit(_agency_cli(args))

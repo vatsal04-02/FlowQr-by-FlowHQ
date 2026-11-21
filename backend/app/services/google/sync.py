@@ -56,19 +56,23 @@ def upsert_review(db: Session, gloc: GoogleLocation, gr: g.provider.GReview) -> 
         rv = Review(
             tenant_id=gloc.tenant_id, location_id=gloc.location_id, google_location_id=gloc.id, external_id=gr.external_id,
             rating=gr.rating, text=gr.text, reviewer_name=gr.reviewer_name, review_created_at=created,
-            review_updated_at=updated, first_seen_at=utcnow(), google_reply_text=gr.reply_text, google_reply_at=reply_at,
+            review_updated_at=updated, first_seen_at=utcnow(), google_fetched_at=utcnow(), google_reply_text=gr.reply_text, google_reply_at=reply_at,
             google_reply_state=reply_state, google_reply_policy_violation=violation,
         )
         db.add(rv)
         db.flush()
         _reconcile_drafts(db, rv, rejected_text)
         return "new"
-    changed = (existing.rating != gr.rating or existing.text != gr.text or existing.reviewer_name != gr.reviewer_name
+    existing.google_fetched_at = utcnow()  # Google returned it just now: this is what the retention clock counts from
+    refilled = existing.google_content_expired_at is not None  # its text was cleared by the retention job and Google still has it: fill it in again (not an edit by the customer)
+    if refilled:
+        existing.google_content_expired_at = None
+    changed = refilled or (existing.rating != gr.rating or existing.text != gr.text or existing.reviewer_name != gr.reviewer_name
                or existing.google_reply_text != gr.reply_text or existing.location_id != gloc.location_id
                or existing.google_reply_state != reply_state or existing.google_reply_policy_violation != violation)
     if not changed:
         return "unchanged"
-    content_changed = existing.rating != gr.rating or existing.text != gr.text
+    content_changed = not refilled and (existing.rating != gr.rating or existing.text != gr.text)
     existing.rating, existing.text, existing.reviewer_name = gr.rating, gr.text, gr.reviewer_name
     existing.review_updated_at = updated
     existing.google_reply_text, existing.google_reply_at = gr.reply_text, reply_at
@@ -119,6 +123,8 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
     gloc.last_sync_status = "running"
     db.commit()
     since = (gloc.last_synced_at - timedelta(days=1)) if gloc.last_synced_at else None
+    if settings.google_content_retention_enabled and since is not None and (gloc.last_full_synced_at is None or gloc.last_full_synced_at < utcnow() - timedelta(days=max(1, settings.google_content_retention_days // 2))):
+        since = None  # read the whole list this time, so every review Google still has is re-fetched well inside the retention period
     try:
         token = get_access_token(db, conn, provider, gloc=gloc)
         page_token = None
@@ -135,6 +141,8 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
             if stop or not page_token:
                 break
         gloc.last_synced_at = utcnow()
+        if since is None:
+            gloc.last_full_synced_at = gloc.last_synced_at
         gloc.last_sync_status, gloc.last_sync_error = "ok", None
         gloc.consecutive_failures, gloc.next_sync_after = 0, None
         note_api_access(conn, "approved")
