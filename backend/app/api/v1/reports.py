@@ -159,4 +159,4 @@ def export_csv(name: str, request: Request, start: date | None = Query(None, ali
             w.writerow([_cell(v) for v in (x.created_at, x.kind, x.status, x.provider, x.model, x.input_chars, x.output_chars, x.latency_ms, x.error)])
     audit(db, action="report.csv", tenant_id=t, user_id=ctx.user.id, entity_type="report", meta={"name": name}, ip=client_ip(request))
     db.commit()
-    return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="flowqr-{name}.csv"', "Cache-Control": "private, no-store"})
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="flowqr-{name}.csv"', "Cache-Control": "private, no-store"})

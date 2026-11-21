@@ -129,7 +129,7 @@ def inventory_csv(batch_id: uuid.UUID, request: Request, ctx: AuthContext = Depe
         w.writerow([c.card_code, batch.name, c.status.value, card_qr_url(c), nfc, len(nfc.encode()), c.created_at.date().isoformat()])
     audit(ctx.db, action="admin.batch_inventory_csv", user_id=ctx.user.id, entity_type="batch", entity_id=batch.id, ip=client_ip(request))
     ctx.db.commit()
-    return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{batch.prefix}-inventory-{batch.id.hex[:8]}.csv"', "Cache-Control": "private, no-store"})
 
 

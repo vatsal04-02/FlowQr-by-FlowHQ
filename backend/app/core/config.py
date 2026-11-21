@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     sites_enabled: bool = False  # SITES_ENABLED
     sites_base_domain: str = "sites.localhost"  # SITES_BASE_DOMAIN: business sites are <slug>.<this>. Production: flowqr.site (see the cookie-scope rule below) or a separate registrable domain
     sites_provider: str = "local"  # SITES_PROVIDER: local (development and tests only) | cloudflare
-    sites_local_dir: str = "/tmp/flowqr-sites"  # SITES_LOCAL_DIR: where the local provider writes
+    sites_local_dir: str = "/tmp/flowqr-sites"  # nosec B108 - development/test default of the LOCAL provider only: config_problems requires SITES_PROVIDER=cloudflare in production. # SITES_LOCAL_DIR: where the local provider writes
     sites_service_token: str = ""  # SITES_SERVICE_TOKEN: shared secret between the hosting Worker and the enquiry endpoint (at least 32 characters)
     sites_accept_shared_cookie_scope: bool = False  # SITES_ACCEPT_SHARED_COOKIE_SCOPE: see check_production
     sites_grace_days: int = 14  # SITES_GRACE_DAYS: how long an expired site stays up before it is suspended (its content is never deleted by a lapse)

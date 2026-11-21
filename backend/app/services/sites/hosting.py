@@ -30,6 +30,7 @@ from app.core.config import settings
 from app.services.sites import render
 
 log = logging.getLogger("flowqr.sites.hosting")
+MAX_LIST_XML_BYTES = 5 * 1024 * 1024  # an R2 object listing answer is far smaller than this
 
 # The Content-Security-Policy every business website is served with. Pages ship no JavaScript, so scripts are refused outright; styles and images come only from the site itself; the one form
 # posts back to the site itself. The Worker sends exactly this (tests/test_sites_hosting.py compares the two so they cannot drift apart).
@@ -248,7 +249,9 @@ class CloudflareProvider(HostingProvider):
             r = self._r2("GET", query=q)
             if r.status_code != 200:
                 raise HostingError("provider_error", f"R2 list failed (HTTP {r.status_code}).", True)
-            root = ET.fromstring(r.content)
+            if len(r.content) > MAX_LIST_XML_BYTES:  # a listing is a few KB; refuse an oversized body before parsing it (a hostile or broken provider cannot make this parser work hard)
+                raise HostingError("provider_error", "R2 returned an unexpectedly large listing.", True)
+            root = ET.fromstring(r.content)  # nosec B314 - the body comes from Cloudflare R2 over TLS in answer to our own signed request, is size-capped above, and Python's bundled expat limits entity expansion
             ns = {"s": root.tag.split("}")[0].strip("{")} if "}" in root.tag else {}
             find = (lambda t: root.findall(f"s:{t}", ns)) if ns else (lambda t: root.findall(t))
             keys += [k.text for c in find("Contents") for k in (c.find("s:Key", ns) if ns else c.find("Key"),) if k is not None and k.text]
@@ -264,7 +267,7 @@ class CloudflareProvider(HostingProvider):
             if r.status_code not in (200, 201):
                 raise HostingError("upload_failed", f"R2 rejected an upload (HTTP {r.status_code}).", retryable=r.status_code >= 500)
             etag = (r.headers.get("etag") or "").strip('"')
-            if etag and etag != hashlib.md5(data).hexdigest():  # noqa: S324 - an integrity check against R2's own ETag, not security
+            if etag and etag != hashlib.md5(data, usedforsecurity=False).hexdigest():  # an integrity check against R2's own ETag, not a security use
                 raise HostingError("upload_corrupt", "R2 stored an upload that does not match what was sent.", retryable=True)
             total += len(data)
         try:

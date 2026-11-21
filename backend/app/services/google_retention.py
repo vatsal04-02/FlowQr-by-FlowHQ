@@ -88,13 +88,15 @@ def drafts_step(db: Session, now: datetime, dry_run: bool) -> int:
     return db.execute(delete(ReplyDraft).where(cond)).rowcount or 0
 
 
-_TASK_WHERE = "kind = 'reply_review' AND created_at < :cut AND (evidence ? 'reviewer' OR evidence ? 'snippet' OR title LIKE '% from %')"
+_TASKS_COUNT = text("SELECT count(*) FROM agent_tasks WHERE kind = 'reply_review' AND created_at < :cut AND (evidence ? 'reviewer' OR evidence ? 'snippet' OR title LIKE '% from %')")
+_TASKS_SCRUB = text("UPDATE agent_tasks SET evidence = (evidence - 'reviewer') - 'snippet', title = regexp_replace(title, ' from .*$', '') "
+                    "WHERE kind = 'reply_review' AND created_at < :cut AND (evidence ? 'reviewer' OR evidence ? 'snippet' OR title LIKE '% from %')")
 
 
 def agent_tasks_step(db: Session, now: datetime, dry_run: bool) -> int:
     if dry_run:
-        return db.execute(text(f"SELECT count(*) FROM agent_tasks WHERE {_TASK_WHERE}"), {"cut": _cut(now)}).scalar() or 0
-    return db.execute(text(f"UPDATE agent_tasks SET evidence = (evidence - 'reviewer') - 'snippet', title = regexp_replace(title, ' from .*$', '') WHERE {_TASK_WHERE}"), {"cut": _cut(now)}).rowcount or 0
+        return db.execute(_TASKS_COUNT, {"cut": _cut(now)}).scalar() or 0
+    return db.execute(_TASKS_SCRUB, {"cut": _cut(now)}).rowcount or 0
 
 
 STEPS = (("reviews", reviews_step), ("snapshots", snapshots_step), ("metrics", metrics_step), ("drafts", drafts_step), ("agent_tasks", agent_tasks_step))

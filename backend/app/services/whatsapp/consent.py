@@ -53,7 +53,7 @@ def _tags(tags) -> list[str]:
 
 
 def _name(name: str | None) -> str | None:
-    n = re.sub(r"[\x00-\x1f​-‏‪-‮⁦-⁩]", "", (name or "")).strip()[:120]
+    n = re.sub(r"[\x00-\x1f\u200b-\u200f\u202a-\u202e\u2066-\u2069]", "", (name or "")).strip()[:120]
     return n or None
 
 
@@ -411,7 +411,7 @@ def import_csv(db: Session, tenant: Tenant, user_id: uuid.UUID, text_csv: str, *
         raise WaError(422, "invalid_purpose", "Choose what they agreed to: offers, updates about a visit, or both.")
     if len(text_csv.encode("utf-8", "ignore")) > MAX_IMPORT_BYTES:
         raise WaError(413, "file_too_large", "That file is too large. Split it into smaller files.")
-    rows = list(csv.reader(io.StringIO(text_csv.lstrip("﻿"))))
+    rows = list(csv.reader(io.StringIO(text_csv.lstrip("\ufeff"))))
     if not rows:
         raise WaError(422, "empty_file", "The file is empty.")
     header = [h.strip().lower() for h in rows[0]]

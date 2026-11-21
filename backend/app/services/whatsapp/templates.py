@@ -105,7 +105,7 @@ def valid_body(body: str) -> bool:
 
 def clean_variable(v) -> str:
     """A template variable is short, single-line, printable text (Meta rejects newlines, tabs and long runs of spaces)."""
-    t = re.sub(r"[\x00-\x1f  ​-‏‪-‮⁦-⁩]", " ", str(v if v is not None else ""))
+    t = re.sub(r"[\x00-\x1f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069]", " ", str(v if v is not None else ""))
     return re.sub(r" {2,}", " ", t).strip()[:MAX_VAR_LEN]
 
 

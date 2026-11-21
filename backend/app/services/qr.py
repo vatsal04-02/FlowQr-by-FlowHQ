@@ -26,7 +26,8 @@ def card_nfc_url(public_token: str) -> str:
 
 
 _TEMPORARY_HOST_PARTS = (
-    "localhost", "127.", "0.0.0.0", "::1", ".local", ".localhost", ".internal", ".lan", "ngrok", "trycloudflare.com", "loca.lt", "localtunnel",
+    "localhost", "127.", "0.0.0.0", "::1", ".local", ".localhost",  # nosec B104 - host names a public card address must not use; nothing here binds a socket
+    ".internal", ".lan", "ngrok", "trycloudflare.com", "loca.lt", "localtunnel",
     "serveo", "tunnelmole", "lhr.life", "pinggy", "ts.net", "devtunnels", "nip.io", "sslip.io", "cloudflareaccess",
 )
 

@@ -34,7 +34,7 @@ from app.services.sites import content as CT
 from app.services.sites import hosting, media, render, rules
 
 log = logging.getLogger("flowqr.sites")
-_INVISIBLE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f​-‏‪-‮⁠-⁯﻿]")
+_INVISIBLE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 
 # Reference prices (rupees). Shown to administrators for orientation only. NOTHING bills against them: no billing is connected and the commercial status is recorded by hand.
 PRICING_REFERENCE = {"monthly_inr": 199, "annual_inr": 1999, "setup_inr": 0, "edits_included_per_month": 2, "billing_connected": False,
