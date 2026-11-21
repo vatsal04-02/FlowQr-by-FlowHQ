@@ -61,7 +61,7 @@ Only after the full suites in section 7 are green and the owner approves schema 
 5. Recreate `api worker beat` with **both** compose files and `--no-deps` (one file alone drops the API off Caddy). Check `docker port flowqr-production-api-1` shows `172.17.0.1:18000` and `https://api.flowqr.site/api/ready` is 200.
 6. Compare data fingerprints (users, tenants, memberships, QR cards, subscriptions, audit rows) before and after, and the env diff (the image tag only).
 7. Do **not** add any agency variable to `deploy/vps/docker-compose.vps.yml`: they therefore cannot reach the application, which keeps every agency path off even if `.env.production` is edited.
-8. Frontend: pushing this branch publishes a Vercel production build (the integration deploys every pushed branch). The agency screen renders nothing unless the server's status route answers, and with the backend flags off it answers 404, so the visible app is unchanged. Verify `www.flowqr.site` after the build and keep `flowqr-brpitfyq6` as the rollback target.
+8. Frontend: pushing this branch creates a Vercel **Preview** only (corrected: see section 8); production is published with the CLI from a clean archive. The agency screen renders nothing unless the server's status route answers, and with the backend flags off it answers 404, so the visible app is unchanged. Verify `www.flowqr.site` after the build and keep `flowqr-brpitfyq6` as the rollback target.
 
 ## 6. Safeguards that must not change
 
