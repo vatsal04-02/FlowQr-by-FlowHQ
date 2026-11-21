@@ -103,3 +103,22 @@ Executed under the owner's directive of 2026-11-21 (deploy the compatible, non-a
 **After:** row counts identical to before (users 4, tenants 5, memberships 4, qr_cards 10, subscriptions 5, audit_logs 170, reviews 483, google_connections 2 with 2 refresh tokens, google_locations 2); the running api container reports `app_env=production`, `autonomy_emergency_stop=True`, `registration_mode=allowlist`, `google_agency_manager_enabled=False`, `google_agency_operations_enabled=False`, empty policy reference, `google_content_retention_enabled=False`; beat schedule now lists `google-content-retention` (does nothing while off); 0 error lines in api, worker and beat logs; card host `go.flowqr.site` still answers 302.
 
 **Domains.** Production deployment before: `flowqr-brpitfyq6` (target production, aliases www.flowqr.site, flowqr.site, flowqr-gold.vercel.app). Pushing a non-production branch creates a **Preview** only (an earlier line in section 5 that said a push publishes a production build was wrong). `app.flowqr.co.in` was not assigned to anything: `flowqr.co.in` does not exist in DNS (NXDOMAIN from 8.8.8.8), is not among the three domains in the Vercel account (flowqr.site, flowhq.co.in, geetakrishnaphysiotherapy.co.in), and production's `FRONTEND_URL` is `https://flowqr.site`. It is not a failure of this release; the domain was never set up. No DNS or Vercel domain was changed.
+
+## 9. Retention release and activation record (2026-11-21 evening, UTC 19:15 to 19:40)
+
+Backend image `flowqr-backend:prod-31d1ccf` (source commit `31d1ccf`, branch `release/gbp-agency`; id `9706bc73f13a`, identical locally and on the VPS). **No migration** (head stays 0064). Rollback targets still on the server: `prod-6d61d85` and `prod-72bd037`.
+
+| Step | Evidence |
+|---|---|
+| Backup | `/opt/flowqr/backups/pre-retention-20261121193257.dump` (800 KB), `env.production.pre-retention-` and `docker-compose.vps.yml.pre-retention-` copies |
+| Overlay | `deploy/vps/docker-compose.vps.yml` gained exactly four lines (the `GOOGLE_CONTENT_*` variables, defaults off/30/redact/false); the base `docker-compose.yml` md5 `5f7044c5` is unchanged; the overlay is now md5 `bd72cf75` |
+| Deploy script | run as a **file** with `</dev/null` on every compose call (the earlier stdin problem), recreate api/worker/beat with both compose files; `/api/ready` 200 after ~15 s, public 200 immediately (no 503 window this time), port 172.17.0.1:18000 present |
+| Dry runs in production (counts only) | now, +1, +7 days: 0 everywhere. **+31 days: 483 reviews, 1 snapshot, 3,560 metric rows, 1 draft would expire** (the oldest stored record is dated 2026-11-15, so nothing is past 30 days before **2026-12-15**) |
+| Activation | `.env.production` gained `GOOGLE_CONTENT_RETENTION_ENABLED=true`, `GOOGLE_CONTENT_RETENTION_DAYS=30`, `GOOGLE_CONTENT_RETENTION_ACTION=redact` (no other line changed); api, worker, beat recreated |
+| Running state | api and worker report retention on, 30 days, redact, delete-on-disconnect false, agency manager and operations false, project model empty, `autonomy_emergency_stop=True`, `registration_mode=allowlist` |
+| Scheduler | beat lists `google-content-retention` (86400 s); the job was sent through the broker and **the worker ran it** (`succeeded`, audit entry `retention.google_content_run` with counts all 0 and errors `[]`); Admin > Operations check `google_retention` = ok |
+| Deleted so far | **nothing**: no record is older than 30 days yet. That is the truthful state, not a failure. The mechanism was proven on a throwaway copy of the real client's 482 reviews with the job's own look-ahead (text, names and reply copy: 412, 482, 482 before, 0 after; ratings kept; second run finds nothing; a real read-only sync did not refill them) |
+
+**Not done, needs a person:** the daily pruning of manual dumps. `deploy/prune-manual-dumps.sh` is installed on the VPS and its dry run works (0 dumps older than 30 days), but installing the cron entry was denied by the sandbox. Run once on the VPS as `flowqr`: `( crontab -l; echo '20 3 * * * BACKUP_DIR=/opt/flowqr/backups /opt/flowqr/deploy/prune-manual-dumps.sh >> /opt/flowqr/backups/prune.log 2>&1' ) | crontab -`.
+
+**Roll back retention:** set `GOOGLE_CONTENT_RETENTION_ENABLED=false` in `.env.production` and recreate api, worker and beat with both compose files (the job then does nothing). Anything already redacted cannot be restored from Google by the sync (by design); restore from a dump if ever needed.
