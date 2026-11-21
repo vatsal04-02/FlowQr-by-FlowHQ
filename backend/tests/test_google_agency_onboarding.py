@@ -114,7 +114,8 @@ def test_the_production_guard_refuses_operations_without_a_recorded_google_answe
 
     assert config_problems(prod()) == []
     assert any("GOOGLE_AGENCY_POLICY_REFERENCE" in p for p in config_problems(prod(google_agency_operations_enabled=True)))
-    assert config_problems(prod(google_agency_operations_enabled=True, google_agency_policy_reference="Google case 1-2345 (written answer on file)")) == []
+    assert any("GOOGLE_AGENCY_PROJECT_MODEL" in x for x in config_problems(prod(google_agency_operations_enabled=True, google_agency_policy_reference="Google case 1-2345 (written answer on file)")))  # a reference alone is not enough: the project model must be decided too
+    assert config_problems(prod(google_agency_operations_enabled=True, google_agency_policy_reference="Google case 1-2345 (written answer on file)", google_agency_project_model="flowhq_own_project")) == []
     d = Settings(_env_file=None)
     assert d.google_agency_manager_enabled is False and d.google_agency_operations_enabled is False and d.google_agency_policy_reference == ""
 

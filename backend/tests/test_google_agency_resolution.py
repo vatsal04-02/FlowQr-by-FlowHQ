@@ -229,6 +229,8 @@ def test_in_production_agency_operations_stay_off_without_a_recorded_policy_refe
             with pytest.raises(g.GoogleAgencyUnavailable):
                 agency.token_for_connection(db, any_conn, gfake)
     monkeypatch.setattr(settings, "google_agency_policy_reference", "case-recorded-by-a-person")
+    assert agency.operations_enabled() is False  # a reference alone is not enough since the project model must be decided too
+    monkeypatch.setattr(settings, "google_agency_project_model", "flowhq_own_project")
     assert agency.operations_enabled() is True
     monkeypatch.setattr(settings, "google_agency_operations_enabled", False)
     assert agency.operations_enabled() is False
