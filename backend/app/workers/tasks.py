@@ -482,16 +482,24 @@ def privacy_retention():
         db.close()
 
 
-@celery_app.task(name="flowqr.google_content_retention")
-def google_content_retention():
-    """Daily: expire content taken from the Google Business Profile APIs past GOOGLE_CONTENT_RETENTION_DAYS (services/google_retention.py). Does nothing at all unless GOOGLE_CONTENT_RETENTION_ENABLED=true."""
+@celery_app.task(name="flowqr.google_content_retention", bind=True, max_retries=3)
+def google_content_retention(self):
+    """Daily: expire content taken from the Google Business Profile APIs past GOOGLE_CONTENT_RETENTION_DAYS (services/google_retention.py). Does nothing at all unless GOOGLE_CONTENT_RETENTION_ENABLED=true.
+    A step that failed is retried (10, 20, 40 minutes); if it still fails the administrators are emailed (the failing step names only, never content)."""
     from app.services import google_retention
 
     db = system_session()
     try:
-        return google_retention.run(db)
+        out = google_retention.run(db)
     finally:
         db.close()
+    if out["enabled"] and out["errors"]:
+        if self.request.retries < self.max_retries:
+            raise self.retry(countdown=600 * 2 ** self.request.retries)
+        from app.services.google.agency import alert_internal
+
+        alert_internal("Google content retention failed", [f"These steps still failed after {self.max_retries} retries: {', '.join(out['errors'])}. Expired Google content may still be stored; see Admin > Operations."])
+    return out
 
 
 @celery_app.task(name="flowqr.autonomy_retention")

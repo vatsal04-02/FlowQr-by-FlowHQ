@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models import GbpMetricDaily, GoogleConnection, GoogleConnectionStatus, GoogleLocation
 from app.models.base import utcnow
 from app.models.metrics import SOURCE_PERFORMANCE_API
+from app.services import google_retention
 
 SEARCH = ("BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH")
 MAPS = ("BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS")
@@ -37,6 +38,7 @@ def record(db: Session, gloc: GoogleLocation, series: dict[str, list[dict]], *, 
     """Upsert the daily points of one successful Performance API response. Returns the number of rows written. A day already stored is updated (Google revises recent days)."""
     now = fetched_at or utcnow()
     rows = []
+    floor = google_retention.earliest_metric_day()  # None unless Google content retention is on: then days older than the period are not stored
     for metric, points in (series or {}).items():
         for pt in points or []:
             try:
@@ -45,6 +47,8 @@ def record(db: Session, gloc: GoogleLocation, series: dict[str, list[dict]], *, 
                 continue  # a malformed point is skipped, never guessed
             if value < 0:
                 continue
+            if floor is not None and day < floor:
+                continue  # older than the retention period: storing it would only mean deleting it tomorrow, and fetching it again must not restart its clock
             rows.append({"id": uuid.uuid4(), "tenant_id": gloc.tenant_id, "google_location_id": gloc.id, "metric": str(metric)[:48], "day": day, "value": value,
                          "source": SOURCE_PERFORMANCE_API, "first_fetched_at": now, "fetched_at": now})
     if not rows:

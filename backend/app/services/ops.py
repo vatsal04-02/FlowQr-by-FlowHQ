@@ -278,9 +278,30 @@ def check_subscriptions(db: Session) -> list[dict]:
     return out
 
 
+def check_google_retention(db: Session) -> dict | None:
+    """Only when the Google-content retention job is switched on: it must have run (written its daily audit entry) within 36 hours and without a failed step."""
+    if not settings.google_content_retention_enabled:
+        return None
+    from app.models import AuditLog
+    from app.services import google_retention
+
+    last = google_retention.last_run_at(db)
+    if last is None or (utcnow() - last).total_seconds() > 36 * 3600:
+        return row("google_retention", "Google content retention", "critical", "The retention job has not run in the last 36 hours",
+                   "Check the beat and worker containers; expired Google content may still be stored.")
+    errors = db.scalar(select(AuditLog.meta).where(AuditLog.action == "retention.google_content_run").order_by(AuditLog.created_at.desc()).limit(1)) or {}
+    if errors.get("errors"):
+        return row("google_retention", "Google content retention", "critical", f"The last run had failing steps: {', '.join(errors['errors'])}", "See the worker log; the job retries and alerts by email.")
+    return row("google_retention", "Google content retention", "ok", f"Last run {last.isoformat(timespec='minutes')}")
+
+
 def check_backup() -> dict:
     f = settings.backup_status_file
-    if not f or not Path(f).is_file():
+    try:
+        present = bool(f) and Path(f).is_file()
+    except OSError:  # the folder is not readable by this container: say so instead of failing the whole operations check
+        return row("backup", "Database backup", "warn", "The backup status file cannot be read by this container (permissions)", "Mount a status-only folder readable by the application user.")
+    if not present:
         return row("backup", "Database backup", "critical" if settings.is_production else "warn", "No backup status found",
                    "Schedule deploy/backup.sh (nightly) and mount ./backups into the api and worker containers.")
     try:
@@ -331,6 +352,9 @@ def run_checks(db: Session) -> dict:
         checks.append(rk)
     checks.append(check_geo_grid(db))
     checks += [*check_subscriptions(db), check_backup(), *check_monitoring_and_mail()]
+    gr = check_google_retention(db)
+    if gr:
+        checks.append(gr)
     worst = max((c["status"] for c in checks), key=lambda s: RANK[s])
     return {"status": worst, "checked_at": utcnow().isoformat(), "counts": {s: sum(1 for c in checks if c["status"] == s) for s in RANK}, "checks": checks}
 
