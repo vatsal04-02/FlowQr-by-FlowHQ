@@ -1,61 +1,69 @@
-# Google content retention: architecture (migration 0064)
+# Google content retention: architecture (migration 0064, revised 2026-11-22)
 
-Written 2026-11-21. **Mechanism only.** Whether and how Google's storage text applies to FlowQR is not answered in writing (`GOOGLE_AGENCY_POLICY_STATUS.md`, R-1; the questions to send are in `GOOGLE_QUESTIONS_TO_SUBMIT.md`). Nothing here decides compliance. The job is **off** and deletes nothing until a person sets `GOOGLE_CONTENT_RETENTION_ENABLED=true`.
+**What this is.** The mechanism that removes content taken from the Google Business Profile APIs 30 days after FlowQR first stored it. It applies the strictest reading of Google's text that keeps the product working. Whether that reading is exactly what Google requires of FlowQR's service is still a question for Google (`GOOGLE_QUESTIONS_TO_SUBMIT.md`); nothing here is a statement that Google has approved anything.
 
-## What Google's text says (as read 2026-11-21, not Google's answer)
+## The rule
 
-Content provided through the Business Profile APIs may not be pre-fetched, cached, indexed or stored beyond limited amounts for performance; stored content "must be stored temporarily for no more than 30 calendar days", stored securely and "cannot be manipulated or aggregated". The page names no exception for reviews, ids or operational data, says nothing about AI, and does not say whether it differs for an owner who signs in themselves versus an agency login. It applies to the content, not to which login fetched it, so the mechanism below treats owner-OAuth and agency connections identically.
+Google's text (read 2026-11-21): content provided through the Business Profile APIs may not be pre-fetched, cached, indexed or stored beyond limited amounts for performance; stored content "must be stored temporarily for no more than 30 calendar days", stored securely and "cannot be manipulated or aggregated". It names no exception and does not distinguish an owner's token from the agency login, so the mechanism treats both the same.
 
-## Data classification (every store audited by reading the code that writes Google content)
+**The clock starts when FlowQR first stored a record and never moves.**
 
-| Store | What it holds | Class | Expiry (when enabled) |
+* A sync that returns the same review again does **not** extend its life (`reviews.first_seen_at` is set once).
+* An expired review is **never filled in again**: sync skips a review whose content was expired (`google_content_expired_at`), so fetching the same content again cannot restart an obligation. (A `delete` action was removed for the same reason: a deleted row would be stored again by the next sync with a fresh clock.)
+* **New** content that Google returns later is a new record with its own 30 days.
+* A **snapshot** is replaced by each refresh, never accumulated, so it is at most as old as the last refresh; it is cleared if a refresh did not happen within the period.
+* **Daily metrics** are deleted 30 days after first stored (`first_fetched_at`; a later revision of the day's value does not move it), and while retention is on days older than the period are **not stored at all**, so they cannot be fetched back in.
+
+## Classification (every store audited)
+
+| Store | What it holds | Class | What happens |
 |---|---|---|---|
-| `reviews.text`, `reviewer_name`, `google_reply_text` | review words, the reviewer's name, Google's copy of the owner reply | Google content | cleared (`redact`) or row removed (`delete`) when `google_fetched_at` is older than the period |
-| `reviews.rating`, dates, ids, `google_reply_state` | operational metadata | metadata | kept on `redact` (so counts over time still work); gone with the row on `delete` |
-| `gbp_snapshots.info/posts/media/performance` | the last profile, posts, media and performance Google returned | Google content | cleared (SQL NULL) when `fetched_at` is older than the period |
-| `gbp_metric_daily` | daily performance numbers | Google content | rows removed when `fetched_at` is older than the period (the app role was given DELETE for this in 0064; 0035 had deliberately given none) |
-| `reply_drafts` (not published) | AI drafts derived from review text | derived | removed after the period; a **published** reply is the business's own words, already public, and is kept |
-| `agent_tasks` (reply_review) | title and evidence carry the reviewer's name and a text snippet | derived | name and snippet removed after the period |
+| `reviews.text`, `reviewer_name`, `google_reply_text` | review words, the reviewer's name, Google's copy of the owner reply | Google content | cleared when older than the period |
+| `reviews.rating`, dates, ids, reply state | operational metadata | metadata | **kept** (counts over time, sync de-duplication). Whether ratings and dates must also go is question 4/5 for Google |
+| `gbp_snapshots.info/posts/media/performance` | last profile, posts, media, performance Google returned | Google content | cleared (SQL NULL) when the last refresh is older than the period |
+| `gbp_metric_daily` | daily performance numbers | Google content | deleted when first stored longer ago than the period; old days not stored. The application role holds `DELETE` for this since migration 0064 (0035 had given none) |
+| `reply_drafts` (unpublished) | AI drafts written from review text | derived | deleted after the period; a **published** reply is the business's own public words and is kept |
+| `ai_outputs` (kind `reply`) | the AI's original reply text | derived | text cleared after the period; score, decision and edit ratio (no Google content) kept |
+| `agent_tasks` (reply_review) | title and evidence carry the reviewer's name and a snippet | derived | name and snippet removed after the period |
 | notifications | built from reviews on request, nothing stored | none | follow the reviews |
-| `audit_logs` | counts, ids and codes only (no review text, no names, no tokens) | none | not subject to expiry here |
-| `google_locations`, `google_connections` | resource names, titles, tokens (encrypted), status | identifiers and credentials | not expired by this job: needed to operate; removed on account deletion (existing lifecycle) |
-| Places / competitor / rank tables | Google Maps Platform (Places API), a different API with its own terms | out of scope | not changed |
+| data export | generated and streamed on request, never stored on disk | none | contains only what is stored at that moment |
+| Redis | no review or Google content is cached there (verified by reading the code that writes to it) | none | n/a |
+| `audit_logs` | counts, ids, codes; never Google content | none | not expired by this job |
+| `google_locations`, `google_connections` | resource names, titles, encrypted tokens, status | identifiers and credentials | not expired by this job: needed to operate; removed by the account-deletion lifecycle |
+| Places / competitor / rank tables | Google Maps Platform data, a different API with its own terms | out of scope | unchanged |
+| **Database backups** | nightly encrypted dumps and manual pre-release dumps | copies | see below |
 
 `services/google_retention.CLASSIFICATION` mirrors this table and a test fails if a store is dropped from it.
 
-## How the clock works
-
-* **Age is the last re-fetch from Google**, not the review's own date: `reviews.google_fetched_at` is set to now every time Google returns the review. Existing rows were set to the migration time by 0064, so turning the job on never expires a review merely because the column is new.
-* **Refresh:** with retention on, review sync reads the **whole** list again once per half the period (`locations.last_full_synced_at`), so every review Google still has is re-fetched well inside the period. A review whose text was cleared and that Google still has is filled in again by the next sync (not counted as a customer edit). Content that Google removed, that stopped syncing, or that belongs to a disconnected location ages out.
-* A row exactly `days` old is kept; strictly older goes. All times UTC.
-
 ## The job
 
-`flowqr.google_content_retention`, daily on the existing beat, `services/google_retention.run`. Independent steps (reviews, snapshots, metrics, drafts, agent tasks): one failing is reported and the others run; repeatable; writes one audit entry with **counts and settings only**. `python -m app.cli google-retention-report` counts what a run would do and changes nothing.
+`flowqr.google_content_retention`, daily on the existing beat, `services/google_retention.run`.
 
-Settings (all default to today's behaviour): `GOOGLE_CONTENT_RETENTION_ENABLED=false`, `GOOGLE_CONTENT_RETENTION_DAYS=30` (the start-up guard requires 1 to 30 while enabled), `GOOGLE_CONTENT_RETENTION_ACTION=redact|delete`, `GOOGLE_CONTENT_DELETE_ON_DISCONNECT=false`. None of them is in `deploy/vps/docker-compose.vps.yml`, so none can reach the application until a person adds it there on purpose.
+* **Idempotent**: a second run finds nothing. **Boundary**: a record exactly `days` old is kept, only strictly older goes. **Tenant-neutral**: it works on age alone and never on who owns a row; a younger row of any business is never touched. **Independent steps**: one failing leaves the others to run and is reported.
+* **Retries and alerts**: a run with a failed step is retried 10, 20 and 40 minutes later; if it still fails the administrators are emailed the step names (never content). A run writes **one counts-only audit entry every day it runs** (`retention.google_content_run`: counts, errors, days, action; no review text, no names), so a missing entry is how the operations check notices a stopped scheduler.
+* **Operations check** (Admin > Operations): when retention is on, the job must have run within 36 hours without a failed step, otherwise the check is critical.
+* **Report**: `python -m app.cli google-retention-report [--days-ahead N]` counts what a run would expire (now, or N days ahead) and changes nothing.
 
-## Disconnection and deletion
+Settings: `GOOGLE_CONTENT_RETENTION_ENABLED` (code default false), `GOOGLE_CONTENT_RETENTION_DAYS` (30; the start-up guard requires 1 to 30 while enabled), `GOOGLE_CONTENT_RETENTION_ACTION` (only `redact`), `GOOGLE_CONTENT_DELETE_ON_DISCONNECT` (false: disconnecting keeps history today; true removes everything taken from Google for that connection at once).
 
-* **Disconnect** keeps synced reviews as history today (unchanged by default). With `GOOGLE_CONTENT_DELETE_ON_DISCONNECT=true` it removes everything taken from Google for that connection's locations at once (`purge_connection`), keeping the connection and location rows, and writes a counts-only audit entry.
-* **Account deletion** uses the existing privacy lifecycle (cooling-off, then purge of the tenant's rows).
+## Backups (a copy of the data is a store too)
 
-## Backups and recovery
-
-Database dumps are rotated by `deploy/backup.sh` (`KEEP` days) and the VPS keeps dated pre-release dumps in `/opt/flowqr/backups` by hand. **A dump taken before an expiry contains the content that expiry removed.** Treatment if retention is switched on: (1) keep dumps no longer than the retention period (set `KEEP` accordingly, and delete the manual pre-release dumps after the rollback window), (2) after any restore, run the retention job (`google_retention.run`) before the application serves traffic, which re-applies every expiry. This is a procedure, not an automatic guarantee: a restore is a person's action.
+* Nightly encrypted dumps (`deploy/backup.sh`) are kept `BACKUP_KEEP_DAYS` (14). A dump taken on the last day of a review's 30 days is kept 14 days more, so a review can sit in a backup for at most 44 days. That residual is stated, not hidden; the only ways to remove it are to exclude the content tables from the dump (then a restore brings them back only by syncing again) or to shorten the period, and either is a decision for the owner after Google answers.
+* Manual pre-release dumps (`/opt/flowqr/backups/pre-*.dump`) are pruned after 30 days by `deploy/prune-manual-dumps.sh` (daily cron on the VPS). Delete a pre-release dump as soon as its rollback window closes.
+* **After any restore**, run the retention job (`google_retention.run`) before the application serves traffic: it re-applies every expiry.
 
 ## AI providers
 
-Review text is sent to an AI provider only through `services/ai/privacy.py`: `AI_REVIEW_DATA_KILL_SWITCH` stops it for every provider at once, and review data does not go to Gemini unless `GEMINI_DATA_TERMS_VERIFIED=true` (owner-set, only with evidence). Google's page says nothing about AI use of Business Profile content, so this stays an open question (question 7). AI outputs derived from reviews are covered by the draft and task expiry above; the provider's own retention is governed by the provider's terms and is not controlled here.
+Review text reaches an AI provider only through `services/ai/privacy.py`: `AI_REVIEW_DATA_KILL_SWITCH` stops it for every provider at once, and review data does not go to Gemini unless `GEMINI_DATA_TERMS_VERIFIED=true`. Google's page says nothing about AI use of the content (question 7). The AI's derived text is covered by the draft, `ai_outputs` and task expiry above.
 
-## Customer disclosure, consent and deletion controls
+## Customer disclosure and controls
 
-Existing: the agency consent text and separate notice (48 hours), the stop button and removal within seven business days, the privacy notice and Google data-use page drafts, and the account deletion flow. **Not decided:** the wording of a retention disclosure ("FlowQR keeps your Google reviews for N days"). That wording depends on Google's answer and on legal review, so none was invented.
+Existing: the agency consent text and separate notice, the stop button and removal within seven business days, the privacy notice and Google data-use page drafts, the account-deletion flow. **Not decided:** the wording of a retention disclosure ("FlowQR keeps your Google reviews' text for 30 days"). It depends on Google's answer and legal review, so none was invented.
 
 ## Tests
 
-`tests/test_google_retention.py` (15): off by default; report-only; redact (including the exact-boundary row); refill by sync; full-list refresh cadence; delete with drafts; unpublished drafts versus published replies; snapshots, metrics and agent-task scrubbing; counts-only audit; one failing step; disconnect default versus purge; purge isolation between businesses; start-up guard; classification completeness.
+`tests/test_google_retention.py` (17): off by default; report and look-ahead; redact with the exact boundary; a sync never moves the clock and never refills; new content gets its own clock; drafts versus published replies; snapshots, metrics, AI text and task evidence; the metrics write floor; tenant neutrality; the counts-only audit heartbeat; a failing step; retry and alert; the operations check; the unreadable-backup-folder fix; disconnect; the start-up guard; classification completeness.
 
-## To switch it on (after Google's answer and a person's decision)
+## What activation does to a live business (read before switching on)
 
-1. Decide the action and period from Google's written answer. 2. Run `google-retention-report` and read the counts. 3. Add the variables to `.env.production` **and** to the overlay `docker-compose.vps.yml`. 4. Recreate api, worker and beat with both compose files. 5. Check the next daily audit entry. 6. Align backup rotation.
+Reviews first stored more than 30 days ago lose their text, names and reply copy; ratings, dates and ids stay. Unpublished reply drafts older than 30 days disappear. The SEO page's history shrinks to the last 30 days as old metric rows reach their 30th day. New reviews keep their text for 30 days. A review's text cannot come back from Google once expired.

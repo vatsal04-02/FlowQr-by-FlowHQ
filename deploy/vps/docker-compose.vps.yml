@@ -22,6 +22,10 @@ x-hardened: &hardened
   WHATSAPP_AI_KILL_SWITCH: ${WHATSAPP_AI_KILL_SWITCH:-false}  # true stops every assistant reply at once
   WHATSAPP_AI_TERMS_VERIFIED: ${WHATSAPP_AI_TERMS_VERIFIED:-false}  # only when the AI provider's written data terms are in hand (docs/WHATSAPP_AUTOMATION.md)
   WHATSAPP_AI_TERMS_PROVIDER: ${WHATSAPP_AI_TERMS_PROVIDER:-}  # the provider those terms are for
+  GOOGLE_CONTENT_RETENTION_ENABLED: ${GOOGLE_CONTENT_RETENTION_ENABLED:-false}  # expiry of content taken from the Google Business Profile APIs 30 days after it was first stored (docs/audits/GOOGLE_RETENTION_ARCHITECTURE.md). Off unless .env.production says true
+  GOOGLE_CONTENT_RETENTION_DAYS: ${GOOGLE_CONTENT_RETENTION_DAYS:-30}  # 1 to 30 while enabled (Google's published storage limit)
+  GOOGLE_CONTENT_RETENTION_ACTION: ${GOOGLE_CONTENT_RETENTION_ACTION:-redact}  # only redact exists
+  GOOGLE_CONTENT_DELETE_ON_DISCONNECT: ${GOOGLE_CONTENT_DELETE_ON_DISCONNECT:-false}  # true: disconnecting a Google connection also removes everything taken from Google for it
 
 x-limits: &limits
   logging:
