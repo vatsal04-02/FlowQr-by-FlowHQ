@@ -200,7 +200,11 @@ def test_first_charge_is_at_trial_end_and_a_business_with_no_free_period_left_wa
     r = start(over, "growth")
     assert r.status_code == 200 and r.json()["free_period_honoured"] is False
     s2 = sub_of(over)
-    assert s2["status"] == "pending" and 1.5 < (s2["first_charge_at"] - utcnow()).total_seconds() / 86400 < 2.6
+    assert s2["status"] == "pending"
+    # The first charge is "two days ahead, at 10:00 India time". Counting from the moment of the request that is 58h minus the India time of day, so it is anywhere between 34 and 58 hours (1.42 to 2.42 days)
+    # whatever the hour the test runs at (a fixed 1.5-day lower bound failed after about 22:00 India time). billing_cashfree.first_charge_at_for is unchanged.
+    assert 1.41 < (s2["first_charge_at"] - utcnow()).total_seconds() / 86400 < 2.43
+    assert s2["first_charge_at"].hour == 4 and s2["first_charge_at"].minute == 30  # 10:00 India time
 
 
 def test_a_free_period_more_than_thirteen_days_away_cannot_be_scheduled_and_says_when_to_come_back(cfree):
