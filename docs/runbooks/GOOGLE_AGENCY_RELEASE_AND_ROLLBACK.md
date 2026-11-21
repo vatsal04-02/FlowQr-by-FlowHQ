@@ -83,3 +83,23 @@ Only after the full suites in section 7 are green and the owner approves schema 
 | Google API errors / quota | Existing handling is unchanged: 429 and 5xx back off, "not approved" is recorded as awaiting approval, 403 on an agency connection triggers the lost-access check. |
 
 Do not remove the old agency account `apigbp@gmail.com` or any client token until the new path has been proven in production and a rollback period has passed.
+
+## 8. Deployment record (2026-11-21 evening, IST 23:30 to 00:10)
+
+Executed under the owner's directive of 2026-11-21 (deploy the compatible, non-activating changes; keep every agency switch off). Source commit `6d61d85` (tests-only commit `a7637f7` follows it; the image holds the same application code).
+
+| Step | Evidence |
+|---|---|
+| Pre-checks | tag `prod-72bd037`, alembic 0060, compose md5 `5f7044c5` / `6e958cac`, no other deployment running, disk 50% |
+| Backup | `/opt/flowqr/backups/pre-agency-20261121180610.dump` (782 KB), `env.production.`, `docker-compose.yml.` and `docker-compose.vps.yml.pre-agency-20261121180610`; the dump restored cleanly into a throwaway database |
+| Rehearsal | on that restore, inside the VPS db container: upgrade 0060 to 0064, row counts identical, 2 of 2 connections `client_token`, 0 agency rows, every review stamped; downgrade to 0060 removed the agency tables, row counts identical; upgrade again to 0064; database dropped |
+| Image | `flowqr-backend:prod-6d61d85`, built from a clean `git archive`, id `08013831d322` identical locally and on the VPS |
+| Migration | `run --rm --no-deps -T migrate` as the table owner; alembic = **0064** |
+| Recreate | `up -d --no-deps api worker beat` with both compose files; `/api/ready` 200 on `172.17.0.1:18000`; port 172.17.0.1:18000 present; compose files byte-identical; env diff = `FLOWQR_TAG` only |
+| Frontend | Vercel production `flowqr-64e2pa1gc` (CLI recipe from `git archive a7637f7 frontend`), aliased to www.flowqr.site and flowqr.site; rollback target `flowqr-brpitfyq6` |
+
+**Interruption to report.** `/api/ready` also checks that the database is at the migration head the running image expects, so between the migration finishing and the new containers starting, the public API answered **503** (a few minutes by my reckoning; a script mistake of mine, the compose `run` consumed the rest of the script from stdin, lengthened it). Existing sessions and cards were not changed. A future deploy should recreate the containers in the same command that follows the migration, or run the migration last-moment with `up -d` doing both (the `migrate` service is a dependency of api).
+
+**After:** row counts identical to before (users 4, tenants 5, memberships 4, qr_cards 10, subscriptions 5, audit_logs 170, reviews 483, google_connections 2 with 2 refresh tokens, google_locations 2); the running api container reports `app_env=production`, `autonomy_emergency_stop=True`, `registration_mode=allowlist`, `google_agency_manager_enabled=False`, `google_agency_operations_enabled=False`, empty policy reference, `google_content_retention_enabled=False`; beat schedule now lists `google-content-retention` (does nothing while off); 0 error lines in api, worker and beat logs; card host `go.flowqr.site` still answers 302.
+
+**Domains.** Production deployment before: `flowqr-brpitfyq6` (target production, aliases www.flowqr.site, flowqr.site, flowqr-gold.vercel.app). Pushing a non-production branch creates a **Preview** only (an earlier line in section 5 that said a push publishes a production build was wrong). `app.flowqr.co.in` was not assigned to anything: `flowqr.co.in` does not exist in DNS (NXDOMAIN from 8.8.8.8), is not among the three domains in the Vercel account (flowqr.site, flowhq.co.in, geetakrishnaphysiotherapy.co.in), and production's `FRONTEND_URL` is `https://flowqr.site`. It is not a failure of this release; the domain was never set up. No DNS or Vercel domain was changed.
