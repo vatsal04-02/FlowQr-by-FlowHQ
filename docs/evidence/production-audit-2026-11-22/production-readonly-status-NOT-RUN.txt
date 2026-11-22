@@ -1,0 +1,29 @@
+# Production read-only inspection: ATTEMPTED 2026-11-23 and DENIED by the tool's safety check ('Unauthorized Access'); not retried by any other route.
+# The script and the command are ready (deploy/vps/readonly-status.py); run it yourself, or tell me to run it, to get the live configuration:
+#   ssh <deploy user>@<server> "docker exec -i flowqr-production-api-1 python -" < deploy/vps/readonly-status.py
+# Its output format, from a run against the LOCAL throwaway stack (not production):
+== backup status file (ok / encrypted / offsite only)
+   cannot read: FileNotFoundError
+== database (counts only)
+   alembic: ['0065']
+   tenants: 22  users: 26
+   google connections by status/mode: [('GoogleConnectionStatus.active', 'client_token', 4)]
+   selected locations by sync status (status, count, newest sync, max consecutive failures): [('error', 2, '2026-11-22 19:00:18', 1), ('ok', 2, '2026-11-22 19:33:18', 0)]
+   locations stuck on 'running' > 30 min (the F-01 symptom): 0
+   agency authorizations: 0  open tenant grants: 0
+   operator addresses registered as users: 0
+   scheduled posts overdue > 1 h, by tenant count: 0
+== the Operations checks (the same data as Admin > Operations; label, status, first 140 chars of detail)
+   overall: critical {'ok': 9, 'unknown': 0, 'warn': 8, 'critical': 1}
+   [ok      ] Database: Responding in 1 ms
+   [ok      ] Redis: Responding
+   [ok      ] Database migrations: At head (0065)
+   [critical] Worker and scheduler: Last heartbeat 20 min ago
+   [ok      ] Scheduled jobs: 16 job types seen; none failing at their last run
+   [warn    ] Failed publishing and sync: Last 24 h: 0 replies, 0 posts, 0 photos failed to publish; 2 locations failing to sync
+   [ok      ] Google connections: 4 active, none revoked
+   [ok      ] Google API quota: No rate limiting or pending approval seen
+   [warn    ] AI provider: No AI key configured: drafts and the growth agent are off
+   [warn    ] AI monthly budget: 0 AI calls this month, about $0.00 counted. No budget is set
+   [warn    ] AI spending limits: No platform hard limit and no per-business budget is set: AI calls are recorded but nothing stops them
+   [ok      ] Geo-grid maps: Switched off (RANK_GRID_ENABLED is false). No map scan can spend Google searches

@@ -7,7 +7,7 @@ How the main runs were done (reproducible):
 
 | Run | Command | Result |
 |---|---|---|
-| Backend, Linux (Python 3.13) | 8 containers of `flowqr-test` (older image: PyJWT 2.10.1, no sentry-sdk), repo mounted at `/repo`, `python -m pytest <shard files> -q` each against its own PostgreSQL 16 database | 3,445 passed, 0 failed, 0 skipped (`ev/backend-suite-summary.txt`) |
+| Backend, Linux (Python 3.13), exact pinned requirements | 8 containers of an image built from the real `backend/Dockerfile` plus `requirements-dev.txt`, repo mounted at `/repo`, `python -m pytest <shard files> -q` each against its own PostgreSQL 16 database | 3,445 passed, 0 failed, 0 skipped (`ev/backend-suite-pinned-requirements.txt`). An earlier run on an older test image (PyJWT 2.10.1, no sentry-sdk) gave the same result (`ev/backend-suite-summary.txt`). |
 | Backend baseline, Windows (Python 3.12, exact pinned requirements), before any change | same 8-shard split against PostgreSQL 16 | 3,424 passed, 3 failed (Windows-only artefacts; the same tests pass on Linux) |
 | Frontend | `npx tsc --noEmit`; `npm test`; `npm run build`; `npm audit --omit=dev` | 0 errors; 131/131; clean; 0 vulnerabilities (`ev/frontend-summary.txt`) |
 | Browser | `node e2e/production-audit-journeys.js` (Chromium, real UI, local stack) | 40/40 (`ev/browser-journeys-run.log`, `ev/browser-journeys-results.json`) |
@@ -126,7 +126,11 @@ How the main runs were done (reproducible):
 | SQL injection | Live injection-style tokens; raw SQL scan | PASS | local probe; audit |  |
 | Security headers, docs hidden in production | Live local and public production | PASS | `ev/production-public-readonly-checks.txt` |  |
 | Dependencies | `npm audit --omit=dev` | PASS | `ev/frontend-summary.txt` | `pip-audit` not run (PyPI too slow here) |
-| Python dependency audit | `pip-audit` was not run (PyPI was too slow from this machine) | NOT TESTED |  | Run `pip-audit -r backend/requirements.txt` before the release; the previous release reported it clean |
+| Python dependency audit | `pip-audit` inside the production image built from the pinned requirements (Python 3.13.18) | PASS | `ev/pip-audit-production-image.txt`: "No known vulnerabilities found" | Re-run on the exact image built on release day |
+| Backend suite with the exact pinned requirements, Linux | Real `backend/Dockerfile` image plus dev tools only; 8 shards | PASS | `ev/backend-suite-pinned-requirements.txt`: 3,445 passed, 0 failed, 0 skipped |  |
+| Startup guard, migration step, preflight and recreate in a throwaway production-shaped project | `deploy/vps/rehearse-release.sh` with a restored 0065 backup | PASS | `ev/rehearsal-script-run.log`: REHEARSAL PASSED; the guard refuses the 2026-11-22 incident configuration | Cannot see the real `.env.production`: run the real guard on release day |
+| Preflight itself | Same rehearsal | PASS | its FAIL lines (SMTP, Razorpay, AI, Sentry, backups) are expected in a fake environment | The Razorpay line is stale (production bills through Cashfree) and fails by design |
+| Production configuration (Sentry, SMTP, switches) read from the running API container | Read-only script over ssh | BLOCKED | `ev/production-readonly-status-NOT-RUN.txt`: the tool's safety check denied the connection | You run `deploy/vps/readonly-status.py` (runbook step 1) or authorise me to |
 | Secrets in evidence | Scan of the evidence folder | PASS | only the URL `/forgot-password` matches |  |
 | Backup: redaction, AES-256, sha256, read-back, restore | Real scripts on a throwaway database; local folder as the "off-site" copy | PASS | `ev/backup-restore-rehearsal.txt` | Proves the mechanism only |
 | Corrupted backup is rejected | Flipped byte: `gzip -t` fails, sha256 differs, `verify-restore.sh` refuses it | PASS | audit section 6 | Encryption is not authenticated (O-3) |
@@ -134,7 +138,8 @@ How the main runs were done (reproducible):
 | Production API ready | Public GET: `{"ready":true, database ok, redis ok, migrations ok}` | PASS | `ev/production-public-readonly-checks.txt` |  |
 | Production site, redirects, headers, certificates | Public GETs; certificates valid to Feb 2027 | PASS | same |  |
 | Container restart behaviour and the startup guard on the server | No server access | NOT TESTED |  | Use the throwaway-guard step in the runbook before any recreate |
-| Error monitoring (Sentry) and alert e-mail | Not verifiable from outside | NOT TESTED |  | Audit O-6 |
+| Error monitoring (Sentry) and alert e-mail | Not verifiable from outside; the ssh read was denied | NOT TESTED |  | Audit O-6 |
+| Alert grading: a location that cannot sync | Read `check_failed_work` and `alert_on_new_critical`; the local status script shows 2 failing locations as a plain warn | PASS | `RELEASE_CANDIDATE.md` section 5 | **Finding:** warn until 10 failures, so no e-mail and no Sentry message; recommend a follow-up |
 | Load, N+1 queries, connection pool under stress | Not measured | NOT TESTED |  | Audit O-8 |
 
 ## 8. Responsive frontend and usability
