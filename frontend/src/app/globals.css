@@ -142,6 +142,15 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   @keyframes fc-in { from { opacity: 0; transform: translate(var(--sx), var(--sy)) rotate(var(--sr)) scale(.72); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
   @keyframes fc-float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-9px) rotate(var(--fr, .5deg)); } }
   @media (prefers-reduced-motion: reduce) { .fc-in, .fc-float { animation: none; } }
+  /* Home hero (HomeHero.tsx): cream ground + dot grid, cards that rise in, float and lift. */
+  .hh-ground { background-color: #FFF7EE; background-image: radial-gradient(rgba(13,18,48,.10) 1px, transparent 1.5px); background-size: 26px 26px; -webkit-mask-image: linear-gradient(#000 calc(100% - 140px), transparent); mask-image: linear-gradient(#000 calc(100% - 140px), transparent); }
+  .hh-in { animation: hh-in .8s cubic-bezier(.2,.7,.2,1) var(--d, 0s) backwards; }
+  .hh-float { animation: hh-float var(--fd, 8s) ease-in-out var(--fl, 0s) infinite; }
+  .hh-card { transition: transform .25s ease, box-shadow .25s ease; }
+  .hh-card:hover { transform: translateY(-5px) scale(1.015); }
+  @keyframes hh-in { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+  @keyframes hh-float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-10px) rotate(.5deg); } }
+  @media (prefers-reduced-motion: reduce) { .hh-in, .hh-float { animation: none; } .hh-card { transition: none; } .hh-card:hover { transform: none; } }
   /* Set-up wizard (components/onboarding): white fields with a hairline border and an orange focus ring instead of grey wells. Lives under .mkt for the colour tokens. */
   .wiz input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), .wiz select { background-color: #fff; border: 1px solid rgb(var(--m-line)); box-shadow: 0 1px 0 rgba(11,15,46,.03); }
   .wiz input:not([type="radio"]):not([type="checkbox"]):hover, .wiz select:hover { border-color: rgb(var(--m-muted2)); }

@@ -1,10 +1,8 @@
 import { BadgeCheck, CalendarCheck, Layers, MessageCircle, MousePointerClick, Nfc, QrCode, ScanLine, Sparkles, Star } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Hero } from "@/components/marketing/Hero";
+import { HomeHero } from "@/components/marketing/HomeHero";
 import { BusinessBand } from "@/components/marketing/BusinessBand";
-import { HeroFloaters } from "@/components/marketing/HeroFloaters";
-import { HeroActions } from "@/components/marketing/HeroActions";
 import { MButton, MicroChip } from "@/components/marketing/kit";
 import { AgentShowcase } from "@/components/marketing/AgentShowcase";
 import { WhatsAppShowcase } from "@/components/marketing/WhatsAppShowcase";
@@ -39,8 +37,7 @@ export default function Home() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* S1 Hero */}
-      <Hero compact line1={c.hero.line1} line2={c.hero.line2} typed={c.hero.typed} sub={c.hero.sub}
-        actions={<HeroActions />} floaters={<HeroFloaters />} />
+      <HomeHero line1={c.hero.line1} line2={c.hero.typed} outcome={c.hero.outcome} sub={c.hero.sub} />
 
       {/* The team: three agents, one job each, before any one of them is explained */}
       <TeamBand />

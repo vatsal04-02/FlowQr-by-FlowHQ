@@ -9,15 +9,15 @@ import { TrialNote } from "./TrialNote";
  */
 export function HeroActions() {
   return (
-    <div className="flex w-full basis-full flex-col items-center md:mt-3">
-      <div className="flex items-center justify-center gap-2.5 md:gap-3">
+    <div className="flex w-full flex-col items-start">
+      <div className="flex flex-wrap items-center gap-3">
         <Link href="/register" onClick={() => track("signup_cta_click")}
-          className="group inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-m-accent px-5 text-[15px] font-medium tracking-[-.01em] text-m-ink transition-colors duration-200 hover:bg-[#F06000] md:min-h-[52px] md:gap-2 md:px-7 md:text-[16px]">
+          className="group inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#C2410C] px-6 text-[16px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(194,65,12,.6)] transition-colors duration-200 hover:bg-[#A8380A] md:min-h-[52px] md:gap-2 md:px-7 md:text-[17px]">
           Start free trial<ArrowRight aria-hidden className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[3px]" strokeWidth={1.75} />
         </Link>
-        <Link href="/login" className="inline-flex min-h-11 items-center justify-center rounded-full border border-m-ink/70 px-5 text-[15px] font-medium tracking-[-.01em] text-m-ink transition-colors duration-200 hover:bg-m-ink/[.04] md:min-h-[52px] md:px-7 md:text-[16px]">Log in</Link>
+        <Link href="/login" className="inline-flex min-h-11 items-center justify-center rounded-full border-[1.5px] border-[#0D1230] px-6 text-[16px] font-semibold text-[#0D1230] transition-colors duration-200 hover:bg-[#0D1230]/[.05] md:min-h-[52px] md:px-7 md:text-[17px]">Log in</Link>
       </div>
-      <TrialNote className="mt-3 text-[13px] text-m-muted md:mt-4 md:text-[14px]" />
+      <TrialNote className="mt-4 text-[14px] text-[#4A4F6E]" />
     </div>
   );
 }
