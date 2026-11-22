@@ -6,7 +6,7 @@ import { GoogleG, SampleTag, WhatsAppLogo } from "./kit";
 
 /**
  * The home page's first screen. Cream ground with a dot grid, a left-aligned headline, one outcome line, one supporting paragraph, one strong button, and four
- * white product cards (Google profile + growth score, review reply, WhatsApp automation, WhatsApp offer) that float beside it. The type is kept small enough that the whole
+ * white product cards on tablets and desktops (a phone shows only the Growth score card) (Google profile + growth score, review reply, WhatsApp automation, WhatsApp offer) that float beside it. The type is kept small enough that the whole
  * screen fits in one laptop window. The in-card Approve buttons are soft, so "Start free trial" is the only strong orange button on the screen.
  *
  * Motion is CSS only (.hh-in, .hh-float in globals.css) and is switched off for reduced motion. The nav and the trial bar above are shared with every marketing page and are not part of this file.
@@ -18,9 +18,9 @@ const BODY = "text-[13px] leading-[1.45] text-[#4A4F6E]";
 const LABEL = "text-[11px] font-semibold uppercase tracking-[.08em]";
 const SOFT_BTN = "inline-flex min-h-11 shrink-0 items-center rounded-full bg-[#FFE9D3] px-4 text-[13px] font-semibold text-[#9A3412] transition-colors hover:bg-[#FFDCBB]";
 
-function Float({ children, delay, drift }: { children: ReactNode; delay: number; drift: [number, number] }) {
+function Float({ children, delay, drift, className }: { children: ReactNode; delay: number; drift: [number, number]; className?: string }) {
   const style = { "--d": `${delay}s`, "--fd": `${drift[0]}s`, "--fl": `${drift[1]}s` } as CSSProperties;
-  return <div style={style} className="hh-in"><div className="hh-float">{children}</div></div>;
+  return <div style={style} className={clsx("hh-in", className)}><div className="hh-float">{children}</div></div>;
 }
 
 function GrowthScoreCard() {
@@ -140,9 +140,9 @@ export function HomeHero({ line1, line2, outcome, sub }: { line1: string; line2:
             <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
               <div className="flex flex-col gap-4">
                 <Float delay={0.1} drift={[7, 0]}><GrowthScoreCard /></Float>
-                <Float delay={0.45} drift={[8.5, -2]}><WhatsAppAutomationCard /></Float>
+                <Float delay={0.45} drift={[8.5, -2]} className="max-sm:hidden"><WhatsAppAutomationCard /></Float>
               </div>
-              <div className="flex flex-col gap-4 sm:mt-[52px]">
+              <div className="flex flex-col gap-4 max-sm:hidden sm:mt-[52px]">
                 <Float delay={0.25} drift={[9, -1]}><ReviewCard /></Float>
                 <Float delay={0.6} drift={[7.5, -3]}><WhatsAppOfferCard /></Float>
               </div>
