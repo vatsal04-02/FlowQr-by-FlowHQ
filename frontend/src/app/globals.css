@@ -148,9 +148,21 @@ html.fq-app[data-theme="dark"] { color-scheme: dark; --c-ink: 243 239 233; --c-i
   .hh-float { animation: hh-float var(--fd, 8s) ease-in-out var(--fl, 0s) infinite; }
   .hh-card { transition: transform .25s ease, box-shadow .25s ease; }
   .hh-card:hover { transform: translateY(-5px) scale(1.015); }
+  .hh-word { display: inline-block; animation: hh-word .75s cubic-bezier(.2,.7,.2,1) calc(.12s + var(--i, 0) * .07s) backwards; }
+  .hh-ring { animation: hh-ring 1.3s cubic-bezier(.3,.7,.2,1) .7s backwards; }
+  .hh-pop { animation: hh-pop .45s cubic-bezier(.3,1.5,.5,1) var(--d, 1s) backwards; }
+  .hh-bubble { transform-origin: 0 100%; animation: hh-bubble .55s cubic-bezier(.3,1.3,.5,1) var(--d, 1.2s) backwards; }
+  .hh-pulse { animation: hh-pulse 2.4s ease-in-out 1s infinite; }
+  .hh-halo { animation: hh-halo 9s ease-in-out infinite; }
+  @keyframes hh-word { from { opacity: 0; transform: translateY(.45em); } to { opacity: 1; transform: none; } }
+  @keyframes hh-ring { from { stroke-dasharray: 0 var(--c); } }
+  @keyframes hh-pop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: none; } }
+  @keyframes hh-bubble { from { opacity: 0; transform: scale(.85) translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes hh-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.5); } }
+  @keyframes hh-halo { 0%, 100% { scale: 1; } 50% { scale: 1.07; } }
   @keyframes hh-in { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
   @keyframes hh-float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-10px) rotate(.5deg); } }
-  @media (prefers-reduced-motion: reduce) { .hh-in, .hh-float { animation: none; } .hh-card { transition: none; } .hh-card:hover { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .hh-in, .hh-float, .hh-word, .hh-ring, .hh-pop, .hh-bubble, .hh-pulse, .hh-halo { animation: none; } .hh-card { transition: none; } .hh-card:hover { transform: none; } }
   /* Set-up wizard (components/onboarding): white fields with a hairline border and an orange focus ring instead of grey wells. Lives under .mkt for the colour tokens. */
   .wiz input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), .wiz select { background-color: #fff; border: 1px solid rgb(var(--m-line)); box-shadow: 0 1px 0 rgba(11,15,46,.03); }
   .wiz input:not([type="radio"]):not([type="checkbox"]):hover, .wiz select:hover { border-color: rgb(var(--m-muted2)); }
