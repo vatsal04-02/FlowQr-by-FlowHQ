@@ -561,6 +561,229 @@ def autonomy_live_test(args: argparse.Namespace, *, provider=None, sleep=None, r
     return 1 if rep.failed else 0
 
 
+SEO_V2_STEPS = ("refresh", "scan", "special-hours", "services", "failure")
+
+
+class _NoWrite:
+    """A provider that behaves exactly like the real one for every READ and dry run, but refuses any write: used for the step that must prove a refused change is never written."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        if name in ("update_location", "update_attributes"):
+            def refuse(*a, **k):
+                raise RuntimeError(f"{name} was called during the no-write step")
+            return refuse
+        return getattr(self._inner, name)
+
+
+def seo_v2_live_test(args: argparse.Namespace, *, provider=None, sleep=None, report_to: _Report | None = None) -> int:
+    """Controlled LIVE test of the Local SEO engine V2 on ONE FlowHQ-owned test profile. Same safety as autonomy-live-test, plus: the location must be in SEO_V2_TEST_LOCATION_NAMES
+    (the allowlist is the ONLY thing that opens the V2 gate here; run it in a one-off container, never by changing the running services' environment).
+
+      refresh         read the profile with the V2 reads (services, special hours, attributes, Google's reference catalog) and report what Google returned
+      scan            run the V2 scan: every generated change is listed (nothing is applied by this step)
+      special-hours   add one far-future closed day through the engine (propose, owner approval, Google dry run, write, READ-BACK), then remove it the same way
+      services        add one clearly marked custom service the same way, then restore the list
+      failure         propose a change Google must refuse in its dry run, and prove it was blocked, NOT written, and not reported as success
+
+    The acting person is the business owner recorded in FlowQr for the test business (as in autonomy-live-test). A step is PASS only if the engine reports `executed` AND the profile read
+    back from Google matches AND the hash-chained history verifies. `provider=` exists so the automated tests run this same code against a test double; the report then says "mocked"."""
+    import os
+    import time
+
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.core.db import SessionLocal, set_rls_context
+    from app.models import GoogleConnection, GoogleLocation, Membership, Role, Tenant
+    from app.models.base import utcnow
+    from app.services import google as g
+    from app.services.agent import autonomy_policy as pol
+    from app.services.agent import executor, history, snapshots
+    from app.services.agent.v2 import fields as v2f
+    from app.services.agent.v2 import owner as v2owner
+    from app.services.agent.v2 import scan as v2scan
+    from app.services.google.tokens import get_access_token
+
+    sleep = sleep or time.sleep
+    mocked = provider is not None
+    steps = list(getattr(args, "steps", None) or SEO_V2_STEPS)
+    print("FlowQR Local SEO engine V2 test " + ("(MOCKED PROVIDER: no Google call is made)" if mocked else "(LIVE)") + ("" if args.execute else " - DRY RUN: nothing will be sent"))
+    print(f"Location: {args.location}")
+    plan = {"refresh": "read the profile with the V2 reads and report what Google returned", "scan": "run the V2 scan and list every generated change (applies nothing)",
+            "special-hours": "add ONE closed day far in the future, require Google's dry run and an independent read-back, then remove it the same way and read that back",
+            "services": "add ONE marked custom service the same way, then restore the service list and read that back",
+            "failure": "propose a change Google must refuse in its dry run; prove it is blocked, never written and never reported as success"}
+    for st in steps:
+        print(f"  {st:<14}: {plan[st]}")
+    if not args.execute:
+        print(f"\nNOT EXECUTED. To run: add --execute --confirm-location <same locations/N> --confirm-title \"<exact profile title>\", export {LIVE_ENV}=<same locations/N>, "
+              "and the location must be listed in SEO_V2_TEST_LOCATION_NAMES in THIS process only.")
+        return 0
+    if args.confirm_location != args.location:
+        print("\nRefused: --confirm-location must repeat --location exactly. Nothing was sent.")
+        return 2
+    if os.environ.get(LIVE_ENV) != args.location:
+        print(f"\nRefused: {LIVE_ENV} is not set to this location. Export it yourself to say this is an authorised test profile. Nothing was sent.")
+        return 2
+    if args.location not in settings.seo_v2_test_locations:
+        print("\nRefused: this location is not in SEO_V2_TEST_LOCATION_NAMES, so the V2 gate is closed for it. Only a profile FlowHQ owns may be listed. Nothing was sent.")
+        return 2
+    db = SessionLocal()
+    set_rls_context(db, bypass=True)
+    try:
+        matches = db.scalars(select(GoogleLocation).where(GoogleLocation.google_location_name == args.location, *([GoogleLocation.connection_id == args.connection] if args.connection else []))).all()
+        if len(matches) != 1:
+            print(f"{len(matches)} connected locations have that name: pass --connection ID. Nothing was sent.")
+            return 2
+        gloc = matches[0]
+        conn = db.get(GoogleConnection, gloc.connection_id)
+        tenant = db.get(Tenant, gloc.tenant_id)
+        owner = db.scalar(select(Membership.user_id).where(Membership.tenant_id == tenant.id, Membership.role == Role.owner).limit(1))
+        provider = provider or g.get_google_provider()
+        at = get_access_token(db, conn, provider)
+        title = provider.get_location_details(at, args.location).get("title") or ""
+        print(f"Profile title as Google returns it: {title!r}")
+        if getattr(args, "confirm_title", None) != title or not title:
+            print("\nRefused: --confirm-title must repeat that title exactly. Check this is the TEST profile. Nothing was sent.")
+            return 2
+        rep = report_to or _Report("mocked" if mocked else "live", args.location)
+
+        def live():
+            d = provider.get_location_details(at, args.location)
+            return d
+
+        def info_keys(d):
+            return sorted(k for k in ("service_items", "special_hours_periods", "service_area") if k in d)
+
+        def run(label, a, *, expect="executed", prov=None):
+            """Approve (as the recorded owner) and execute one proposal; PASS means it ended `expect` and, for executed, was verified by an independent read and has an intact history."""
+            if a.status not in ("pending_approval",):
+                rep.add(label, FAIL, f"the engine did not accept the proposal: status {a.status}. {a.last_error or ''}")
+                return None
+            executor.decide(db, a, user_id=owner, role=Role.owner, approve=True)
+            db.commit()
+            r = executor.execute(db, a.id, provider=prov or provider, sleep=sleep, interactive=True)
+            db.refresh(a)
+            chain = bool(history.verify(db, a.id)["ok"])
+            val = (a.validation or {}).get("method")
+            if expect == "executed":
+                ok = r.get("status") == "executed" and a.verified_at is not None and (a.verification or {}).get("matched") is True and a.validation_status == "validated" and chain
+                rep.add(label, PASS if ok else FAIL, f"action {a.id}; engine says {r.get('status')}{'/' + str(r.get('reason')) if r.get('reason') else ''}; dry run {a.validation_status} via {val}; "
+                        f"read-back matched={(a.verification or {}).get('matched')}; history chain {'intact' if chain else 'BROKEN'}" + (f"; {a.last_error}" if a.last_error else ""), verified=ok)
+            else:
+                ok = r.get("status") == expect and a.verified_at is None and chain
+                rep.add(label, PASS if ok else FAIL, f"action {a.id}; engine says {r.get('status')}/{r.get('reason')}; validation {a.validation_status}; Google's answer: {((a.validation or {}).get('errors') or [a.last_error])[:1]}; history chain {'intact' if chain else 'BROKEN'}")
+            return a if ok else None
+
+        d0 = live()
+        orig_services, orig_special = v2f.canon_services(d0.get("service_items")), v2f.canon_special_hours(d0.get("special_hours_periods"))
+        touched = False
+
+        if "refresh" in steps:
+            snap = snapshots.refresh(db, gloc, provider=provider)
+            db.commit()
+            i = snap.info or {}
+            cat = i.get("catalog") or {}
+            rep.add("refresh: the profile was read with the V2 reads", PASS if snap.info else FAIL,
+                    f"service_items={'service_items' in i} ({len(i.get('service_items') or [])}), special_hours={'special_hours_periods' in i} ({len(i.get('special_hours_periods') or [])}), attributes={'attributes' in i}, "
+                    f"canModifyServiceList={i.get('can_modify_service_list')!r}, has_regular_hours={i.get('has_regular_hours')!r}, catalog parts={sorted(k for k in cat if k not in ('fetched_at', 'errors'))}, "
+                    f"catalog errors={cat.get('errors') or None}, notes={i.get('v2_notes') or None}")
+        if "scan" in steps:
+            out = v2scan.scan_location_v2(db, tenant, gloc)
+            db.commit()
+            rep.add("scan: the V2 scan ran (nothing applied)", PASS, f"proposed={len(out['proposed'])} recommended={len(out['recommended'])} superseded={len(out['superseded'])} detected={out['detected']} skipped={out['skipped'][:4]}")
+        if "special-hours" in steps:
+            info = live()
+            if not info.get("has_regular_hours"):
+                rep.add("special-hours: add a closed day", SKIP, "the test profile has no regular opening hours, and Google does not accept special hours without them (a real precondition, not a failure of the engine)")
+            else:
+                day = "2099-12-31"
+                snapshots.refresh(db, gloc, provider=provider)
+                db.commit()
+                a = v2owner.propose_special_hours(db, tenant, gloc, user_id=owner, entries=[{"start": day, "closed": True}])
+                db.commit()
+                added = run("special-hours: add one closed day through the engine, Google must show it", a)
+                touched = touched or added is not None
+                if added is not None:
+                    now_list = v2f.canon_special_hours(live().get("special_hours_periods"))
+                    rep.add("special-hours: the new day is on Google and every earlier entry is unchanged", PASS if (day in {p['start'] for p in now_list} and [p for p in now_list if p['start'] != day] == orig_special) else FAIL,
+                            f"{len(orig_special)} earlier entries, {len(now_list)} now", verified=True)
+                    snapshots.refresh(db, gloc, provider=provider)
+                    db.commit()
+                    back = executor.propose(db, tenant, gloc, "special_hours_update", field_key="special_hours", proposed=orig_special, source={"kind": "owner_input", "user_id": str(owner)}, trigger="live_test_restore",
+                                            problem="Restoring the test profile after the V2 live test.", reason="The test day is removed again.", proposed_by="user", user_id=owner)
+                    db.commit()
+                    if not orig_special:
+                        rep.add("special-hours: restore", SKIP, "the engine never empties a list (a deliberate rule), so removing the only entry is done directly below")
+                        provider.update_location(at, args.location, {"special_hours": []})
+                        sleep(1)
+                        ok = v2f.canon_special_hours(live().get("special_hours_periods")) == []
+                        rep.add("special-hours: restored directly (cleanup, not the engine), Google must show the original", PASS if ok else FAIL, "", verified=ok)
+                    else:
+                        run("special-hours: remove the test day through the engine, Google must show the original", back)
+        if "services" in steps:
+            info = live()
+            if info.get("can_modify_service_list") is not True:
+                rep.add("services: add one service", SKIP, f"Google says the service list cannot be edited here (canModifyServiceList={info.get('can_modify_service_list')!r}): a real eligibility result")
+            else:
+                snapshots.refresh(db, gloc, provider=provider)
+                db.commit()
+                a = v2owner.propose_services(db, tenant, gloc, user_id=owner, names=["FlowQR V2 test service"])
+                db.commit()
+                added = run("services: add one marked custom service through the engine, Google must show the complete list", a)
+                touched = touched or added is not None
+                if added is not None:
+                    now_list = v2f.canon_services(live().get("service_items"))
+                    keep = all(v2f.service_key(x) in {v2f.service_key(y) for y in now_list} for x in orig_services)
+                    rep.add("services: every earlier service is still there and the new one is added", PASS if keep and len(now_list) == len(orig_services) + 1 else FAIL, f"{len(orig_services)} before, {len(now_list)} now", verified=True)
+                    snapshots.refresh(db, gloc, provider=provider)
+                    db.commit()
+                    if orig_services:
+                        back = executor.propose(db, tenant, gloc, "service_update", field_key="services", proposed=orig_services, source={"kind": "owner_input", "user_id": str(owner)}, trigger="live_test_restore",
+                                                problem="Restoring the test profile after the V2 live test.", reason="The test service is removed again.", proposed_by="user", user_id=owner)
+                        db.commit()
+                        run("services: restore the original list through the engine, Google must show it", back)
+                    else:
+                        provider.update_location(at, args.location, {"services": []})
+                        sleep(1)
+                        ok = v2f.canon_services(live().get("service_items")) == []
+                        rep.add("services: restored directly (cleanup, not the engine: the engine never empties a list), Google must show the original", PASS if ok else FAIL, "", verified=ok)
+        if "failure" in steps:
+            info = live()
+            if info.get("can_modify_service_list") is not True or not info.get("primary_category"):
+                rep.add("failure: a change Google must refuse", SKIP, "needs an editable service list and a primary category")
+            else:
+                snapshots.refresh(db, gloc, provider=provider)
+                db.commit()
+                bad = v2f.canon_services(orig_services + [{"k": "c", "n": "FlowQR refused-change probe", "c": "categories/gcid:flowqr_not_a_real_category"}])
+                a = executor.propose(db, tenant, gloc, "service_update", field_key="services", proposed=bad, source={"kind": "owner_input", "user_id": str(owner)}, trigger="live_test_failure",
+                                     problem="Live test: a change Google must refuse.", reason="Proves a refused change is never written.", proposed_by="user", user_id=owner)
+                db.commit()
+                before_list = v2f.canon_services(live().get("service_items"))
+                res = run("failure: the refused change is blocked in Google's dry run and never reported as success", a, expect="blocked", prov=_NoWrite(provider))
+                same = v2f.canon_services(live().get("service_items")) == before_list
+                rep.add("failure: the profile is unchanged after the refused change", PASS if same else FAIL, "", verified=same)
+        final = live()
+        same_svc = v2f.canon_services(final.get("service_items")) == orig_services
+        same_sp = v2f.canon_special_hours(final.get("special_hours_periods")) == orig_special
+        rep.add("the test profile is back exactly as it was (services and special hours)", PASS if same_svc and same_sp else FAIL, f"services identical={same_svc}, special hours identical={same_sp}", verified=True)
+        db.commit()
+    finally:
+        db.close()
+    print("\nRESULT: " + ("every executed step passed through the governed path AND was read back from Google" if not rep.failed else f"{rep.failed} step(s) FAILED; see above") + ("  [MOCKED: not evidence about Google]" if mocked else ""))
+    path = getattr(args, "report", None)
+    if path:
+        import json
+
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(rep.as_dict(), fh, indent=2)
+        print(f"Report written to {path}")
+    return 1 if rep.failed else 0
+
+
 def add_commands(sub) -> None:
     p = sub.add_parser("preflight", help="check the real configuration before going live")
     p.add_argument("--smtp-test", metavar="EMAIL", help="send one real test email to this address")
@@ -593,6 +816,14 @@ def add_commands(sub) -> None:
     t.add_argument("--confirm-location", help="repeat --location to confirm")
     t.add_argument("--confirm-title", help="the profile's real title exactly as Google returns it (printed before anything is sent)")
     t.add_argument("--report", metavar="FILE.json", help="write the step-by-step result")
+    v = sub.add_parser("seo-v2-live-test", help="controlled LIVE test of Local SEO engine V2 on a FlowHQ-owned test profile listed in SEO_V2_TEST_LOCATION_NAMES (dry run unless --execute)")
+    v.add_argument("--connection", help="google_connections.id")
+    v.add_argument("--location", required=True, help="locations/<id> of the FlowHQ-owned test profile")
+    v.add_argument("--steps", nargs="+", choices=SEO_V2_STEPS, help="which steps to run (default: all)")
+    v.add_argument("--execute", action="store_true", help="really send to Google")
+    v.add_argument("--confirm-location", help="repeat --location to confirm")
+    v.add_argument("--confirm-title", help="the profile's real title exactly as Google returns it (printed before anything is sent)")
+    v.add_argument("--report", metavar="FILE.json", help="write the step-by-step result")
 
 
 def registration_cmd(args: argparse.Namespace) -> int:
@@ -631,4 +862,4 @@ def registration_cmd(args: argparse.Namespace) -> int:
 
 
 def run(args: argparse.Namespace) -> int:
-    return {"preflight": preflight, "set-admin-password": set_admin_password, "google-write-test": google_write_test, "autonomy-live-test": autonomy_live_test, "registration": registration_cmd}[args.cmd](args)
+    return {"preflight": preflight, "set-admin-password": set_admin_password, "google-write-test": google_write_test, "autonomy-live-test": autonomy_live_test, "seo-v2-live-test": seo_v2_live_test, "registration": registration_cmd}[args.cmd](args)
