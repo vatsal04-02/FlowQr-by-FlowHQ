@@ -29,10 +29,12 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 
  * six states with the buttons that make sense. It renders NOTHING unless the server has the feature switched on (the status route answers 404 otherwise), so with the switch off the page is
  * exactly what it was. No token is ever sent to this component.
  */
-export function AgencyManager() {
+export function AgencyManager({ available = false }: { available?: boolean }) {
   const { isAdmin } = useAuth();
   const toast = useToast();
-  const { data, reload } = useFetch<AStatus>("/google/agency/status");
+  // `available` comes from /google/status (agency_available): when the path is not open for this business the route answers 404 by design, so it is not requested at all (a request known to
+  // fail would be logged as an error in every customer's browser on every visit to the Locations screen).
+  const { data, reload } = useFetch<AStatus>(available ? "/google/agency/status" : null);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [stopFor, setStopFor] = useState<string | null>(null);
