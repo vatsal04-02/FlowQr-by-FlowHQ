@@ -5,6 +5,8 @@
 // Order matters: the more specific path comes first.
 /** @type {[string, string][]} */
 export const LEGACY_ROUTES = [
+  // The book-a-demo page was removed: old links go to Sign up.
+  ["/demo", "/register"],
   // ---- Phase 3 UI plan: GBP (was SEO & Google) and Growth sections (one hop from every older URL)
   ["/analytics/performance", "/seo/performance"],
   ["/analytics/reviews", "/reputation/insights"],
