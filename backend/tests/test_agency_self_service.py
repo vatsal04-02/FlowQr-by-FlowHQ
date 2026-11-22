@@ -741,3 +741,25 @@ def test_the_return_address_cannot_be_chosen_by_the_caller(ss):
     state = parse_qs(urlparse(r.json()["auth_url"]).query)["state"][0]
     cb = biz.http.get("/api/v1/google/callback", params={"code": "auth-code", "state": state}, follow_redirects=False)
     assert cb.status_code == 303 and "evil.example" not in cb.headers["location"] and "/gbp/locations" in cb.headers["location"]
+
+
+# ================================================================== 10. no entry point for a business FlowHQ has not opened (internal-only operation)
+def test_the_journey_says_whether_the_path_is_open_for_this_business(ss, monkeypatch):
+    biz = make_business("Offered Clinic")
+    assert journey(biz)["offered"] is True  # internal-only is off: open for everyone
+    monkeypatch.setattr(settings, "google_agency_internal_only", True)
+    monkeypatch.setattr(settings, "google_agency_operator_emails", "ssob-operator@flowhq.example")
+    assert journey(biz)["offered"] is False  # internal-only and no operator grant: not offered, so the page shows no entry point
+    agency.grant_tenant(biz.tenant_id, operator_email="ssob-operator@flowhq.example")
+    assert journey(biz)["offered"] is True
+
+
+def test_a_business_that_has_not_been_opened_is_blocked_even_before_it_chooses_a_location(ss, monkeypatch):
+    monkeypatch.setattr(settings, "google_agency_internal_only", True)
+    monkeypatch.setattr(settings, "google_agency_operator_emails", "ssob-operator@flowhq.example")
+    biz = make_business("Unopened Unselected Clinic")
+    s = seed(biz)
+    unselect(s)
+    j = the_journey(biz, s)
+    assert j["state"] == "BLOCKED" and j["blocked"]["code"] == "not_opened_for_business" and "select_location" not in j["actions"]  # not steered through a choice it cannot use
+    assert auths_of(s) == [] and ss.calls == []

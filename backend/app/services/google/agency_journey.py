@@ -157,6 +157,8 @@ def location_state(db: Session, conn: GoogleConnection, gl: GoogleLocation | Non
             return "NOT_STARTED", None
         if cs == "error":
             return ("BLOCKED", "api_not_approved") if blocked_api else ("FAILED", None)
+        if agency.internal_only() and not agency.tenant_allowed(conn.tenant_id):
+            return "BLOCKED", "not_opened_for_business"  # first: a business FlowHQ has not opened is not steered through choosing a location it cannot use
         if gl is None or not gl.selected:
             return ("BLOCKED", "api_not_approved") if blocked_api else ("LOCATION_SELECTION_PENDING", None)
         gate = _gate(db, conn.tenant_id, conn, gl)

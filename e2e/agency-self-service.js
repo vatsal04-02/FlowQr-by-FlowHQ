@@ -236,6 +236,9 @@ async function connectAndChoose(page, vpName, tag) {
     await page.goto('/gbp/connect');
     await page.getByRole('heading', { name: 'Waiting on a condition FlowQR cannot override' }).or(page.getByText('On hold')).first().waitFor();
     check('not opened by an operator: shown as BLOCKED with the reason and no Connect button', (await page.getByText(/has not opened managed access/).count()) > 0 && (await page.getByRole('button', { name: 'Connect Google' }).count()) === 0);
+    await page.goto('/gbp/locations');
+    await page.getByRole('heading', { name: 'Locations & Google' }).waitFor();
+    check('not opened by an operator: the Locations page offers NO guided setup (no agency entry point for a business FlowHQ has not opened)', (await page.getByRole('link', { name: 'Open guided setup' }).count()) === 0 && (await page.getByText('Google connection').count()) > 0);
     await shot(page, 'desktop-13-not-opened');
     await rig('/setting', { attr: 'google_agency_internal_only', value: false });
     await ctx.close();

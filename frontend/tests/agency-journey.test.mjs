@@ -96,3 +96,12 @@ test("an extra note is never a repeat of the server's own detail (the page once 
   assert.ok(extraNote("CONNECTED", "Something else entirely."));
   assert.equal(extraNote("CUSTOMER_CONSENT_PENDING", "anything"), null); // no note defined for this state
 });
+
+import { journeyOffered } from "../src/lib/agency-journey.ts";
+test("the guided-setup entry is shown only when the server says the path is open for this business", () => {
+  assert.equal(journeyOffered({ offered: true }), true);
+  assert.equal(journeyOffered({ offered: false }), false);
+  assert.equal(journeyOffered({}), false); // an older server that does not say is treated as closed, never as open
+  assert.equal(journeyOffered(null), false);
+  assert.equal(journeyOffered(undefined), false);
+});

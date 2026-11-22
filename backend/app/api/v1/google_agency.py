@@ -90,7 +90,7 @@ def journey(ctx: TenantContext = Depends(get_tenant_context)):
     _journey_on()
     if ctx.restricted:  # a member limited to some locations does not see the business-wide Google setup
         raise HTTPException(status_code=404, detail="Not Found")
-    return {"consent": _consent_block(), "can_act": ctx.membership.role in (Role.owner, Role.admin), "notice_hours": settings.google_agency_notice_hours,
+    return {"offered": agency.tenant_allowed(ctx.tenant_id), "consent": _consent_block(), "can_act": ctx.membership.role in (Role.owner, Role.admin), "notice_hours": settings.google_agency_notice_hours,
             "removal_business_days": settings.google_agency_removal_business_days, **agency_journey.journey_for_tenant(ctx.db, ctx.tenant_id)}
 
 

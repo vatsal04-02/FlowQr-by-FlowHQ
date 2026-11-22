@@ -36,6 +36,8 @@ export interface Journey {
 }
 export interface StartView { state: JourneyState; headline: string; detail: string; blocked: Blocked | null; actions: string[]; steps: JourneyStep[] }
 export interface JourneyResponse {
+  /** False while FlowHQ has not opened the agency path for this business (internal-only operation): no entry point is shown to it. */
+  offered?: boolean;
   consent: { version: string; text: string; actions: ActionCategory[] }; can_act: boolean; notice_hours: number; removal_business_days: number; journeys: Journey[]; start?: StartView;
 }
 
@@ -115,6 +117,9 @@ export function extraNote(state: string, detail: string): string | null {
   const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   return norm(detail).includes(norm(note)) || norm(note).includes(norm(detail)) ? null : note;
 }
+
+/** Show the "Guided setup" entry only when the server says the path is open for this business. An older server (no field) is treated as closed, never as open. */
+export const journeyOffered = (r: { offered?: boolean } | null | undefined): boolean => r?.offered === true;
 
 export const sinceLabel = (iso: string | null | undefined, fmt: (iso: string) => string): string | null => (iso ? fmt(iso) : null);
 

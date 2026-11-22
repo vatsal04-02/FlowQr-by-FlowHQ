@@ -13,6 +13,7 @@ import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { timeAgo } from "@/lib/format";
 import type { GoogleConnection, GoogleLocation, Location } from "@/lib/types";
+import { journeyOffered } from "@/lib/agency-journey";
 import { useFetch } from "@/lib/use-api";
 
 interface GStatus { configured: boolean; configuration_note: string | null; connections: GoogleConnection[]; agency_available?: boolean }
@@ -187,8 +188,8 @@ function ConnectionPanel({ conn, canEdit, onChanged, onDisconnect, onReconnect }
 
 /** Offers the guided connection when the server has it switched on (the route answers 404 otherwise, and nothing is shown). */
 function JourneyLink() {
-  const { data } = useFetch<{ journeys: unknown[] }>("/google/agency/journey");
-  if (!data) return null;
+  const { data } = useFetch<{ offered?: boolean }>("/google/agency/journey");
+  if (!data || !journeyOffered(data)) return null;  // closed for this business (or the feature is off): nothing is shown
   return (
     <div className="mt-4"><Alert tone="info" title="Guided setup" action={<Link href="/gbp/connect" className="inline-flex min-h-9 items-center rounded-full bg-surface-2 px-4 text-sm font-semibold hover:bg-ink-100">Open guided setup</Link>}>
       Let FlowQR manage your Google profile as your Manager: you sign in once and approve, and FlowQR does the rest, step by step.</Alert></div>
