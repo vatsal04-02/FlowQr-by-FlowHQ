@@ -29,7 +29,7 @@ Test file: `backend/tests/test_agency_self_service.py` (45 tests), plus the exis
 | 21 | Unauthorized operator attempts | `…only_a_listed_signed_in_operator_reaches_the_operator_screens`, `…operator_can_retry_but_gives_no_consent…` | n/a |
 | 22 | Reconnection | `…customer_can_reconnect_and_start_again_after_stopping` | **not run** |
 
-Additional properties tested: flag off ⇒ routes 404 and old page unchanged; config guard; consent needs agreement, current wording and known categories; categories stored, audited and **enforced** (`action_not_consented`); legacy rows keep their meaning; only an admin can consent; BLOCKED states (API not approved, not opened, no agency login, no group access, location identity mismatch); a failed step is persisted; one broken business does not stop the others; the per-connection lock; rate limit; open-redirect guard on the return path; migration 0066 shape.
+Additional properties tested: flag off ⇒ routes 404 and old page unchanged; config guard; consent needs agreement, current wording and known categories; categories stored, audited and **enforced** (`action_not_consented`); legacy rows keep their meaning; only an admin can consent; BLOCKED states (API not approved, not opened, no agency login, no group access, location identity mismatch); a failed step is persisted; one broken business does not stop the others; the per-connection lock; rate limit; open-redirect guard on the return path; migration 0067 shape.
 
 ## What a live test must still confirm (nothing here can)
 

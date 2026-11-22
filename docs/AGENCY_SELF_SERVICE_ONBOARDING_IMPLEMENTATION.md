@@ -17,7 +17,7 @@ So most of the supported workflow already existed. This work builds the customer
 ## 2. What was built
 
 **Backend**
-* `alembic/versions/0066_google_agency_self_service.py` (additive): `consent_actions`, `notices_sent`, `initial_sync_enqueued_at` on `google_agency_authorizations`.
+* `alembic/versions/0067_google_agency_self_service.py` (additive): `consent_actions`, `notices_sent`, `initial_sync_enqueued_at` on `google_agency_authorizations`.
 * `services/google/agency_journey.py` (new, read-only): the 13 states, eight stages, mapping checks, timeline; customer view and operator view.
 * `services/google/agency.py`: permission categories (`ACTION_CATEGORIES`, `normalize_actions`, `permits`); `action=` enforcement in `resolve_agency_access`; `connection_lock`; per-business isolation in the hourly job; `enqueue_initial_sync` (Celery only, once); `send_customer_notice` (stop requested / removed / lost / failed); `finish_client_oauth` (revoke the customer's Google sign-in once FlowQR has left).
 * `get_access_token(..., action=)` wired at reply publishing, post/photo publishing, the profile editor and the governed post/photo screens.
@@ -126,3 +126,7 @@ Unchanged and tested: internal-only grants, operator allowlist (404 for others),
 | Invitation discovery and accept, group membership check, location listing, review sync after the switch, self-removal | Account B (FlowHQ agency login in `google_agency_accounts`) | the same project |
 | Revoke the customer's sign-in | Account A's token at Google's revoke endpoint | the same project |
 The actual project number and client id are not known to me here and must be recorded from the live run.
+
+## 9. Integration with production (supersedes the migration numbering above)
+
+Production moved on while the first candidate (`d382fb7`) was being verified: it now runs Local SEO V2 and the hardening work, at alembic `0066 = 0066_seo_engine_v2`. The agency migration is therefore **`0067`** (down_revision `0066`), the work was merged onto the code production actually runs (`5ec9e93`), and one conflict set was resolved (config guards both kept; the SEO V2 `field_ops.live_value` call kept with `action="edit_profile"` added; `GoogleConnection.tsx` keeps `agency_available` and `<JourneyLink />`). Statements in sections 1 to 8 about "0066" refer to the earlier numbering. Full details, migration evidence, test results and the deployment sequence: `AGENCY_SELF_SERVICE_ONBOARDING_RELEASE_PLAN.md`.

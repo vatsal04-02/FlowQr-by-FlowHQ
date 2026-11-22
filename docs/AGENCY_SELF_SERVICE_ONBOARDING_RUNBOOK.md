@@ -16,7 +16,7 @@ The new variable is already listed in `deploy/vps/docker-compose.vps.yml` (an un
 ## 2. Before enabling anywhere
 
 1. **Validate the setting with the real guard first** (a refusal makes the API 503): `docker compose ... run --rm --no-deps -T api python -c "import app.main"`.
-2. Apply migration 0066 (additive; no row rewritten). Take a backup first (`/opt/flowqr/backups`). Rollback of the code is safe with 0066 applied (new columns are ignored by the old image).
+2. Apply migration 0067 (additive; no row rewritten). Take a backup first (`/opt/flowqr/backups`). Rollback of the code is safe with 0067 applied (new columns are ignored by the old image).
 3. Run `python -m app.cli google-agency-activation-check` and confirm READY.
 4. **Operator account.** The operator registers through the normal sign-up (`REGISTRATION_MODE=allowlist` means the address must be allowed first), verifies the e-mail, and signs in. The operator needs **no membership in any customer business** and must not be given one. The screen is `/admin/agency` (a platform admin who is also in `GOOGLE_AGENCY_OPERATOR_EMAILS`). *Pending in the latest report; a person must do it.*
 5. Confirm the agency login is registered and active (`google-agency-status`), with `GOOGLE_AGENCY_LOCATION_GROUP_ID` set to the long `accounts/<digits>` resource name (not the short account number).
@@ -44,7 +44,7 @@ Use **a dedicated test Business Profile** and two controlled Google accounts: a 
 
 ## 5. Rollback
 
-Set the flag false (validate, then recreate the API). Revert the image to the previous tag. Migration 0066 stays (harmless). Existing authorizations, customer connections, syncs and notices are untouched by a rollback.
+Set the flag false (validate, then recreate the API). Revert the image to the previous tag. Migration 0067 stays (harmless). Existing authorizations, customer connections, syncs and notices are untouched by a rollback.
 
 ## 6. What needs a human or credentials
 

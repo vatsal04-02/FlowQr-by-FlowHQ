@@ -1,6 +1,6 @@
 # Agency self-service onboarding: architecture
 
-Branch `feature/agency-self-service-onboarding` (from `origin/release/gbp-agency` @ 0604555). Migration 0066. Feature flag `GOOGLE_AGENCY_SELF_SERVICE_ENABLED` (off by default). Not deployed.
+Branch `feature/agency-self-service-onboarding` (from `origin/release/gbp-agency` @ 0604555). Migration 0067 (on top of Local SEO V2's 0066). Feature flag `GOOGLE_AGENCY_SELF_SERVICE_ENABLED` (off by default). Not deployed.
 
 ## 1. What this is, and what it is not
 
