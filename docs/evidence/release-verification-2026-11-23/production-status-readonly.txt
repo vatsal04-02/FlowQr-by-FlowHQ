@@ -1,0 +1,101 @@
+== flags (booleans / non-secret enums only)
+  app_env = production
+  hardened = True
+  cookie_secure = True
+  require_verified_email = True
+  registration_mode = allowlist
+  sentry_dsn_set = False
+  sentry_environment = (defaults to app_env)
+  sentry_traces_sample_rate = 0.0
+  smtp_host_set = True
+  smtp_user_set = True
+  smtp_starttls = True
+  smtp_host_is_local_sink = False
+  platform_admin_emails_count = 1
+  google_configured = True
+  google_login_configured = True
+  agency_manager = True
+  agency_operations = True
+  agency_internal_only = True
+  agency_operator_count = 1
+  agency_policy_reference_set = False
+  agency_internal_decision_set = True
+  agency_adopt_existing = True
+  agency_individual_fallback = False
+  agency_client_token_keep_hours = 720
+  google_content_retention_enabled = True
+  google_content_retention_days = 30
+  billing_provider = cashfree
+  cashfree_enabled = True
+  cashfree_env = production
+  prepaid_checkout_enabled = True
+  ai_configured = False
+  ai_provider = gemini
+  review_sync_interval_minutes = 30
+  whatsapp_enabled = True
+  sites_enabled = False
+  autonomy_emergency_stop_env = True
+== backup status file (ok / encrypted / offsite only)
+   cannot read: PermissionError
+== database (counts only)
+   alembic: ['0065']
+   tenants: 5  users: 4
+   google connections by status/mode: [('GoogleConnectionStatus.active', 'client_token', 2)]
+   selected locations by sync status (status, count, newest sync, max consecutive failures): [('ok', 2, '2026-11-22 19:40:31', 0)]
+   locations stuck on 'running' > 30 min (the F-01 symptom): 0
+   agency authorizations: 0  open tenant grants: 0
+   operator addresses registered as users: 0
+   scheduled posts overdue > 1 h, by tenant count: 0
+== the Operations checks (the same data as Admin > Operations; label, status, first 140 chars of detail)
+   overall: critical {'ok': 14, 'unknown': 0, 'warn': 5, 'critical': 1}
+   [ok      ] Database: Responding in 0 ms
+   [ok      ] Redis: Responding
+   [ok      ] Database migrations: At head (0065)
+   [ok      ] Worker and scheduler: Beat scheduled and the worker ran a job 4s ago
+   [ok      ] Scheduled jobs: 29 job types seen; none failing at their last run
+   [ok      ] Failed publishing and sync: Nothing failed in the last 24 h
+   [ok      ] Google connections: 2 active, none revoked
+   [ok      ] Google API quota: No rate limiting or pending approval seen
+   [warn    ] AI provider: No AI key configured: drafts and the growth agent are off
+   [warn    ] AI monthly budget: 0 AI calls this month, about $0.00 counted. No budget is set
+   [warn    ] AI spending limits: No platform hard limit and no per-business budget is set: AI calls are recorded but nothing stops them
+   [ok      ] Places API (local ranking): 5 billed searches this month; 0 failed in 24 h
+   [ok      ] Geo-grid maps: Switched off (RANK_GRID_ENABLED is false). No map scan can spend Google searches
+   [ok      ] Subscriptions: 0 past due, 3 trials end within 3 days, 0 paid periods ended without renewal
+   [warn    ] Razorpay: Not configured: paid plans cannot be bought
+   [warn    ] Database backup: The backup status file cannot be read by this container (permissions)
+   [critical] Error reporting: No SENTRY_DSN: errors are only in container logs
+   [ok      ] Email (SMTP): Sending through <host redacted>
+   [ok      ] Production configuration: Passes the production guard
+   [ok      ] Google content retention: Last run 2026-11-21T19:35+00:00
+== heartbeat age (s): 5
+== job outcomes recorded by the worker (name: last ok age s, last failure age s, failures total)
+   celery.backend_cleanup: ok 57816s, fail Nones, fails 0
+   flowqr.agency_housekeeping: ok 1385s, fail Nones, fails 0
+   flowqr.auto_replies: ok 185s, fail Nones, fails 0
+   flowqr.autonomy_execute: ok 65s, fail Nones, fails 0
+   flowqr.autonomy_followups: ok 1385s, fail Nones, fails 0
+   flowqr.autonomy_housekeeping: ok 185s, fail Nones, fails 0
+   flowqr.autonomy_scan: ok 8585s, fail Nones, fails 0
+   flowqr.billing_reconcile: ok 1385s, fail Nones, fails 0
+   flowqr.billing_refresh: ok 1385s, fail Nones, fails 0
+   flowqr.check_rank_grids: ok 8585s, fail Nones, fails 0
+   flowqr.check_ranks: ok 8585s, fail Nones, fails 0
+   flowqr.daily_agent: ok 1385s, fail Nones, fails 0
+   flowqr.google_content_retention: ok 88067s, fail Nones, fails 0
+   flowqr.notify_by_email: ok 1385s, fail Nones, fails 0
+   flowqr.ops_watch: ok 481s, fail 88450s, fails 569
+   flowqr.prepaid_reconcile: ok 1385s, fail Nones, fails 0
+   flowqr.publish_due_media: ok 5s, fail Nones, fails 0
+   flowqr.publish_due_posts: ok 5s, fail Nones, fails 0
+   flowqr.purge_deleted_accounts: ok 1385s, fail Nones, fails 0
+   flowqr.recover_stuck_posts: ok 185s, fail Nones, fails 0
+   flowqr.retry_failed_replies: ok 485s, fail Nones, fails 0
+   flowqr.sites_housekeeping: ok 1385s, fail Nones, fails 0
+   flowqr.sync_due_locations: ok 485s, fail Nones, fails 0
+   flowqr.sync_location: ok 1384s, fail Nones, fails 0
+   flowqr.whatsapp_booking_reminders: ok 185s, fail Nones, fails 0
+   flowqr.whatsapp_conversations_due: ok 4s, fail Nones, fails 0
+   flowqr.whatsapp_housekeeping: ok 185s, fail Nones, fails 0
+   flowqr.whatsapp_run_due: ok 5s, fail Nones, fails 0
+   flowqr.whatsapp_webhook_deliveries: ok 4s, fail Nones, fails 0

@@ -1,0 +1,15 @@
+# Vercel, read-only CLI queries (project inspect, ls, inspect, alias ls), 2026-11-22/23. No deployment, alias, setting or branch was changed.
+project: flowqr (vatsals-projects-e2c87193), root directory frontend, Next.js
+Git repository: vatsal04-02/FlowQr-by-FlowHQ (GitHub)
+PRODUCTION BRANCH: claude/admiring-edison-e9a7s3     <- NOT release/gbp-agency
+www.flowqr.site and flowqr.site both resolve to: flowqr-ekvnhthkd-vatsals-projects-e2c87193.vercel.app  (dpl_7U79FC4RTgoEunFXMhWNAQYQotUo)
+  target production, Ready, created 2026-11-22 17:22 IST, deployed with the CLI (the deployment record has NO git metadata: no commit SHA is stored by Vercel)
+production deployments, newest first: ekvnhthkd (8h before the check), 9l34e8qf8 (9h), 5xxde53gz (9h), 64e2pa1gc (1d), brpitfyq6 (2d), euvpgk66a, bq3kz4ga1, 12y92atw6, 2j5pa3lid
+branch pushes create PREVIEW aliases only, e.g. flowqr-git-release-gbp-agency-... (1d old) and flowqr-git-marketing-signup-ctas-... (9h old)
+## which source is live (fingerprints from the public site and its JavaScript, 37 files fetched with plain GETs)
+- text added by the LAST marketing commit (0604555, 2026-11-22 17:21 IST: "Bring in more customers and build a reputation people trust.") IS on the live home page
+- the hero strings from the marketing commits ("Agent drafts the offer", "Nothing sends before this", ...) ARE live
+- the Locations bundle still contains the unconditional request  useFetch("/google/agency/status")  -> the release candidate's frontend (F-05) is NOT live
+- the deployment was created one minute after commit 0604555
+conclusion: the live frontend corresponds to source commit 0604555 (origin/release/gbp-agency tip), by timing and by content; Vercel itself cannot confirm a SHA.
+rollback target for the frontend: flowqr-ekvnhthkd (the current production deployment); previous production deployment flowqr-9l34e8qf8

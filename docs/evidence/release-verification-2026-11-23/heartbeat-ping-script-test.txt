@@ -1,0 +1,10 @@
+  PASS  fresh heartbeat -> exit 0 and one ping
+  PASS  heartbeat 400 s old (limit 180) -> exit 1 and NO ping
+  PASS  same heartbeat with a 600 s limit -> ping (limit is configurable)
+  PASS  no heartbeat key at all -> exit 1 and NO ping
+  PASS  clock skew (heartbeat in the future) is treated as fresh, not as an error
+  PASS  redis container missing (stack down) -> exit 1 and NO ping
+  PASS  no URL configured -> exit 2
+  PASS  monitor unreachable -> exit 1 (the monitor sees the missing ping itself)
+  (the script only reads redis: it never wrote to the key; the test wrote and deleted flowqr:ops:hb-test in the THROWAWAY container only)
+HEARTBEAT SCRIPT TESTS PASSED
