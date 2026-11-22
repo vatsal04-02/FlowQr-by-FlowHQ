@@ -95,6 +95,33 @@ def consent_sha() -> str:
     return hashlib.sha256(consent_text().encode()).hexdigest()
 
 
+# What the client can agree FlowQR may do once it is a Manager. Reading is the reason for the access and is always included; each of the others is a separate, optional agreement. A category left
+# out is REFUSED at the point of use (resolve_agency_access(..., action=...)), so the agreement is a control and not only a record. NULL on an older authorization means it was recorded under
+# the earlier wording, which covered all four (each public action still needing the client's approval).
+ACTION_CATEGORIES: dict[str, tuple[str, str, bool]] = {
+    "read_reviews": ("Read your reviews and profile details", "FlowQR reads your reviews and the details of your profile so it can show them to you and draft replies. It changes nothing by reading.", True),
+    "reply_to_reviews": ("Reply to reviews", "FlowQR publishes a reply to a review only after you approve that reply, unless you separately switch on a specific automatic reply.", False),
+    "publish_posts": ("Publish posts and photos", "FlowQR publishes a post or photo only after you approve it.", False),
+    "edit_profile": ("Update profile details", "FlowQR changes details such as hours or description only after you approve the change.", False),
+}
+
+
+def normalize_actions(actions) -> list[str]:
+    """The categories the client ticked, validated: only known ones, reading always present, no duplicates, stable order. Anything unknown is refused rather than ignored."""
+    given = list(actions or [])
+    unknown = [x for x in given if x not in ACTION_CATEGORIES]
+    if unknown:
+        raise ConsentRequired("Unknown permission category")
+    return [k for k in ACTION_CATEGORIES if k in given or ACTION_CATEGORIES[k][2]]
+
+
+def permits(a: "Auth", action: str | None) -> bool:
+    """May FlowQR do this kind of thing on this authorization? Reading is always allowed; None (an old authorization) allows every category the earlier wording covered."""
+    if not action or action == "read_reviews":
+        return True
+    return a.consent_actions is None or action in (a.consent_actions or [])
+
+
 class AgencyError(Exception):
     code = "agency_error"
 
@@ -442,7 +469,7 @@ def _deny(conn: GoogleConnection, code: str, message: str, gloc: GoogleLocation 
     return AgencyResolutionError(code, message)
 
 
-def resolve_agency_access(db: Session, conn: GoogleConnection, gloc: GoogleLocation | None = None) -> AgencyAccess:
+def resolve_agency_access(db: Session, conn: GoogleConnection, gloc: GoogleLocation | None = None, action: str | None = None) -> AgencyAccess:
     """Resolve an agency_account connection to its explicit authorization(s), or refuse with a specific code. Called for EVERY use of the agency login (see tokens.get_access_token).
 
     With a location (`gloc`) the mapping must be exactly one ACTIVE authorization for that tenant, connection, agency login and Google location, the location must sit under the group the authorization
@@ -481,6 +508,8 @@ def resolve_agency_access(db: Session, conn: GoogleConnection, gloc: GoogleLocat
         raise _deny(conn, "tenant_mismatch", "An authorization does not match this tenant and agency login", gloc)
     if gloc is not None:
         a = auths[0]
+        if not permits(a, action):
+            raise _deny(conn, "action_not_consented", "The business did not agree to FlowQR doing this kind of action on its profile", gloc)
         if internal_only() and not tenant_allowed(conn.tenant_id):
             raise _deny(conn, "tenant_not_granted", "A FlowHQ operator has not opened (or has closed) the agency path for this business", gloc)
         if others:
@@ -498,9 +527,9 @@ def resolve_agency_access(db: Session, conn: GoogleConnection, gloc: GoogleLocat
     return AgencyAccess(conn.tenant_id, conn.id, conn.agency_account_id, group, tuple(a.id for a in auths), None)
 
 
-def token_for_connection(db: Session, conn: GoogleConnection, provider=None, gloc: GoogleLocation | None = None) -> str:
+def token_for_connection(db: Session, conn: GoogleConnection, provider=None, gloc: GoogleLocation | None = None, action: str | None = None) -> str:
     """Called by tokens.get_access_token ONLY for agency_account connections. Resolves the explicit mapping first (resolve_agency_access: it fails closed), then returns the agency login's token."""
-    access = resolve_agency_access(db, conn, gloc)
+    access = resolve_agency_access(db, conn, gloc, action)
     return agency_access_token(access.agency_account_id, provider)
 
 
@@ -566,11 +595,12 @@ def _location_taken(resource: str, exclude_connection: uuid.UUID) -> bool:
         return bool(s.scalar(select(func.count()).select_from(Auth).where(Auth.google_location_resource == resource, Auth.connection_id != exclude_connection, Auth.status.in_(LIVE))))
 
 
-def record_consent(db: Session, *, conn: GoogleConnection, user, agree: bool, version: str, scope: str | None = None, request_id: str | None = None) -> list[Auth]:
+def record_consent(db: Session, *, conn: GoogleConnection, user, agree: bool, version: str, scope: str | None = None, request_id: str | None = None, actions=None) -> list[Auth]:
     """Store the client's agreement for every selected location of the connection. Repeating it reuses what is open. Refused unless the client agreed to THIS text.
 
     While internal-only is on the business must hold an open operator grant (TenantNotGranted otherwise), whatever route called this. The consent itself is the CLIENT's, by the business's own signed-in administrator.
 
+    `actions` is the list of action categories the client ticked (ACTION_CATEGORIES; None = not asked, stored as NULL = the earlier wording). A category that is not agreed is refused when used.
     `scope` is the route the client chose (validated when given; inferred when not). `request_id` makes a replay harmless: the same id returns what already exists, and an id whose authorization has
     since ended is refused instead of starting a new invitation. A Google location that another business is already onboarding or managing is refused (never mapped twice)."""
     if not enabled():
@@ -579,6 +609,7 @@ def record_consent(db: Session, *, conn: GoogleConnection, user, agree: bool, ve
         raise TenantNotGranted("The agency path has not been opened for this business by a FlowHQ operator")
     if agree is not True or version != CONSENT_VERSION:
         raise ConsentRequired("The client must agree to the current wording")
+    agreed_actions = normalize_actions(actions) if actions is not None else None
     if request_id:
         prior = list(db.scalars(select(Auth).where(Auth.tenant_id == conn.tenant_id, Auth.consent_request_id == request_id)))
         if prior:
@@ -608,10 +639,10 @@ def record_consent(db: Session, *, conn: GoogleConnection, user, agree: bool, ve
             a = Auth(id=uuid.uuid4(), tenant_id=conn.tenant_id, connection_id=conn.id, google_location_id=gl.id, agency_account_id=account_id, status="consented", target_type=target_type,
                      target_account_name=target_account, google_location_resource=location_resource(gl), invite_scope=route, consent_request_id=request_id,
                      consent_version=CONSENT_VERSION, consent_text_sha256=consent_sha(), consented_at=now,
-                     consented_by=getattr(user, "id", None), consented_by_email=(getattr(user, "email", None) or None))
+                     consented_by=getattr(user, "id", None), consented_by_email=(getattr(user, "email", None) or None), consent_actions=agreed_actions, notices_sent={})
             db.add(a)
             audit(db, action="google.agency.consent", tenant_id=conn.tenant_id, user_id=getattr(user, "id", None), entity_type="google_connection", entity_id=conn.id,
-                  meta={"location": gl.google_location_name, "version": CONSENT_VERSION, "target": target_type, "scope": route})
+                  meta={"location": gl.google_location_name, "version": CONSENT_VERSION, "target": target_type, "scope": route, "actions": agreed_actions})
         out.append(a)
     try:
         db.commit()
@@ -1023,17 +1054,54 @@ def _drive(db: Session, conn: GoogleConnection, a: Auth, client, provider, *, fo
         gl = db.get(GoogleLocation, a.google_location_id)
         a.last_polled_at = utcnow()  # when Google was last asked (there is no notification from Google: this is polling, and it stays slow)
         _STEPS[a.status](db, conn, gl, a, client, provider)
+        db.commit()  # a step that ends in a failure (an expired sign-in, a refusal) records it without committing itself: keep it, or the failure is lost and the next look sees the old state
         if a.status == before:  # waiting or stuck: stop here, never spin
             return
 
 
+@contextmanager
+def connection_lock(conn_id: uuid.UUID, ttl: int = 180):
+    """One worker (or request) at a time moves a connection through its steps, so two clicks, a retry and the hourly job cannot each send an invitation. Yields True when the lock is held, False
+    when another holder has it. It is a short-lived Redis lock (it expires by itself, so a crashed worker cannot block the connection for good). Without Redis (bare dev, tests) it yields True: the steps
+    stay safe to repeat on their own, because each one checks what Google already holds before it sends anything."""
+    from app.core.rate_limit import _get_redis
+
+    client = _get_redis()
+    if client is None:
+        yield True
+        return
+    key, token = f"agency-advance:{conn_id}", secrets.token_hex(8)
+    try:
+        held = bool(client.set(key, token, nx=True, ex=ttl))
+    except Exception:  # noqa: BLE001 - a lock-store problem must not stop onboarding; the steps repeat safely
+        yield True
+        return
+    try:
+        yield held
+    finally:
+        if held:
+            try:
+                if client.get(key) in (token, token.encode()):
+                    client.delete(key)
+            except Exception:  # noqa: BLE001
+                pass
+
+
 def advance_connection(db: Session, conn: GoogleConnection, *, client=None, provider=None, force: bool = False, retry: bool = False) -> list[Auth]:
-    """Move every location of a connection as far along as it can go, then switch the connection if ALL its selected locations are verified. Safe to call again at any time."""
+    """Move every location of a connection as far along as it can go, then switch the connection if ALL its selected locations are verified. Safe to call again at any time.
+    If another worker is already advancing this connection nothing is done here (the connection lock): the caller sees the state that worker leaves."""
     if not enabled():
         raise AgencyDisabled("Agency management is not available")
     auths = _open_auths(db, conn.id, WORKING + ("needs_attention",))
     if not auths and conn.auth_mode != "agency_account":
         raise ConsentRequired("No stored consent for this connection")  # no invite without a consent record
+    with connection_lock(conn.id) as held:
+        if not held:
+            return auths
+        return _advance_locked(db, conn, auths, client=client, provider=provider, force=force, retry=retry)
+
+
+def _advance_locked(db: Session, conn: GoogleConnection, auths: list[Auth], *, client, provider, force: bool, retry: bool) -> list[Auth]:
     for a in auths:
         if a.status == "needs_attention":
             if not retry:
@@ -1041,6 +1109,8 @@ def advance_connection(db: Session, conn: GoogleConnection, *, client=None, prov
             a.status, a.failure_code, a.last_error, a.attempts, a.next_attempt_at = _resume_state(a), None, None, 0, None
             db.commit()
         _drive(db, conn, a, client, provider, force=force or retry)
+        if a.status == "failed":
+            send_customer_notice(db, a, "failed")  # the client hears at once that it could not be set up (once; nothing was changed on their profile)
     _maybe_switch(db, conn, client=client, provider=provider)
     return auths
 
@@ -1070,7 +1140,39 @@ def _maybe_switch(db: Session, conn: GoogleConnection, *, client=None, provider=
     db.commit()
     if not _keeping_client_token(conn, now):  # with a keep window the client's token waits, unused, so the switch can still be undone (rollback_to_client_token)
         revoke_client_token(db, conn, client=client)
+    enqueue_initial_sync(db, conn)  # last: the first sync runs after the client's own token has been dealt with, never before it
     return True
+
+
+def enqueue_initial_sync(db: Session, conn: GoogleConnection) -> int:
+    """Queue ONE read-only review sync for each selected location of a connection that has just moved onto the agency login, once per authorization (initial_sync_enqueued_at). The sync itself is the
+    ordinary one: it asks for the agency token location by location (so every mapping check applies), pages through Google's answer, de-duplicates on (location, review id), records the last
+    success, and a failure on one location never touches another business. Returns how many were queued. Never raises. It queues through Celery only: without a broker nothing is queued or marked,
+    and the regular schedule runs the location's first sync (a location that has never synced is always due)."""
+    if conn.auth_mode != "agency_account" or conn.status != GoogleConnectionStatus.active:
+        return 0
+    todo = [a for a in _open_auths(db, conn.id, ("active",)) if a.initial_sync_enqueued_at is None]
+    if not todo:
+        return 0
+    try:
+        from app.core.rate_limit import _get_redis
+
+        if not (settings.redis_url and _get_redis() is not None):
+            return 0  # no broker (bare dev, tests): never run a Google sync inline from here. The regular schedule picks the location up (it has never synced), and nothing is marked as queued
+        from app.workers.tasks import sync_location
+
+        now = utcnow()
+        for a in todo:
+            sync_location.delay(str(a.google_location_id))
+        for a in todo:
+            a.initial_sync_enqueued_at = now
+        audit(db, action="google.agency.initial_sync_queued", tenant_id=conn.tenant_id, entity_type="google_connection", entity_id=conn.id, meta={"locations": len(todo)})
+        db.commit()
+        return len(todo)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        log.warning("agency: could not queue the initial sync (%s); the regular schedule will run it", type(exc).__name__)
+        return 0
 
 
 def _other_dependents(conn: GoogleConnection) -> int:
@@ -1187,6 +1289,71 @@ def send_notice(db: Session, a: Auth, gl: GoogleLocation | None = None) -> bool:
     return ok
 
 
+# ------------------------------------------------------------------ further notices to the client (each sent once; `manager_added` above has its own column)
+def _customer_notice_text(kind: str, a: Auth, where: str) -> tuple[str, str]:
+    app = f"{settings.frontend_url}/gbp/connect"
+    if kind == "stop_requested":
+        due = f" and will have removed itself from your profile by {a.removal_deadline_at:%d %b %Y}" if a.removal_deadline_at else ""
+        return (f"FlowQR has stopped working on {where}",
+                f"Hi,\n\nThis is a separate notice from FlowQR, not from Google.\n\nYou asked FlowQR to stop managing {where}. FlowQR has stopped all work on it{due}. "
+                "You can also remove FlowQR yourself in Google (Business Profile, People and access). You stay the owner of your profile throughout.\n")
+    if kind == "removed":
+        return (f"FlowQR is no longer a manager of {where}",
+                f"Hi,\n\nThis is a separate notice from FlowQR, not from Google.\n\nFlowQR has removed itself as a Manager of {where}. You have exclusive control of the profile again. "
+                f"If you want FlowQR to manage it later, you can start again at {app}.\n")
+    if kind == "lost":
+        return (f"FlowQR no longer has access to {where}",
+                f"Hi,\n\nThis is a separate notice from FlowQR, not from Google.\n\nFlowQR's Manager access to {where} was removed in Google, so everything FlowQR did through that access has stopped. "
+                f"If that was not intended, you can start again at {app}.\n")
+    return (f"We could not finish connecting {where}",
+            f"Hi,\n\nThis is a notice from FlowQR.\n\nWe could not finish setting up FlowQR as a Manager of {where}. Nothing was changed on your profile. Open {app} to see why and to try again.\n")
+
+
+def send_customer_notice(db: Session, a: Auth, kind: str) -> bool:
+    """E-mail the client who agreed, once per kind (stop_requested, removed, lost, failed). True when it has been sent now or earlier. A mail problem never undoes anything: the hourly sweep tries again."""
+    if (a.notices_sent or {}).get(kind):
+        return True
+    to = a.consented_by_email
+    if not to:
+        return False
+    try:
+        gl = db.get(GoogleLocation, a.google_location_id)
+        subject, body = _customer_notice_text(kind, a, (gl.title if gl else None) or "your Google profile")
+        from app.services.mailer import send_email
+
+        ok = bool(send_email(to, subject, body))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("agency %s notice failed: %s", kind, type(exc).__name__)
+        ok = False
+    audit(db, action="email.sent" if ok else "email.failed", tenant_id=a.tenant_id, entity_type="email", meta={"kind": f"agency_{kind}"})
+    if ok:
+        a.notices_sent = {**(a.notices_sent or {}), kind: utcnow().isoformat()}
+    db.commit()
+    return ok
+
+
+_NOTICE_FOR_STATUS = {"stopping": ("stop_requested",), "stopped": ("stop_requested", "removed"), "lost": ("lost",), "failed": ("failed",)}
+
+
+def finish_client_oauth(db: Session, conn: GoogleConnection, *, client=None) -> bool:
+    """After a stop, once FlowQR has left every profile of the connection (nothing is still `stopping`), revoke the client's own Google sign-in at Google and drop our copy. Only when Google CONFIRMS;
+    otherwise the encrypted token is kept and the hourly job asks again. Skipped while another FlowQR connection of the same Google user still runs on it. True = nothing left to do."""
+    if conn.status != GoogleConnectionStatus.disconnected or not conn.refresh_token_encrypted:
+        return True
+    if _open_auths(db, conn.id, ("stopping",)) or _other_dependents(conn):
+        return False
+    try:
+        ok = _client(client).revoke_token(get_cipher().decrypt(conn.refresh_token_encrypted))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("agency: client sign-in revoke raised %s", type(exc).__name__)
+        ok = False
+    if ok:
+        conn.refresh_token_encrypted = conn.access_token_encrypted = conn.access_token_expires_at = None
+        audit(db, action="google.agency.client_oauth_revoked", tenant_id=conn.tenant_id, entity_type="google_connection", entity_id=conn.id)
+    db.commit()
+    return ok
+
+
 # ------------------------------------------------------------------ stopping
 def request_stop(db: Session, conn: GoogleConnection, *, user=None, client=None, provider=None) -> list[Auth]:
     """"Stop FlowQR managing my profile". Works whether or not the feature switch is on (a client must always be able to stop). All work for the client stops NOW; the removal
@@ -1210,6 +1377,9 @@ def request_stop(db: Session, conn: GoogleConnection, *, user=None, client=None,
     for a in live:
         if a.status == "stopping":
             remove_self(db, conn, a, client=client, provider=provider)
+        if a.invite_sent_at:
+            send_customer_notice(db, a, "stop_requested")
+    finish_client_oauth(db, conn, client=client)
     return live
 
 
@@ -1261,6 +1431,9 @@ def remove_self(db: Session, conn: GoogleConnection, a: Auth, *, client=None, pr
         a.status, a.removed_at, a.failure_code, a.last_error = "stopped", utcnow(), None, None
         audit(db, action="google.agency.removed", tenant_id=a.tenant_id, entity_type="google_agency_authorization", entity_id=a.id, meta={"location": gl.google_location_name})
     db.commit()
+    if done and a.status == "stopped":
+        send_customer_notice(db, a, "removed")
+        finish_client_oauth(db, conn, client=client)
     return done
 
 
@@ -1289,6 +1462,7 @@ def _mark_lost(db: Session, conn: GoogleConnection, a: Auth) -> None:
     audit(db, action="google.agency.lost", tenant_id=conn.tenant_id, entity_type="google_connection", entity_id=conn.id)
     db.commit()
     alert_internal("a client removed FlowQR as manager in Google", [f"Connection {conn.id} (tenant {conn.tenant_id}): FlowQR's manager access was removed. " + ("All work for this client has stopped. " if conn.auth_mode == "agency_account" else "Their own connection is unchanged. ") + "No further agency calls will be made."])
+    send_customer_notice(db, a, "lost")
 
 
 def check_access(db: Session, conn: GoogleConnection, *, client=None, provider=None) -> str:
@@ -1382,10 +1556,15 @@ def housekeeping(db: Session, *, client=None, provider=None, now: datetime | Non
         if not enabled():
             return
         for cid in {a.connection_id for a in db.scalars(select(Auth).where(Auth.status.in_(WORKING))).all()}:
-            conn = db.get(GoogleConnection, cid)
-            if conn is not None and conn.status == GoogleConnectionStatus.active:
-                advance_connection(db, conn, client=client, provider=provider)
-                out["advanced"] += 1
+            try:  # one business failing must never stop the others from moving forward
+                conn = db.get(GoogleConnection, cid)
+                if conn is not None and conn.status == GoogleConnectionStatus.active:
+                    advance_connection(db, conn, client=client, provider=provider)
+                    out["advanced"] += 1
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                out["errors"] = out.get("errors", 0) + 1
+                log.warning("agency housekeeping: connection %s could not be advanced (%s); continuing with the others", cid, type(exc).__name__)
 
     def verify():
         if not enabled():
@@ -1393,12 +1572,32 @@ def housekeeping(db: Session, *, client=None, provider=None, now: datetime | Non
         cutoff = now - timedelta(hours=settings.google_agency_verify_interval_hours)
         due = {a.connection_id for a in db.scalars(select(Auth).where(Auth.status.in_(("verified", "active")))).all() if a.last_verified_at is None or a.last_verified_at < cutoff}
         for cid in due:
-            conn = db.get(GoogleConnection, cid)
-            if conn is not None and conn.status == GoogleConnectionStatus.active:
-                check_access(db, conn, client=client, provider=provider)
-                out["checked"] += 1
+            try:
+                conn = db.get(GoogleConnection, cid)
+                if conn is not None and conn.status == GoogleConnectionStatus.active:
+                    check_access(db, conn, client=client, provider=provider)
+                    out["checked"] += 1
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                out["errors"] = out.get("errors", 0) + 1
+                log.warning("agency housekeeping: access check for %s failed (%s); continuing", cid, type(exc).__name__)
 
-    for label, fn in (("removals", removals), ("revokes", revokes), ("notices", notices), ("forward", forward), ("verify", verify)):
+    def more_notices():
+        recent = now - timedelta(days=14)  # only what happened lately: an old record is never mailed about for the first time
+        for a in db.scalars(select(Auth).where(Auth.status.in_(tuple(_NOTICE_FOR_STATUS)), Auth.updated_at >= recent)).all():
+            for kind in _NOTICE_FOR_STATUS[a.status]:
+                if kind in ("stop_requested", "removed") and not a.invite_sent_at:
+                    continue  # nothing ever existed at Google: there is nothing to tell
+                if send_customer_notice(db, a, kind):
+                    out["notices"] += 1
+
+    def finishing():
+        for conn in db.scalars(select(GoogleConnection).where(GoogleConnection.status == GoogleConnectionStatus.disconnected, GoogleConnection.refresh_token_encrypted.is_not(None))).all():
+            if db.scalar(select(func.count()).select_from(Auth).where(Auth.connection_id == conn.id)):  # only connections that went through the agency path
+                if finish_client_oauth(db, conn, client=client):
+                    out["revoked"] += 1
+
+    for label, fn in (("removals", removals), ("revokes", revokes), ("notices", notices), ("more_notices", more_notices), ("finishing", finishing), ("forward", forward), ("verify", verify)):
         guarded(label, fn)
     return out
 

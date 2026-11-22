@@ -344,7 +344,7 @@ def publish(db: Session, post: ScheduledPost, *, provider=None, now: datetime | 
     db.commit()  # the atomic claim: durable before any external call
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider, gloc=gloc)
+        token = get_access_token(db, conn, provider, gloc=gloc, action="publish_posts")
         if earlier_attempt:
             existing = find_on_google(db, post, provider.list_posts(token, gloc.google_account_name, gloc.google_location_name))
             if existing:

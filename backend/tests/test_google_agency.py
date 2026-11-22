@@ -595,7 +595,8 @@ def test_stopping_before_any_invitation_just_cancels(fake):
     consent(biz, s)
     with closing(system_session()) as db:
         agency.request_stop(db, db.get(GoogleConnection, s.conn_id))
-    assert auths_of(s)[0].status == "cancelled" and fake.calls == []
+    assert auths_of(s)[0].status == "cancelled"
+    assert [c[0] for c in fake.calls] == ["revoke"]  # no Business Profile call (nothing existed at Google); only the stopped connection's own Google sign-in is revoked, which nothing needs any more
 
 
 # ------------------------------------------------------------------ accounts, keys, isolation

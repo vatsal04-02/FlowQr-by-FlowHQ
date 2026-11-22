@@ -69,6 +69,8 @@ def connect(response: Response, ctx: TenantContext = Depends(require_role(Role.a
     state = sign_state(f"{nonce}|{ctx.tenant_id}|{ctx.user.id}")
     provider = g.get_google_provider()
     response.set_cookie(STATE_COOKIE, nonce, max_age=600, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
+    audit(ctx.db, action="google.connect_started", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=ctx.tenant_id)
+    ctx.db.commit()  # so the onboarding journey can say "Google sign-in started" until the callback arrives
     return {"auth_url": provider.build_auth_url(state)}
 
 
@@ -280,16 +282,21 @@ def disconnect(connection_id: uuid.UUID, request: Request, ctx: TenantContext = 
         from app.services.google import agency  # FlowQR is (or is about to be) a manager: stop its work and remove it from the profile, then end the connection as usual
 
         agency.request_stop(ctx.db, conn, user=ctx.user)
-    if conn.refresh_token_encrypted:
+    # An invitation that was sent but never accepted can only be withdrawn with the client's own sign-in. If that withdrawal did not finish, the encrypted sign-in is kept for now and revoked by the
+    # hourly job the moment FlowQR is gone (agency.finish_client_oauth); it is never used for anything else.
+    withdrawing = bool(ctx.db.scalar(select(func.count()).select_from(GoogleAgencyAuthorization).where(
+        GoogleAgencyAuthorization.connection_id == conn.id, GoogleAgencyAuthorization.status == "stopping", GoogleAgencyAuthorization.accepted_at.is_(None))))
+    if conn.refresh_token_encrypted and not withdrawing:
         try:
             token = get_cipher().decrypt(conn.refresh_token_encrypted)
             if settings.google_configured:
                 g.get_google_provider().revoke(token)  # best-effort revoke at Google
         except Exception:
             log.warning("Token revoke at Google failed (continuing with local disconnect)")
-    conn.refresh_token_encrypted = None
-    conn.access_token_encrypted = None
-    conn.access_token_expires_at = None
+    if not withdrawing:
+        conn.refresh_token_encrypted = None
+        conn.access_token_encrypted = None
+        conn.access_token_expires_at = None
     conn.status = GoogleConnectionStatus.disconnected
     conn.disconnected_at = utcnow()
     for gl in ctx.db.scalars(select(GoogleLocation).where(GoogleLocation.connection_id == conn.id)):

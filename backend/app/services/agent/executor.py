@@ -412,7 +412,7 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
     # ---- read the live profile and re-verify the premises
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider, gloc=gloc)
+        token = get_access_token(db, conn, provider, gloc=gloc, action="edit_profile")
         live = provider.get_location_details(token, gloc.google_location_name)
     except Exception as exc:  # noqa: BLE001
         reason, may_retry = describe_failure(exc)

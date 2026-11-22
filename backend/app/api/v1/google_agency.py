@@ -10,9 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.deps import TenantContext, ensure_verified, get_tenant_context, require_role
+from app.core.rate_limit import hit
 from app.models import GoogleAgencyAuthorization, GoogleConnection, GoogleConnectionStatus, Role
-from app.services.google import agency
+from app.services.audit import audit
+from app.services.google import agency, agency_journey
 
 router = APIRouter(prefix="/google/agency", tags=["google-agency"])
 
@@ -23,6 +26,14 @@ class ConsentIn(BaseModel):
     consent_version: str = ""
     scope: str | None = None  # the route the client chose: location (one profile) | business_group (several profiles of one Google business group)
     request_id: str | None = Field(default=None, max_length=64)  # replay protection: the same id never starts a second invitation
+
+
+class JourneyStartIn(BaseModel):
+    connection_id: uuid.UUID
+    agree: bool = False
+    consent_version: str = ""
+    actions: list[str] = Field(default_factory=list, max_length=8)  # the permission categories the client ticked (agency.ACTION_CATEGORIES); reading is always included
+    request_id: str | None = Field(default=None, max_length=64)
 
 
 class StopIn(BaseModel):
@@ -57,6 +68,53 @@ def _fail(exc: agency.AgencyError):
     raise HTTPException(status_code=409, detail={"code": exc.code, "message": str(exc)})
 
 
+def _journey_on() -> None:
+    """The guided onboarding is behind its own switch on top of the agency switch. Off: these routes answer exactly what an unknown path answers."""
+    if not (agency.enabled() and settings.google_agency_self_service_enabled):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def _limit(ctx: TenantContext, what: str, limit: int, window: int) -> None:
+    if not hit(f"agency-{what}:{ctx.tenant_id}", limit, window):
+        raise HTTPException(status_code=429, detail={"code": "rate_limited", "message": "Too many attempts. Please wait a few minutes and try again."})
+
+
+def _consent_block() -> dict:
+    return {"version": agency.CONSENT_VERSION, "text": agency.consent_text(),
+            "actions": [{"id": k, "label": v[0], "description": v[1], "required": v[2]} for k, v in agency.ACTION_CATEGORIES.items()]}
+
+
+@router.get("/journey")
+def journey(ctx: TenantContext = Depends(get_tenant_context)):
+    """The self-service onboarding as one journey: state, the eight stages, what is blocking, the mapping checks, the sync status and a timeline. Read-only; sends nothing to Google."""
+    _journey_on()
+    if ctx.restricted:  # a member limited to some locations does not see the business-wide Google setup
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"consent": _consent_block(), "can_act": ctx.membership.role in (Role.owner, Role.admin), "notice_hours": settings.google_agency_notice_hours,
+            "removal_business_days": settings.google_agency_removal_business_days, **agency_journey.journey_for_tenant(ctx.db, ctx.tenant_id)}
+
+
+@router.post("/journey/start")
+def journey_start(body: JourneyStartIn, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """The client's explicit agreement (to the wording AND to each permission category), then the invitation and everything after it as far as it can go right now. Idempotent per request id."""
+    _journey_on()
+    _limit(ctx, "journey-start", 10, 3600)
+    ensure_verified(ctx.user)
+    conn = _conn(ctx, body.connection_id)
+    routes = agency.available_routes(agency._selected_glocs(ctx.db, conn.id))
+    if not routes["available"]:
+        raise HTTPException(status_code=422, detail={"code": "scope_invalid", "message": routes["reason"] or "Select the business location first."})
+    try:
+        agency.record_consent(ctx.db, conn=conn, user=ctx.user, agree=body.agree, version=body.consent_version, scope=routes["available"][0], request_id=body.request_id, actions=body.actions)
+        audit(ctx.db, action="google.agency.journey_started", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="google_connection", entity_id=conn.id, meta={"actions": body.actions})
+        ctx.db.commit()
+        agency.advance_connection(ctx.db, conn, force=True)
+    except agency.AgencyError as exc:
+        _fail(exc)
+    ctx.db.refresh(conn)
+    return agency_journey.journey_for_connection(ctx.db, conn)
+
+
 @router.get("/status")
 def status(ctx: TenantContext = Depends(get_tenant_context)):
     _on(ctx.tenant_id)
@@ -69,6 +127,7 @@ def status(ctx: TenantContext = Depends(get_tenant_context)):
 @router.post("/consent")
 def consent(body: ConsentIn, ctx: TenantContext = Depends(require_role(Role.admin))):
     _on(ctx.tenant_id)
+    _limit(ctx, "consent", 10, 3600)
     ensure_verified(ctx.user)
     conn = _conn(ctx, body.connection_id)
     try:
@@ -84,6 +143,7 @@ def consent(body: ConsentIn, ctx: TenantContext = Depends(require_role(Role.admi
 def advance(connection_id: uuid.UUID, ctx: TenantContext = Depends(require_role(Role.admin))):
     """"Check again": retries what is waiting and what needed attention. Idempotent."""
     _on(ctx.tenant_id)
+    _limit(ctx, "advance", 30, 3600)
     conn = _conn(ctx, connection_id)
     try:
         agency.advance_connection(ctx.db, conn, force=True, retry=True)
