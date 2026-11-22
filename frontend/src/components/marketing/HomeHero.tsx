@@ -117,7 +117,7 @@ function WhatsAppOfferCard() {
 
 export function HomeHero({ line1, line2, outcome, sub }: { line1: string; line2: string; outcome: string; sub: string }) {
   return (
-    <section className="relative isolate -mt-[76px] overflow-hidden pb-14 pt-[104px] md:pb-20 md:pt-[112px]">
+    <section className="relative isolate -mt-[56px] overflow-hidden pb-14 pt-[124px] md:pb-20 md:pt-[132px]">
       {/* cream ground with a dot grid, fading into the page colour at the bottom */}
       <div aria-hidden className="hh-ground absolute inset-0 -z-10" />
       <div className="mkt-wrap !max-w-[1200px] !px-6">
