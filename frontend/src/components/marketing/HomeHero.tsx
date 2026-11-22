@@ -126,7 +126,7 @@ function Words({ text, from }: { text: string; from: number }) {
 
 export function HomeHero({ line1, line2, outcome, sub }: { line1: string; line2: string; outcome: string; sub: string }) {
   return (
-    <section className="relative isolate -mt-[56px] overflow-hidden pb-12 pt-[84px] md:pb-20 md:pt-[132px]">
+    <section className="relative isolate -mt-[56px] overflow-hidden pb-12 pt-[84px] md:pb-20 md:pt-[96px]">
       {/* cream ground with a dot grid, fading into the page colour at the bottom */}
       <div aria-hidden className="hh-ground absolute inset-0 -z-10" />
       <div className="mkt-wrap !max-w-[1200px] !px-6">
