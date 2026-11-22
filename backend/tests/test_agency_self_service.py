@@ -651,3 +651,93 @@ def test_migration_0066_is_additive_and_old_rows_keep_their_meaning():
     assert cols["consent_actions"] == "YES" and cols["initial_sync_enqueued_at"] == "YES" and cols["notices_sent"] == "NO"
     assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0066"
     assert owner_query("SELECT column_default FROM information_schema.columns WHERE table_name = 'google_agency_authorizations' AND column_name = 'notices_sent'")[0][0].startswith("'{}'")
+
+
+# ================================================================== 9. the whole customer journey over the real HTTP routes, from "Connect Google" to CONNECTED
+def _as_customer_google(f):
+    """Make the shared fake behave as GOOGLE for the customer's own sign-in too: the OAuth code exchange, the identity, and the accounts and locations the customer manages."""
+    from urllib.parse import parse_qs, urlparse  # noqa: F401
+    from app.services.google.provider import GAccount, GLocation, TokenSet
+
+    agency_list_accounts, agency_list_locations = f.list_accounts, f.list_locations
+    f.exchange_code = lambda code: TokenSet(CLIENT_ACCESS, 3600, CLIENT_REFRESH, "openid email https://www.googleapis.com/auth/business.manage")
+    f.get_userinfo = lambda at: {"sub": "customer-sub-1", "email": "owner@clinic.example.com"}
+    f.list_accounts = lambda token: [GAccount("accounts/111", "Clinic")] if token == CLIENT_ACCESS else agency_list_accounts(token)
+    f.list_locations = lambda token, acct: ([GLocation(acct, "locations/222", "Clinic Gomti Nagar", "Gomti Nagar, Lucknow", "PID1", "https://g.page/r/FAKE/review"),
+                                             GLocation(acct, "locations/333", "Clinic Aliganj", "Aliganj, Lucknow", "PID2", None)] if token == CLIENT_ACCESS else agency_list_locations(token, acct))
+    return f
+
+
+def test_one_google_sign_in_one_agreement_then_everything_follows_over_the_real_routes(ss):
+    from urllib.parse import parse_qs, urlparse
+
+    _as_customer_google(ss)
+    biz = make_business("End To End Clinic")
+    assert journey(biz)["start"]["state"] == "NOT_STARTED"  # 1. registered, onboarded, nothing connected
+
+    r = biz.post("/google/connect", params={"return_to": "journey"})  # 2. "Connect Google"
+    assert r.status_code == 200, r.text
+    state = parse_qs(urlparse(r.json()["auth_url"]).query)["state"][0]
+    assert journey(biz)["start"]["state"] == "CUSTOMER_OAUTH_PENDING"  # the sign-in was opened and not finished
+
+    cb = biz.http.get("/api/v1/google/callback", params={"code": "auth-code", "state": state}, follow_redirects=False)  # 3. the customer signs in and accepts Google's own consent screen
+    assert cb.status_code == 303 and cb.headers["location"].endswith("/gbp/connect?connected=1&connection=" + cb.headers["location"].split("connection=")[1])  # back on the guided page, not the old one
+    j = journey(biz)["journeys"][0]  # 4. FlowQR discovered the accounts and the locations
+    assert j["state"] == "LOCATION_SELECTION_PENDING" and [a["title"] for a in j["available_locations"]] == ["Clinic Aliganj", "Clinic Gomti Nagar"]
+    assert j["google"]["email"] == "owner@clinic.example.com" and step(j, "google")["status"] == "done" and step(j, "select")["status"] == "current"
+    cid = j["connection_id"]
+    chosen = next(a for a in j["available_locations"] if a["title"] == "Clinic Gomti Nagar")
+
+    sel = biz.put(f"/google/connections/{cid}/selection", json={"selections": [{"google_location_id": chosen["google_location_id"], "selected": True, "location_id": biz.location_id}]})  # 5. the customer picks one
+    assert sel.status_code == 200, sel.text
+    j = journey(biz)["journeys"][0]
+    assert j["state"] == "CUSTOMER_CONSENT_PENDING" and j["locations"][0]["flowqr_location_id"] == biz.location_id
+    assert [(c[0], c[2]) for c in ss.calls] == [("list_reviews", CLIENT_ACCESS)]  # mapped to THEIR FlowQR location. Only their own, existing review sync ran (with their own token): nothing agency-related was sent to Google
+
+    r = biz.post("/google/agency/journey/start", json={"connection_id": cid, "agree": True, "consent_version": agency.CONSENT_VERSION, "actions": ["reply_to_reviews"], "request_id": "e2e-1"})  # 6. the one agreement
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["state"] == "CONNECTED" and [step(j, k)["status"] for k in ("google", "locations", "select", "consent", "invite", "accept", "verify")] == ["done"] * 7
+    # who did what, in order: the CUSTOMER's token invited; FlowHQ's OWN agency login accepted and verified
+    seq = [(c[0], c[2]) for c in ss.calls if c[0] in ("invite_group", "list_group_invitations", "accept", "list_group_locations")]
+    assert seq[0] == ("invite_group", CLIENT_ACCESS) and ("accept", AGENCY_ACCESS) in seq and seq[-1] == ("list_group_locations", AGENCY_ACCESS)
+    assert ss.requests[0]["account"] == GROUP and ss.requests[0]["location"] == "locations/222" and ss.requests[0]["role"] == "MANAGER"
+    (a,) = auths_of_conn(cid)
+    assert a.google_location_resource == "locations/222" and a.tenant_id == uuid.UUID(biz.tenant_id) and a.consent_actions == ["read_reviews", "reply_to_reviews"]
+    assert all(c["ok"] for c in j["locations"][0]["mapping"])  # 7. tenant, location, business identity, agency grant: each checked
+    assert get_cipher().decrypt(next(iter(owner_query("SELECT refresh_token_encrypted FROM google_connections WHERE id = :c", c=cid)))[0]) == CLIENT_REFRESH  # their own sign-in is untouched
+    assert mail(biz.email, "FlowQR is now a manager")
+
+    biz.post(f"/google/agency/connections/{cid}/stop", json={"confirm": True})  # 8. and they can leave
+    assert journey(biz)["journeys"][0]["state"] == "REVOKED" and ss.admins["222"] == []
+
+
+def auths_of_conn(cid):
+    with closing(system_session()) as db:
+        rows = list(db.scalars(select(Auth).where(Auth.connection_id == uuid.UUID(cid))))
+        for r in rows:
+            db.expunge(r)
+        return rows
+
+
+def test_a_google_sign_in_without_the_guided_flag_still_lands_where_it_always_did(gfake, monkeypatch):
+    from urllib.parse import parse_qs, urlparse
+
+    monkeypatch.setattr(settings, "google_agency_self_service_enabled", False)
+    _as_customer_google(gfake)
+    biz = make_business("Old Landing Clinic")
+    r = biz.post("/google/connect", params={"return_to": "journey"})  # asked for, but the switch is off: ignored
+    state = parse_qs(urlparse(r.json()["auth_url"]).query)["state"][0]
+    cb = biz.http.get("/api/v1/google/callback", params={"code": "auth-code", "state": state}, follow_redirects=False)
+    assert cb.status_code == 303 and "/gbp/locations" in cb.headers["location"] and "/gbp/connect" not in cb.headers["location"]
+
+
+def test_the_return_address_cannot_be_chosen_by_the_caller(ss):
+    from urllib.parse import parse_qs, urlparse
+
+    _as_customer_google(ss)
+    biz = make_business("No Open Redirect Clinic")
+    r = biz.post("/google/connect", params={"return_to": "https://evil.example/steal"})
+    state = parse_qs(urlparse(r.json()["auth_url"]).query)["state"][0]
+    cb = biz.http.get("/api/v1/google/callback", params={"code": "auth-code", "state": state}, follow_redirects=False)
+    assert cb.status_code == 303 and "evil.example" not in cb.headers["location"] and "/gbp/locations" in cb.headers["location"]

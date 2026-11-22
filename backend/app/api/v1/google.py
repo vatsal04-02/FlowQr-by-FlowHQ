@@ -29,6 +29,7 @@ from app.services.google.tokens import get_access_token, note_api_access, note_n
 log = logging.getLogger("flowqr.google")
 router = APIRouter(prefix="/google", tags=["google"])
 STATE_COOKIE = "flowqr_oauth_state"
+RETURN_COOKIE = "flowqr_oauth_return"  # where the browser lands after Google: only "journey" is accepted, and only while the guided onboarding is switched on
 
 
 def _frontend(path: str, **params) -> RedirectResponse:
@@ -59,7 +60,7 @@ def status(ctx: TenantContext = Depends(get_tenant_context)):
 
 
 @router.post("/connect")
-def connect(response: Response, ctx: TenantContext = Depends(require_role(Role.admin))):
+def connect(response: Response, return_to: str | None = None, ctx: TenantContext = Depends(require_role(Role.admin))):
     ensure_verified(ctx.user)
     ent.require_feature(ctx.db, ctx.tenant_id, "review_sync")
     if not settings.google_configured:
@@ -69,6 +70,8 @@ def connect(response: Response, ctx: TenantContext = Depends(require_role(Role.a
     state = sign_state(f"{nonce}|{ctx.tenant_id}|{ctx.user.id}")
     provider = g.get_google_provider()
     response.set_cookie(STATE_COOKIE, nonce, max_age=600, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
+    if return_to == "journey" and settings.google_agency_self_service_enabled:  # a fixed allow-list: the value is never used as an address
+        response.set_cookie(RETURN_COOKIE, "journey", max_age=600, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
     audit(ctx.db, action="google.connect_started", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=ctx.tenant_id)
     ctx.db.commit()  # so the onboarding journey can say "Google sign-in started" until the callback arrives
     return {"auth_url": provider.build_auth_url(state)}
@@ -77,11 +80,15 @@ def connect(response: Response, ctx: TenantContext = Depends(require_role(Role.a
 @router.get("/callback")
 def callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None,
              oauth_nonce: str | None = Cookie(default=None, alias=STATE_COOKIE),
+             oauth_return: str | None = Cookie(default=None, alias=RETURN_COOKIE),
              session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
              db: Session = Depends(get_db)):
+    landing = "/gbp/connect" if oauth_return == "journey" and settings.google_agency_self_service_enabled else "/gbp/locations"
+
     def fail(reason: str):
-        r = _frontend("/gbp/locations", error=reason)
+        r = _frontend(landing, error=reason)
         r.delete_cookie(STATE_COOKIE, path="/")
+        r.delete_cookie(RETURN_COOKIE, path="/")
         return r
 
     if error:
@@ -151,8 +158,9 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     audit(db, action="google.connect", tenant_id=tenant_id, user_id=user_id, entity_type="google_connection",
           entity_id=conn.id, ip=client_ip(request))
     db.commit()
-    r = _frontend("/gbp/locations", connected="1", connection=str(conn.id))
+    r = _frontend(landing, connected="1", connection=str(conn.id))
     r.delete_cookie(STATE_COOKIE, path="/")
+    r.delete_cookie(RETURN_COOKIE, path="/")
     return r
 
 

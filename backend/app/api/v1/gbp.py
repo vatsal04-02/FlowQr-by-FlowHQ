@@ -34,11 +34,11 @@ def _gloc(ctx: TenantContext, gid: uuid.UUID) -> tuple[GoogleLocation, GoogleCon
     return gl, conn
 
 
-def _call(ctx: TenantContext, conn: GoogleConnection, fn):
-    """Run a provider call, mapping Google errors to honest HTTP errors."""
+def _call(ctx: TenantContext, conn: GoogleConnection, fn, action: str | None = None):
+    """Run a provider call, mapping Google errors to honest HTTP errors. `action` names the kind of change when it is one (an agency connection refuses what the business did not agree to)."""
     try:
         provider = g.get_google_provider()
-        token = get_access_token(ctx.db, conn, provider)
+        token = get_access_token(ctx.db, conn, provider, action=action)
         return fn(provider, token)
     except g.GoogleApiNotApproved as exc:
         message = tokens.note_not_approved(conn, exc)
@@ -79,7 +79,7 @@ def _governed(ctx: TenantContext, gl: GoogleLocation, conn: GoogleConnection, *,
     box: dict = {}
 
     def send():
-        box["result"] = _call(ctx, conn, call)
+        box["result"] = _call(ctx, conn, call, action="publish_posts")  # every screen that goes through here publishes a post or a photo
         return "done", {"name": (box["result"] or {}).get("name"), "_gloc": (gl.google_account_name, gl.google_location_name)}
 
     out = content_exec.direct(ctx.db, kind=kind, action_type=action_type, tenant_id=ctx.tenant_id, gloc=gl, user_id=ctx.user.id, role=ctx.role, feature=feature, content=content,
