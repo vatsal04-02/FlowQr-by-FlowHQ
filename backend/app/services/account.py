@@ -57,7 +57,7 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   # admin-managed businesses: the offline agreement an administrator recorded
                   "tenant_agreements",
                   # agency manager account: the client's stored consent and the invite, accept, notice and removal dates for each location (no tokens, no Google content)
-                  "google_agency_authorizations",
+                  "google_agency_authorizations", "google_agency_tenant_grants",  # (the grant is platform-only: which FlowHQ operator opened the internal agency path for this business, and when)
                   # and the administrator-handled export / deletion requests for a business that has no owner login (a person's own requests about their business are their data too)
                   "data_requests", "data_request_events",
                   # the website builder: the business's own website content, hostnames, image metadata, enquiries and publish history (image FILES are added to the ZIP by build_export)
