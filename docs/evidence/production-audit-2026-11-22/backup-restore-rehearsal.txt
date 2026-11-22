@@ -14,3 +14,8 @@ checksum ok
 restored: tables=118 migration=0065 tenants=22 users=26 qr_cards=5 rls_policies=96
 RESTORE VERIFIED (off-site copy) at 2026-11-22T19:25:53Z. The live database was not touched.
 exit=0
+
+# Tamper test: one byte flipped in a COPY of the encrypted backup (the original is untouched)
+$ sha256sum -c <backup>.sha256        -> WARNING: 1 computed checksum did NOT match
+$ openssl enc -d ... | gzip -t        -> gzip: invalid compressed data--length error
+$ deploy/verify-restore.sh <tampered> -> RESTORE CHECK FAILED: checksum does not match: the file was damaged or altered
