@@ -221,7 +221,7 @@ const call = (pg, method, url, body, headers) => pg.evaluate(async ([m, u, b, h]
   await step('marketing pages stay on the marketing host and carry the public origin', async () => {
     const mp = await ctx.newPage();
     await mp.route('**/*', (route) => route.continue());
-    for (const p of ['/about', '/review-cards', '/google-business', '/ai-growth-agent', '/industries', '/demo', '/privacy', '/terms', '/refund-policy', '/data-deletion', '/pricing']) {
+    for (const p of ['/about', '/review-cards', '/google-business', '/ai-growth-agent', '/industries', '/privacy', '/terms', '/refund-policy', '/data-deletion', '/pricing']) {
       const resp = await mp.goto(`${SITE}${p}`); expect(resp.status() === 200, `${p} -> ${resp.status()}`);
       expect(new URL(mp.url()).host === D, `${p} left the marketing host: ${mp.url()}`);
     }

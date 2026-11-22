@@ -27,7 +27,7 @@ export default function ReviewCards() {
   return (
     <>
       <Hero line1={c.hero.line1} line2={c.hero.line2}
-        actions={<><MButton href="/demo" event="card_enquiry_submit">Order cards</MButton><MButton href="#how" variant="secondary" lead={<ScanLine className="h-4 w-4" strokeWidth={1.5} />}>How it works</MButton></>}
+        actions={<><MButton href="/register" event="card_enquiry_submit">Order cards</MButton><MButton href="#how" variant="secondary" lead={<ScanLine className="h-4 w-4" strokeWidth={1.5} />}>How it works</MButton></>}
         center={<CardRender />} left={{ icon: <Nfc className="h-4 w-4" strokeWidth={1.5} />, text: c.hero.left }}
         chips={[<MicroChip key="a" icon={<QrCode className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[0]}</MicroChip>, <MicroChip key="b" icon={<RefreshCw className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[1]}</MicroChip>, <MicroChip key="c" icon={<ScanLine className="h-3 w-3" strokeWidth={1.5} />}>{c.hero.chips[2]}</MicroChip>]} />
 

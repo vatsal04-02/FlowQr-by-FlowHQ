@@ -5,14 +5,14 @@
  */
 export const en = {
   home: {
-    meta: { title: "FlowQR: an AI marketing team for local businesses", description: "FlowQR by FlowHQ gives local businesses a team of AI agents: one keeps your Google profile active and drafts replies and posts, one gives customers a QR/NFC card to share honest reviews, and one handles WhatsApp follow-ups and offers (waitlist). You stay in control of what goes out." },
-    hero: { line1: "AI marketing team for local businesses", line2: "", typed: "that generates real revenue.", bandTitle: "Made for your business", bandAll: "See all businesses", sub: "One agent for your Google profile, one for reviews and one for WhatsApp. They do the daily work. You stay in charge of what goes out.", forLabel: "Built for local businesses —", forAccent: "any kind.", primary: "Book a demo", secondary: "Free profile check", left: "Your Google profile, reviews and WhatsApp, run by one team.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
+    meta: { title: "FlowQR: an AI marketing team for local businesses", description: "FlowQR by FlowHQ gives local businesses a team of AI agents: one keeps your Google profile active and drafts replies and posts, one gives customers a QR/NFC card to share honest reviews, and one handles WhatsApp follow-ups and offers. You stay in control of what goes out." },
+    hero: { line1: "AI marketing team for local businesses", line2: "", typed: "that generates real revenue.", bandTitle: "Made for your business", bandAll: "See all businesses", sub: "One agent for your Google profile, one for reviews and one for WhatsApp. They do the daily work. You stay in charge of what goes out.", forLabel: "Built for local businesses —", forAccent: "any kind.", secondary: "Free profile check", left: "Your Google profile, reviews and WhatsApp, run by one team.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
     squad: {
       title: "Meet your marketing team.", sub: "Three AI agents, one job each. They do the daily routine, you stay in charge of what goes out.",
       agents: [
         { name: "Google Profile Agent", job: "Keeps your profile complete, drafts posts and writes a reply to every review.", approve: "You approve what goes public.", cta: "See the Google agent", href: "#agents", tag: "" },
         { name: "Review & QR Agent", job: "Gives every genuine customer an easy way to review you, with a QR/NFC card and one link.", approve: "Customers write their own reviews.", cta: "See review cards", href: "/review-cards", tag: "" },
-        { name: "WhatsApp Agent", job: "Follows up with customers, sends birthday wishes and offers on WhatsApp.", approve: "You approve every offer.", cta: "See the WhatsApp agent", href: "#whatsapp-agent", tag: "Waitlist" },
+        { name: "WhatsApp Agent", job: "Follows up with customers, sends birthday wishes and offers on WhatsApp.", approve: "You approve every offer.", cta: "See the WhatsApp agent", href: "#whatsapp-agent", tag: "Coming soon" },
       ] as { name: string; job: string; approve: string; cta: string; href: string; tag: string }[],
     },
     team: { title: "Google Profile Agent", sub: "Track where you appear on Google, fix gaps in your profile and reply to every review. The agent does the daily routine, you approve what goes public." },
@@ -44,8 +44,8 @@ export const en = {
       pause: "Pause scrolling", play: "Play scrolling",
     },
     faq: [
-      ["What is FlowQR and how does it work?", "FlowQR is a team of AI agents for local businesses. One keeps your Google Business Profile active and drafts replies and posts. One gives customers a QR/NFC card to share honest reviews. One handles WhatsApp follow-ups and offers, and is on a waitlist. You stay in control of what goes out."],
-      ["Will the WhatsApp agent message my customers on its own?", "Only customers who agreed to hear from you, with their permission saved, and STOP is always honoured. You approve every offer before it sends. The WhatsApp agent is not open yet: join the waitlist from the demo page."],
+      ["What is FlowQR and how does it work?", "FlowQR is a team of AI agents for local businesses. One keeps your Google Business Profile active and drafts replies and posts. One gives customers a QR/NFC card to share honest reviews. One handles WhatsApp follow-ups and offers, and is not open to every customer yet. You stay in control of what goes out."],
+      ["Will the WhatsApp agent message my customers on its own?", "Only customers who agreed to hear from you, with their permission saved, and STOP is always honoured. You approve every offer before it sends. The WhatsApp agent is not open to every customer yet: sign up and you can use it as it opens for your account."],
       ["Is this allowed by Google's review policies?", "Yes. We never filter by star rating or offer rewards. Every customer writes and posts their own review."],
       ["Does FlowQR write reviews for my customers?", "No. AI only helps customers say what they already think. They edit it and post it themselves."],
       ["Will AI post replies without my permission?", "AI-written replies and posts wait for your approval. Short template thank-you replies to new 4 and 5 star reviews can go out automatically, and you can turn that off at any time in settings."],
@@ -168,15 +168,9 @@ export const en = {
     ] as [string, string][],
     services: { title: "FlowHQ services", body: "Beyond FlowQR, FlowHQ builds custom systems and AI automation for teams. Tell us what you need.", cta: "Talk to FlowHQ" },
   },
-  demo: {
-    meta: { title: "Book a demo", description: "Book a FlowQR demo. Tell us about your business and we'll show you how it works for you." },
-    title: "Book a demo", sub: "Tell us about your business. We'll call you back at a time that suits you.",
-    next: [["We call you", "Usually within one working day, at your preferred time."], ["We set up a walkthrough", "Using your own Google profile, if you like."], ["You decide", "Start a free trial, or don't. No pressure."]] as [string, string][],
-    success: ["Thanks, we've got it.", "We'll call you at your preferred time. Keep an eye on WhatsApp too if you ticked the box."],
-  },
   // WhatsApp Marketing AI Agent. Built in the product, switched off for customers: nothing here says "live", "official", "verified" or "approved by Meta". The two "soon" tiles are not built.
   whatsapp: {
-    meta: { title: "WhatsApp Marketing AI Agent", description: "FlowQR's WhatsApp Marketing AI Agent helps you send offers, automate follow-ups and answer customers on WhatsApp, with every offer approved by you before it sends. Join the waitlist." },
+    meta: { title: "WhatsApp Marketing AI Agent", description: "FlowQR's WhatsApp Marketing AI Agent helps you send offers, automate follow-ups and answer customers on WhatsApp, with every offer approved by you before it sends. Sign up to get started." },
     title: "WhatsApp Marketing AI Agent",
     sub: "Send offers, automate follow-ups and answer customers on WhatsApp. AI handles the daily routine, so you can focus on your customers.",
     tiles: [
@@ -187,7 +181,7 @@ export const en = {
       { title: "Consent and Opt-outs", body: "Each customer's permission is saved with the exact wording and time. STOP is always honoured.", soon: false },
       { title: "Message Insights", body: "Sent, delivered and read shown separately. Costs always shown as estimates.", soon: false },
     ],
-    cta: "Join the waitlist", ctaHref: "/demo", learnMore: "About the WhatsApp agent",
+    cta: "Sign up", ctaHref: "/register", learnMore: "About the WhatsApp agent",
     chat: {
       name: "Sunrise Physio", initial: "S", role: "Business account, automated assistant",
       messages: [

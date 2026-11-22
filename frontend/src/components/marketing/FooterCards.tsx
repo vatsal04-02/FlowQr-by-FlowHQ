@@ -1,5 +1,5 @@
 "use client";
-import { CalendarCheck, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import Link from "next/link";
 import { FooterColumns, type FooterColumn } from "@/components/ui/footer-column";
 import { Logo } from "../ui/Brand";
@@ -22,7 +22,6 @@ export function FooterCards() {
     title: "Contact",
     links: [
       ...(email ? [{ text: email, href: `mailto:${email}`, icon: <Mail aria-hidden className="h-4 w-4 shrink-0 text-m-accent" strokeWidth={1.75} /> }] : []),
-      { text: "Book a demo", href: "/demo", icon: <CalendarCheck aria-hidden className="h-4 w-4 shrink-0 text-m-accent" strokeWidth={1.75} /> },
     ],
   };
   return (
