@@ -369,6 +369,11 @@ role-admin	POST	/api/v1/seo/competitors/pinned
 role-admin	DELETE	/api/v1/seo/competitors/pinned/{pinned_id}
 member	GET	/api/v1/seo/overview
 member	GET	/api/v1/seo/profile-health
+role-admin	POST	/api/v1/seo/v2/attributes
+member	GET	/api/v1/seo/v2/overview
+role-admin	POST	/api/v1/seo/v2/service-area
+role-admin	POST	/api/v1/seo/v2/services
+role-admin	POST	/api/v1/seo/v2/special-hours
 public-bypass-db	POST	/api/v1/site-enquiry
 member	GET	/api/v1/staff
 role-admin	POST	/api/v1/staff/invitations

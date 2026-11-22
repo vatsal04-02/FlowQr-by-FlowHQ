@@ -171,6 +171,12 @@ class Settings(BaseSettings):
     autonomy_auto_auth_ttl_hours: int = 24  # an automatic (policy / pre-authorised) authorisation is valid this long: stale ones are re-evaluated
     autonomy_proposal_ttl_days: int = 7  # a proposal nobody decides on expires
     autonomy_stuck_minutes: int = 10  # an action "executing" this long was left behind by a crash
+    # Local SEO engine V2 policy gate (docs/LOCAL_SEO_ENGINE_V2_IMPLEMENTATION.md). The V2 field types (services, attributes, special hours, service area, category sets) are
+    # written to a CUSTOMER'S Google profile by FlowQR's code. Google's policy page says automatic or programmatic use by end-clients needs their own Business Profile project, and
+    # FlowHQ's written clarification is still pending. So: OFF. With it off, V2 only detects, recommends and drafts; it never writes to, and never even dry-runs against, a customer profile.
+    seo_v2_customer_writes_enabled: bool = False  # SEO_V2_CUSTOMER_WRITES_ENABLED: master switch. Production refuses to start with it on and no SEO_V2_POLICY_REFERENCE.
+    seo_v2_policy_reference: str = ""  # SEO_V2_POLICY_REFERENCE: where Google's written answer is recorded (a case id or document). Never fill this in unless Google actually answered.
+    seo_v2_test_location_names: str = ""  # SEO_V2_TEST_LOCATION_NAMES: comma-separated Google location names (locations/123) of DEDICATED TEST profiles. V2 writes and validate-only probes may run there only.
     # Data retention (docs/DATA_RETENTION.md). 0 = keep until the business is deleted.
     autonomy_history_retention_days: int = 730  # finished actions, their approvals and their tamper-evident history are erased this long after they were created
     rank_grid_retention_days: int = 400  # geo-grid scans and their points
@@ -330,6 +336,10 @@ class Settings(BaseSettings):
     def hardened(self) -> bool:
         """staging and production share every safety rule (no dev email logging, docs off, strict config guard)."""
         return self.app_env in ("staging", "production")
+
+    @property
+    def seo_v2_test_locations(self) -> set[str]:
+        return {x.strip() for x in self.seo_v2_test_location_names.split(",") if x.strip()}
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -500,6 +510,10 @@ def config_problems(s: Settings) -> list[str]:
             p.append("GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS needs GOOGLE_AGENCY_LOCATION_GROUP_ID (it only verifies a location already listed under FlowQR's group)")
     if s.google_agency_adopt_existing_access and not s.google_agency_manager_enabled:
         p.append("GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS needs GOOGLE_AGENCY_MANAGER_ENABLED (on its own it does nothing)")
+    if s.seo_v2_customer_writes_enabled and not s.seo_v2_policy_reference.strip():
+        p.append("SEO_V2_CUSTOMER_WRITES_ENABLED needs SEO_V2_POLICY_REFERENCE: Google's written answer on automated and programmatic changes to customers' profiles must be recorded first, never assumed")
+    if s.seo_v2_policy_reference.strip() and not s.seo_v2_customer_writes_enabled:
+        p.append("SEO_V2_POLICY_REFERENCE is set but SEO_V2_CUSTOMER_WRITES_ENABLED is not: record the reference only together with the decision to enable")
     if not 0 <= s.google_agency_client_token_keep_hours <= 720:
         p.append("GOOGLE_AGENCY_CLIENT_TOKEN_KEEP_HOURS must be between 0 (revoke at once) and 720 (30 days)")
     if not s.cookie_secure:

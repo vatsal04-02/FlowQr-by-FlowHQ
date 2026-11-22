@@ -20,8 +20,9 @@ BIZ_SOURCE = {"kind": "business_knowledge", "refs": ["description", "services"]}
 # ============================================================================ 1. every classification (the table the brief defines)
 
 LEVEL1 = ["rank_monitoring", "seo_report", "profile_completeness_analysis", "internal_planning", "ranking_trend_analysis", "description_improve", "text_correction", "service_description_improve"]
-LEVEL2 = ["hours_update", "service_update", "contact_update", "secondary_category_update", "publish_content", "upload_photo", "reply_publish", "content_edit", "content_delete"]
-LEVEL3 = ["business_name_change", "primary_category_change", "address_change", "attribute_change", "service_area_change", "primary_contact_change", "significant_removal", "sensitive_claim"]
+LEVEL2 = ["hours_update", "service_update", "contact_update", "secondary_category_update", "publish_content", "upload_photo", "reply_publish", "content_edit", "content_delete",
+          "special_hours_update", "attribute_change"]  # V2: services/attributes/special hours are medium risk (a person approves each one)
+LEVEL3 = ["business_name_change", "primary_category_change", "address_change", "service_area_change", "primary_contact_change", "significant_removal", "sensitive_claim", "category_set_update"]
 
 
 @pytest.mark.parametrize("action_type,level", [(t, 1) for t in LEVEL1] + [(t, 2) for t in LEVEL2] + [(t, 3) for t in LEVEL3])

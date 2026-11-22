@@ -1,7 +1,7 @@
 // Shapes returned by GET /agent/control-centre and the action endpoints (backend/app/api/v1/autonomy_actions.py). The level of an action is decided by the
 // server from its type and values; nothing here can set one.
 
-export type ActionStatus = "pending_approval" | "approved" | "executing" | "executed" | "failed" | "rejected" | "expired" | "invalidated" | "blocked" | "canceled";
+export type ActionStatus = "pending_approval" | "approved" | "executing" | "executed" | "failed" | "rejected" | "expired" | "invalidated" | "blocked" | "canceled" | "recommended" | "superseded";
 export type Mode = "auto" | "ask" | "off";
 
 export interface HistoryEvent { seq: number; type: string; actor: string; at: string; data?: Record<string, unknown> }
@@ -55,6 +55,7 @@ export const STATUS_WORDS: Record<ActionStatus, { label: string; tone: "ok" | "w
   pending_approval: { label: "Waiting for you", tone: "warn" }, approved: { label: "Approved, about to run", tone: "info" }, executing: { label: "Sending to Google", tone: "info" },
   executed: { label: "Confirmed on Google", tone: "ok" }, failed: { label: "Failed", tone: "bad" }, rejected: { label: "Rejected", tone: "idle" }, expired: { label: "Expired", tone: "idle" },
   invalidated: { label: "Stopped: things changed", tone: "warn" }, blocked: { label: "Blocked: not enough evidence", tone: "warn" }, canceled: { label: "Cancelled", tone: "idle" },
+  recommended: { label: "Recommended: make it in Google", tone: "info" }, superseded: { label: "Replaced: the profile changed", tone: "idle" },
 };
 
 export const EVENT_WORDS: Record<string, string> = {
@@ -63,4 +64,6 @@ export const EVENT_WORDS: Record<string, string> = {
   retry_scheduled: "Temporary problem, will retry", google_value_changed: "Stopped: the value on Google changed", facts_changed: "Stopped: your business facts changed", expired: "Expired",
   invalidated: "Stopped", autonomy_withdrawn: "Autonomy was switched off before it ran", autonomy_suspended: "Autonomy suspended after repeated failures", held: "Held", blocked: "Blocked",
   followups_scheduled: "Ranking follow-ups scheduled", followup_measured: "Ranking re-measured", evaluated: "Outcome evaluated", canceled: "Cancelled", recovered_requeued: "Recovered after an interruption",
+  recommended: "Recommended: shown to you, not made by FlowQR", promoted: "Ready for your approval", validated: "Google checked it in a dry run (nothing was changed)",
+  validation_failed: "Google would not accept it in the dry run", superseded: "Replaced: the profile changed",
 };

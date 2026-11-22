@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 import httpx
 
 from app.core.config import settings
+from app.services.agent.v2 import fields as v2f
 from app.services.google.errors import (
     GoogleAPIError, GoogleApiNotApproved, GoogleAuthRevoked, GoogleNotConfigured, GoogleRateLimited, GoogleScopeMissing,
 )
@@ -123,6 +124,12 @@ class GoogleBusinessProvider(Protocol):
     def upload_media_bytes(self, access_token: str, account_name: str, location_name: str, data: bytes, content_type: str, category: str, description: str | None = None) -> dict: ...
     def get_media(self, access_token: str, media_name: str) -> dict: ...
     def search_keywords(self, access_token: str, location_name: str, start_month: str, end_month: str, limit: int = 300) -> list[dict]: ...
+    # Local SEO engine V2 (services, attributes, special hours, service area, category sets). Only called through services/agent/v2/field_ops.py, behind the policy gate.
+    def validate_changes(self, access_token: str, location_name: str, changes: dict) -> dict: ...
+    def get_attributes_normalized(self, access_token: str, location_name: str) -> list[dict]: ...
+    def attribute_metadata_for_location(self, access_token: str, location_name: str) -> dict: ...
+    def update_attributes(self, access_token: str, location_name: str, send: list[dict], delete: list[str]) -> dict: ...
+    def get_category_service_types(self, access_token: str, category_ids: list[str], region: str = "IN", language: str = "en") -> dict: ...
 
 
 def has_business_scope(scope: str | None) -> bool:
@@ -137,8 +144,29 @@ def _hhmm(t: dict | None) -> str:
 
 
 def _time(s: str) -> dict:
-    h, m = s.split(":")
+    h, m = s.split("+")[0].split(":")
     return {"hours": int(h), "minutes": int(m)}
+
+
+def _next_day(day: str) -> str:
+    return DAYS[(DAYS.index(day) + 1) % 7] if day in DAYS else day
+
+
+def _period_out(p: dict) -> dict:
+    """A regular-hours period as FlowQR holds it: {day, open, close}. A period that closes after midnight (closeDay is the next day) keeps "+1" on the close time so the
+    information is not lost: "22:00" -> "02:00+1". "Open until midnight" is "24:00" (Google's own wording for the end of the day)."""
+    day, close_day = p.get("openDay"), p.get("closeDay")
+    close = _hhmm(p.get("closeTime"))
+    if close_day and close_day != day and close_day == _next_day(day):
+        close = "24:00" if close == "00:00" else close + "+1"
+    return {"day": day, "open": _hhmm(p.get("openTime")), "close": close}
+
+
+def _period_in(h: dict) -> dict:
+    day, close = h["day"], h["close"]
+    if close == "24:00":
+        return {"openDay": day, "openTime": _time(h["open"]), "closeDay": _next_day(day), "closeTime": {"hours": 0, "minutes": 0}}
+    return {"openDay": day, "openTime": _time(h["open"]), "closeDay": _next_day(day) if close.endswith("+1") else day, "closeTime": _time(close)}
 
 
 def parse_error(status: int, body) -> dict:
@@ -345,29 +373,42 @@ class HttpGoogleProvider:
 
     # ================= Business Profile management =================
     def get_location_details(self, access_token, location_name):
-        mask = "name,title,phoneNumbers,categories,storefrontAddress,websiteUri,regularHours,profile,metadata,specialHours,openInfo,serviceItems"
+        mask = "name,title,phoneNumbers,categories,storefrontAddress,websiteUri,regularHours,profile,metadata,specialHours,openInfo,serviceItems,serviceArea"
         j = self._send("GET", f"{INFO_URL}/{location_name}", access_token, params={"readMask": mask})  # readMask is required
         cats = j.get("categories") or {}
         periods = (j.get("regularHours") or {}).get("periods", [])
+        meta = j.get("metadata") or {}
         return {
             "title": j.get("title"), "description": (j.get("profile") or {}).get("description"),
             "phone": (j.get("phoneNumbers") or {}).get("primaryPhone"), "website": j.get("websiteUri"),
             "primary_category": _cat(cats.get("primaryCategory")), "additional_categories": [_cat(c) for c in cats.get("additionalCategories", [])],
-            "hours": [{"day": p.get("openDay"), "open": _hhmm(p.get("openTime")), "close": _hhmm(p.get("closeTime"))} for p in periods],
+            "hours": [_period_out(p) for p in periods],
             "services": [s for s in (_service(x) for x in j.get("serviceItems") or []) if s],
             "special_hours": [{"date": _ymd(p.get("startDate")), "closed": bool(p.get("closed"))} for p in (j.get("specialHours") or {}).get("specialHourPeriods", [])],
             "open_status": (j.get("openInfo") or {}).get("status"),
+            # ---- V2 (additive: the keys above keep their shape)
+            "service_items": v2f.services_from_google(j.get("serviceItems")),
+            "special_hours_periods": v2f.special_hours_from_google(j.get("specialHours")),
+            "service_area": v2f.service_area_from_google(j.get("serviceArea")),
+            "storefront_address": bool(j.get("storefrontAddress")),
+            "has_regular_hours": bool(periods),
+            "can_modify_service_list": meta.get("canModifyServiceList"),  # None when Google did not say: never assumed True
+            "has_pending_edits": meta.get("hasPendingEdits"), "has_google_updated": meta.get("hasGoogleUpdated"),
+            "language_code": j.get("languageCode"),
         }
 
-    def update_location(self, access_token, location_name, changes):
-        """`changes` keys: description, hours, primary_category, additional_categories, phone, website.
+    def build_location_patch(self, access_token, location_name, changes) -> tuple[dict, str]:
+        """(body, updateMask) for `changes`. Used by BOTH the real write and the validate-only dry run, so what is validated is exactly what would be sent.
 
-        Google documents that `phoneNumbers` and `categories` cannot be updated one sub-field at a time: both sub-fields must be
-        sent or the missing one is cleared. So the current values are read first and merged, and nothing the caller did not ask
-        to change is ever dropped."""
+        `changes` keys: description, hours, primary_category, additional_categories, phone, website, and (V2) categories {primary, additional}, services (the COMPLETE list),
+        special_hours (the COMPLETE list), service_area.
+
+        Google documents that `phoneNumbers` and `categories` cannot be updated one sub-field at a time: both sub-fields must be sent or the missing one is cleared. So the
+        current values are read first and merged, and nothing the caller did not ask to change is ever dropped."""
         body: dict = {}
         mask: list[str] = []
         need_phone = "phone" in changes
+        v2cats = "categories" in changes
         need_cats = "primary_category" in changes or "additional_categories" in changes
         current: dict = {}
         if need_phone or need_cats:
@@ -377,9 +418,9 @@ class HttpGoogleProvider:
             body["profile"] = {"description": changes["description"]}
             mask.append("profile")
         if "hours" in changes:
-            body["regularHours"] = {"periods": [{"openDay": h["day"], "openTime": _time(h["open"]), "closeDay": h["day"], "closeTime": _time(h["close"])} for h in changes["hours"]]}
+            body["regularHours"] = {"periods": [_period_in(h) for h in changes["hours"]]}
             mask.append("regularHours")
-        if need_cats:
+        if need_cats and not v2cats:
             now = current.get("categories") or {}
             primary = changes.get("primary_category") or (now.get("primaryCategory") or {}).get("name")
             if not primary:
@@ -395,8 +436,67 @@ class HttpGoogleProvider:
         if "website" in changes:
             body["websiteUri"] = changes["website"]
             mask.append("websiteUri")
-        self._send("PATCH", f"{INFO_URL}/{location_name}", access_token, params={"updateMask": ",".join(mask)}, json=body)
+        if v2cats:  # a category SET: primary and additional always together, exactly as given (the caller built it from the live profile)
+            c = v2f.canon_categories(changes["categories"])
+            if c is None:
+                raise GoogleAPIError(400, "Google requires a primary category")
+            body["categories"] = {"primaryCategory": {"name": c["primary"]}, "additionalCategories": [{"name": x} for x in c["additional"]]}
+            mask.append("categories")
+        if "services" in changes:  # the COMPLETE list. Never a partial one: a short list would be read as "remove the rest"
+            body["serviceItems"] = v2f.services_to_google(changes["services"])
+            mask.append("serviceItems")
+        if "special_hours" in changes:
+            body["specialHours"] = v2f.special_hours_to_google(changes["special_hours"])
+            mask.append("specialHours")
+        if "service_area" in changes:
+            body["serviceArea"] = v2f.service_area_to_google(changes["service_area"])
+            mask.append("serviceArea")
+        return body, ",".join(mask)
+
+    def update_location(self, access_token, location_name, changes):
+        body, mask = self.build_location_patch(access_token, location_name, changes)
+        self._send("PATCH", f"{INFO_URL}/{location_name}", access_token, params={"updateMask": mask}, json=body)
         return self.get_location_details(access_token, location_name)  # return what Google now holds, not what we sent
+
+    def validate_changes(self, access_token, location_name, changes):
+        """The dry run of `update_location` for the same `changes`: validateOnly=true, so Google "validates the request without actually updating the location". Raises
+        Google's own error on a problem; returns Google's answer (empty when there are no errors). It cannot be sent without validateOnly."""
+        body, mask = self.build_location_patch(access_token, location_name, changes)
+        return self.validate_location_patch(access_token, location_name, body, mask)
+
+    # ---- V2: attributes (a separate resource: locations/{id}/attributes)
+    def get_attributes_normalized(self, access_token, location_name):
+        return v2f.attributes_from_google(self.get_attributes(access_token, location_name))
+
+    def attribute_metadata_for_location(self, access_token, location_name) -> dict:
+        """{attribute name: AttributeMetadata} for this location's category, country and language (attributes.list with `parent`, all pages)."""
+        out, token = {}, None
+        while True:
+            j = self._send("GET", f"{INFO_URL}/attributes", access_token, params={"parent": location_name, "pageSize": 200, **({"pageToken": token} if token else {})})
+            for m in j.get("attributeMetadata", []) or []:
+                if m.get("parent"):
+                    out[m["parent"]] = m
+            token = j.get("nextPageToken")
+            if not token:
+                return out
+
+    def update_attributes(self, access_token, location_name, send, delete):
+        """PATCH locations/{id}/attributes with an explicit attributeMask: only the attributes named are touched ("attributes in the list but not in the mask will be ignored").
+        A deletion is a mask entry with no matching attribute in the body."""
+        mask = [a["name"] for a in send] + list(delete)
+        if not mask:
+            raise GoogleAPIError(400, "Nothing to update")
+        body = {"name": f"{location_name}/attributes", "attributes": [v2f.attribute_to_google(a) for a in send]}
+        return self._send("PATCH", f"{INFO_URL}/{location_name}/attributes", access_token, params={"attributeMask": ",".join(mask)}, json=body)
+
+    def get_category_service_types(self, access_token, category_ids, region="IN", language="en"):
+        """{category id: [{id, name}]}: the predefined service types Google offers for each category (categories:batchGet, view=FULL, the only view that includes them)."""
+        if not category_ids:
+            return {}
+        params = [("names", c) for c in category_ids] + [("languageCode", language), ("regionCode", region), ("view", "FULL")]
+        j = self._send("GET", f"{INFO_URL}/categories:batchGet", access_token, params=params)
+        return {c.get("name"): [{"id": st.get("serviceTypeId"), "name": st.get("displayName")} for st in c.get("serviceTypes") or [] if st.get("serviceTypeId")]
+                for c in j.get("categories", []) or [] if c.get("name")}
 
     def search_categories(self, access_token, query, region="IN", language="en"):
         # regionCode, languageCode and view are all required. The documented filter form is `displayName=foo` (prefix match on

@@ -21,8 +21,10 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date
 
 from app.services.agent.safety import check_text, is_health
+from app.services.agent.v2 import fields as v2f
 
 DESCRIPTION_MIN, DESCRIPTION_MAX = 40, 750  # Google's limit is 750. 40 is the floor the existing approval API already enforces; the SEO engine asks for 100+.
 PERMISSIONS = ("auto", "ask", "off")
@@ -43,7 +45,7 @@ class ActionSpec:
     rank_relevant: bool  # worth measuring ranking before/after
     sources: frozenset[str] = frozenset()
     internal: bool = False  # not a Google write at all
-    person_only: bool = False  # public content (posts, photos, replies): a named person approves each one; it cannot be pre-authorised or run by policy in this release
+    person_only: bool = False  # public content (posts, photos, replies) and the V2 profile structures (services, attributes, special hours): a named person approves each one; it cannot be pre-authorised or run by policy in this release
 
 
 def _s(key, level, label, field, writable, rank, *sources, internal=False, person_only=False):
@@ -62,7 +64,9 @@ SPECS: dict[str, ActionSpec] = dict([
     _s("service_description_improve", 1, "Service description improvement from verified services", "services", False, True, "business_knowledge", "owner_input"),
     # ---- Level 2: conditionally autonomous (needs a pre-authorisation for the type, else the owner is asked)
     _s("hours_update", 2, "Regular opening hours", "hours", True, False, "owner_input"),
-    _s("service_update", 2, "Services (add or change)", "services", False, True, "business_knowledge", "owner_input"),
+    _s("service_update", 2, "Services (the complete list)", "services", True, True, "business_knowledge", "owner_input", person_only=True),
+    _s("special_hours_update", 2, "Special and holiday hours", "special_hours", True, False, "owner_input", person_only=True),
+    _s("attribute_change", 2, "Business attributes", "attributes", True, True, "owner_input", person_only=True),
     _s("contact_update", 2, "Add a missing website or phone number", None, True, False, "tenant_record", "owner_input"),
     _s("secondary_category_update", 2, "Secondary categories (add)", "additional_categories", True, True, "owner_input"),
     _s("publish_content", 2, "Publish an approved Google Post", None, True, False, "business_knowledge", "owner_input", person_only=True),
@@ -74,13 +78,14 @@ SPECS: dict[str, ActionSpec] = dict([
     _s("business_name_change", 3, "Business name", "title", False, True, "owner_input"),
     _s("primary_category_change", 3, "Primary category", "primary_category", True, True, "owner_input"),
     _s("address_change", 3, "Address or location", "address", False, True, "owner_input"),
-    _s("attribute_change", 3, "Business attributes", "attributes", False, True, "owner_input"),
-    _s("service_area_change", 3, "Service area", "service_area", False, True, "owner_input"),
+    _s("service_area_change", 3, "Service area", "service_area", True, True, "owner_input"),
+    _s("category_set_update", 3, "Categories (primary and additional, together)", "categories", True, True, "owner_input", "business_knowledge"),
     _s("primary_contact_change", 3, "Change an existing primary phone number or website", None, True, False, "owner_input", "tenant_record"),
     _s("significant_removal", 3, "Remove significant information", None, True, False, "owner_input"),
     _s("sensitive_claim", 3, "Regulated or sensitive business claim", None, True, False, "owner_input"),
 ])
-WRITABLE_FIELDS = {"description", "hours", "website", "phone", "additional_categories", "primary_category"}
+WRITABLE_FIELDS = {"description", "hours", "website", "phone", "additional_categories", "primary_category", "services", "special_hours", "attributes", "service_area", "categories"}
+V2_FIELDS = frozenset({"services", "special_hours", "attributes", "service_area", "categories"})  # written by the V2 engine: behind the customer-write policy gate (v2/gate.py)
 LABELS = {1: "Level 1: autonomous", 2: "Level 2: conditionally autonomous", 3: "Level 3: owner authorisation"}
 RISK = {1: "low", 2: "medium", 3: "high"}
 # Words that make a health business's profile text a regulated/sensitive claim. They are not forbidden (the owner may say them), they just need the owner.
@@ -110,6 +115,20 @@ def canon(field_key: str, v):
         return sorted({str(c.get("id") if isinstance(c, dict) else c) for c in (v or []) if c})
     if field_key == "primary_category":
         return str(v.get("id") if isinstance(v, dict) else (v or ""))
+    if field_key in V2_FIELDS:
+        try:
+            if field_key == "services":
+                return v2f.canon_services(v)
+            if field_key == "special_hours":
+                return v2f.canon_special_hours(v)
+            if field_key == "attributes":
+                return v2f.canon_attributes(v)
+            if field_key == "service_area":
+                return v2f.canon_service_area(v) or {}
+            if field_key == "categories":
+                return v2f.canon_categories(v) or {}
+        except v2f.FieldError as exc:
+            raise PolicyError(str(exc)) from exc
     return v
 
 
@@ -120,6 +139,13 @@ def fingerprint(v) -> str:
 def field_value(details: dict | None, field_key: str):
     """The value of one field in what Google returned (provider.get_location_details), canonicalised."""
     d = details or {}
+    if field_key in V2_FIELDS:  # a key that was never read is UNKNOWN (None), never "empty": an empty services list must not be mistaken for "replace everything"
+        src = {"services": "service_items", "special_hours": "special_hours_periods", "attributes": "attributes", "service_area": "service_area", "categories": "primary_category"}[field_key]
+        if details is None or src not in d:
+            return None
+        if field_key == "categories":
+            return canon("categories", v2f.categories_from_details(d))
+        return canon(field_key, d.get(src))
     raw = {"description": d.get("description"), "website": d.get("website"), "phone": d.get("phone"), "hours": d.get("hours"), "title": d.get("title"),
            "additional_categories": d.get("additional_categories"), "primary_category": d.get("primary_category")}.get(field_key)
     return canon(field_key, raw)
@@ -174,6 +200,8 @@ def classify(action_type: str, *, field_key: str | None = None, current=None, pr
         raise PolicyError("Opening hours must be a list of [day, open, close].")
     if fk == "additional_categories" and any(not isinstance(v, list) or not all(isinstance(c, str) for c in v) for v in (current, proposed) if v is not None and not isinstance(v, str)):
         raise PolicyError("Secondary categories must be a list of category ids.")
+    if fk in V2_FIELDS and not (_v2_shape(fk, current) and _v2_shape(fk, proposed)):
+        raise PolicyError(f"The {fk.replace('_', ' ')} value is not in the expected shape.")
     if fk in WRITABLE_FIELDS and not is_empty(current) and is_empty(proposed):
         escalate("significant_removal", f"This would remove the {fk} that Google holds.")
     if fk == "description" and isinstance(current, str) and isinstance(proposed, str) and current and proposed and len(proposed) < 0.6 * len(current):
@@ -182,10 +210,41 @@ def classify(action_type: str, *, field_key: str | None = None, current=None, pr
         escalate("significant_removal", "The new hours drop a day that is currently open.")
     if fk == "additional_categories" and isinstance(current, list) and isinstance(proposed, list) and set(current) - set(proposed):
         escalate("significant_removal", "The change removes an existing secondary category (only adding is Level 2).")
+    if fk == "services" and isinstance(current, list) and isinstance(proposed, list) and v2f.services_removed(current, proposed):
+        escalate("significant_removal", "The new service list drops a service that is on Google today (only adding is Level 2).")
+    if fk == "special_hours" and isinstance(current, list) and isinstance(proposed, list):
+        today = date.today().isoformat()
+        have = {_sp_key(p): p for p in proposed}
+        if any(p["start"] >= today and have.get(_sp_key(p)) != p for p in current):
+            escalate("significant_removal", "The change drops or alters special hours that are already set on Google.")
+    if fk == "attributes" and isinstance(current, list) and isinstance(proposed, list) and {a["name"] for a in current} - {a["name"] for a in proposed}:
+        escalate("significant_removal", "The change removes an attribute that is set on Google today.")
+    if fk == "service_area" and isinstance(current, dict) and isinstance(proposed, dict) and current and proposed and \
+            {p["place_id"] for p in current.get("places", [])} - {p["place_id"] for p in proposed.get("places", [])}:
+        escalate("significant_removal", "The change removes an area you serve on Google today.")
+    if fk == "categories" and isinstance(current, dict) and isinstance(proposed, dict) and current and proposed:
+        if current.get("primary") != proposed.get("primary"):
+            escalate("primary_category_change", "The primary category changes. That decides which searches you can appear in, so only the owner may approve it.")
+        if set(current.get("additional", [])) - set(proposed.get("additional", [])):
+            escalate("significant_removal", "The change removes an existing additional category.")
     if fk == "description" and isinstance(proposed, str) and kb and (kb.get("safety_profile") == "health" or is_health(kb.get("category"))) and SENSITIVE.search(proposed):
         escalate("sensitive_claim", "The text makes health or regulated claims, which only the owner may approve.")
     final = SPECS[eff]
     return Decision(level, eff, RISK[level], final.label, reasons, writable=final.writable and (fk in WRITABLE_FIELDS), field_key=fk)
+
+
+def _sp_key(p: dict) -> str:
+    return p["start"]
+
+
+def _v2_shape(fk: str, v) -> bool:
+    """A canonical V2 value has a known shape; anything else is a malformed request, refused rather than crashing a comparison."""
+    if v in (None, "", [], {}) or isinstance(v, str):  # a bare string never reaches here from propose (canon refuses it first); the level of the TYPE is still reportable
+        return True
+    if fk in ("service_area", "categories"):
+        return isinstance(v, dict)
+    need = {"services": "k", "special_hours": "start", "attributes": "name"}[fk]
+    return isinstance(v, list) and all(isinstance(x, dict) and need in x for x in v)
 
 
 def authorization_for(decision: Decision, *, autonomy_enabled: bool, suspended: bool, permissions: dict | None) -> str:
@@ -274,7 +333,61 @@ def description_problems(text: str, current: str, kb: dict, *, relaxed: bool = F
     return out
 
 
-def validate_proposal(action_type: str, *, field_key: str | None, current, proposed, source: dict, proposed_by: str, kb: dict, tenant_facts: dict, relaxed: bool = False) -> list[str]:
+def _kb_has(kb: dict, term: str) -> bool:
+    """Is `term` something the owner's verified business knowledge says the business is or does? (a service, or the business category)"""
+    t = v2f.key_of(term)
+    if not t:
+        return False
+    pool = [v2f.key_of(x if isinstance(x, str) else (x.get("name") if isinstance(x, dict) else "")) for x in (kb.get("services") or [])] + [v2f.key_of(kb.get("category") or "")]
+    return any(t == p or (p and (t in p or p in t)) for p in pool if p)
+
+
+def v2_problems(action_type: str, fk: str, current, proposed, source: dict, kb: dict, info: dict | None) -> list[str]:
+    """Problems with a V2 proposal that need no network: shape, Google's stated limits, eligibility the profile itself reports, and "every new fact traces to something verified"."""
+    out: list[str] = []
+    kind = (source or {}).get("kind")
+    info = info or {}
+    if current is None:
+        return ["FlowQR has no recent read of this part of your Google profile, so it cannot tell what is there now. Refresh from Google first (nothing is replaced blindly)."]
+    if fk == "services":
+        if info.get("can_modify_service_list") is False:
+            out.append("Google says the service list of this profile cannot be edited through the API (canModifyServiceList is false). Edit the services in Google Business Profile.")
+        elif info.get("can_modify_service_list") is None:
+            out.append("Google did not say whether this profile's service list can be edited, so FlowQR does not assume it can.")
+        out += v2f.services_problems(proposed)
+        added = v2f.services_added(current, proposed)
+        if kind == "business_knowledge":
+            matches = (source or {}).get("service_matches") or {}
+            for it in added:
+                kbname = matches.get(v2f.service_key(it))
+                if not kbname or not _kb_has(kb, kbname) or v2f.key_of(kbname) not in {v2f.key_of(x) for x in kb.get("services") or []}:
+                    out.append(f"'{it.get('n') or it['id']}' is not traced to a service in your business knowledge, so it will not be added.")
+    elif fk == "special_hours":
+        out += v2f.special_hours_problems(proposed, has_regular_hours=info.get("has_regular_hours"))
+        if kind != "owner_input":
+            out.append("Special hours only come from dates the owner entered; FlowQR never guesses them.")
+    elif fk == "attributes":
+        if kind != "owner_input":
+            out.append("An attribute is only set from an answer the owner gave; FlowQR never infers it (not from competitors, not from the category).")
+        if not proposed:
+            out.append("No attribute was given.")
+    elif fk == "service_area":
+        if kind != "owner_input":
+            out.append("A service area only comes from areas the owner chose; FlowQR never widens it to reach more searches.")
+        out += v2f.service_area_problems(proposed or None, current or None)
+    elif fk == "categories":
+        out += v2f.categories_problems(proposed or None)
+        if kind == "business_knowledge":
+            matches = (source or {}).get("category_matches") or {}
+            cur = {current.get("primary")} | set(current.get("additional", [])) if current else set()
+            for cid in [proposed.get("primary")] + list(proposed.get("additional", [])):
+                if cid and cid not in cur and not _kb_has(kb, matches.get(cid) or ""):
+                    out.append(f"The category '{cid}' is not traced to a service or business type in your business knowledge, so it will not be added.")
+    return out
+
+
+def validate_proposal(action_type: str, *, field_key: str | None, current, proposed, source: dict, proposed_by: str, kb: dict, tenant_facts: dict, relaxed: bool = False,
+                      info: dict | None = None) -> list[str]:
     """Why this proposal may NOT be acted on, from verified facts only. Empty = the evidence is sufficient. `current`/`proposed` are canonical values.
     Never invents anything: a missing fact is a reason to stop, not something to fill in."""
     spec = SPECS.get(action_type)
@@ -315,12 +428,14 @@ def validate_proposal(action_type: str, *, field_key: str | None, current, propo
             problems.append(f"The business record has no {fk}, so there is no verified value to use.")
         elif want != proposed:
             problems.append(f"Conflicting facts: the proposed {fk} does not match the {fk} in the business record.")
+    elif fk in V2_FIELDS:
+        problems += v2_problems(action_type, fk, current, proposed, source or {}, kb, info)
     elif action_type == "hours_update":
         if not isinstance(proposed, list) or not proposed:
             problems.append("Hours must be a non-empty list of day, open and close times.")
         else:
             for h in proposed:
-                if not (len(h) == 3 and re.fullmatch(r"\d{2}:\d{2}", h[1]) and re.fullmatch(r"\d{2}:\d{2}", h[2])):
+                if not (len(h) == 3 and re.fullmatch(r"\d{2}:\d{2}", h[1]) and re.fullmatch(r"\d{2}:\d{2}(\+1)?", h[2])):
                     problems.append("Each opening period needs a day and HH:MM open and close times.")
                     break
     if current is not None and proposed is not None and current == proposed and action_type not in ("description_improve", "text_correction"):

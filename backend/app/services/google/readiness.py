@@ -26,6 +26,7 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.services import google as g
+from app.services.agent.v2 import fields as v2f
 from app.services.google.provider import PERFORMANCE_METRICS, has_business_scope
 
 BIG_MASK = "name,title,phoneNumbers,categories,storefrontAddress,websiteUri,regularHours,specialHours,serviceArea,labels,openInfo,metadata,profile,serviceItems,moreHours,latlng,languageCode,storeCode"
@@ -228,6 +229,7 @@ def run(args: argparse.Namespace) -> int:
         if not before.get("websiteUri"):
             probe("websiteUri: NEW website", {"websiteUri": "https://www.example.com/"}, "websiteUri")
         probe("profile.description: NEW text", {"profile": {"description": "Validation probe description. No change is applied."}}, "profile")
+    _v2_probes(provider, at, loc, before, rec, args, semantics_proven)
     # permission boundaries and unsupported fields: these are EXPECTED to be rejected, which is what is being recorded
     probe("EXPECT REJECT: a field that does not exist", {"notARealField": "x"}, "notARealField")
     probe("EXPECT REJECT: output-only field `metadata`", {"metadata": before.get("metadata") or {}}, "metadata")
@@ -237,6 +239,64 @@ def run(args: argparse.Namespace) -> int:
     after = provider.get_location_raw(at, loc, BIG_MASK)
     changed = _digest(after) != h_before
     return _finish(args, rec, guard="passed", changed=changed)
+
+
+def _v2_probes(provider, at: str, loc: str, before: dict, rec: Recorder, args, semantics_proven: bool) -> None:
+    """Local SEO engine V2 (docs/LOCAL_SEO_ENGINE_V2_RUNBOOK.md): does FlowQR's OWN code speak to Google correctly? Each probe sends what the V2 engine would send, built by the SAME functions
+    (`build_location_patch`), but only as a validateOnly dry run, or as a read. Nothing is written. The result records, per operation, whether Google accepted it: that is the only thing that can
+    move a V2 operation from "mock-tested" to "validated against Google". It says nothing about what a profile ends up showing after a real write.
+
+    Evidence contains counts and outcomes only, never a service name, attribute value, place or any other customer value."""
+    if not hasattr(provider, "build_location_patch"):  # a test double that has none of the V2 surface: nothing to probe
+        print("  -- Local SEO engine V2 probes skipped: this provider has no V2 operations --")
+        return
+    print("  -- Local SEO engine V2 probes (dry runs and reads only) --")
+
+    def dry(name: str, changes: dict):
+        time.sleep(args.pace_seconds)  # Google: 10 edits per minute per profile; validation requests appear to count
+        rec.call(f"V2 validateOnly: {name}", "validate", lambda: provider.validate_changes(at, loc, changes), lambda r: "accepted by Google in a dry run (nothing applied)")
+
+    items = v2f.services_from_google(before.get("serviceItems"))
+    rec.rows.append({"name": "V2 normaliser: services round trip", "kind": "local", "outcome": "ok" if v2f.services_from_google(v2f.services_to_google(items)) == items else "mismatch",
+                     "detail": f"{len(items)} item(s) read, rebuilt and re-read identically" if v2f.services_from_google(v2f.services_to_google(items)) == items else "the rebuilt list differs from what was read"})
+    _line("OK" if rec.rows[-1]["outcome"] == "ok" else "MISMATCH", "V2 normaliser: services round trip", rec.rows[-1]["detail"])
+    meta = (before.get("metadata") or {})
+    rec.rows.append({"name": "V2 eligibility: metadata.canModifyServiceList", "kind": "local", "outcome": "ok", "detail": f"value={meta.get('canModifyServiceList')!r} (None means Google did not say; FlowQR then assumes NO)"})
+    _line("INFO", "V2 eligibility: canModifyServiceList", repr(meta.get("canModifyServiceList")))
+    if items and meta.get("canModifyServiceList") is not False:
+        dry("services (our builder, the CURRENT complete list)", {"services": items})
+    if semantics_proven and meta.get("canModifyServiceList") is not False and (before.get("categories") or {}).get("primaryCategory"):
+        dry("services (our builder, current list + ONE new custom item)",
+            {"services": v2f.canon_services(items + [{"k": "c", "n": "FlowQR validation probe service", "c": before["categories"]["primaryCategory"]["name"], "l": "en"}])})
+    sh = v2f.special_hours_from_google(before.get("specialHours"))
+    if sh and before.get("regularHours"):
+        dry("special_hours (our builder, the CURRENT list)", {"special_hours": sh})
+    if semantics_proven and before.get("regularHours"):
+        dry("special_hours (our builder, current list + one future closed day)", {"special_hours": v2f.canon_special_hours(sh + [{"start": (date.today() + timedelta(days=201)).isoformat(), "closed": True}])})
+    sa = v2f.service_area_from_google(before.get("serviceArea"))
+    if sa and sa["places"]:
+        dry("service_area (our builder, the CURRENT area)", {"service_area": sa})
+    cats = v2f.categories_from_details({"primary_category": {"id": ((before.get("categories") or {}).get("primaryCategory") or {}).get("name")},
+                                        "additional_categories": [{"id": c.get("name")} for c in (before.get("categories") or {}).get("additionalCategories") or []]})
+    if cats:
+        dry("categories (our builder, primary + additional TOGETHER)", {"categories": cats})
+    # ---- reads: attributes and category service types
+    attrs = rec.call("V2 read: attributes normalised", "read", lambda: provider.get_attributes_normalized(at, loc), lambda a: f"{len(a)} attribute(s) normalised")
+    meta_attrs = rec.call("V2 read: attribute metadata for this location", "read", lambda: provider.attribute_metadata_for_location(at, loc), lambda m: f"{len(m)} attribute(s) offered")
+    if attrs is not None and meta_attrs is not None:
+        refused = [a["name"] for a in attrs if v2f.validate_attribute_against_metadata(a, meta_attrs.get(a["name"]))]
+        rec.rows.append({"name": "V2 check: current attributes pass FlowQR's own metadata check", "kind": "local", "outcome": "ok" if not refused else "mismatch",
+                         "detail": f"{len(attrs) - len(refused)} of {len(attrs)} current attribute(s) accepted by FlowQR's check" + (f"; {len(refused)} refused (FlowQR's check may be stricter than Google)" if refused else "")})
+        _line("OK" if not refused else "MISMATCH", "V2 check: attributes vs metadata", rec.rows[-1]["detail"])
+    primary = ((before.get("categories") or {}).get("primaryCategory") or {}).get("name")
+    if primary:
+        types = rec.call("V2 read: category service types (view=FULL)", "read", lambda: provider.get_category_service_types(at, [primary]), lambda t: f"{len(t.get(primary, []))} predefined service type(s)")
+        if types is not None:
+            ids = {x["id"] for x in types.get(primary, [])}
+            structured = [x["id"] for x in items if x["k"] == "s"]
+            rec.rows.append({"name": "V2 check: structured services are among the category's service types", "kind": "local",
+                             "outcome": "ok" if all(i in ids for i in structured) else "mismatch", "detail": f"{len([i for i in structured if i in ids])} of {len(structured)} structured item(s) found in the category's list"})
+            _line("OK" if rec.rows[-1]["outcome"] == "ok" else "MISMATCH", "V2 check: service type ids", rec.rows[-1]["detail"])
 
 
 def _finish(args, rec: Recorder, *, guard: str, changed: bool | None) -> int:

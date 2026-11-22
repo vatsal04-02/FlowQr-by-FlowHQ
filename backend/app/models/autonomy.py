@@ -13,8 +13,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 from app.models.base import IdMixin, TimestampMixin, utcnow
 
-ACTION_STATUSES = ("pending_approval", "approved", "executing", "executed", "failed", "rejected", "expired", "invalidated", "blocked", "canceled")
-LIVE_STATUSES = ("pending_approval", "approved", "executing", "executed")  # an action in one of these owns its idempotency key
+ACTION_STATUSES = ("pending_approval", "approved", "executing", "executed", "failed", "rejected", "expired", "invalidated", "blocked", "canceled", "recommended", "superseded")
+LIVE_STATUSES = ("recommended", "pending_approval", "approved", "executing", "executed")  # an action in one of these owns its idempotency key
 
 
 class AgentAction(IdMixin, TimestampMixin, Base):
@@ -22,7 +22,7 @@ class AgentAction(IdMixin, TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("status in (" + ",".join(f"'{s}'" for s in ACTION_STATUSES) + ")", name="ck_agent_action_status"),
         CheckConstraint("policy_level between 1 and 3", name="ck_agent_action_level"),
-        Index("uq_agent_actions_idempotency", "tenant_id", "idempotency_key", unique=True, postgresql_where=text("status in ('pending_approval','approved','executing','executed')")),
+        Index("uq_agent_actions_idempotency", "tenant_id", "idempotency_key", unique=True, postgresql_where=text("status in ('recommended','pending_approval','approved','executing','executed')")),
         Index("uq_agent_actions_inflight", "google_location_id", "field_key", unique=True, postgresql_where=text("status = 'executing'")),  # one write in flight per location+field
         Index("ix_agent_actions_due", "status", "next_attempt_at"),
         Index("ix_agent_actions_tenant", "tenant_id", "status", "created_at"),
@@ -64,6 +64,8 @@ class AgentAction(IdMixin, TimestampMixin, Base):
     last_error: Mapped[str | None] = mapped_column(Text)
     google_result: Mapped[dict | None] = mapped_column(JSONB)
     verification: Mapped[dict | None] = mapped_column(JSONB)
+    validation_status: Mapped[str | None] = mapped_column(String(12))  # validated | rejected | skipped: the dry run made before the write (Google validateOnly, or the metadata check)
+    validation: Mapped[dict | None] = mapped_column(JSONB)
     baseline: Mapped[dict | None] = mapped_column(JSONB)  # ranking measured before the change
     outcome: Mapped[dict | None] = mapped_column(JSONB)  # the 28-day evaluation: observed movement, never "caused by"
 

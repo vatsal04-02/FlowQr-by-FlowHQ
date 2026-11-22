@@ -44,5 +44,5 @@ def test_existing_rows_get_their_locations_resource_and_the_downgrade_round_trip
     finally:
         alembic("upgrade", "head")
     assert owner_query("SELECT google_location_resource, invite_scope FROM google_agency_authorizations WHERE tenant_id = :t", t=tenant)[0] == ("locations/1", "location")  # backfilled from the location it points at
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0065"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0066"
     owner_exec("DELETE FROM google_agency_authorizations")

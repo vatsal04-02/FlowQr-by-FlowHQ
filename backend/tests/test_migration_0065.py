@@ -44,4 +44,4 @@ def test_the_downgrade_removes_the_table_and_the_upgrade_restores_it():
     finally:
         alembic("upgrade", "head")
     assert owner_query("SELECT to_regclass('public.google_agency_tenant_grants')")[0][0] is not None
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0065"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0066"

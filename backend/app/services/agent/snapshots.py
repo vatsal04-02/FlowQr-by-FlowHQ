@@ -5,10 +5,12 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import GbpSnapshot, GoogleConnection, GoogleConnectionStatus, GoogleLocation
+from app.models import GbpSnapshot, GoogleConnection, GoogleConnectionStatus, GoogleLocation, Tenant
 from app.models.base import utcnow
 from app.services import google as g
 from app.services import gbp_metrics
+from app.services.agent import knowledge as kbs
+from app.services.agent.v2 import catalog as v2_catalog
 from app.services.google.provider import PERFORMANCE_METRICS
 from app.services.google.tokens import get_access_token, note_not_approved
 
@@ -44,6 +46,39 @@ def _sum_window(series: dict, start: date, end: date) -> int:
 def snapshot_media(media: list[dict]) -> list[dict]:
     """What is saved about each photo: name, category, date. The link is kept only for the profile (logo) photo, which the app shows as the business avatar; no other photo link is stored."""
     return [{"name": m.get("name"), "category": m.get("category"), "created_at": m.get("created_at"), **({"url": m.get("google_url") or m.get("url")} if m.get("category") in ("PROFILE", "LOGO") else {})} for m in media]
+
+
+def _with_v2(db: Session, gloc: GoogleLocation, provider, token: str, info: dict, previous_catalog: dict | None) -> dict:
+    """The V2 reads added to the profile snapshot: the configured attributes, and Google's reference catalog for this profile. Read-only, and a failure in any of it leaves the rest of the
+    snapshot intact: a part that could not be read is simply ABSENT (the engine treats absent as unknown and never as empty), with the reason kept for the owner to see."""
+    notes: dict = {}
+    if hasattr(provider, "get_attributes_normalized"):
+        try:
+            info["attributes"] = provider.get_attributes_normalized(token, gloc.google_location_name)
+        except g.GoogleError as exc:
+            notes["attributes"] = str(exc)[:200]
+        except Exception as exc:  # noqa: BLE001
+            log.warning("attributes read failed for %s: %s", gloc.id, exc)
+            notes["attributes"] = type(exc).__name__
+    try:
+        tenant = db.get(Tenant, gloc.tenant_id)
+        kb = kbs.context(db, tenant) if tenant is not None else {}
+        terms, seen = [], set()
+        for t in [kb.get("category"), *[(x if isinstance(x, str) else (x.get("name") if isinstance(x, dict) else "")) for x in (kb.get("services") or [])]]:
+            t = " ".join(str(t or "").split())
+            if t and t.lower() not in seen:
+                seen.add(t.lower())
+                terms.append(t)
+        cat, errs = v2_catalog.fetch(provider, token, gloc.google_location_name, info, search_terms=terms, previous=previous_catalog, now=utcnow())
+        if errs:
+            cat["errors"] = errs
+        info["catalog"] = cat
+    except Exception as exc:  # noqa: BLE001 - reference data must never cost the owner their snapshot
+        log.warning("v2 catalog failed for %s: %s", gloc.id, exc)
+        notes["catalog"] = type(exc).__name__
+    if notes:
+        info["v2_notes"] = notes
+    return info
 
 
 def refresh(db: Session, gloc: GoogleLocation, *, provider=None, today: date | None = None) -> GbpSnapshot:
@@ -83,7 +118,7 @@ def refresh(db: Session, gloc: GoogleLocation, *, provider=None, today: date | N
     media = attempt("photos", lambda: provider.list_media(token, gloc.google_account_name, gloc.google_location_name))
     perf = attempt("performance", lambda: provider.fetch_performance(token, gloc.google_location_name, prev_start.isoformat(), end.isoformat(), PERFORMANCE_METRICS))
     if info is not None:
-        snap.info = info
+        snap.info = _with_v2(db, gloc, provider, token, dict(info), (snap.info or {}).get("catalog"))
     if posts is not None:
         snap.posts = [{"name": p.get("name"), "summary": (p.get("summary") or "")[:200], "state": p.get("state"), "created_at": p.get("created_at")} for p in posts]
     if media is not None:

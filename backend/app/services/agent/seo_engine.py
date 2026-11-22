@@ -123,13 +123,29 @@ def scan_location(db: Session, tenant: Tenant, gloc: GoogleLocation, *, provider
     return out
 
 
-def scan_tenant(db: Session, tenant: Tenant, *, provider=None, now: datetime | None = None) -> dict:
-    """Scan every connected, selected location of one business. Tenant-scoped end to end: nothing from another business is read."""
-    out = {"locations": 0, "proposed": 0, "skipped": []}
+def scan_tenant(db: Session, tenant: Tenant, *, provider=None, now: datetime | None = None, v2: bool = True) -> dict:
+    """Scan every connected, selected location of one business. Tenant-scoped end to end: nothing from another business is read.
+
+    After the original description/contact scan, each location also gets the V2 scan (services, categories, contact differences; docs/LOCAL_SEO_ENGINE_V2_IMPLEMENTATION.md). It runs in its own
+    savepoint: whatever it does or fails to do can never undo or break the original scan."""
+    out = {"locations": 0, "proposed": 0, "recommended": 0, "superseded": 0, "skipped": []}
     for gloc in db.scalars(select(GoogleLocation).join(GoogleConnection, GoogleConnection.id == GoogleLocation.connection_id).where(
             GoogleLocation.tenant_id == tenant.id, GoogleLocation.selected.is_(True), GoogleConnection.status == GoogleConnectionStatus.active)):
         r = scan_location(db, tenant, gloc, provider=provider, now=now)
         out["locations"] += 1
         out["proposed"] += len(r["proposed"])
         out["skipped"] += r["skipped"]
+        if v2:
+            from app.services.agent.v2 import scan as v2_scan
+
+            try:
+                with db.begin_nested():
+                    r2 = v2_scan.scan_location_v2(db, tenant, gloc, now=now)
+                out["proposed"] += len(r2["proposed"])
+                out["recommended"] += len(r2["recommended"])
+                out["superseded"] += len(r2["superseded"])
+                out["skipped"] += r2["skipped"]
+            except Exception:  # noqa: BLE001 - one location's V2 scan never stops the rest, nor undoes the original scan
+                log.exception("v2 scan failed for location %s", gloc.id)
+                out["skipped"].append("the V2 scan could not run for one location")
     return out

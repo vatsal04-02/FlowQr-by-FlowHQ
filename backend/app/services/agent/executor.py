@@ -35,6 +35,8 @@ from app.services import usage as api_usage
 from app.services.agent import controls, history, learning
 from app.services.agent import knowledge as kbs
 from app.services.agent.posts import describe_failure
+from app.services.agent.v2 import field_ops
+from app.services.agent.v2 import gate as v2gate
 from app.services.audit import audit
 from app.services.google.tokens import get_access_token, note_not_approved
 
@@ -117,7 +119,8 @@ def propose(db: Session, tenant: Tenant, gloc: GoogleLocation, action_type: str,
     prop_c = pol.canon(fk, proposed)
     kb, tf = kbs.context(db, tenant), _tenant_facts(tenant)
     decision = pol.classify(action_type, field_key=fk, current=current, proposed=prop_c, kb=kb)
-    problems = pol.validate_proposal(action_type, field_key=fk, current=current, proposed=prop_c, source=source or {}, proposed_by=proposed_by, kb=kb, tenant_facts=tf, relaxed=relaxed)
+    problems = pol.validate_proposal(action_type, field_key=fk, current=current, proposed=prop_c, source=source or {}, proposed_by=proposed_by, kb=kb, tenant_facts=tf, relaxed=relaxed,
+                                     info=info)
     if info is None:
         problems.append("FlowQR has no recent copy of this Google profile, so it cannot tell what is there now. Refresh from Google first.")
     if pol.permission_off(action_type, srow.autonomy_permissions):
@@ -145,7 +148,12 @@ def propose(db: Session, tenant: Tenant, gloc: GoogleLocation, action_type: str,
         authz = "owner"  # the plan does not include autonomous maintenance: a person decides every change
     if authz in ("policy", "preauthorized") and not consent_svc.has_active(db, tenant.id, gloc.id, decision.effective_type):
         authz = "owner"  # no express consent for THIS location and THIS action type (decision D2): a person decides every change
-    status = "blocked" if problems else ("approved" if authz in ("policy", "preauthorized") else "pending_approval")
+    gate = v2gate.status_for(gloc, fk)
+    held_by_gate = bool(gate["applies"] and not gate["allowed"])
+    if held_by_gate:  # V2 field on a customer profile while the policy gate is closed: drafted and shown, never approved into execution
+        authz = "owner"
+        decision.reasons.append(gate["reason"])
+    status = "blocked" if problems else ("recommended" if held_by_gate else ("approved" if authz in ("policy", "preauthorized") else "pending_approval"))
     a = AgentAction(
         tenant_id=tenant.id, google_location_id=gloc.id, task_id=task_id, action_type=action_type, field_key=fk, trigger=trigger[:60], problem=problem, reason=reason,
         expected_outcome=expected_outcome or EXPECTED_OUTCOME, evidence=evidence or {}, source=source or {}, current_value={"value": current},
@@ -172,6 +180,9 @@ def propose(db: Session, tenant: Tenant, gloc: GoogleLocation, action_type: str,
                                                                               "risk": decision.risk, "reasons": decision.reasons, "authorization": authz, "writable": decision.writable})
     if problems:
         history.record(db, a, "blocked", actor="system", now=now, data={"problems": problems})
+    elif status == "recommended":
+        history.record(db, a, "recommended", actor="system", now=now, data={"why": "the customer-write policy gate is closed for this profile", "gate": {k: gate[k] for k in ("test_profile", "customer_writes")},
+                                                                           "owner_can": "make this change in Google Business Profile"})
     elif status == "approved":
         basis = "level1_policy" if authz == "policy" else "preauthorization"
         ap = _add_approval(db, a, "auto_authorized", basis, None, f"Authorised by {pol.LABELS[decision.level]} policy" + (" with a pre-authorisation for this action type." if authz == "preauthorized" else "."),
@@ -187,7 +198,15 @@ def propose(db: Session, tenant: Tenant, gloc: GoogleLocation, action_type: str,
 def decide(db: Session, a: AgentAction, *, user_id: uuid.UUID, role: Role, approve: bool, reason: str | None = None, now: datetime | None = None) -> AgentAction:
     """A person approves or rejects. Level 3 needs an OWNER; Levels 1-2 an owner or admin. The approval is bound to this exact value and nothing else."""
     now = now or utcnow()
-    if a.status != "pending_approval":
+    if a.status == "recommended":
+        if approve:
+            gloc0, _ = _gloc_conn(db, a)
+            gate = v2gate.status_for(gloc0, a.field_key)
+            if not gate["allowed"]:
+                raise ActionError(gate["reason"], 409)
+            a.status, a.expires_at = "pending_approval", now + timedelta(days=settings.autonomy_proposal_ttl_days)  # the gate is open for this profile: it now waits for a person like any other change
+            history.record(db, a, "promoted", actor="system", now=now, data={"from": "recommended", "gate": {k: gate[k] for k in ("test_profile", "customer_writes")}})
+    elif a.status != "pending_approval":
         raise ActionError(f"This action is {a.status.replace('_', ' ')}, so it cannot be approved or rejected.")
     need = Role.owner if a.policy_level >= 3 else Role.admin
     if ROLE_RANK[role] < ROLE_RANK[need]:
@@ -378,6 +397,12 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
         return {"status": "held", "reason": "emergency_stop", "detail": stop["reason"]}
     tenant = db.get(Tenant, a.tenant_id)
     gloc, conn = _gloc_conn(db, a)
+    gate = v2gate.status_for(gloc, a.field_key)
+    if gate["applies"] and not gate["allowed"]:  # approved while the gate was open, and it has closed since: held, never failed, never written
+        a.next_attempt_at = now + timedelta(hours=1)
+        history.record(db, a, "held", actor="system", now=now, data={"reason": "the customer-write policy gate is closed for this profile"})
+        db.commit()
+        return {"status": "held", "reason": "policy_gate", "detail": gate["reason"]}
     if tenant is None or gloc is None or conn is None or gloc.tenant_id != a.tenant_id or conn.tenant_id != a.tenant_id:
         return _terminal(db, a, "blocked", "tenant_mismatch", {"reason": "the action, location and Google connection do not all belong to the same business"}, now, why="Tenant ownership could not be verified.")
     if not tenant.is_active or tenant.suspended_at or tenant.deletion_scheduled_for or not gloc.selected or conn.status != GoogleConnectionStatus.active:
@@ -413,7 +438,7 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
     try:
         provider = provider or g.get_google_provider()
         token = get_access_token(db, conn, provider, gloc=gloc)
-        live = provider.get_location_details(token, gloc.google_location_name)
+        live, live_c = field_ops.live_value(provider, token, gloc.google_location_name, a.field_key)
     except Exception as exc:  # noqa: BLE001
         reason, may_retry = describe_failure(exc)
         if isinstance(exc, g.GoogleApiNotApproved):
@@ -429,9 +454,8 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
         _note_failure(db, a, now)
         db.commit()
         return {"status": "failed", "reason": "google_read", "detail": reason, "http": getattr(exc, "status", None), "google_error": type(exc).__name__}
-    live_c = pol.field_value(live, a.field_key)
     prop_c = a.proposed_value.get("canonical")
-    if live_c == prop_c:
+    if field_ops.same(a.field_key, live_c, prop_c):
         if a.attempts == 0:
             return _terminal(db, a, "invalidated", "already_applied", {"reason": "Google already shows this value; nothing to change", "live": live_c}, now, ap=ap, why="Google already shows this value.")
         return _finish_verified(db, a, gloc, now, {"field": a.field_key, "expected": prop_c, "actual": live_c, "matched": True, "note": "an earlier attempt had already applied it"}, {"adopted": True})
@@ -444,9 +468,33 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
     d2 = pol.classify(a.action_type, field_key=a.field_key, current=live_c, proposed=prop_c, kb=kb)
     if d2.level > a.policy_level:
         return _terminal(db, a, "invalidated", "policy_level_increased", {"was": a.policy_level, "now": d2.level, "reasons": d2.reasons}, now, ap=ap, why="The policy now classifies this at a higher level.")
-    problems = pol.validate_proposal(a.action_type, field_key=a.field_key, current=live_c, proposed=prop_c, source=a.source, proposed_by=a.proposed_by, kb=kb, tenant_facts=_tenant_facts(tenant))
+    problems = pol.validate_proposal(a.action_type, field_key=a.field_key, current=live_c, proposed=prop_c, source=a.source, proposed_by=a.proposed_by, kb=kb, tenant_facts=_tenant_facts(tenant),
+                                     info=live)
     if problems or not d2.writable:
         return _terminal(db, a, "invalidated", "evidence_no_longer_sufficient", {"problems": problems or ["not writable through the Google integration"]}, now, ap=ap, why="; ".join(problems) or "Not writable.")
+    # ---- the dry run (V2 fields): Google's own validation of exactly what would be sent, before anything is claimed or written
+    if a.field_key in pol.V2_FIELDS:
+        try:
+            vres = field_ops.validate(provider, token, gloc.google_location_name, a.field_key, prop_c, live=live, current=live_c)
+        except Exception as exc:  # noqa: BLE001 - a transport or quota problem is not Google's verdict on the value
+            reason, may_retry = describe_failure(exc)
+            if isinstance(exc, g.GoogleApiNotApproved):
+                note_not_approved(conn, exc)
+            if may_retry and not interactive and a.attempts < settings.autonomy_max_attempts:
+                a.next_attempt_at = now + timedelta(minutes=5 * 2 ** a.attempts)
+                history.record(db, a, "retry_scheduled", actor="google", now=now, data={"stage": "validation", "reason": reason, "next_attempt_at": a.next_attempt_at.isoformat()})
+                db.commit()
+                return {"status": "approved", "reason": "retry", "detail": reason}
+            a.status, a.last_error = "failed", reason
+            history.record(db, a, "failed", actor="google", now=now, data={"stage": "validation", "reason": reason})
+            db.commit()
+            return {"status": "failed", "reason": "validation_error", "detail": reason, "http": getattr(exc, "status", None), "google_error": type(exc).__name__}
+        a.validation_status, a.validation = vres["status"], {**vres, "at": now.isoformat()}
+        history.record(db, a, "validated" if vres["status"] == "validated" else "validation_failed", actor="google", now=now, data=a.validation)
+        if vres["status"] != "validated":  # rejected, or no way to dry-run: a V2 write is never sent unvalidated
+            why = "; ".join(vres["errors"]) or vres["detail"]
+            return _terminal(db, a, "blocked", "validation_failed", {"errors": vres["errors"], "detail": vres["detail"]}, now, ap=ap, why=why)
+        db.commit()
     if not hit(f"gbp-edit:{gloc.id}", 10, 60):  # Google allows 10 profile edits per minute per location
         a.next_attempt_at = now + timedelta(seconds=65)
         db.commit()
@@ -467,7 +515,7 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
         return {"status": "approved", "reason": "location_field_busy"}
     # ---- write
     try:
-        result = provider.update_location(token, gloc.google_location_name, _write_changes(a))
+        result = field_ops.write(provider, token, gloc.google_location_name, a.field_key, a.proposed_value.get("value"), prop_c, current=live_c)
     except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
         api_usage.record(db, tenant_id=a.tenant_id, provider=api_usage.GBP, operation="locations.patch", feature="autonomy", status="error", location_id=a.google_location_id,
                          idempotency_key=f"gbp:{a.id}:{a.attempts}", reason=type(exc).__name__)
@@ -485,17 +533,17 @@ def execute(db: Session, action_id: uuid.UUID, *, provider=None, now: datetime |
         db.commit()
         return {"status": "failed", "reason": "write", "detail": reason, "http": getattr(exc, "status", None), "google_error": type(exc).__name__}
     api_usage.record(db, tenant_id=a.tenant_id, provider=api_usage.GBP, operation="locations.patch", feature="autonomy", location_id=a.google_location_id, idempotency_key=f"gbp:{a.id}:{a.attempts}")
-    history.record(db, a, "google_write", actor="google", now=now, data={"field": a.field_key, "requested": prop_c, "returned": pol.field_value(result, a.field_key) if isinstance(result, dict) else None})
+    history.record(db, a, "google_write", actor="google", now=now, data={"field": a.field_key, "requested": prop_c, "returned": field_ops.returned_value(result, a.field_key)})
     # ---- read back, independently, and compare
     sleep(0)
     try:
-        actual = pol.field_value(provider.get_location_details(token, gloc.google_location_name), a.field_key)
+        _, actual = field_ops.live_value(provider, token, gloc.google_location_name, a.field_key)
     except Exception as exc:  # noqa: BLE001 - the write may or may not have landed: leave it for recovery to resolve, do not claim success
         reason, _ = describe_failure(exc)
         history.record(db, a, "read_back_failed", actor="google", now=now, data={"reason": reason})
         db.commit()
         return {"status": "executing", "reason": "read_back_failed", "detail": reason}
-    matched = actual == prop_c
+    matched = field_ops.same(a.field_key, actual, prop_c)
     ver = {"field": a.field_key, "expected": prop_c, "actual": actual, "matched": matched, "read_at": utcnow().isoformat()}
     if not matched:
         a.status, a.verification = "failed", ver
@@ -516,6 +564,10 @@ def _finish_verified(db: Session, a: AgentAction, gloc: GoogleLocation, now: dat
     s.autonomy_failure_streak = 0
     if pol.SPECS[a.action_type].rank_relevant:
         learning.schedule_followups(db, a, now)
+    if a.field_key in pol.V2_FIELDS:  # a customer-visible V2 change: the separate notice, only now that Google's own profile shows it
+        from app.services.agent.v2 import notice
+
+        notice.send_change_notice(db, a)
     db.commit()
     return {"status": "executed", "verified": True}
 
@@ -575,13 +627,13 @@ def recover_stuck(db: Session, *, provider=None, now: datetime | None = None, li
         gloc, conn = _gloc_conn(db, a)
         try:
             provider = provider or g.get_google_provider()
-            actual = pol.field_value(provider.get_location_details(get_access_token(db, conn, provider, gloc=gloc), gloc.google_location_name), a.field_key)
+            _, actual = field_ops.live_value(provider, get_access_token(db, conn, provider, gloc=gloc), gloc.google_location_name, a.field_key)
         except Exception as exc:  # noqa: BLE001
             log.warning("autonomy recovery could not read Google for %s: %s", aid, exc)
             out["deferred"] += 1
             db.rollback()
             continue
-        if actual == a.proposed_value.get("canonical"):
+        if field_ops.same(a.field_key, actual, a.proposed_value.get("canonical")):
             ver = {"field": a.field_key, "expected": actual, "actual": actual, "matched": True, "note": "found applied on Google when recovering from an interruption"}
             _finish_verified(db, a, gloc, now, ver, {"recovered": True})
             out["verified"] += 1
@@ -609,11 +661,11 @@ def action_out(db: Session, a: AgentAction, *, detail: bool = False) -> dict:
         "trigger": a.trigger, "problem": a.problem, "reason": a.reason, "expected_outcome": a.expected_outcome,
         "before": a.current_value.get("value"), "after": a.proposed_value.get("canonical"), "source": a.source, "evidence": a.evidence, "policy_reasons": a.policy_reasons,
         "proposed_by": a.proposed_by, "expires_at": a.expires_at, "attempts": a.attempts, "last_error": a.last_error, "executed_at": a.executed_at, "verified_at": a.verified_at,
-        "verification": a.verification, "created_at": a.created_at,
+        "verification": a.verification, "created_at": a.created_at, "validation_status": a.validation_status, "v2": a.field_key in pol.V2_FIELDS,
     }
     if detail:
         out["proposed_raw"] = a.proposed_value.get("value")
-        out["baseline"], out["outcome"], out["google_result"] = a.baseline, a.outcome, a.google_result
+        out["baseline"], out["outcome"], out["google_result"], out["validation"] = a.baseline, a.outcome, a.google_result, a.validation
         out["approvals"] = [{"decision": p.decision, "basis": p.basis, "by": str(p.authorized_by) if p.authorized_by else None, "at": p.decided_at, "expires_at": p.expires_at,
                              "reason": p.reason, "invalidated_at": p.invalidated_at, "invalidated_reason": p.invalidated_reason}
                             for p in db.scalars(select(AgentActionApproval).where(AgentActionApproval.action_id == a.id).order_by(AgentActionApproval.decided_at))]
