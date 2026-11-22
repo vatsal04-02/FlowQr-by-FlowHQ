@@ -9,6 +9,9 @@ export function useForm<T extends Record<string, unknown>>(initial: T, rules: Ru
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement | null>(null);
+  // The latest values and rules, readable from an event handler without being a dependency of it.
+  const latest = useRef({ values, rules });
+  latest.current = { values, rules };
 
   const set = useCallback(<K extends keyof T>(key: K, value: T[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
@@ -16,14 +19,13 @@ export function useForm<T extends Record<string, unknown>>(initial: T, rules: Ru
   }, []);
 
   const blur = useCallback(<K extends keyof T>(key: K) => {
-    const rule = rules[key];
+    const { values: cur, rules: current } = latest.current;
+    const rule = current[key];
     if (!rule) return;
-    setValues((cur) => {
-      const msg = rule(cur[key], cur);
-      setErrors((e) => ({ ...e, [key]: msg }));
-      return cur;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Validate here, NOT inside a state updater: an updater must be pure, and calling setErrors from inside setValues (as this did) can send React into
+    // "Maximum update depth exceeded" (error #185) while a form is being filled, e.g. the New campaign dialog. Only set state when the message really changed.
+    const msg = rule(cur[key], cur);
+    setErrors((e) => (e[key] === msg ? e : { ...e, [key]: msg }));
   }, []);
 
   const validateAll = useCallback((): boolean => {
