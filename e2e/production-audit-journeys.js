@@ -183,7 +183,9 @@ async function wizard(page) {
 
   // ------------------------------------------------------------------------------------------------ responsive sweep of the owner screens
   const SCREENS = ['/overview', '/gbp/reviews', '/gbp/campaigns', `/gbp/campaigns/${campaignId}`, '/gbp/cards', '/gbp/locations', '/gbp/info', '/gbp/posts', '/gbp/photos', '/growth', '/growth/reports', '/seo',
-                   '/reputation/drafts', '/ai/today', '/ai/approvals', '/settings', '/settings/team', '/settings/connections', '/settings/billing', '/settings/notifications', '/settings/account', '/settings/appearance'];
+                   '/reputation/drafts', '/ai/today', '/ai/approvals', '/settings', '/settings/team', '/settings/connections', '/settings/billing', '/settings/notifications', '/settings/account', '/settings/appearance',
+                   // public pages (the owner's session is carried along but none of these needs it): customer landing, marketing, legal, sign-in
+                   new URL(openHref).pathname, '/', '/pricing', '/about', '/review-cards', '/google-business', '/ai-growth-agent', '/industries', '/privacy', '/terms', '/refund-policy', '/data-deletion', '/login', '/register', '/forgot-password'];
   const VIEWPORTS = { desktop: { width: 1366, height: 768 }, tablet: { width: 820, height: 1180 }, mobile: { width: 390, height: 844 } };
   const sweep = [];
   for (const [vp, size] of Object.entries(VIEWPORTS)) {
@@ -208,9 +210,31 @@ async function wizard(page) {
   }
   fs.writeFileSync(path.join(OUT, 'sweep.json'), JSON.stringify(sweep, null, 1));
   const bad = sweep.filter((r) => r.overflow > 1 || r.brokenImgs || r.pageErrors || r.consoleErrors || r.failed || r.http.length || r.crashed || (r.status && r.status >= 400));
-  check(`SWEEP ${sweep.length} screen/viewport loads (${SCREENS.length} screens x 3 viewports): no crash, page error, broken image, failed request or HTTP error`, bad.length === 0, bad.length ? JSON.stringify(bad.slice(0, 6)) : '');
+  check(`SWEEP ${sweep.length} screen/viewport loads (${SCREENS.length} screens x 3 viewports, app + public): no crash, page error, broken image, failed request or HTTP error`, bad.length === 0, bad.length ? JSON.stringify(bad.slice(0, 6)) : '');
   const overflow = sweep.filter((r) => r.overflow > 1); check('SWEEP no screen scrolls sideways on desktop, tablet or phone', overflow.length === 0, JSON.stringify(overflow.map((r) => `${r.vp}${r.screen}+${r.overflow}`).slice(0, 8)));
   const unl = sweep.filter((r) => r.unlabeled > 0); check('SWEEP every visible control has an accessible name', unl.length === 0, JSON.stringify(unl.map((r) => `${r.vp}${r.screen}:${r.unlabeled}`).slice(0, 10)));
+  // ---- the platform-admin console (FlowHQ staff only) at the same three viewports, with the admin's own session
+  const ADMIN_SCREENS = ['/admin', '/admin/customers', '/admin/users', '/admin/cards', '/admin/billing', '/admin/finance', '/admin/ops', '/admin/audit', '/admin/plans', '/admin/queue', '/admin/managed-usage', `/admin/customers/${tenantId}`];
+  const adminSweep = [];
+  for (const [vp, size] of Object.entries(VIEWPORTS)) {
+    const c = await browser.newContext({ viewport: size, isMobile: vp === 'mobile', hasTouch: vp !== 'desktop', storageState: await adminCtx.storageState() });
+    const p = await c.newPage(); const sink = newSink(); watch(p, sink);
+    for (const s of ADMIN_SCREENS) {
+      const before = { c: sink.console.length, pg: sink.page.length, f: sink.failed.length, h: sink.http.length };
+      const resp = await p.goto(`${BASE}${s}`, { waitUntil: 'load' }).catch(() => null); await p.waitForTimeout(1800);
+      const m = await p.evaluate(() => ({ overflow: document.documentElement.scrollWidth - window.innerWidth, text: document.body.innerText.slice(0, 3000),
+        unlabeled: [...document.querySelectorAll('button, a[href], input, select, textarea')].filter((e) => { const r = e.getBoundingClientRect(); if (!r.width || !r.height || e.type === 'hidden') return false; return !((e.innerText || e.getAttribute('aria-label') || e.getAttribute('title') || (e.labels && e.labels[0] && e.labels[0].innerText) || e.getAttribute('placeholder') || e.value || '').trim()) && !e.querySelector('img[alt]:not([alt=""])') && !e.getAttribute('aria-labelledby'); }).length }));
+      adminSweep.push({ vp, screen: s, status: resp && resp.status(), url: p.url().replace(BASE, ''), overflow: m.overflow, unlabeled: m.unlabeled, pageErrors: sink.page.length - before.pg, consoleErrors: unexpected(sink.console.slice(before.c)).length,
+                        failed: sink.failed.length - before.f, http: unexpected(sink.http.slice(before.h)), crashed: /Application error|Something went wrong|Unhandled Runtime Error/.test(m.text), deniedAdmin: /Platform admin only|Not authenticated/.test(m.text) });
+    }
+    await c.close();
+  }
+  fs.writeFileSync(path.join(OUT, 'admin-sweep.json'), JSON.stringify(adminSweep, null, 1));
+  const adminBad = adminSweep.filter((r) => r.overflow > 1 || r.unlabeled || r.pageErrors || r.consoleErrors || r.failed || r.http.length || r.crashed || r.deniedAdmin || (r.status && r.status >= 400) || !r.url.startsWith('/admin'));
+  check(`SWEEP admin console: ${adminSweep.length} loads (${ADMIN_SCREENS.length} screens x 3 viewports): no crash, error, overflow, unlabeled control, denial or redirect`, adminBad.length === 0, adminBad.length ? JSON.stringify(adminBad.slice(0, 4)) : '');
+  const asOwner = await browser.newContext({ viewport: VIEWPORTS.desktop, storageState: await ownerCtx.storageState() }); const ap = await asOwner.newPage(); await ap.goto(`${BASE}/admin/customers`); await ap.waitForTimeout(2000);
+  { const t = await ap.locator('body').innerText(); check('a business owner who opens the admin console sees only "Platform admins only" and none of the admin content', /Platform admins only/.test(t) && /don.t have access/.test(t) && !/Businesses|Customers|Operations|Audit|Finance/.test(t.replace(/Platform admins only/, '')), t.split('\n').join(' | ').slice(0, 160)); }
+  const ownerAdminApi = await ownerCtx.request.get(`${BASE}/api/v1/admin/tenants`); check('a business owner calling an admin API gets 403', ownerAdminApi.status() === 403, ownerAdminApi.status());
   check('J1/J4 the owner session saw no page errors from start to finish', ownerSink.page.length === 0, ownerSink.page.join(' | '));
   check('the owner session saw no unexpected console errors or failed API calls', unexpected(ownerSink.console).length + unexpected(ownerSink.http).length + ownerSink.failed.length === 0, JSON.stringify({ c: unexpected(ownerSink.console), h: unexpected(ownerSink.http), f: ownerSink.failed }).slice(0, 300));
 
