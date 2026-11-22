@@ -6,7 +6,7 @@
 export const en = {
   home: {
     meta: { title: "FlowQR: an AI marketing team for local businesses", description: "FlowQR by FlowHQ gives local businesses a team of AI agents: one keeps your Google profile active and drafts replies and posts, one gives customers a QR/NFC card to share honest reviews, and one handles WhatsApp follow-ups and offers. You stay in control of what goes out." },
-    hero: { line1: "AI marketing team for local businesses", line2: "", typed: "that generates real revenue.", bandTitle: "Made for your business", bandAll: "See all businesses", outcome: "Bring in more customers and build a reputation people trust.", sub: "One AI agent for your Google profile, one for reviews and one for WhatsApp. They do the daily work. You approve what goes out.", forLabel: "Built for local businesses —", forAccent: "any kind.", secondary: "Free profile check", left: "Your Google profile, reviews and WhatsApp, run by one team.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
+    hero: { line1: "AI marketing team for local businesses", line2: "", typed: "that generates real revenue.", bandTitle: "Made for your business", bandAll: "See all businesses", outcome: "Bring in more customers and build a reputation people trust.", sub: "AI agents that run your whole marketing team at an affordable cost to generate more customers.", forLabel: "Built for local businesses —", forAccent: "any kind.", secondary: "Free profile check", left: "Your Google profile, reviews and WhatsApp, run by one team.", chips: ["AI-assisted", "You stay in control", "QR + NFC"] },
     squad: {
       title: "Meet your marketing team.", sub: "Three AI agents, one job each. They do the daily routine, you stay in charge of what goes out.",
       agents: [
