@@ -8,15 +8,18 @@ export interface FrameBranding { brand_color: string; background: Background; we
 
 /** The customer-facing shell: business identity, brand colour, background and footer. Used by the real page and by every live preview. */
 export function LandingFrame({ business, branding, children, preview }: { business: FrameBusiness; branding: FrameBranding; children: ReactNode; preview?: boolean }) {
+  // A live preview sits INSIDE a dashboard page that already has its own main landmark and its own h1: it must not add a second of either (screen readers would announce two main regions and two page titles).
+  const Root = preview ? "div" : "main";
+  const Title = preview ? "p" : "h1";
   return (
     <div style={{ ...landingStyle(branding.brand_color), ...backgroundStyle(branding.background, branding.brand_color) }} className={preview ? "min-h-full" : "min-h-dvh"}>
-      <main className="mx-auto w-full max-w-md px-5 pb-10 pt-[max(1.75rem,env(safe-area-inset-top))]">
+      <Root className="mx-auto w-full max-w-md px-5 pb-10 pt-[max(1.75rem,env(safe-area-inset-top))]">
         <header className="flex items-center gap-3.5">
           {business.logo_url
             ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={business.logo_url} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-black/5 bg-white object-cover shadow-panel" />
             : <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[var(--brand)] text-2xl font-semibold text-[var(--on-brand)] shadow-panel">{business.name.charAt(0).toUpperCase()}</span>}
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-ink">{business.name}</h1>
+            <Title className="truncate text-xl font-semibold leading-tight tracking-tight text-ink">{business.name}</Title>
             {business.location && <p className="truncate text-sm text-ink-500">{business.location}</p>}
           </div>
         </header>
@@ -26,7 +29,7 @@ export function LandingFrame({ business, branding, children, preview }: { busine
           {branding.footer_message && <p className="mb-2 text-[13px] text-ink-700">{branding.footer_message}</p>}
           <p className="flex items-center justify-center gap-2"><LogoMark size={16} />Powered by FlowQR · no incentives, no filtering of reviews</p>
         </footer>
-      </main>
+      </Root>
     </div>
   );
 }

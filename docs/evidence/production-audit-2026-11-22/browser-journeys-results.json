@@ -1,0 +1,202 @@
+[
+ {
+  "name": "J1 registration through the form lands on onboarding",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J1 onboarding validates a required choice inline before continuing",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J1 wizard reaches the final step with the 7-day no-card trial",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J1 dashboard opens for the new business",
+  "ok": true,
+  "evidence": "http://localhost:3700/overview"
+ },
+ {
+  "name": "J1 a finished business is not sent back through onboarding",
+  "ok": true,
+  "evidence": "http://localhost:3700/overview"
+ },
+ {
+  "name": "J4 empty campaign form is refused with inline messages",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 campaign created through the UI",
+  "ok": true,
+  "evidence": "http://localhost:3700/gbp/campaigns/74012c11-3987-47b3-b483-b0039d9d1121"
+ },
+ {
+  "name": "J4 filling and submitting the New campaign dialog throws no page error (React #185 regression)",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 downloaded PNG decodes (scan) to the campaign page address",
+  "ok": true,
+  "evidence": "http://localhost:3700/r/38JKHdNh3eylNLXayU8X-g vs http://localhost:3700/r/38JKHdNh3eylNLXayU8X-g"
+ },
+ {
+  "name": "J4 SVG and PDF downloads are real files",
+  "ok": true,
+  "evidence": "svg 6039B pdf 2537B"
+ },
+ {
+  "name": "J4 SVG renders to a scannable code with the same address",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 scanned code opens the business landing page on a phone",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 landing page has no horizontal overflow on a phone",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 the Continue-to-Google button stays disabled until a review is written (empty is refused)",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 Hindi switch translates the landing page",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 optional feedback topic can be toggled",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 continuing opens the business Google review link in a new tab (FlowQr does not post it for the customer)",
+  "ok": true,
+  "evidence": "https://g.page/r/CabcDEF123/review"
+ },
+ {
+  "name": "J4 the public landing flow has no console or page errors",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 an invalid campaign address shows a clear unavailable page, not an error screen",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J4 the public API answers 404 for an unknown campaign",
+  "ok": true,
+  "evidence": 404
+ },
+ {
+  "name": "J4 the campaign page has exactly one main landmark and one h1 (the live preview adds neither)",
+  "ok": true,
+  "evidence": "{\"mains\":1,\"h1s\":1}"
+ },
+ {
+  "name": "J4 the campaign page counts the scan and the Continue-to-Google tap from real events",
+  "ok": true,
+  "evidence": "erformance all time QR scans 1 Unique scans 1 Feedback submitted 1 Drafts approved 1 Continued to Google 1 Unique scans count different devices per day (FlowQR keeps no identity for them). “Continued to Google” is a tap, not a published review. See the full fu"
+ },
+ {
+  "name": "J5 platform admin can issue a card batch",
+  "ok": true,
+  "evidence": 201
+ },
+ {
+  "name": "J5 card is assigned to the business, location and campaign",
+  "ok": true,
+  "evidence": "200 {\"id\":\"6acb70af-beae-4c6e-aa4d-671caf38b95b\",\"card_code\":\"FQR-0005\",\"status\":\"active\",\"batch_id\":\"c6b516c4-899e-43e7-8c6"
+ },
+ {
+  "name": "J5 NFC redirect door answers a real 302 to the card landing page on the app",
+  "ok": true,
+  "evidence": "302 http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj"
+ },
+ {
+  "name": "J5 the redirect is never cached",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J5 the NFC tag URL uses the /n/ door on the print domain",
+  "ok": true,
+  "evidence": "http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj"
+ },
+ {
+  "name": "J5 tapping the tag opens the correct business review page",
+  "ok": true,
+  "evidence": "http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj"
+ },
+ {
+  "name": "J5 the same card works through the QR door too",
+  "ok": true,
+  "evidence": 302
+ },
+ {
+  "name": "J5 an unknown NFC token is a 404, not a redirect",
+  "ok": true,
+  "evidence": 404
+ },
+ {
+  "name": "J5 a query string cannot change where the card goes (no open redirect)",
+  "ok": true,
+  "evidence": "http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj"
+ },
+ {
+  "name": "J5 a paused card shows a calm \"switched off\" notice to customers",
+  "ok": true,
+  "evidence": 200
+ },
+ {
+  "name": "SWEEP 111 screen/viewport loads (37 screens x 3 viewports, app + public): no crash, page error, broken image, failed request or HTTP error",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "SWEEP no screen scrolls sideways on desktop, tablet or phone",
+  "ok": true,
+  "evidence": "[]"
+ },
+ {
+  "name": "SWEEP every visible control has an accessible name",
+  "ok": true,
+  "evidence": "[]"
+ },
+ {
+  "name": "SWEEP admin console: 36 loads (12 screens x 3 viewports): no crash, error, overflow, unlabeled control, denial or redirect",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "a business owner who opens the admin console sees only \"Platform admins only\" and none of the admin content",
+  "ok": true,
+  "evidence": "Skip to content |  | Platform admins only |  | You don’t have access to this area."
+ },
+ {
+  "name": "a business owner calling an admin API gets 403",
+  "ok": true,
+  "evidence": 403
+ },
+ {
+  "name": "J1/J4 the owner session saw no page errors from start to finish",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "the owner session saw no unexpected console errors or failed API calls",
+  "ok": true,
+  "evidence": "{\"c\":[],\"h\":[],\"f\":[]}"
+ }
+]

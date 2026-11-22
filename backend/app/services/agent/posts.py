@@ -424,9 +424,10 @@ def recover_stuck(db: Session, *, provider=None, now: datetime | None = None, li
     return out
 
 
-def due(db: Session, limit: int = 50, now: datetime | None = None) -> list[ScheduledPost]:
+def due(db: Session, limit: int = 50, now: datetime | None = None, exclude=()) -> list[ScheduledPost]:
     now = now or utcnow()
     q = (select(ScheduledPost).where(ScheduledPost.status == "scheduled", ScheduledPost.scheduled_for <= now,
-                                     (ScheduledPost.next_attempt_at.is_(None)) | (ScheduledPost.next_attempt_at <= now))
-         .order_by(ScheduledPost.scheduled_for).limit(limit).with_for_update(skip_locked=True))
-    return list(db.scalars(q))
+                                     (ScheduledPost.next_attempt_at.is_(None)) | (ScheduledPost.next_attempt_at <= now)))
+    if exclude:
+        q = q.where(ScheduledPost.id.not_in(list(exclude)))
+    return list(db.scalars(q.order_by(ScheduledPost.scheduled_for).limit(limit).with_for_update(skip_locked=True)))

@@ -1,0 +1,102 @@
+### A. startup guard, production-shaped config (must exit 0, no 'Unsafe' text)
+GUARD ACCEPTED: app.main imported under APP_ENV=production
+exit=0
+
+### B. NEGATIVE: the 2026-11-22 incident (adopt-existing on while the manager switch is off) - the guard MUST refuse
+    raise RuntimeError("Unsafe " + s.app_env + " configuration:\n  - " + "\n  - ".join(problems))
+RuntimeError: Unsafe production configuration:
+  - GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS needs GOOGLE_AGENCY_MANAGER_ENABLED (on its own it does nothing)
+exit=1
+
+### C. NEGATIVE: a development secret in the database URL, and insecure cookies
+    raise RuntimeError("Unsafe " + s.app_env + " configuration:\n  - " + "\n  - ".join(problems))
+RuntimeError: Unsafe production configuration:
+exit=1
+
+### D. NEGATIVE: agency operations without a recorded basis (policy reference empty and no internal decision)
+    raise RuntimeError("Unsafe " + s.app_env + " configuration:\n  - " + "\n  - ".join(problems))
+RuntimeError: Unsafe production configuration:
+exit=1
+### E. restore a 0065-shaped backup (the earlier rehearsal backup) into the throwaway production-shaped database
+alembic_version=0065
+tenants=22
+
+### F. migration step (production: no new revision expected, alembic stays 0065)
+exit=0
+alembic_version after migrate=0065
+
+### G. deployment preflight (python -m app.cli preflight) with the production-shaped config
+FlowQR preflight: APP_ENV=production (strict production rules apply)
+
+Configuration
+  PASS    production guard                   no dev secrets, insecure cookies, localhost URLs or missing SMTP/Razorpay pairs
+  PASS    TOKEN_ENCRYPTION_KEY               valid; round trip works
+  PASS    secure cookies                     COOKIE_SECURE=True
+
+Services
+  PASS    database                           reachable
+  PASS    migrations                         At head (0065)
+  WARN    admin admin@flowhq.example         listed in PLATFORM_ADMIN_EMAILS but no account yet (it becomes admin when registered)
+  MANUAL  admin password                     run `python -m app.cli set-admin-password --email <you>` so no password issued earlier (chat, notes) is still valid
+  PASS    redis                              reachable
+
+Email
+  FAIL    SMTP login                         gaierror: check host, port, STARTTLS and credentials
+  MANUAL  email delivery                     re-run with --smtp-test you@example.com and confirm the message lands in the inbox, not spam; add SPF/DKIM/DMARC for the sending domain
+
+Payments
+  FAIL    Razorpay                           keys not set: paid plans cannot be bought
+
+AI
+  FAIL    AI provider                        no key: replies, posts and the growth agent are off
+  WARN    AI monthly budget                  AI_MONTHLY_BUDGET_USD not set; also set a billing alert in the provider console
+
+Google
+  PASS    Business Profile OAuth client      set
+  PASS    redirect URI                       https://api.flowqr.site/api/v1/google/callback
+  MANUAL  OAuth consent screen               Publish the app (not 'Testing', where refresh tokens expire after 7 days) and complete Google's verification for the business.manage sensitive scope; see docs/GOOGLE
+  MANUAL  Business Profile API quota         Confirm access is approved (quota above 0) for the Cloud project; run `google-smoke` for the live read check
+
+Monitoring and backups
+  FAIL    error reporting                    SENTRY_DSN not set
+  FAIL    backups                            No backup status found. Schedule deploy/backup.sh (nightly) and mount ./backups into the api and worker containers.
+
+8 passed, 5 failed, 2 warnings, 4 need you (manual).
+NOT READY: fix the FAIL lines above.
+
+exit=1
+### H. recreate api worker beat together, --no-deps, both compose files (runbook step 6)
+docker port: 8000/tcp -> 127.0.0.1:18010 
+api ready: {"ready":true,"checks":{"database":"ok","redis":"ok","migrations":"ok"}}
+api health: {"status":"ok"}
+api Up 27 seconds (health: starting)
+beat Up 27 seconds (health: starting)
+db Up 2 minutes (healthy)
+redis Up 2 minutes (healthy)
+worker Up 28 seconds (healthy)
+--- errors in the first minute of logs:
+0
+--- worker saw beat's heartbeat? (redis key age in seconds)
+none
+--- scheduled tasks executed by the worker (names):
+--- agency stays locked: public endpoints
+agency-ops without login: 401
+api docs: 404
+{"mode":"allowlist"}
+### I. after 2.5 minutes
+api Up 2 minutes (healthy)
+beat Up 2 minutes (healthy)
+db Up 4 minutes (healthy)
+redis Up 4 minutes (healthy)
+worker Up 2 minutes (healthy)
+heartbeat age (s): 26
+error-like lines: 0
+tasks run by worker:
+      1 Task flowqr.autonomy_execute succeeded
+      2 Task flowqr.heartbeat succeeded
+      2 Task flowqr.publish_due_media succeeded
+      2 Task flowqr.publish_due_posts succeeded
+      4 Task flowqr.whatsapp_conversations_due succeeded
+      2 Task flowqr.whatsapp_run_due succeeded
+      4 Task flowqr.whatsapp_webhook_deliveries succeeded
+any task failed: 0

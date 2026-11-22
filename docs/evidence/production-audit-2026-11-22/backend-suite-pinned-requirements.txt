@@ -1,0 +1,10 @@
+# Backend suite on Linux with the EXACT pinned requirements: image built from the real backend/Dockerfile (python:3.13-slim, requirements.txt pins: PyJWT 2.15.1, sentry-sdk 2.75.0, fastapi 0.162.0, ...) plus only requirements-dev.txt; whole repo mounted; 8 parallel shards, one PostgreSQL 16 database each
+shard 1: 391 passed in 519.40s (0:08:39)  exit=0
+shard 2: 429 passed in 530.99s (0:08:50)  exit=0
+shard 3: 331 passed in 559.28s (0:09:19)  exit=0
+shard 4: 480 passed in 483.27s (0:08:03)  exit=0
+shard 5: 388 passed in 586.16s (0:09:46)  exit=0
+shard 6: 433 passed in 610.53s (0:10:10)  exit=0
+shard 7: 447 passed in 813.03s (0:13:33)  exit=0
+shard 8: 546 passed in 488.19s (0:08:08)  exit=0
+total passed: 3445 ; failed: 0 ; skipped: 0 (no shard summary mentions a skip)

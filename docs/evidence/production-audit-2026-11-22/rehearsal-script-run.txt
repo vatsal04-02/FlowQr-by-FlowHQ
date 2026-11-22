@@ -1,0 +1,44 @@
+== 1. compose renders with both files
+  PASS  compose config
+== 2. throwaway database and redis
+  PASS  db healthy
+== 3. the real startup guard
+  PASS  guard accepts the production-shaped configuration
+  PASS  guard refuses: adopt-existing on while the manager switch is off (the 2026-11-22 incident)
+  PASS  guard refuses: insecure cookies
+  PASS  guard refuses: agency operations without a recorded basis
+== 4. optional restore of a production-shaped backup
+  PASS  backup restored, alembic at 0065
+== 5. the migration step
+  PASS  migrate exited 0
+  PASS  database is at the image's head (0065)
+== 6. the deployment preflight (informational: it will FAIL on mail, AI, payment and Sentry here by design; read the rest)
+  PASS    production guard                   no dev secrets, insecure cookies, localhost URLs or missing SMTP/Razorpay pairs
+  PASS    TOKEN_ENCRYPTION_KEY               valid; round trip works
+  PASS    secure cookies                     COOKIE_SECURE=True
+  PASS    database                           reachable
+  PASS    migrations                         At head (0065)
+  WARN    admin admin@flowhq.example         listed in PLATFORM_ADMIN_EMAILS but no account yet (it becomes admin when registered)
+  MANUAL  admin password                     run `python -m app.cli set-admin-password --email <you>` so no password issued earlier (chat, notes) is s
+  PASS    redis                              reachable
+  FAIL    SMTP login                         gaierror: check host, port, STARTTLS and credentials
+  MANUAL  email delivery                     re-run with --smtp-test you@example.com and confirm the message lands in the inbox, not spam; add SPF/DKI
+  FAIL    Razorpay                           keys not set: paid plans cannot be bought
+  FAIL    AI provider                        no key: replies, posts and the growth agent are off
+  WARN    AI monthly budget                  AI_MONTHLY_BUDGET_USD not set; also set a billing alert in the provider console
+  PASS    Business Profile OAuth client      set
+  PASS    redirect URI                       https://api.flowqr.site/api/v1/google/callback
+  MANUAL  OAuth consent screen               Publish the app (not 'Testing', where refresh tokens expire after 7 days) and complete Google's verificat
+  MANUAL  Business Profile API quota         Confirm access is approved (quota above 0) for the Cloud project; run `google-smoke` for the live read ch
+  FAIL    error reporting                    SENTRY_DSN not set
+  FAIL    backups                            No backup status found. Schedule deploy/backup.sh (nightly) and mount ./backups into the api and worker c
+8 passed, 5 failed, 2 warnings, 4 need you (manual).
+NOT READY: fix the FAIL lines above.
+== 7. recreate api, worker, beat together, --no-deps, both compose files
+  PASS  /api/ready: {"ready":true,"checks":{"database":"ok","redis":"ok","migrations":"ok"}}
+  PASS  beat -> worker heartbeat present in redis
+  PASS  operator endpoints demand a login
+  PASS  API docs are not served
+  PASS  no error lines in the api, worker and beat logs
+
+REHEARSAL PASSED

@@ -54,6 +54,9 @@ class DraftBodyIn(BaseModel):
     @field_validator("body")
     @classmethod
     def _bytes(cls, v):
+        v = v.strip()  # the length rules above count spaces: "  " passed them and was saved as an EMPTY draft that could then be approved and sent to Google
+        if len(v) < 2:
+            raise ValueError("Write a reply first.")
         # Google's limit for a reply is 4096 BYTES; Hindi text is ~3 bytes per character.
         if len(v.encode("utf-8")) > 4096:
             raise ValueError("Reply is too long for Google (4096 bytes). Shorten it.")

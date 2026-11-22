@@ -43,6 +43,12 @@ def _conn_out(ctx: TenantContext, c: GoogleConnection) -> ConnectionOut:
     return o
 
 
+def _agency_available(tenant_id) -> bool:
+    from app.services.google import agency
+
+    return bool(agency.enabled() and agency.tenant_allowed(tenant_id))
+
+
 @router.get("/status")
 def status(ctx: TenantContext = Depends(get_tenant_context)):
     conns = ctx.db.scalars(
@@ -55,6 +61,9 @@ def status(ctx: TenantContext = Depends(get_tenant_context)):
         "Google sign-in is not configured on this FlowQR server yet (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET). "
         "You can keep using manual review links in the meantime.",
         "connections": [_conn_out(ctx, c) for c in conns],
+        # Whether the agency (manager) path is open for THIS business, so the screen asks for it only when it is. The /google/agency/* routes still answer 404 when it is not (that is deliberate and
+        # unchanged); this only stops every customer's browser from making, and logging, a request that is known to fail.
+        "agency_available": _agency_available(ctx.tenant_id),
     }
 
 

@@ -1,0 +1,22 @@
+# Backend suite, Linux (flowqr-test image, PostgreSQL 16), whole repository mounted, 8 parallel shards each on its own database
+# Final run on the audited tree:
+shard 1: 391 passed in 583.28s (0:09:43)
+shard 2: 429 passed in 596.36s (0:09:56)
+shard 3: 331 passed in 616.18s (0:10:16)
+shard 4: 480 passed in 539.28s (0:08:59)
+shard 5: 388 passed in 638.26s (0:10:38)
+shard 6: 433 passed in 659.62s (0:10:59)
+shard 7: 447 passed in 871.33s (0:14:31)
+shard 8: 546 passed in 550.17s (0:09:10)
+total passed: 3445, failed: 0, skipped: 0
+
+# Baseline before any change (Windows venv, same 8-shard split):
+shard 1: 372 passed in 478.37s (0:07:58)
+shard 2: 2 failed, 398 passed in 494.13s (0:08:14)
+shard 3: 359 passed in 485.19s (0:08:05)
+shard 4: 476 passed in 355.09s (0:05:55)
+shard 5: 367 passed in 495.85s (0:08:15)
+shard 6: 428 passed in 521.69s (0:08:41)
+shard 7: 437 passed in 743.37s (0:12:23)
+shard 8: 1 failed, 587 passed in 397.75s (0:06:37)
+baseline: 3424 passed, 3 failed (all Windows-only: see PRODUCTION_READINESS_AUDIT.md section 5); the same 3 pass on Linux

@@ -1,0 +1,107 @@
+[
+ {
+  "name": "J2 OAuth callback redirects to the app with connected=1 (state + nonce cookie verified)",
+  "ok": true,
+  "evidence": "http://localhost:3700/gbp/locations?connected=1&connection=e2a07b1c-cec8-461e-9ef4-054b7ed14486"
+ },
+ {
+  "name": "J2 accounts and locations were discovered and mapped to each business's own location",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J2 refresh tokens are stored encrypted, never in clear text",
+  "ok": true,
+  "evidence": "gAAAAABrAzty..."
+ },
+ {
+  "name": "J2 the status API never returns a token",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J2 selecting a location accepts the request",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J8 worker (via Redis) synced both businesses; 2 pages + a duplicate across pages gave no duplicate rows",
+  "ok": true,
+  "evidence": "A=5 B=3"
+ },
+ {
+  "name": "J2 no duplicate reviews in the database",
+  "ok": true,
+  "evidence": "0"
+ },
+ {
+  "name": "J2 both businesses show status ok",
+  "ok": true,
+  "evidence": "{'status': 'ok', 'error': '', 'failures': 0, 'backoff': False, 'synced': True} {'status': 'ok', 'error': '', 'failures': 0, 'backoff': False, 'synced': True}"
+ },
+ {
+  "name": "J2 reviews are visible only to their own business",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J8 beat -> worker heartbeat is fresh in Redis",
+  "ok": true,
+  "evidence": "12s old"
+ },
+ {
+  "name": "J8 beat scheduled sync picked up an edited review and a new one without any user action",
+  "ok": true,
+  "evidence": "81s"
+ },
+ {
+  "name": "J2 an edited review is updated in place (rating changed, update_count incremented), not duplicated",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "J8 a Google 5xx outage is recorded for that location (status error, failure counted, backed off)",
+  "ok": true,
+  "evidence": "{'status': 'error', 'error': 'Google API error 503: backend unavailable', 'failures': 1, 'backoff': True, 'synced': True}"
+ },
+ {
+  "name": "J8 one failing customer does not stop another customer's sync",
+  "ok": true,
+  "evidence": "B total 4"
+ },
+ {
+  "name": "J8 A's already-synced reviews are kept while Google is down",
+  "ok": true,
+  "evidence": ""
+ },
+ {
+  "name": "F-01 through the real worker: an unparseable review ends in a visible error state, not 'running'",
+  "ok": true,
+  "evidence": "{'status': 'error', 'error': \"FlowQR could not process Google's answer for this profile. It will try again automatically, and FlowQR has been told.\", 'failures': 2, 'backoff': True, 'synced': True}"
+ },
+ {
+  "name": "F-01 and it is backed off (not re-queued every cycle)",
+  "ok": true,
+  "evidence": "{'status': 'error', 'error': \"FlowQR could not process Google's answer for this profile. It will try again automatically, and FlowQR has been told.\", 'failures': 2, 'backoff': True, 'synced': True}"
+ },
+ {
+  "name": "J8 after the cause is gone the location recovers by itself (status ok, failures reset, back-off cleared)",
+  "ok": true,
+  "evidence": "{'status': 'ok', 'error': '', 'failures': 0, 'backoff': False, 'synced': True}"
+ },
+ {
+  "name": "J8 retries and recovery produced no duplicate reviews",
+  "ok": true,
+  "evidence": "dups=0 total=6"
+ },
+ {
+  "name": "J2 revoked Google access is detected and shown as a plain reconnect message",
+  "ok": true,
+  "evidence": "Google access revoked. Reconnect your Google account."
+ },
+ {
+  "name": "J8 the worker recorded outcomes for the scheduled jobs (ops page data)",
+  "ok": true,
+  "evidence": "flowqr.auto_replies, flowqr.autonomy_execute, flowqr.autonomy_housekeeping, flowqr.publish_due_media, flowqr.publish_due_posts, flowqr.recover_stuck_posts, flowqr.sync_due_locations, flowqr.sync_locat"
+ }
+]

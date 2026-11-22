@@ -14,7 +14,7 @@ import { timeAgo } from "@/lib/format";
 import type { GoogleConnection, GoogleLocation, Location } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
-interface GStatus { configured: boolean; configuration_note: string | null; connections: GoogleConnection[] }
+interface GStatus { configured: boolean; configuration_note: string | null; connections: GoogleConnection[]; agency_available?: boolean }
 const ERRORS: Record<string, string> = {
   access_denied: "You declined access, so nothing was connected.", invalid_state: "That sign-in link expired or didn't match your browser. Please try again.",
   session_mismatch: "Please log in as the same user who started the connection.", forbidden: "Only owners and admins can connect Google.",
@@ -105,7 +105,7 @@ function Inner() {
         {conns.map((c) => <ConnectionPanel key={c.id} conn={c} canEdit={isAdmin} onChanged={reload} onDisconnect={() => setDisconnectId(c.id)} onReconnect={() => void connect()} />)}
       </div>
 
-      <AgencyManager />
+      <AgencyManager available={data?.agency_available === true} />
 
       <details className="panel mt-4 p-4 text-sm">
         <summary className="cursor-pointer text-[13px] font-semibold">What FlowQR accesses</summary>

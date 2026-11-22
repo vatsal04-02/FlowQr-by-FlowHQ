@@ -9,6 +9,8 @@ from app.services.google.sync import due_locations, sync_google_location
 from app.workers.celery_app import celery_app
 
 log = logging.getLogger("flowqr.tasks")
+MAX_INSPECTED = 500  # most due items one run looks at; MAX_SENT of them may actually be sent
+MAX_SENT = 40
 
 
 @celery_app.task(name="flowqr.sync_location", bind=True, autoretry_for=(Exception,), retry_backoff=60, retry_backoff_max=900, retry_jitter=True, max_retries=3)
@@ -405,8 +407,13 @@ def publish_due_posts():
         if controls.emergency_stop(db):  # platform emergency stop: posts stay scheduled and publish when it is lifted
             return {**totals, "stopped": True}
         seen: set = set()
-        for _ in range(40):
-            batch = [p for p in posts_svc.due(db, limit=5) if p.id not in seen]
+        # `seen` goes INTO the query: an item that is due but deliberately not sent (its business is suspended or asked to be deleted, the plan lapsed, ...) must not be fetched again and fill the
+        # whole batch. Filtering it out afterwards in Python (what this did) meant that with five or more such items from one business the batch was always "all seen", the loop ended, and every
+        # later item of every OTHER business was never reached. Held items stay `scheduled` and untouched: they are sent on the first run after the reason goes away.
+        for _ in range(MAX_INSPECTED):
+            if totals["published"] + totals["retry"] + totals["failed"] >= MAX_SENT:
+                break
+            batch = posts_svc.due(db, limit=1, exclude=seen)
             if not batch:
                 db.rollback()
                 break
@@ -662,8 +669,10 @@ def publish_due_media():
         if controls.emergency_stop(db):  # platform emergency stop: photos stay scheduled and upload when it is lifted
             return {**totals, "stopped": True}
         seen: set = set()
-        for _ in range(20):
-            batch = [m for m in media_svc.due(db) if m.id not in seen]
+        for _ in range(MAX_INSPECTED):  # same rule as publish_due_posts: items already looked at are excluded in the query
+            if totals["published"] + totals["retry"] + totals["failed"] >= MAX_SENT // 2:
+                break
+            batch = media_svc.due(db, limit=1, exclude=seen)
             if not batch:
                 db.rollback()
                 break

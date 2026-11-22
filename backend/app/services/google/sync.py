@@ -170,6 +170,17 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
 
             if agency.on_permission_denied(db, conn.id) == "lost":
                 result["status"] = "lost"
+    except g.GoogleNotConfigured:
+        raise  # the task reports "not_configured" (workers/tasks.py); that is a server setting, not a failure of this location
+    except Exception:  # noqa: BLE001 - deliberately broad, and NOT silent: this is the last line before a row is left on "running" forever
+        # Anything FlowQR did not anticipate (a review in a shape it cannot parse, a database error). The row was committed as "running" above, so without this it would stay that way, with no failure
+        # counted and no back-off, and the same location would fail again every cycle without the owner or the operations page seeing it. It is logged with its traceback (error reporting picks it
+        # up), shown as an error, counted, and backed off like any other failure. Other locations are separate jobs and are not affected.
+        db.rollback()
+        log.exception("Review sync failed unexpectedly for google location %s", gloc.id)
+        gloc = db.get(GoogleLocation, gloc.id)
+        _fail(gloc, "error", "FlowQR could not process Google's answer for this profile. It will try again automatically.", None)
+        result["status"] = "error"
     db.commit()
     return result
 
