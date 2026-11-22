@@ -100,7 +100,7 @@ function AreaList({ areas }: { areas: V2Area[] }) {
     <ul className="mt-3 divide-y divide-line">
       {areas.map((x) => (
         <li key={x.key} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2.5">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[14rem] flex-1">
             <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-semibold">{x.label}</span><Badge tone={STATE_TONE[x.state]}>{STATE_WORDS[x.state]}</Badge></div>
             <p className="mt-0.5 text-[13px] text-ink-700">{x.summary}</p>
             {x.note && <p className="mt-0.5 text-[12px] text-muted">{x.note}</p>}

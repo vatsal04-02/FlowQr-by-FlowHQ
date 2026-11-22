@@ -19,7 +19,23 @@ const LEVEL_WORDS = { 1: "Level 1: safe", 2: "Level 2: needs a pre-approval", 3:
 export function LevelBadge({ level }: { level: 1 | 2 | 3 }) { return <Badge tone={LEVEL_TONE[level]}>{LEVEL_WORDS[level]}</Badge>; }
 
 /** Before and after as two stacked blocks on a phone, side by side on a wide screen. */
+function Lines({ xs, tone }: { xs: string[]; tone: string }) {
+  return xs.length === 0 ? <p className={clsx("mt-1 rounded-tile p-3 text-sm text-muted", tone)}>Nothing</p>
+    : <ul className={clsx("mt-1 max-h-44 space-y-0.5 overflow-auto break-words rounded-tile p-3 text-sm", tone)}>{xs.slice(0, 14).map((x, i) => <li key={i}>{x}</li>)}{xs.length > 14 && <li className="text-muted">and {xs.length - 14} more</li>}</ul>;
+}
+
 function BeforeAfter({ a }: { a: ActionRow }) {
+  if (a.diff && !a.subject_type) {
+    return (
+      <div className="grid items-start gap-2 sm:grid-cols-[1fr_auto_1fr]">
+        <div className="min-w-0"><p className="text-xs font-medium text-muted">On Google now</p><Lines xs={a.diff.before} tone="bg-surface-2" /></div>
+        <ArrowRight className="mx-auto mt-7 hidden h-4 w-4 text-muted sm:block" aria-hidden />
+        <div className="min-w-0"><p className="text-xs font-medium text-muted">Would become</p><Lines xs={a.diff.after} tone="bg-accent-tint" />
+          {a.diff.added.length > 0 && <p className="mt-1 text-xs text-pos">Adds: {a.diff.added.slice(0, 4).join(", ")}{a.diff.added.length > 4 ? "…" : ""}</p>}
+          {a.diff.removed.length > 0 && <p className="mt-0.5 text-xs text-neg">Removes: {a.diff.removed.join(", ")}</p>}</div>
+      </div>
+    );
+  }
   if (a.subject_type) return <div><p className="text-xs font-medium text-muted">What a person approved</p><p className="mt-1 whitespace-pre-wrap rounded-tile bg-surface-2 p-3 text-sm">{showValue(a.after)}</p></div>;
   return (
     <div className="grid items-start gap-2 sm:grid-cols-[1fr_auto_1fr]">
