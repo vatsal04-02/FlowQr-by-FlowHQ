@@ -56,3 +56,27 @@ Set the flag false (validate, then recreate the API). Revert the image to the pr
 | Set the new flag in the VPS `.env`, validate, deploy | the owner / deploy |
 | Send the questions to Google (`docs/audits/GOOGLE_QUESTIONS_TO_SUBMIT.md`, not sent) | the owner |
 | Off-site backup, SMTP for notices in production | the owner |
+
+## 7. The real two-account test: exactly what a person must do
+
+Nothing below has been done. I did not use production, the production agency login, tenant e9e744ec or any customer profile.
+
+**Set-up (a person)**
+1. A dedicated FlowHQ-owned Business Profile, owned or managed by **Account A** (a Google account used only for this test). Never a customer's profile.
+2. **Account B** is the FlowHQ agency login. It must be an administrator of the FlowQR Location Group and be registered on a **non-production** installation with its own database and its own `AGENCY_TOKEN_ENCRYPTION_KEY` (`python -m app.cli google-agency-register --listen --expect-email <B>`; registration needs B's interactive sign-in, so only the person holding B can do it).
+3. On that installation set `GOOGLE_AGENCY_MANAGER_ENABLED=true`, `GOOGLE_AGENCY_SELF_SERVICE_ENABLED=true`, `GOOGLE_AGENCY_LOCATION_GROUP_ID=accounts/<long id from accounts.list>`; for step 12 also `GOOGLE_AGENCY_OPERATIONS_ENABLED=true` with `GOOGLE_AGENCY_PROJECT_MODEL=flowhq_own_project` and the internal decision. Validate first with `python -c "import app.main"`.
+4. The operator account registers through normal sign-up and verifies its e-mail, with no membership in the test business, and is listed in `GOOGLE_AGENCY_OPERATOR_EMAILS`.
+
+**Run (Account A in a browser; capture evidence as you go)**
+For each step write down the time, which Google identity and which OAuth client made the call, and the sanitized request and response (remove tokens, e-mail addresses and ids you do not want published).
+1. Sign up a throwaway business, open `/gbp/connect`, press Connect Google, sign in as A, acknowledge Google's consent.
+2. Confirm A's accounts and the test location are listed; choose it and map it.
+3. Tick permissions, agree, Approve. Capture the `locations.admins.create` response (expect `pendingInvitation: true`, `account` = the group).
+4. In Google (People and access) the group is pending. Capture `invitations.list` for the group as B.
+5. Capture the `:accept` response, then `locations.admins.list` (Manager, not pending) and the group's location list showing the exact location with the same place id.
+6. Only then should the page read Connected. If it reads Connected earlier, that is a bug.
+7. With operations on: capture the first sync (number of reviews, pages, duplicates) and a second sync (no new rows).
+8. Press Stop. Capture the removal call and its response, A's token revocation, and a final `locations.list` as B showing the location is gone. If Google refuses the self-removal (403), remove B in Google by hand and record that.
+9. Check the two e-mails to A (Google's, and FlowQR's separate one) and their times.
+
+**Then record** every difference from the documentation in `docs/audits/GOOGLE_CLIENT_ACCOUNT_OPTIONS.md` section 8 and in this test matrix. Until this is done, the journey is "built and mock-tested", not "complete".

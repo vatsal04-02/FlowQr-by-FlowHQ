@@ -39,3 +39,36 @@ Additional properties tested: flag off ⇒ routes 404 and old page unchanged; co
 4. Whether a Manager can delete its own admin entry, and what `admins.list` returns for a group.
 5. That the customer's OAuth revocation does not disturb other FlowQR connections of the same Google user.
 6. Business Profile API quota/approval for FlowHQ's project (an unapproved project shows as BLOCKED `api_not_approved`).
+
+## Browser verification (added in the final verification round)
+
+Real Chromium against the real Next.js app, real API and real database, Google replaced by the fake (`e2e/agency-self-service.js`, rig in `e2e/agency-rig/`). **122 checks passed, 0 failed.** This proves what the screens do with what the server says. It proves nothing about Google.
+
+| Area | Desktop 1440 | Tablet 820 | Phone 390 | Real Google |
+|---|---|---|---|---|
+| `/gbp/connect`: not started, eight stages, wording | pass | pass | pass | n/a |
+| Google sign-in return, identity, location choice and mapping gates | pass | pass | pass | not run |
+| Consent permission by permission; Approve gated on the agreement | pass | pass | pass | not run |
+| Pending (acceptance in progress, nothing after it done) | pass | n/a | n/a | not run |
+| Connected (seven done, sync honestly on hold) | pass | pass | pass | not run |
+| Blocked, failed, expired, flag off, not opened by an operator | pass | n/a | n/a | not run |
+| Stop, then Start again or Reconnect | pass | pass | pass | not run |
+| Existing Locations & Google page and the guided-setup entry | pass | pass | pass | n/a |
+| `/admin/agency`: loading, list, filter, detail, Check again (enabled only where retryable), empty | pass | list pass | list pass | n/a |
+| Unauthorized: non-operator admin and ordinary customer (screen and API 404) | pass | n/a | n/a | n/a |
+| No sideways scroll, no uncaught page errors, no token strings | pass | pass | pass | n/a |
+
+Regression tests added for defects found: `extraNote` unit test (duplicate sentence), browser checks for the duplicate toast and duplicate sentence, operator retry gating, and the operator list showing every connection.
+
+## Real two-account Google test (the acceptance criterion): NOT RUN
+
+| Step in the brief | Status |
+|---|---|
+| 1-4 Customer OAuth and consent, account discovery, location discovery, tenant mapping | not run (needs Account A in a browser) |
+| 5-6 Invitation creation, pending invitation verification | not run |
+| 7-8 Agency invitation discovery and acceptance (Account B) | not run |
+| 9-11 Manager role, Location Group membership, exact location access | not run |
+| 12-14 Initial sync, pagination and duplicates, recurring eligibility | not run |
+| 15-18 Disconnect, manager removal, customer token revocation, final access check | not run |
+
+Contract check that was possible without Google: the real client's three requests (create invitation, list invitations, accept) were captured on a mock transport and compared with Google's v1 reference (`account` = full `accounts/{id}`, `role` = MANAGER, no `admin`/`adminName`, no v4 path, placeholders refused before any request). See the implementation document, section 8.3.

@@ -101,3 +101,10 @@ OAuth `state` is signed and bound to browser cookie, tenant and user; the callba
 * The path is **internal-only in production** (`GOOGLE_AGENCY_INTERNAL_ONLY`): a business is BLOCKED (`not_opened_for_business`) until an operator opens it. Opening it to the public is a separate decision (Google's answer on shared-project, multi-business use is still unresolved) and is not made here.
 * Google offers no webhook for invitations: acceptance and visibility are polled (pauses grow to `GOOGLE_AGENCY_POLL_MINUTES`).
 * A manager removing itself (`admins.delete` with the agency token) is undocumented; if Google refuses, a person must remove FlowQR, and the customer can always remove it in Google.
+
+## 12. Verification status and the integration note (final round)
+
+* The architecture above is implemented and tested against an in-memory Google and, for the screens, in real browsers. It has not been exercised against real Google. Section 11 lists what a live run must still confirm; the runbook, section 7, is the procedure.
+* The Google request contract (v1 `locations/{id}/admins` with `{"account": "accounts/{id}", "role": "MANAGER"}`; accept at `accounts/{a}/invitations/{i}:accept` with the agency token) was confirmed from the code's own requests on a mock transport, not from Google.
+* Operator list: `GET /agency-ops/journeys` now returns every Google connection (including those waiting on the customer or held back by a rule), because a business that is blocked before any authorization exists is exactly what an operator needs to see.
+* Merging with `hardening/production-readiness-audit` produces one small textual conflict in `GoogleConnection.tsx` (keep `<AgencyManager available=... />` and `<JourneyLink />`); the other overlapping files merge automatically; re-run both suites after merging.
