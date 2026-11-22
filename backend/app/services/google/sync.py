@@ -179,7 +179,7 @@ def sync_google_location(db: Session, gloc: GoogleLocation, provider=None, *, sl
         db.rollback()
         log.exception("Review sync failed unexpectedly for google location %s", gloc.id)
         gloc = db.get(GoogleLocation, gloc.id)
-        _fail(gloc, "error", "FlowQR could not process Google's answer for this profile. It will try again automatically, and FlowQR has been told.", None)
+        _fail(gloc, "error", "FlowQR could not process Google's answer for this profile. It will try again automatically.", None)
         result["status"] = "error"
     db.commit()
     return result
