@@ -32,6 +32,8 @@ def fully_configured(monkeypatch, gfake):
     monkeypatch.setattr(settings, "google_agency_organization_id", ORG_RES)
     monkeypatch.setattr(settings, "google_agency_project_model", "flowhq_own_project")
     monkeypatch.setattr(settings, "google_agency_policy_reference", "written-answer-recorded-by-a-person")
+    monkeypatch.setattr(settings, "google_agency_internal_only", True)
+    monkeypatch.setattr(settings, "google_agency_operator_emails", "ops@flowhq.example")
     monkeypatch.setattr(settings, "google_content_retention_enabled", True)
     monkeypatch.setattr(settings, "autonomy_emergency_stop", True)
     monkeypatch.setattr(settings, "registration_mode", "allowlist")
@@ -47,10 +49,10 @@ def test_by_default_the_agency_path_is_not_ready_and_says_who_has_to_act(monkeyp
     items = lines()
     assert not act.ready(items)
     blocked = {i.name: i.who for i in items if i.status == act.BLOCK}
-    assert blocked["project model"] == "EXTERNAL" and blocked["policy reference"] == "EXTERNAL"  # only Google can answer these
+    assert blocked["project model"] == "EXTERNAL" and blocked["authorization basis"] == "EXTERNAL"  # only Google can answer these
     assert blocked["agency manager switch"] == "CONFIG" and blocked["agency operations switch"] == "CONFIG" and blocked["retention running"] == "CONFIG"
     assert blocked["agency login registered"] == "DATA"
-    assert all(i.detail for i in items) and "never invent" in next(i.detail for i in items if i.name == "policy reference")
+    assert all(i.detail for i in items) and "never invent" in next(i.detail for i in items if i.name == "authorization basis")
 
 
 def test_with_every_precondition_met_the_check_says_ready_and_still_makes_no_google_call(gfake, monkeypatch):
@@ -65,7 +67,7 @@ def test_with_every_precondition_met_the_check_says_ready_and_still_makes_no_goo
 
 @pytest.mark.parametrize("name,setting,value,expected", [
     ("project model", "google_agency_project_model", "", "EXTERNAL"),
-    ("policy reference", "google_agency_policy_reference", "", "EXTERNAL"),
+    ("authorization basis", "google_agency_policy_reference", "", "EXTERNAL"),
     ("retention running", "google_content_retention_enabled", False, "CONFIG"),
     ("no individual fallback", "google_agency_individual_fallback", True, "CONFIG"),
     ("location group id", "google_agency_location_group_id", "5488245563", "CONFIG"),  # the short accountNumber is not a resource name

@@ -29,8 +29,8 @@ class StopIn(BaseModel):
     confirm: bool = False
 
 
-def _on() -> None:
-    if not agency.enabled():
+def _on(user=None) -> None:
+    if not agency.enabled() or (user is not None and not agency.is_operator(getattr(user, "email", None))):
         raise HTTPException(status_code=404, detail="Not Found")
 
 
@@ -42,8 +42,8 @@ def _conn(ctx: TenantContext, connection_id: uuid.UUID) -> GoogleConnection:
 
 
 def _fail(exc: agency.AgencyError):
-    if isinstance(exc, agency.AgencyDisabled):
-        raise HTTPException(status_code=404, detail="Not Found")
+    if isinstance(exc, (agency.AgencyDisabled, agency.NotAnOperator)):
+        raise HTTPException(status_code=404, detail="Not Found")  # a non-operator is told exactly what an unknown path says
     if isinstance(exc, agency.ConsentRequired):
         raise HTTPException(status_code=422, detail={"code": exc.code, "message": "Please read and agree to what FlowQR will do before continuing."})
     if isinstance(exc, agency.ScopeInvalid):
@@ -59,7 +59,7 @@ def _fail(exc: agency.AgencyError):
 
 @router.get("/status")
 def status(ctx: TenantContext = Depends(get_tenant_context)):
-    _on()
+    _on(ctx.user)
     conns = ctx.db.scalars(select(GoogleConnection).where(GoogleConnection.tenant_id == ctx.tenant_id, GoogleConnection.status != GoogleConnectionStatus.disconnected)
                            .order_by(GoogleConnection.created_at)).all()
     return {"enabled": True, "consent_version": agency.CONSENT_VERSION, "consent_text": agency.consent_text(),
@@ -68,7 +68,7 @@ def status(ctx: TenantContext = Depends(get_tenant_context)):
 
 @router.post("/consent")
 def consent(body: ConsentIn, ctx: TenantContext = Depends(require_role(Role.admin))):
-    _on()
+    _on(ctx.user)
     ensure_verified(ctx.user)
     conn = _conn(ctx, body.connection_id)
     try:
@@ -83,7 +83,7 @@ def consent(body: ConsentIn, ctx: TenantContext = Depends(require_role(Role.admi
 @router.post("/connections/{connection_id}/advance")
 def advance(connection_id: uuid.UUID, ctx: TenantContext = Depends(require_role(Role.admin))):
     """"Check again": retries what is waiting and what needed attention. Idempotent."""
-    _on()
+    _on(ctx.user)
     conn = _conn(ctx, connection_id)
     try:
         agency.advance_connection(ctx.db, conn, force=True, retry=True)

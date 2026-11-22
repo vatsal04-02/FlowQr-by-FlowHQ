@@ -47,8 +47,17 @@ def lines(db: Session) -> list[Line]:
     add("project model", s.google_agency_project_model == PROJECT_MODEL, "EXTERNAL",
         "GOOGLE_AGENCY_PROJECT_MODEL=flowhq_own_project: FlowHQ's own project, used only by FlowHQ's own agency login",
         "GOOGLE_AGENCY_PROJECT_MODEL is not set to flowhq_own_project. Google's published rules on agencies and the project are not answered for this case in writing; set it only when they are (docs/audits/GOOGLE_PROJECT_ARCHITECTURE_OPTIONS.md)")
-    add("policy reference", bool(s.google_agency_policy_reference.strip()), "EXTERNAL", "a policy reference is recorded (what it points to is for a person to check)",
-        "GOOGLE_AGENCY_POLICY_REFERENCE is empty: Google has not answered in writing, so there is nothing to record (never invent one)")
+    internal = bool(s.google_agency_internal_only and s.google_agency_operator_set and s.google_agency_internal_decision.strip())
+    if s.google_agency_policy_reference.strip():
+        basis_detail, basis_ok = "a policy reference is recorded (what it points to is for a person to check)", True
+    elif internal:
+        basis_detail, basis_ok = "INTERNAL-ONLY basis: the owner's own recorded decision for FlowHQ's own operators. This is NOT a Google approval and does not extend to any customer or other agency", True
+    else:
+        basis_detail, basis_ok = "", False
+    add("authorization basis", basis_ok, "EXTERNAL", basis_detail,
+        "neither a recorded Google answer (GOOGLE_AGENCY_POLICY_REFERENCE, never invent one) nor an internal-only decision (GOOGLE_AGENCY_INTERNAL_ONLY, GOOGLE_AGENCY_OPERATOR_EMAILS, GOOGLE_AGENCY_INTERNAL_DECISION) is set")
+    add("internal operators enforced", bool(s.google_agency_internal_only and s.google_agency_operator_set), "CONFIG",
+        f"internal-only is on and {len(s.google_agency_operator_set)} operator(s) are listed: the backend refuses everyone else", "internal-only is off or no operator is listed: any business admin could start agency operations (only acceptable once Google has answered for third parties)")
     add("agency manager switch", bool(s.google_agency_manager_enabled), "CONFIG", "GOOGLE_AGENCY_MANAGER_ENABLED is on", "GOOGLE_AGENCY_MANAGER_ENABLED is off")
     add("agency operations switch", bool(s.google_agency_operations_enabled), "CONFIG", "GOOGLE_AGENCY_OPERATIONS_ENABLED is on", "GOOGLE_AGENCY_OPERATIONS_ENABLED is off")
     add("agency token key", bool(s.agency_token_encryption_key) and s.agency_token_encryption_key not in (s.token_encryption_key, s.secret_key), "CONFIG",
