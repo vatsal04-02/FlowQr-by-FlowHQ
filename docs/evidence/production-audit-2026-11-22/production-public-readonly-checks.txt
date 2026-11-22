@@ -1,0 +1,14 @@
+# Read-only checks of the PUBLIC production endpoints, 2026-11-22 (plain GETs; no login, no customer data, no card tokens)
+https://api.flowqr.site/api/health                   200 redirect=
+https://api.flowqr.site/api/ready                    200 redirect=
+https://flowqr.site/                                 308 redirect=https://www.flowqr.site/
+https://www.flowqr.site/                             200 redirect=
+https://go.flowqr.site/                              302 redirect=https://www.flowqr.site/
+https://api.flowqr.site/api/v1/auth/registration     200 redirect=
+https://api.flowqr.site/api/v1/agency-ops/tenants    401 redirect=
+https://api.flowqr.site/api/docs                     404 redirect=
+/api/ready body: {"ready":true,"checks":{"database":"ok","redis":"ok","migrations":"ok"}}
+registration mode: {"mode":"allowlist"}
+TLS api.flowqr.site: notAfter=Feb 13 18:36:09 2027 GMT
+TLS www.flowqr.site: notAfter=Feb 13 15:21:21 2027 GMT
+TLS go.flowqr.site: notAfter=Feb 16 06:29:55 2027 GMT

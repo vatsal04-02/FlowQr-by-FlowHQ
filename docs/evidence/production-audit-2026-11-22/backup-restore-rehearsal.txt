@@ -1,0 +1,16 @@
+# Backup and restore rehearsal against a THROWAWAY local database (not production). The 'off-site' destination is a local folder: it proves the mechanism (redaction, AES-256 encryption, sha256, read-back, restore), NOT a real off-site disaster-recovery destination.
+$ deploy/backup.sh
+redacted dump written: <scratch>/br/local/flowqr-20261122T192539Z.sql.gz (Google content older than 15 days removed; the live database was not changed)
+wrote <scratch>/br/local/flowqr-20261122T192539Z.sql.gz.enc (0.07 MB) encrypted=true offsite=true
+2026-11-22T19:25:46Z manual dumps older than 14 days: 0
+exit=0
+
+$ cat status.json
+{"ok": true, "error": "", "finished_at": "2026-11-22T19:25:45Z", "file": "flowqr-20261122T192539Z.sql.gz.enc", "size_mb": 0.07, "encrypted": true, "offsite": true, "offsite_verified_at": "2026-11-22T19:25:45Z", "restore_verified_at": null}
+
+$ deploy/verify-restore.sh --from-remote
+checking /tmp/tmp.zjuPNviEQh/flowqr-20261122T192539Z.sql.gz.enc (off-site copy)
+checksum ok
+restored: tables=118 migration=0065 tenants=22 users=26 qr_cards=5 rls_policies=96
+RESTORE VERIFIED (off-site copy) at 2026-11-22T19:25:53Z. The live database was not touched.
+exit=0

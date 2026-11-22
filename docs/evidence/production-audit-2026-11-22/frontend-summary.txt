@@ -1,0 +1,5 @@
+# Frontend, final tree
+$ npx tsc --noEmit  -> exit 0
+$ npm test  -> 131 tests, 131 pass, 0 fail
+$ npm run build  -> exit 0, no warnings
+$ npm audit --omit=dev  -> found 0 vulnerabilities
