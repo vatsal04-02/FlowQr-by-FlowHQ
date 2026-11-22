@@ -31,7 +31,7 @@ Google's text (read 2026-11-21): content provided through the Business Profile A
 | `audit_logs` | counts, ids, codes; never Google content | none | not expired by this job |
 | `google_locations`, `google_connections` | resource names, titles, encrypted tokens, status | identifiers and credentials | not expired by this job: needed to operate; removed by the account-deletion lifecycle |
 | Places / competitor / rank tables | Google Maps Platform data, a different API with its own terms | out of scope | unchanged |
-| **Database backups** | nightly encrypted dumps and manual pre-release dumps | copies | see below |
+| **Database backups** | nightly encrypted dumps and manual pre-release dumps | copies | written from a redacted copy (see Backups) |
 
 `services/google_retention.CLASSIFICATION` mirrors this table and a test fails if a store is dropped from it.
 
@@ -48,9 +48,14 @@ Settings: `GOOGLE_CONTENT_RETENTION_ENABLED` (code default false), `GOOGLE_CONTE
 
 ## Backups (a copy of the data is a store too)
 
-* Nightly encrypted dumps (`deploy/backup.sh`) are kept `BACKUP_KEEP_DAYS` (14). A dump taken on the last day of a review's 30 days is kept 14 days more, so a review can sit in a backup for at most 44 days. That residual is stated, not hidden; the only ways to remove it are to exclude the content tables from the dump (then a restore brings them back only by syncing again) or to shorten the period, and either is a decision for the owner after Google answers.
-* Manual pre-release dumps (`/opt/flowqr/backups/pre-*.dump`) are pruned after 30 days by `deploy/prune-manual-dumps.sh` (daily cron on the VPS). Delete a pre-release dump as soon as its rollback window closes.
-* **After any restore**, run the retention job (`google_retention.run`) before the application serves traffic: it re-applies every expiry.
+**Rule:** a backup kept K days must hold no Google content older than 30 - K days at the moment it is written, so that content never outlives 30 days anywhere.
+
+* **Nightly backups** (`deploy/backup.sh`, kept `BACKUP_KEEP_DAYS` = 14, allowed 1 to 28) are written from a **redacted copy**: `deploy/redacted-dump.sh` dumps the live database, restores that stream into a scratch database inside the same Postgres container, runs `deploy/backup-redact.sql` there with `REDACT_DAYS = 30 - KEEP - 1` (15 days for 14), checks that nothing older than that survived (the backup fails instead), dumps the scratch database, and drops it (also on failure). The live database is never changed. Everything that is not Google content is dumped exactly as it is, so recovery of the rest is unchanged, and the existing encryption, off-site copy and status file are untouched. A review is therefore in a backup for at most 15 days of its life plus 14 days of the backup's, 29 days in total. The unredacted stream exists only in a pipe and in the scratch database; no unredacted backup file is ever written.
+* **The SQL is the retention job, repeated:** `tests/test_backup_redaction.py` seeds the same data, runs the job and the SQL, and requires identical results (reviews, snapshots, metrics, drafts, AI text, task evidence), plus one statement per retention step, so the two cannot drift apart silently.
+* **Manual dumps** (`/opt/flowqr/backups/pre-*.dump`, made before releases) are not redacted unless made with `deploy/redacted-dump.sh`; they are removed after 14 days by `deploy/prune-manual-dumps.sh`, which `backup.sh` now runs after every nightly backup (no separate cron entry). Make new manual dumps with `redacted-dump.sh`.
+* **Transition:** nightly backups written before this change hold content at most 8 days old when written and are deleted within 14 days, so none outlives about 22 days of content life.
+* **Restoring:** a restored database contains content as old as the backup allows (at most 15 days) plus the days since. **After any restore, run the retention job before the application serves traffic**: `python -m app.cli google-retention-report` to see what it will do, then let the daily job (or `google_retention.run`) apply it. Content already redacted in a backup is not brought back by the sync.
+* **What this is not:** key-expiry encryption of individual rows, or excluding tables from backups. They were considered: expiring keys would make a backup unreadable for the whole table, not for the old content only, and excluding the content tables would break foreign keys and lose ratings. Redacting the copy keeps full recovery of everything that is not Google content.
 
 ## AI providers
 

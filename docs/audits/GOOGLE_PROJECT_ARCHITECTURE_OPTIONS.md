@@ -35,3 +35,11 @@ The published text clearly describes **model 1** (owners sign in) and says an ag
 
 1. If the answer permits model 2: record the written reference, set `GOOGLE_AGENCY_PROJECT_MODEL=flowhq_own_project` and `GOOGLE_AGENCY_POLICY_REFERENCE=<reference>`, run `google-agency-activation-check` until READY, register the agency login in production (`google-agency-register --listen`), run `google-agency-check` (read-only) there, then switch on the two agency flags and re-verify. Add the variables to the VPS overlay (they are not in it today).
 2. If the answer does not permit it: keep model 1 as the only path. The agency code stays off and unused. No further engineering is needed to stay compliant.
+
+## Internal-only operation (added 2026-11-22)
+
+FlowQr is not open to customers yet, so the agency path is limited to FlowHQ's own operators and FlowHQ's own clients, using FlowHQ's own project, which is the reading of the published text that fits best ("your own programmatic use is not restricted"; agencies use their own project; nothing is handed to another agency or client). This is the owner's decision, recorded as `GOOGLE_AGENCY_INTERNAL_DECISION`. **It is not a Google approval**, it is not filed as a policy reference, and it does not extend to any customer or any other agency.
+
+* `GOOGLE_AGENCY_INTERNAL_ONLY=true` plus `GOOGLE_AGENCY_OPERATOR_EMAILS` (today: one FlowHQ operator). The backend refuses everyone else: status, consent and check-again answer 404 as for an unknown path; the service refuses to record a consent; every use of the agency login re-checks that its authorization was recorded by a listed operator (`not_internal_operator`). Hiding a screen is not the control.
+* In production `operations_enabled()` needs the project model, the internal-only rule with a listed operator and the recorded decision (or, alternatively, a real Google answer in `GOOGLE_AGENCY_POLICY_REFERENCE`).
+* Before any public launch the third-party model must be established separately: turn internal-only off only with Google's written answer for third parties.
