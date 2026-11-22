@@ -287,7 +287,7 @@ def main() -> None:
     args = ap.parse_args()
     if args.cmd in ("ai-eval", "ai-eval-human", "ai-eval-rescore", "ai-eval-wa"):
         sys.exit(ai_eval_cli.run(args))
-    if args.cmd in ("preflight", "set-admin-password", "google-write-test", "autonomy-live-test", "registration"):
+    if args.cmd in ("preflight", "set-admin-password", "google-write-test", "autonomy-live-test", "seo-v2-live-test", "registration"):
         sys.exit(ops_cli.run(args))
     if args.cmd == "privacy-retention-report":
         from app.core.db import system_session
