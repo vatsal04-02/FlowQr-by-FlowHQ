@@ -7,7 +7,7 @@ import { ScrollWords } from "./scroll";
 
 /**
  * "Meet your marketing team": the three agents side by side, one job each, so the page says what FlowQR is (a team) before it explains any one agent. Each card links to where that agent is
- * explained. The WhatsApp agent carries a "Waitlist" chip because it is built but not open to customers yet (see content/marketing/en.ts, `whatsapp`). Copy lives in en.home.squad.
+ * explained. The WhatsApp agent carries a "Coming soon" chip because it is built but not open to customers yet (see content/marketing/en.ts, `whatsapp`). Copy lives in en.home.squad.
  */
 const c = en.home.squad;
 

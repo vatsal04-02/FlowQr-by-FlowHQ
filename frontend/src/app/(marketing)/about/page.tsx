@@ -35,7 +35,7 @@ export default function About() {
             <p className="t-small text-white/60">For custom systems</p>
             <h2 className="mt-4 max-w-[560px] t-h2">{c.services.title}</h2>
             <p className="mt-4 max-w-[520px] text-[15px] text-white/70">{c.services.body}</p>
-            <MButton href="/demo" variant="dark" icon="arrow" className="mt-8">{c.services.cta}</MButton>
+            <MButton href="/register" variant="dark" icon="arrow" className="mt-8">{c.services.cta}</MButton>
           </Rise>
         </div>
       </section>

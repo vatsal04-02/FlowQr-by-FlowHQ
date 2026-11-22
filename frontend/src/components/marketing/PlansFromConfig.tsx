@@ -95,7 +95,7 @@ export function CardAddOn() {
       <div><p className="t-h3 text-m-ink">Cards &amp; print</p><p className="mt-2 max-w-[520px] text-[15px] text-m-muted">Printed QR and NFC cards are sold separately from the subscription, per order. Posters and table tents can be downloaded from the app.</p></div>
       <div className="text-left md:text-right">
         {price && !failed ? <><p className="t-number text-m-ink">{rupees(price)}</p><p className="mt-1 text-[13px] text-m-muted">per card, + GST as applicable</p></> : <p className="text-[17px] font-medium text-m-ink">Contact us for pricing</p>}
-        <MButton href="/demo" variant="secondary" className="mt-4" event="card_enquiry_submit">Ask about cards</MButton>
+        <MButton href="/register" variant="secondary" className="mt-4" event="card_enquiry_submit">Ask about cards</MButton>
       </div>
     </div>
   );

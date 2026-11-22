@@ -83,6 +83,7 @@ export function WhatsAppShowcase({ as = "h2", learnMoreHref }: { as?: "h1" | "h2
               <div className="flex items-center gap-3">
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-m-surface shadow-[var(--shadow-card)] ring-4 ring-white/60"><LogoMark size={28} /></span>
                 <p className="flex items-center gap-1.5 text-[14px] font-medium text-m-ink2"><Sparkles className={`h-4 w-4 ${green}`} strokeWidth={1.5} aria-hidden />by FlowQR</p>
+                <SoonChip />
               </div>
               <Heading id="wa-agent-h" className="t-display mt-6 text-m-ink [text-wrap:wrap] !text-[length:clamp(32px,3.7vw,54px)] max-sm:!text-[length:min(9.4vw,38px)]">
                 <WhatsAppLogo size="0.82em" className="mr-[.22em] translate-y-[-.06em] align-middle shadow-[var(--shadow-card)]" />
@@ -91,7 +92,7 @@ export function WhatsAppShowcase({ as = "h2", learnMoreHref }: { as?: "h1" | "h2
               <p className="mt-5 max-w-[560px] text-pretty text-[16px] leading-relaxed text-m-ink2 md:text-[17px]">{c.sub}</p>
             </Rise>
             <div className="order-2 mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 lg:order-3">
-              <Link href={c.ctaHref} onClick={() => track("whatsapp_waitlist_click")}
+              <Link href={c.ctaHref} onClick={() => track("signup_cta_click")}
                 className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-[color:var(--wa-cta)] px-5 text-[14px] font-normal tracking-[-.01em] text-white transition-colors duration-200 hover:bg-[color:var(--wa-cta-hover)]">
                 {c.cta}<ArrowRight aria-hidden className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-[3px]" strokeWidth={1.75} />
               </Link>

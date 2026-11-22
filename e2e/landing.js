@@ -2,13 +2,12 @@
 //
 //   BASE_URL=http://localhost:3000 node e2e/landing.js
 //
-// Needs playwright (or playwright-core with CHROME_PATH) and a running frontend whose /api reaches the backend. With SUBMIT_LEAD=1 it also
-// submits the demo form once (writes one row to the leads table); otherwise it changes no data.
+// Needs playwright (or playwright-core with CHROME_PATH) and a running frontend whose /api reaches the backend. It changes no data.
 let chromium;
 try { ({ chromium } = require("playwright")); } catch { ({ chromium } = require("playwright-core")); }
 
 const BASE = process.env.BASE_URL || "http://localhost:3000";
-const PAGES = ["/", "/google-business", "/review-cards", "/ai-growth-agent", "/industries", "/pricing", "/about", "/demo"];
+const PAGES = ["/", "/google-business", "/review-cards", "/ai-growth-agent", "/industries", "/pricing", "/about"];
 const LEGAL = ["/privacy", "/terms", "/refund-policy", "/data-deletion"];
 let pass = 0, fail = 0;
 async function step(name, fn) {
@@ -96,21 +95,6 @@ const ok = (c, m) => { if (!c) throw new Error(m); };
     ok(await p2.getByText("Talk to us for pricing").isVisible(), "fallback message");
     ok(!/₹\s?\d/.test(await p2.locator("main").innerText()), "no rupee figures without config");
     await c2.close();
-  });
-
-  await step("demo form: client validation, then (SUBMIT_LEAD=1) a real save and success state", async () => {
-    await page.goto("/demo", { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "Book my demo" }).click();
-    ok(/Enter your name/.test(await page.locator("form").innerText()), "validation errors shown");
-    if (process.env.SUBMIT_LEAD === "1") {
-      await page.getByLabel("Your name").fill("E2E Test Lead");
-      await page.getByLabel("Business name").fill("E2E Physio");
-      await page.getByLabel("City").fill("Bengaluru");
-      await page.getByLabel("Business type").selectOption("clinic");
-      await page.getByLabel("Mobile number").fill("9876543210");
-      await page.getByRole("button", { name: "Book my demo" }).click();
-      await page.getByRole("status").getByText("Thanks, we've got it.").waitFor({ timeout: 10000 });
-    }
   });
 
   await step("legal pages exist; refund policy is a placeholder, not invented terms", async () => {
