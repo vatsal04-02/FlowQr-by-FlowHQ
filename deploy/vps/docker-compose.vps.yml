@@ -26,6 +26,20 @@ x-hardened: &hardened
   GOOGLE_CONTENT_RETENTION_DAYS: ${GOOGLE_CONTENT_RETENTION_DAYS:-30}  # 1 to 30 while enabled (Google's published storage limit)
   GOOGLE_CONTENT_RETENTION_ACTION: ${GOOGLE_CONTENT_RETENTION_ACTION:-redact}  # only redact exists
   GOOGLE_CONTENT_DELETE_ON_DISCONNECT: ${GOOGLE_CONTENT_DELETE_ON_DISCONNECT:-false}  # true: disconnecting a Google connection also removes everything taken from Google for it
+  # Agency path (docs/audits/GOOGLE_PROJECT_ARCHITECTURE_OPTIONS.md). Every switch is OFF unless .env.production says otherwise. INTERNAL ONLY: the backend refuses anyone who is not a listed FlowHQ operator.
+  GOOGLE_AGENCY_MANAGER_ENABLED: ${GOOGLE_AGENCY_MANAGER_ENABLED:-false}
+  GOOGLE_AGENCY_OPERATIONS_ENABLED: ${GOOGLE_AGENCY_OPERATIONS_ENABLED:-false}
+  GOOGLE_AGENCY_PROJECT_MODEL: ${GOOGLE_AGENCY_PROJECT_MODEL:-}  # only flowhq_own_project exists
+  GOOGLE_AGENCY_INTERNAL_ONLY: ${GOOGLE_AGENCY_INTERNAL_ONLY:-false}
+  GOOGLE_AGENCY_OPERATOR_EMAILS: ${GOOGLE_AGENCY_OPERATOR_EMAILS:-}
+  GOOGLE_AGENCY_INTERNAL_DECISION: ${GOOGLE_AGENCY_INTERNAL_DECISION:-}  # the owner's own decision for internal use: NOT a Google approval
+  GOOGLE_AGENCY_POLICY_REFERENCE: ${GOOGLE_AGENCY_POLICY_REFERENCE:-}  # Google's written answer, only if one exists. Never invent one
+  GOOGLE_AGENCY_LOCATION_GROUP_ID: ${GOOGLE_AGENCY_LOCATION_GROUP_ID:-}  # a complete accounts/<long id> resource name
+  GOOGLE_AGENCY_ORGANIZATION_ID: ${GOOGLE_AGENCY_ORGANIZATION_ID:-}
+  GOOGLE_AGENCY_INDIVIDUAL_FALLBACK: ${GOOGLE_AGENCY_INDIVIDUAL_FALLBACK:-false}
+  GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS: ${GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS:-false}
+  GOOGLE_AGENCY_CLIENT_TOKEN_KEEP_HOURS: ${GOOGLE_AGENCY_CLIENT_TOKEN_KEEP_HOURS:-0}
+  AGENCY_TOKEN_ENCRYPTION_KEY: ${AGENCY_TOKEN_ENCRYPTION_KEY:-}  # its own Fernet key, never the customer token key
 
 x-limits: &limits
   logging:
