@@ -61,4 +61,4 @@ def test_existing_authorizations_stay_individual_and_the_downgrade_round_trips()
         assert "agency_account_name" in cols("google_agency_authorizations")  # 0061 is untouched
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0066"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"

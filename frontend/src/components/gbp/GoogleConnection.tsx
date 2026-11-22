@@ -1,5 +1,6 @@
 "use client";
 import { Check, Link2, RefreshCw, Unplug, X } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { AgencyManager } from "@/components/gbp/AgencyManager";
@@ -15,7 +16,7 @@ import type { GoogleConnection, GoogleLocation, Location } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 interface GStatus { configured: boolean; configuration_note: string | null; connections: GoogleConnection[]; agency_available?: boolean }
-const ERRORS: Record<string, string> = {
+export const OAUTH_ERRORS: Record<string, string> = {
   access_denied: "You declined access, so nothing was connected.", invalid_state: "That sign-in link expired or didn't match your browser. Please try again.",
   session_mismatch: "Please log in as the same user who started the connection.", forbidden: "Only owners and admins can connect Google.",
   exchange_failed: "Google didn't accept the sign-in. Please try again.", no_refresh_token: "Google didn't grant offline access. Remove FlowQR from your Google account's connected apps, then try again.",
@@ -69,7 +70,7 @@ function Inner() {
         <div><h2 className="text-lg font-semibold leading-6">Google connection</h2><p className="mt-0.5 text-sm text-muted">Connect your own Google Business Profile to sync reviews and publish approved replies.</p></div>
         {isAdmin && data?.configured !== false ? <Button size="sm" icon={<Link2 className="h-4 w-4" />} loading={connecting} onClick={() => void connect()}>{conns.length ? "Connect another account" : "Connect Google"}</Button> : null}
       </div>
-      {err && <div className="mb-4"><Alert tone="error" title="Couldn't connect Google">{ERRORS[err] ?? "Something went wrong."}</Alert></div>}
+      {err && <div className="mb-4"><Alert tone="error" title="Couldn't connect Google">{OAUTH_ERRORS[err] ?? "Something went wrong."}</Alert></div>}
       {data && !data.configured && <div className="mb-4"><Alert tone="warning" title="Configuration pending">{data.configuration_note} Your QR/NFC cards, review links and AI writing assistant work without it.</Alert></div>}
       {pending && <div className="mb-4"><Alert tone="warning" title="Configuration pending">{pending}</Alert></div>}
       {connectError && <div className="mb-4"><Alert tone="error" title="Couldn't start the Google connection">{connectError}</Alert></div>}
@@ -105,6 +106,7 @@ function Inner() {
         {conns.map((c) => <ConnectionPanel key={c.id} conn={c} canEdit={isAdmin} onChanged={reload} onDisconnect={() => setDisconnectId(c.id)} onReconnect={() => void connect()} />)}
       </div>
 
+      <JourneyLink />
       <AgencyManager available={data?.agency_available === true} />
 
       <details className="panel mt-4 p-4 text-sm">
@@ -180,5 +182,15 @@ function ConnectionPanel({ conn, canEdit, onChanged, onDisconnect, onReconnect }
         </>
       ))}
     </Panel>
+  );
+}
+
+/** Offers the guided connection when the server has it switched on (the route answers 404 otherwise, and nothing is shown). */
+function JourneyLink() {
+  const { data } = useFetch<{ journeys: unknown[] }>("/google/agency/journey");
+  if (!data) return null;
+  return (
+    <div className="mt-4"><Alert tone="info" title="Guided setup" action={<Link href="/gbp/connect" className="inline-flex min-h-9 items-center rounded-full bg-surface-2 px-4 text-sm font-semibold hover:bg-ink-100">Open guided setup</Link>}>
+      Let FlowQR manage your Google profile as your Manager: you sign in once and approve, and FlowQR does the rest, step by step.</Alert></div>
   );
 }

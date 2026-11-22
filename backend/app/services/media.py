@@ -170,7 +170,7 @@ def publish(db: Session, m: ScheduledMedia, *, provider=None, now: datetime | No
     m.attempts += 1
     try:
         provider = provider or g.get_google_provider()
-        token = get_access_token(db, conn, provider, gloc=gloc)
+        token = get_access_token(db, conn, provider, gloc=gloc, action="publish_posts")
         created = provider.upload_media_bytes(token, gloc.google_account_name, gloc.google_location_name, m.data, m.content_type, m.category, m.description)
     except Exception as exc:  # noqa: BLE001 - every failure is recorded
         reason, may_retry = describe_failure(exc)

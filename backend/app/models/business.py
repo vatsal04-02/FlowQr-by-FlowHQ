@@ -180,6 +180,9 @@ class GoogleAgencyAuthorization(IdMixin, TimestampMixin, Base):
     last_error: Mapped[str | None] = mapped_column(String(300))
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consent_actions: Mapped[list | None] = mapped_column(JSONB)  # the action categories the client agreed to (agency.ACTION_CATEGORIES); NULL = recorded before categories existed (the old wording covered all of them)
+    notices_sent: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")  # kind -> ISO time of each customer e-mail (manager_added, stop_requested, removed, lost, failed): each is sent once
+    initial_sync_enqueued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when the first agency-token review sync was queued after the switch (once)
 
 
 class ReplyStatus(str, enum.Enum):

@@ -128,6 +128,7 @@ class Settings(BaseSettings):
     google_agency_max_locations_per_account: int = 0  # 0 = UNKNOWN, not "unlimited". Google's limit for one account is not verified (TODO(verify)); set it only from a written Google answer.
     google_agency_adopt_existing_access: bool = False  # GOOGLE_AGENCY_ADOPT_EXISTING_ACCESS: a client who ALREADY added FlowQR's group in Google (the location is listed under the group) is verified directly instead of being invited again. Off = every client is invited as before. Needs the agency switch.
     google_agency_client_token_keep_hours: int = 0  # GOOGLE_AGENCY_CLIENT_TOKEN_KEEP_HOURS: how long the client's own (encrypted) token is kept, unused, after the switch so it can be rolled back. 0 = revoke at once (the behaviour and the consent wording of today).
+    google_agency_self_service_enabled: bool = False  # GOOGLE_AGENCY_SELF_SERVICE_ENABLED: the guided self-service onboarding (journey screens and /google/agency/journey APIs). OFF: those routes answer 404 and the page is exactly what it was. It adds no permission of its own: every gate of the agency path (manager switch, internal-only grants, operations, Google approval) still applies, and a gate that is closed shows as BLOCKED, never as success.
 
     # "Continue with Google" sign-in. A SEPARATE OAuth client from the Business Profile one above: it only ever
     # requests openid/email/profile (no Google verification review) and shares no credentials, scopes or tokens.
@@ -514,6 +515,8 @@ def config_problems(s: Settings) -> list[str]:
         p.append("SEO_V2_CUSTOMER_WRITES_ENABLED needs SEO_V2_POLICY_REFERENCE: Google's written answer on automated and programmatic changes to customers' profiles must be recorded first, never assumed")
     if s.seo_v2_policy_reference.strip() and not s.seo_v2_customer_writes_enabled:
         p.append("SEO_V2_POLICY_REFERENCE is set but SEO_V2_CUSTOMER_WRITES_ENABLED is not: record the reference only together with the decision to enable")
+    if s.google_agency_self_service_enabled and not s.google_agency_manager_enabled:
+        p.append("GOOGLE_AGENCY_SELF_SERVICE_ENABLED needs GOOGLE_AGENCY_MANAGER_ENABLED (the guided onboarding drives the agency path and does nothing without it)")
     if not 0 <= s.google_agency_client_token_keep_hours <= 720:
         p.append("GOOGLE_AGENCY_CLIENT_TOKEN_KEEP_HOURS must be between 0 (revoke at once) and 720 (30 days)")
     if not s.cookie_secure:

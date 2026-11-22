@@ -25,7 +25,7 @@ def test_every_existing_business_stays_self_service_and_downgrade_round_trips_wi
         assert owner_query("SELECT count(*), md5(string_agg(id::text || name || slug, ',' ORDER BY id::text)) FROM tenants")[0] == before
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0066"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
     assert owner_query("SELECT count(*) FROM tenants WHERE origin <> 'self_service'")[0][0] == 0  # none of the pre-existing businesses was marked admin-created
     assert biz.tenant_id
 
@@ -40,7 +40,7 @@ def test_the_chain_is_one_linear_line_ending_at_0060_and_0046_hangs_off_0045():
     cfg = Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0066"]
+    assert script.get_heads() == ["0067"]
     revs = list(script.walk_revisions())
     assert all(isinstance(r.down_revision, (str, type(None))) for r in revs), "a merge or branch point appeared"
     assert sum(1 for r in revs if r.down_revision is None) == 1  # a single base

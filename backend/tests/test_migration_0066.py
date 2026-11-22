@@ -51,5 +51,5 @@ def test_the_downgrade_cancels_the_new_statuses_removes_the_columns_and_the_upgr
         assert st == {"d1": "canceled", "d2": "canceled", "d3": "pending_approval"}  # nothing deleted; only the statuses the old schema cannot hold were changed
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0066"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
     assert {"validation_status", "validation"} <= {r[0] for r in owner_query("SELECT column_name FROM information_schema.columns WHERE table_name = 'agent_actions'")}

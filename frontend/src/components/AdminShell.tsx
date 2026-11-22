@@ -13,7 +13,7 @@ const NAV = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard }, { href: "/admin/customers", label: "Businesses", icon: Users }, { href: "/admin/users", label: "Users", icon: UserSearch },
   { href: "/admin/cards", label: "Cards", icon: QrCode }, { href: "/admin/billing", label: "Billing", icon: CreditCard },
   { href: "/admin/plans", label: "Plans", icon: SlidersHorizontal }, { href: "/admin/finance", label: "Finance", icon: Gauge }, { href: "/admin/whatsapp-prices", label: "WhatsApp prices", icon: BadgeIndianRupee }, { href: "/admin/whatsapp-ai", label: "WhatsApp assistant", icon: BadgeIndianRupee }, { href: "/admin/whatsapp-entry-window", label: "WhatsApp free window", icon: CalendarDays }, { href: "/admin/whatsapp-festivals", label: "WhatsApp festivals", icon: CalendarDays },
-  { href: "/admin/queue", label: "Work queue", icon: ListChecks }, { href: "/admin/ops", label: "Operations", icon: Activity },
+  { href: "/admin/queue", label: "Work queue", icon: ListChecks }, { href: "/admin/agency", label: "Agency onboarding", icon: ShieldCheck }, { href: "/admin/ops", label: "Operations", icon: Activity },
   { href: "/admin/audit", label: "Audit", icon: ScrollText },
 ];
 

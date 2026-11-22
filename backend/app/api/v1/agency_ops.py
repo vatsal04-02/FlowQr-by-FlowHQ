@@ -14,8 +14,9 @@ from app.core.config import settings
 from app.core.db import set_rls_context
 from app.core.deps import AuthContext, get_auth_context
 from app.models import GoogleAgencyAuthorization, GoogleAgencyTenantGrant, GoogleConnection, Tenant
+from app.core.rate_limit import hit
 from app.services.audit import audit
-from app.services.google import agency, agency_activation
+from app.services.google import agency, agency_activation, agency_journey
 from app.core.rate_limit import client_ip
 
 router = APIRouter(prefix="/agency-ops", tags=["agency-operators"])
@@ -72,3 +73,58 @@ def revoke(tenant_id: uuid.UUID, request: Request, ctx: AuthContext = Depends(re
     audit(ctx.db, action="agency_ops.revoke", user_id=ctx.user.id, tenant_id=tenant_id, entity_type="google_agency_tenant_grant", meta={"changed": changed}, ip=client_ip(request))
     ctx.db.commit()
     return {"tenant_id": str(tenant_id), "agency_path_open": False, "changed": changed}
+
+
+# ------------------------------------------------------------------ the operator's view of every business's onboarding (read-only, except "check again")
+def _operator_row(db, conn: GoogleConnection, *, compact: bool) -> dict:
+    j = agency_journey.journey_for_connection(db, conn, operator=True, compact=compact)
+    t = db.get(Tenant, conn.tenant_id)
+    j["tenant_id"], j["tenant_name"] = str(conn.tenant_id), t.name if t else None
+    j["grant_open"] = bool(db.scalar(select(func.count()).select_from(GoogleAgencyTenantGrant).where(GoogleAgencyTenantGrant.tenant_id == conn.tenant_id, GoogleAgencyTenantGrant.revoked_at.is_(None))))
+    return j
+
+
+@router.get("/journeys")
+def journeys(state: str | None = None, tenant_id: uuid.UUID | None = None, limit: int = 100, ctx: AuthContext = Depends(require_operator)):
+    """Every Google connection, newest activity first (including those still waiting on the customer or held back by a rule, which have no authorization yet): the business, the selected Google location, where the onboarding stands (one of the journey states), the consent given, the last
+    synchronization and its failures, and any revocation. Never a token, a review or other Google content. `state` filters by journey state."""
+    if state is not None and state not in agency_journey.JOURNEY_STATES:
+        raise HTTPException(status_code=422, detail="Unknown state")
+    q = select(GoogleConnection)
+    if tenant_id:
+        q = q.where(GoogleConnection.tenant_id == tenant_id)
+    q = q.order_by(GoogleConnection.updated_at.desc()).limit(max(1, min(limit, 300)))
+    rows = [_operator_row(ctx.db, c, compact=True) for c in ctx.db.scalars(q)]
+    if state:
+        rows = [r for r in rows if r["state"] == state]
+    counts: dict[str, int] = {}
+    for r in rows:
+        counts[r["state"]] = counts.get(r["state"], 0) + 1
+    return {"states": list(agency_journey.JOURNEY_STATES), "counts": counts, "journeys": rows}
+
+
+@router.get("/journeys/{connection_id}")
+def journey_detail(connection_id: uuid.UUID, ctx: AuthContext = Depends(require_operator)):
+    """One business in full: the steps, the mapping checks, the consent (version, categories, who, when), the audit timeline and the failure codes."""
+    conn = ctx.db.get(GoogleConnection, connection_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return _operator_row(ctx.db, conn, compact=False)
+
+
+@router.post("/journeys/{connection_id}/advance")
+def journey_advance(connection_id: uuid.UUID, request: Request, ctx: AuthContext = Depends(require_operator)):
+    """Run the next steps again for one business ("check again"). It records no consent and changes no permission: it only retries what the business already agreed to. Rate limited."""
+    if not hit(f"agency-ops-advance:{ctx.user.id}", 60, 3600):
+        raise HTTPException(status_code=429, detail="Too many retries. Wait a few minutes.")
+    conn = ctx.db.get(GoogleConnection, connection_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    try:
+        agency.advance_connection(ctx.db, conn, force=True, retry=True)
+    except agency.AgencyError as exc:
+        raise HTTPException(status_code=409, detail={"code": exc.code, "message": str(exc)})
+    audit(ctx.db, action="agency_ops.advance", user_id=ctx.user.id, tenant_id=conn.tenant_id, entity_type="google_connection", entity_id=conn.id, ip=client_ip(request))
+    ctx.db.commit()
+    ctx.db.refresh(conn)
+    return _operator_row(ctx.db, conn, compact=False)
