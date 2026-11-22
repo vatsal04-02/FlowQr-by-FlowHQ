@@ -499,12 +499,19 @@ class HttpGoogleProvider:
                 for c in j.get("categories", []) or [] if c.get("name")}
 
     def search_categories(self, access_token, query, region="IN", language="en"):
-        # regionCode, languageCode and view are all required. The documented filter form is `displayName=foo` (prefix match on
-        # the category name); '=' and quotes in the user's text would corrupt it, so they are stripped.
+        # regionCode, languageCode and view are all required. The documented filter form is `displayName=foo`: a PREFIX match on the category name.
+        # Live Google (FlowHQ test profile, 2026-11-23): `displayName=Physiotherapy clinic` (an unquoted space) answers 400, and the quoted phrase answers 200 with
+        # nothing because it is not a prefix of any name. So only the FIRST word is sent to Google and the words after it narrow the answer here. '=' and quotes
+        # in the user's text would corrupt the filter, so they are stripped.
         q = "".join(ch for ch in query if ch.isalnum() or ch in " -&'").strip()
+        words = q.split()
+        if not words:
+            return []
         j = self._send("GET", f"{INFO_URL}/categories", access_token,
-                       params={"regionCode": region, "languageCode": language, "view": "BASIC", "pageSize": 20, "filter": f"displayName={q}"})
-        return [_cat(c) for c in j.get("categories", [])]
+                       params={"regionCode": region, "languageCode": language, "view": "BASIC", "pageSize": 20 if len(words) == 1 else 100, "filter": f"displayName={words[0]}"})
+        found = [_cat(c) for c in j.get("categories", [])]
+        rest = [w.lower() for w in words[1:]]
+        return [c for c in found if all(any(t.startswith(w) for t in (c["name"] or "").lower().split()) for w in rest)] if rest else found
 
     def list_posts(self, access_token, account_name, location_name):
         out, token = [], None
