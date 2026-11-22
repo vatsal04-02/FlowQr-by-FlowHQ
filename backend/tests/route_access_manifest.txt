@@ -133,6 +133,9 @@ platform-admin	GET	/api/v1/admin/whatsapp/rates
 platform-admin	POST	/api/v1/admin/whatsapp/rates
 platform-admin	POST	/api/v1/admin/whatsapp/rates/{rate_id}/verification
 platform-admin	GET	/api/v1/admin/work-queue
+operator	GET	/api/v1/agency-ops/journeys
+operator	GET	/api/v1/agency-ops/journeys/{connection_id}
+operator	POST	/api/v1/agency-ops/journeys/{connection_id}/advance
 operator	GET	/api/v1/agency-ops/readiness
 operator	GET	/api/v1/agency-ops/tenants
 operator	POST	/api/v1/agency-ops/tenants/{tenant_id}/grant
@@ -270,6 +273,8 @@ public-bypass-db	GET	/api/v1/go/{token}
 role-admin	POST	/api/v1/google/agency/connections/{connection_id}/advance
 role-admin	POST	/api/v1/google/agency/connections/{connection_id}/stop
 role-admin	POST	/api/v1/google/agency/consent
+member	GET	/api/v1/google/agency/journey
+role-admin	POST	/api/v1/google/agency/journey/start
 member	GET	/api/v1/google/agency/status
 public	GET	/api/v1/google/callback
 role-admin	POST	/api/v1/google/connect
