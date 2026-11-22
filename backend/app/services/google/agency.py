@@ -303,6 +303,44 @@ def register_account(label: str, *, code: str, max_locations: int | None = None,
         return row.id
 
 
+def register_from_refresh_token(label: str, *, refresh_token: str, expected_email: str, location_group_id: str | None = None, max_locations: int | None = None, provider=None) -> uuid.UUID:
+    """Store an agency login that was ALREADY authorized (for example in a local isolated database) in THIS installation, without a second sign-in: the refresh token is exchanged with Google right
+    now, Google's own answer says who it belongs to, and only if that is `expected_email` is it stored, encrypted with THIS installation's AGENCY_TOKEN_ENCRYPTION_KEY. A token that belongs to anyone else
+    is refused and is NOT revoked (it is not ours to revoke). Nothing is printed or logged. The caller hands the token over a private channel (a pipe), never as an argument or in a file."""
+    group = None
+    if location_group_id or settings.google_agency_location_group_id:
+        try:
+            group = ac.normalize_group(location_group_id or settings.google_agency_location_group_id)
+        except ValueError as exc:
+            raise AgencyError(str(exc))
+        refuse_if_organisation(group)
+    if not refresh_token:
+        raise AgencyError("No refresh token was given")
+    provider = provider or g.get_google_provider()
+    try:
+        ts = provider.refresh_access_token(refresh_token)
+    except g.GoogleAuthRevoked:
+        raise AgencyError("Google no longer accepts that refresh token: the agency login must be authorized again")
+    info = provider.get_userinfo(ts.access_token)
+    email = (info.get("email") or "").strip().lower()
+    if not email or email != (expected_email or "").strip().lower():
+        raise AgencyError("That token does not belong to the expected agency account. Nothing was stored.")
+    cipher = _agency_cipher()
+    with _platform() as s:
+        row = s.scalar(select(GoogleAgencyAccount).where(GoogleAgencyAccount.google_email == email))
+        if row is None:
+            row = GoogleAgencyAccount(label=label, google_email=email)
+            s.add(row)
+        row.google_sub, row.status, row.last_error = info.get("sub"), "active", None
+        row.max_locations = max_locations if max_locations else row.max_locations
+        row.location_group_name = group or row.location_group_name
+        row.refresh_token_encrypted = cipher.encrypt(ts.refresh_token or refresh_token)
+        row.access_token_encrypted = cipher.encrypt(ts.access_token)
+        row.access_token_expires_at = utcnow() + timedelta(seconds=ts.expires_in)
+        s.commit()
+        return row.id
+
+
 def agency_access_token(account_id: uuid.UUID, provider=None) -> str:
     """A valid access token for an agency login, refreshed when needed. Uses its OWN session (the table is platform-only) so it works from a request and from a worker alike."""
     cipher = _agency_cipher()

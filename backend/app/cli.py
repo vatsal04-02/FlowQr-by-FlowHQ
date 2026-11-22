@@ -160,6 +160,17 @@ def _agency_cli(args) -> int:
             return 1
         print(f"PASS: agency account '{args.label}' stored ({account_id}). Re-run google-agency-status to see it.")
         return 0
+    if args.cmd == "google-agency-import-login":
+        import json as _json
+
+        try:
+            token = (_json.loads(sys.stdin.read() or "{}")).get("refresh_token", "")
+            account_id = agency.register_from_refresh_token(args.label, refresh_token=token, expected_email=args.expect_email, location_group_id=args.location_group_id)
+        except (agency.AgencyError, gg.GoogleError, ValueError) as exc:
+            print(f"FAIL: {str(exc)[:200]}")
+            return 1
+        print(f"PASS: agency login stored (id {account_id}); Google confirmed it belongs to {args.expect_email}. No token was printed.")
+        return 0
     if args.cmd == "google-agency-check":
         from app.services.google import agency_check
 
@@ -226,6 +237,10 @@ def main() -> None:
     sub.add_parser("google-retention-report", help="COUNT what the Google-content retention job would expire (reviews, snapshots, metrics, drafts, AI outputs, agent tasks). Changes nothing. --days-ahead N counts what would expire N days from now.")
     sub.choices["google-retention-report"].add_argument("--days-ahead", type=int, default=0)
     sub.add_parser("google-agency-activation-check", help="READ-ONLY readiness check for switching the agency path on: every precondition is its own PASS/BLOCK line, with who has to act (config, Google, data). Changes nothing.")
+    ip_ = sub.add_parser("google-agency-import-login", help="store an already-authorized agency login in THIS installation: reads {\"refresh_token\": ...} as JSON on STDIN, asks Google who owns it, stores it only if it is --expect-email, encrypted with this installation's key. Prints no token.")
+    ip_.add_argument("--label", required=True)
+    ip_.add_argument("--expect-email", required=True)
+    ip_.add_argument("--location-group-id")
     sub.add_parser("google-agency-auth-url", help="print the Google sign-in URL a PERSON opens while signed in to a FlowQR AGENCY Google account (the only live step of registering one)")
     ar = sub.add_parser("google-agency-register", help="store an agency Google login from the authorization code that sign-in produced (tokens are encrypted with AGENCY_TOKEN_ENCRYPTION_KEY, never printed)")
     ar.add_argument("--label", required=True, help="a name for this agency account, e.g. agency-1")
@@ -299,7 +314,7 @@ def main() -> None:
         when = f"{args.days_ahead} day(s) from now" if args.days_ahead else "now"
         print(f"DRY RUN: nothing was changed. Would expire ({when}, after {settings.google_content_retention_days} days): {out['counts']}; errors: {out['errors'] or 'none'}")
         sys.exit(1 if out["errors"] else 0)
-    if args.cmd in ("google-agency-auth-url", "google-agency-register", "google-agency-status", "google-agency-check", "google-agency-rollback"):
+    if args.cmd in ("google-agency-auth-url", "google-agency-register", "google-agency-status", "google-agency-check", "google-agency-rollback", "google-agency-import-login"):
         sys.exit(_agency_cli(args))
     if args.cmd == "google-readiness":
         from app.services.google import readiness as _readiness
