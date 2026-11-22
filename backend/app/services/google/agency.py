@@ -53,7 +53,7 @@ from app.core.db import system_session
 from app.core.rate_limit import hit
 from app.core.security import TokenCipher, get_cipher
 from app.models import (
-    AuditLog, GoogleAgencyAccount, GoogleAgencyAuthorization, GoogleConnection, GoogleConnectionStatus, GoogleLocation,
+    AuditLog, GoogleAgencyAccount, GoogleAgencyAuthorization, GoogleAgencyTenantGrant, GoogleConnection, GoogleConnectionStatus, GoogleLocation,
 )
 from app.models.base import utcnow
 from app.services import google as g
@@ -114,6 +114,10 @@ class NotAnOperator(AgencyError):
     code = "not_operator"
 
 
+class TenantNotGranted(AgencyError):
+    code = "tenant_not_granted"
+
+
 class NoAgencyAccount(AgencyError):
     code = "no_agency_account"
 
@@ -141,6 +145,46 @@ def internal_only() -> bool:
 def is_operator(email: str | None) -> bool:
     """May this person start agency operations? Everyone, unless internal-only is on: then only the listed FlowHQ operators. The backend asks this; a hidden screen is not the control."""
     return (not internal_only()) or bool(email and email.strip().lower() in settings.google_agency_operator_set)
+
+
+def tenant_allowed(tenant_id) -> bool:
+    """May this business use the agency path? Everyone, unless internal-only is on: then only a business with an OPEN grant from a FlowHQ operator. Looked up with a platform session (the table is platform-only)."""
+    if not internal_only():
+        return True
+    with _platform() as s:
+        return bool(s.scalar(select(func.count()).select_from(GoogleAgencyTenantGrant).where(GoogleAgencyTenantGrant.tenant_id == tenant_id, GoogleAgencyTenantGrant.revoked_at.is_(None))))
+
+
+def grant_tenant(tenant_id, *, operator_email: str, note: str | None = None) -> GoogleAgencyTenantGrant:
+    """An operator opens the agency path for ONE business. Refused for anyone who is not a listed operator. Idempotent (an open grant is returned). It records who and when, and it is NOT the client's consent."""
+    if not (operator_email and operator_email.strip().lower() in settings.google_agency_operator_set):
+        raise NotAnOperator("Only a listed FlowHQ operator can open the agency path for a business")
+    with _platform() as s:
+        row = s.scalar(select(GoogleAgencyTenantGrant).where(GoogleAgencyTenantGrant.tenant_id == tenant_id, GoogleAgencyTenantGrant.revoked_at.is_(None)))
+        if row is None:
+            row = GoogleAgencyTenantGrant(tenant_id=tenant_id, granted_by_email=operator_email.strip().lower(), granted_at=utcnow(), note=(note or "").strip()[:300] or None)
+            s.add(row)
+            s.flush()
+            audit(s, action="google.agency.tenant_granted", tenant_id=tenant_id, entity_type="google_agency_tenant_grant", entity_id=row.id, meta={"operator": row.granted_by_email})
+        s.commit()
+        s.refresh(row)
+        s.expunge(row)
+        return row
+
+
+def revoke_tenant_grant(tenant_id, *, operator_email: str) -> bool:
+    """An operator closes the agency path for one business: every later use of the agency login for it is refused (`tenant_not_granted`) and the business cannot start a new consent. The client's own authorization,
+    the agency login and the client's own token are not touched (the client can still press Stop, which removes FlowQr in Google)."""
+    if not (operator_email and operator_email.strip().lower() in settings.google_agency_operator_set):
+        raise NotAnOperator("Only a listed FlowHQ operator can close the agency path for a business")
+    with _platform() as s:
+        row = s.scalar(select(GoogleAgencyTenantGrant).where(GoogleAgencyTenantGrant.tenant_id == tenant_id, GoogleAgencyTenantGrant.revoked_at.is_(None)))
+        if row is None:
+            return False
+        row.revoked_at, row.revoked_by_email = utcnow(), operator_email.strip().lower()
+        audit(s, action="google.agency.tenant_revoked", tenant_id=tenant_id, entity_type="google_agency_tenant_grant", entity_id=row.id, meta={"operator": row.revoked_by_email})
+        s.commit()
+        return True
 
 
 def operations_enabled() -> bool:
@@ -437,8 +481,8 @@ def resolve_agency_access(db: Session, conn: GoogleConnection, gloc: GoogleLocat
         raise _deny(conn, "tenant_mismatch", "An authorization does not match this tenant and agency login", gloc)
     if gloc is not None:
         a = auths[0]
-        if internal_only() and not is_operator(a.consented_by_email):
-            raise _deny(conn, "not_internal_operator", "The authorization was not recorded by a listed FlowHQ operator", gloc)
+        if internal_only() and not tenant_allowed(conn.tenant_id):
+            raise _deny(conn, "tenant_not_granted", "A FlowHQ operator has not opened (or has closed) the agency path for this business", gloc)
         if others:
             raise _deny(conn, "duplicate_mapping", "Another business also holds an open authorization for this Google location", gloc)
         if a.target_type == GROUP and (not group or a.target_account_name != group):
@@ -525,14 +569,14 @@ def _location_taken(resource: str, exclude_connection: uuid.UUID) -> bool:
 def record_consent(db: Session, *, conn: GoogleConnection, user, agree: bool, version: str, scope: str | None = None, request_id: str | None = None) -> list[Auth]:
     """Store the client's agreement for every selected location of the connection. Repeating it reuses what is open. Refused unless the client agreed to THIS text.
 
-    While internal-only is on only a listed FlowHQ operator may record a consent (NotAnOperator otherwise), whatever route called this.
+    While internal-only is on the business must hold an open operator grant (TenantNotGranted otherwise), whatever route called this. The consent itself is the CLIENT's, by the business's own signed-in administrator.
 
     `scope` is the route the client chose (validated when given; inferred when not). `request_id` makes a replay harmless: the same id returns what already exists, and an id whose authorization has
     since ended is refused instead of starting a new invitation. A Google location that another business is already onboarding or managing is refused (never mapped twice)."""
     if not enabled():
         raise AgencyDisabled("Agency management is not available")
-    if not is_operator(getattr(user, "email", None)):
-        raise NotAnOperator("Agency operations are limited to FlowHQ operators")
+    if not tenant_allowed(conn.tenant_id):
+        raise TenantNotGranted("The agency path has not been opened for this business by a FlowHQ operator")
     if agree is not True or version != CONSENT_VERSION:
         raise ConsentRequired("The client must agree to the current wording")
     if request_id:

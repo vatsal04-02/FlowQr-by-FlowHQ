@@ -34,4 +34,4 @@ def test_existing_connections_default_to_the_clients_own_token_and_downgrade_rou
         assert not owner_query("SELECT to_regclass('public.google_agency_accounts')")[0][0]
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0064"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0065"

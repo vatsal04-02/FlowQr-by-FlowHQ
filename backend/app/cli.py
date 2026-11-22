@@ -171,6 +171,17 @@ def _agency_cli(args) -> int:
             return 1
         print(f"PASS: agency login stored (id {account_id}); Google confirmed it belongs to {args.expect_email}. No token was printed.")
         return 0
+    if args.cmd in ("google-agency-grant", "google-agency-revoke-grant"):
+        try:
+            if args.cmd == "google-agency-grant":
+                row = agency.grant_tenant(args.tenant_id, operator_email=args.operator, note=args.note)
+                print(f"PASS: the agency path is open for business {args.tenant_id}, granted by {row.granted_by_email}. This is NOT the client's consent.")
+            else:
+                print(("PASS: the agency path is closed for business " + str(args.tenant_id)) if agency.revoke_tenant_grant(args.tenant_id, operator_email=args.operator) else "nothing to close: no open grant")
+        except agency.AgencyError as exc:
+            print(f"FAIL: {str(exc)[:200]}")
+            return 1
+        return 0
     if args.cmd == "google-agency-check":
         from app.services.google import agency_check
 
@@ -241,6 +252,11 @@ def main() -> None:
     ip_.add_argument("--label", required=True)
     ip_.add_argument("--expect-email", required=True)
     ip_.add_argument("--location-group-id")
+    for _name, _help in (("google-agency-grant", "open the internal agency path for ONE business (a FlowHQ operator's decision; the client's own consent is still needed)"), ("google-agency-revoke-grant", "close the internal agency path for one business")):
+        _p = sub.add_parser(_name, help=_help)
+        _p.add_argument("--tenant-id", required=True, type=uuid.UUID)
+        _p.add_argument("--operator", required=True, help="the listed FlowHQ operator e-mail making this decision (must be in GOOGLE_AGENCY_OPERATOR_EMAILS)")
+        _p.add_argument("--note", default="")
     sub.add_parser("google-agency-auth-url", help="print the Google sign-in URL a PERSON opens while signed in to a FlowQR AGENCY Google account (the only live step of registering one)")
     ar = sub.add_parser("google-agency-register", help="store an agency Google login from the authorization code that sign-in produced (tokens are encrypted with AGENCY_TOKEN_ENCRYPTION_KEY, never printed)")
     ar.add_argument("--label", required=True, help="a name for this agency account, e.g. agency-1")
@@ -314,7 +330,7 @@ def main() -> None:
         when = f"{args.days_ahead} day(s) from now" if args.days_ahead else "now"
         print(f"DRY RUN: nothing was changed. Would expire ({when}, after {settings.google_content_retention_days} days): {out['counts']}; errors: {out['errors'] or 'none'}")
         sys.exit(1 if out["errors"] else 0)
-    if args.cmd in ("google-agency-auth-url", "google-agency-register", "google-agency-status", "google-agency-check", "google-agency-rollback", "google-agency-import-login"):
+    if args.cmd in ("google-agency-auth-url", "google-agency-register", "google-agency-status", "google-agency-check", "google-agency-rollback", "google-agency-import-login", "google-agency-grant", "google-agency-revoke-grant"):
         sys.exit(_agency_cli(args))
     if args.cmd == "google-readiness":
         from app.services.google import readiness as _readiness

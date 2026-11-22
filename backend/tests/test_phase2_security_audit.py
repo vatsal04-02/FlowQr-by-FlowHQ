@@ -50,6 +50,8 @@ def _level(route: APIRoute) -> str:
             found.add("signed-in")
         elif call is deps.require_platform_admin:
             found.add("platform-admin")
+        elif getattr(call, "__name__", "") == "require_operator":
+            found.add("operator")  # a listed FlowHQ operator of the internal agency path: a person, not a business role (api/v1/agency_ops.py)
         elif call is deps.public_db:
             found.add("public-bypass-db")
         elif "require_role.<locals>.dependency" in (getattr(call, "__qualname__", "") or "") and call.__closure__:
@@ -58,7 +60,7 @@ def _level(route: APIRoute) -> str:
             walk(sub)
 
     walk(route.dependant)
-    for lvl in ("platform-admin", "role-owner", "role-admin", "role-staff", "member", "signed-in", "public-bypass-db"):
+    for lvl in ("platform-admin", "operator", "role-owner", "role-admin", "role-staff", "member", "signed-in", "public-bypass-db"):
         if lvl in found or any(f == lvl for f in found):
             return lvl
     return "public"

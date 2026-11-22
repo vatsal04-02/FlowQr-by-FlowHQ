@@ -133,6 +133,10 @@ platform-admin	GET	/api/v1/admin/whatsapp/rates
 platform-admin	POST	/api/v1/admin/whatsapp/rates
 platform-admin	POST	/api/v1/admin/whatsapp/rates/{rate_id}/verification
 platform-admin	GET	/api/v1/admin/work-queue
+operator	GET	/api/v1/agency-ops/readiness
+operator	GET	/api/v1/agency-ops/tenants
+operator	POST	/api/v1/agency-ops/tenants/{tenant_id}/grant
+operator	POST	/api/v1/agency-ops/tenants/{tenant_id}/revoke
 member	GET	/api/v1/agent/actions
 role-admin	POST	/api/v1/agent/actions
 role-admin	POST	/api/v1/agent/actions/scan

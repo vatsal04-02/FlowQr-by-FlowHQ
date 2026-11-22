@@ -32,12 +32,14 @@ OUT="$RAW"
 ENCRYPTED=false
 OFFSITE=false
 REMOTE_NOTE=""
+UPLOADED=false
+REMOTE_VERIFIED_AT=""
 
 prev_verified() { [ -f "$STATUS" ] && sed -n 's/.*"restore_verified_at": *"\([^"]*\)".*/\1/p' "$STATUS" | head -1; }
 write_status() {  # ok error file size_mb
   local v vj=null; v=$(prev_verified); [ -n "$v" ] && vj="\"$v\""
-  printf '{"ok": %s, "error": "%s", "finished_at": "%s", "file": "%s", "size_mb": %s, "encrypted": %s, "offsite": %s, "restore_verified_at": %s}\n' \
-    "$1" "$2" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$3" "${4:-0}" "$ENCRYPTED" "$OFFSITE" "$vj" > "$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"
+  printf '{"ok": %s, "error": "%s", "finished_at": "%s", "file": "%s", "size_mb": %s, "encrypted": %s, "offsite": %s, "offsite_verified_at": %s, "restore_verified_at": %s}\n' \
+    "$1" "$2" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$3" "${4:-0}" "$ENCRYPTED" "$OFFSITE" "$( [ -n "${REMOTE_VERIFIED_AT:-}" ] && echo "\"$REMOTE_VERIFIED_AT\"" || echo null )" "$vj" > "$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"
 }
 fail() { echo "BACKUP FAILED: $1" >&2; rm -f "$RAW" "$RAW.enc"; write_status false "$1" "" 0; exit 1; }
 
@@ -57,14 +59,31 @@ fi
 
 if [ -n "${BACKUP_REMOTE:-}" ]; then
   name=$(basename "$OUT")
+  PROBE=$(mktemp -d)
+  # 1) upload, 2) read it BACK and compare its sha256 with the local file: OFFSITE is true only when the copy that sits at the destination is byte-identical. A copy that was written but cannot be read back is a failure.
   case "$BACKUP_REMOTE" in
-    s3://*)     aws s3 cp "$OUT" "${BACKUP_REMOTE%/}/$name" --only-show-errors && aws s3 cp "$OUT.sha256" "${BACKUP_REMOTE%/}/$name.sha256" --only-show-errors && OFFSITE=true ;;
-    rclone:*)   rclone copyto "$OUT" "${BACKUP_REMOTE#rclone:}/$name" && rclone copyto "$OUT.sha256" "${BACKUP_REMOTE#rclone:}/$name.sha256" && OFFSITE=true ;;
-    [A-Za-z]:/*) mkdir -p "$BACKUP_REMOTE" && cp "$OUT" "$OUT.sha256" "$BACKUP_REMOTE/" && OFFSITE=true ;;  # a Windows drive path, not host:path
-    *:*)        scp -q "$OUT" "$OUT.sha256" "${BACKUP_REMOTE%/}/" && OFFSITE=true ;;
-    *)          mkdir -p "$BACKUP_REMOTE" && cp "$OUT" "$OUT.sha256" "$BACKUP_REMOTE/" && OFFSITE=true ;;
+    s3://*)     aws s3 cp "$OUT" "${BACKUP_REMOTE%/}/$name" --only-show-errors && aws s3 cp "$OUT.sha256" "${BACKUP_REMOTE%/}/$name.sha256" --only-show-errors \
+                  && aws s3 cp "${BACKUP_REMOTE%/}/$name" "$PROBE/$name" --only-show-errors && UPLOADED=true ;;
+    rclone:*)   rclone copyto "$OUT" "${BACKUP_REMOTE#rclone:}/$name" && rclone copyto "$OUT.sha256" "${BACKUP_REMOTE#rclone:}/$name.sha256" \
+                  && rclone copyto "${BACKUP_REMOTE#rclone:}/$name" "$PROBE/$name" && UPLOADED=true ;;
+    [A-Za-z]:/*) mkdir -p "$BACKUP_REMOTE" && cp "$OUT" "$OUT.sha256" "$BACKUP_REMOTE/" && cp "$BACKUP_REMOTE/$name" "$PROBE/$name" && UPLOADED=true ;;  # a Windows drive path, not host:path
+    *:*)        scp -q "$OUT" "$OUT.sha256" "${BACKUP_REMOTE%/}/" && scp -q "${BACKUP_REMOTE%/}/$name" "$PROBE/$name" && UPLOADED=true ;;
+    *)          mkdir -p "$BACKUP_REMOTE" && cp "$OUT" "$OUT.sha256" "$BACKUP_REMOTE/" && cp "$BACKUP_REMOTE/$name" "$PROBE/$name" && UPLOADED=true ;;
   esac
-  [ "$OFFSITE" = true ] || { echo "WARNING: the off-site copy FAILED; the backup exists only on this server" >&2; }
+  if [ "${UPLOADED:-false}" = true ] && [ "$(sha256sum "$PROBE/$name" | cut -d' ' -f1)" = "$(sha256sum "$OUT" | cut -d' ' -f1)" ]; then
+    OFFSITE=true; REMOTE_VERIFIED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  else
+    echo "WARNING: the off-site copy FAILED its integrity check (or could not be uploaded); the backup is not safely stored off this server" >&2
+  fi
+  rm -rf "$PROBE"
+  # The same 30-day Google content limit applies to the remote copy: this backup holds nothing older than REDACT_DAYS, so the remote must not keep it longer than KEEP days. Enforced here where the destination allows listing
+  # by age; for S3 set a lifecycle rule that expires objects after KEEP days (this script cannot see or change it, and says so).
+  case "$BACKUP_REMOTE" in
+    s3://*)     echo "NOTE: set the bucket's lifecycle rule to expire objects after $KEEP days (not enforced or verified by this script)" >&2 ;;
+    rclone:*)   rclone delete "${BACKUP_REMOTE#rclone:}" --min-age "${KEEP}d" --include 'flowqr-*.sql.gz*' >/dev/null 2>&1 || echo "WARNING: remote pruning failed" >&2 ;;
+    [A-Za-z]:/*|/*) find "$BACKUP_REMOTE" -maxdepth 1 -name 'flowqr-*.sql.gz*' -mtime +"$KEEP" -delete 2>/dev/null || true ;;
+    *:*)        h=${BACKUP_REMOTE%%:*}; d=${BACKUP_REMOTE#*:}; ssh -o BatchMode=yes "$h" "find '$d' -maxdepth 1 -name 'flowqr-*.sql.gz*' -mtime +$KEEP -delete" >/dev/null 2>&1 || echo "WARNING: remote pruning failed" >&2 ;;
+  esac
 else
   echo "WARNING: BACKUP_REMOTE not set: the backup has NOT been copied off this server" >&2
 fi

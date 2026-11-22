@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
-from app.models.base import IdMixin, TimestampMixin
+from app.models.base import IdMixin, TimestampMixin, utcnow
 
 
 class Location(IdMixin, TimestampMixin, Base):
@@ -100,6 +100,20 @@ class GoogleLocation(IdMixin, TimestampMixin, Base):
     client_google_account_name: Mapped[str | None] = mapped_column(String(120))  # the account the client's own login saw, kept when an agency switch re-points google_account_name
 
     connection: Mapped[GoogleConnection] = relationship(back_populates="google_locations")
+
+
+class GoogleAgencyTenantGrant(IdMixin, Base):
+    """A FlowHQ OPERATOR's decision that a business may start the internal agency path. PLATFORM-ONLY (a business cannot read or write it). It is not the client's consent: that is recorded by the client's
+    own administrator in google_agency_authorizations. One open (not revoked) grant per business; revoking keeps the row."""
+
+    __tablename__ = "google_agency_tenant_grants"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    granted_by_email: Mapped[str] = mapped_column(String(254))
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    note: Mapped[str | None] = mapped_column(String(300))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by_email: Mapped[str | None] = mapped_column(String(254))
 
 
 class GoogleAgencyAccount(IdMixin, TimestampMixin, Base):
