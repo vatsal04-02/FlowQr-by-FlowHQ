@@ -193,12 +193,13 @@ def publish(db: Session, m: ScheduledMedia, *, provider=None, now: datetime | No
     return "published"
 
 
-def due(db: Session, limit: int = 5, now: datetime | None = None) -> list[ScheduledMedia]:
+def due(db: Session, limit: int = 5, now: datetime | None = None, exclude=()) -> list[ScheduledMedia]:
     now = now or utcnow()
     q = (select(ScheduledMedia).where(ScheduledMedia.status == "scheduled", ScheduledMedia.scheduled_for <= now,
-                                      (ScheduledMedia.next_attempt_at.is_(None)) | (ScheduledMedia.next_attempt_at <= now))
-         .order_by(ScheduledMedia.scheduled_for).limit(limit).with_for_update(skip_locked=True))
-    return list(db.scalars(q))
+                                      (ScheduledMedia.next_attempt_at.is_(None)) | (ScheduledMedia.next_attempt_at <= now)))
+    if exclude:
+        q = q.where(ScheduledMedia.id.not_in(list(exclude)))
+    return list(db.scalars(q.order_by(ScheduledMedia.scheduled_for).limit(limit).with_for_update(skip_locked=True)))
 
 
 def check_processing(db: Session, m: ScheduledMedia, *, provider=None) -> bool:

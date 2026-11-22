@@ -1,8 +1,9 @@
 """Production-readiness hardening: scheduled publishing must not let one business's blocked items starve everyone else's (audit finding F-02).
 
-`publish_due_posts` (and `publish_due_media`) take the OLDEST five due items each time. An item that is deliberately not sent (its business is suspended or has asked to be deleted, its plan lapsed,
-it has no person's approval) stays `scheduled` with nothing to say "not before ...", so it stayed at the front of that list on every run: with five or more of them, every later item of every other
-business was never reached. Held items must wait (and still publish when the reason goes away), without hiding behind-the-queue work. Mock Google only."""
+`publish_due_posts` (and `publish_due_media`) asked for the OLDEST five due items each time and then dropped the ones it had already looked at IN PYTHON. An item that is deliberately not sent (its
+business is suspended or has asked to be deleted, its plan lapsed, it has no person's approval) stays `scheduled`, so with five or more of them the batch was always "all seen", the loop ended and every
+later item of every other business was never reached. Already-looked-at items are now excluded in the query: held items are not delayed (they are sent on the first run after the reason goes away)
+and do not hide the work behind them. Mock Google only."""
 import uuid
 from datetime import timedelta
 
@@ -46,9 +47,8 @@ def test_posts_of_a_suspended_business_do_not_starve_another_business(connected,
     for pid in blocked:  # held, not lost, not failed, not published
         assert row(pid)["status"] == "scheduled" and row(pid)["attempts"] == 0
 
-    # when the reason goes away the held posts are sent (they are only parked for a few minutes, never dropped)
+    # the very next run after the reason goes away sends them: nothing was delayed, dropped or rescheduled
     owner_exec("UPDATE tenants SET suspended_at = NULL WHERE id = :t", t=_tenant_of(gid))
-    owner_exec("UPDATE scheduled_posts SET next_attempt_at = NULL WHERE status = 'scheduled'")
     again = publish_due_posts.run()
     assert again["published"] == 7 and all(row(pid)["status"] == "published" for pid in blocked)
     assert fake.creates == 8  # every post was created exactly once

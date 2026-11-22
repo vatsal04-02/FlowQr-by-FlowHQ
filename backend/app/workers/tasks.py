@@ -9,15 +9,8 @@ from app.services.google.sync import due_locations, sync_google_location
 from app.workers.celery_app import celery_app
 
 log = logging.getLogger("flowqr.tasks")
-HELD_RETRY_MINUTES = 10
-
-
-def _park(item, now) -> None:
-    """A scheduled post or photo that is due but deliberately NOT sent right now (its business is suspended or asked to be deleted, the plan lapsed, no person's approval is on it, it is busy).
-    It stays `scheduled` (nothing is lost and it is sent once the reason goes away) but is looked at again in a few minutes instead of every run. Without this it sat at the front of the due
-    list on every run: `due()` takes the OLDEST few, so enough held items from one business meant the items behind them, from every other business, were never reached."""
-    if item.next_attempt_at is None or item.next_attempt_at <= now:
-        item.next_attempt_at = now + timedelta(minutes=HELD_RETRY_MINUTES)
+MAX_INSPECTED = 500  # most due items one run looks at; MAX_SENT of them may actually be sent
+MAX_SENT = 40
 
 
 @celery_app.task(name="flowqr.sync_location", bind=True, autoretry_for=(Exception,), retry_backoff=60, retry_backoff_max=900, retry_jitter=True, max_retries=3)
@@ -414,8 +407,13 @@ def publish_due_posts():
         if controls.emergency_stop(db):  # platform emergency stop: posts stay scheduled and publish when it is lifted
             return {**totals, "stopped": True}
         seen: set = set()
-        for _ in range(40):
-            batch = [p for p in posts_svc.due(db, limit=5) if p.id not in seen]
+        # `seen` goes INTO the query: an item that is due but deliberately not sent (its business is suspended or asked to be deleted, the plan lapsed, ...) must not be fetched again and fill the
+        # whole batch. Filtering it out afterwards in Python (what this did) meant that with five or more such items from one business the batch was always "all seen", the loop ended, and every
+        # later item of every OTHER business was never reached. Held items stay `scheduled` and untouched: they are sent on the first run after the reason goes away.
+        for _ in range(MAX_INSPECTED):
+            if totals["published"] + totals["retry"] + totals["failed"] >= MAX_SENT:
+                break
+            batch = posts_svc.due(db, limit=1, exclude=seen)
             if not batch:
                 db.rollback()
                 break
@@ -427,13 +425,10 @@ def publish_due_posts():
                     totals["failed"] += 1
                 else:
                     totals["held"] += 1
-                    _park(p, utcnow())
                 db.commit()
                 continue
             out = content_exec.run(db, "post", p)  # governed publishing; agent/posts.publish does the sending
             res = {"done": "published"}.get(out["outcome"], out["outcome"])
-            if res in ("held", "skipped"):
-                _park(p, utcnow())
             audit(db, action=f"post.publish_{res}", tenant_id=p.tenant_id, entity_type="scheduled_post", entity_id=p.id, meta={"status": p.status, "reason": p.failure_reason, "scheduled": True})
             totals[res] += 1
             db.commit()
@@ -674,8 +669,10 @@ def publish_due_media():
         if controls.emergency_stop(db):  # platform emergency stop: photos stay scheduled and upload when it is lifted
             return {**totals, "stopped": True}
         seen: set = set()
-        for _ in range(20):
-            batch = [m for m in media_svc.due(db) if m.id not in seen]
+        for _ in range(MAX_INSPECTED):  # same rule as publish_due_posts: items already looked at are excluded in the query
+            if totals["published"] + totals["retry"] + totals["failed"] >= MAX_SENT // 2:
+                break
+            batch = media_svc.due(db, limit=1, exclude=seen)
             if not batch:
                 db.rollback()
                 break
@@ -683,13 +680,10 @@ def publish_due_media():
             seen.add(m.id)
             if not ent.for_tenant(db, m.tenant_id).has("gbp_media"):
                 totals["held"] += 1
-                _park(m, utcnow())
                 db.commit()
                 continue
             out = content_exec.run(db, "photo", m)  # governed publishing; media.publish does the sending
             res = {"done": "published"}.get(out["outcome"], out["outcome"])
-            if res in ("held", "skipped"):
-                _park(m, utcnow())
             audit(db, action=f"photo.publish_{res}", tenant_id=m.tenant_id, entity_type="scheduled_media", entity_id=m.id,
                   meta={"status": m.status, "reason": m.failure_reason, "google_media": m.google_media_name})
             totals[res] += 1
