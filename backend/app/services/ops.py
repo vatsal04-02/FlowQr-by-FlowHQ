@@ -151,6 +151,29 @@ def check_failed_work(db: Session) -> dict:
                "Each owner sees the reason on their Activity page; widespread failures usually mean Google access or quota.")
 
 
+SYNC_ERROR_CRITICAL_HOURS = 6  # a customer's location that has been failing to sync for this long is an incident, however few locations there are
+
+
+def check_stuck_sync(db: Session) -> dict:
+    """CRITICAL when any customer location has been failing to sync for 6 hours or more, even if it is the only one in the whole system.
+
+    `check_failed_work` only turns critical at 10 failures, so with a handful of customers a location that could not sync (a revoked Google connection counts too) stayed a yellow warning on
+    an admin page and nobody was told. This check has its own threshold and goes through `alert_on_new_critical`, so the platform admins are e-mailed (and Sentry told, if configured) within one
+    `ops_watch` cycle, then once a day while it lasts. "Failing for 6 hours" is read from the last SUCCESSFUL sync (a sync runs every 30 minutes, so a location whose last success is 6 hours old
+    and whose status is still `error` has failed on every attempt since); a location that never synced is measured from when it was created. Businesses that are suspended, scheduled for deletion
+    or whose location is no longer selected are not counted. Only counts are put in the text: it travels to Sentry, which must not receive a customer's name."""
+    from app.models import Tenant
+
+    cutoff = utcnow() - timedelta(hours=SYNC_ERROR_CRITICAL_HOURS)
+    n = db.scalar(select(func.count()).select_from(GoogleLocation).join(Tenant, Tenant.id == GoogleLocation.tenant_id).where(
+        GoogleLocation.selected.is_(True), GoogleLocation.last_sync_status == "error", func.coalesce(GoogleLocation.last_synced_at, GoogleLocation.created_at) < cutoff,
+        Tenant.is_active.is_(True), Tenant.suspended_at.is_(None), Tenant.deletion_scheduled_for.is_(None))) or 0
+    if not n:
+        return row("sync_stuck", "Customer syncs failing for hours", "ok", f"No customer location has been failing to sync for {SYNC_ERROR_CRITICAL_HOURS} hours or more")
+    return row("sync_stuck", "Customer syncs failing for hours", "critical", f"{n} customer location(s) have been failing to sync for {SYNC_ERROR_CRITICAL_HOURS} hours or more",
+               "Open Admin > Customers for the business and read the error on its Locations screen. A revoked connection needs the owner to reconnect Google; a Google-side error usually clears by itself.")
+
+
 def check_google_access(db: Session) -> list[dict]:
     bad = db.scalar(select(func.count()).select_from(GoogleConnection).where(GoogleConnection.status.in_((GoogleConnectionStatus.revoked, GoogleConnectionStatus.error)))) or 0
     active = db.scalar(select(func.count()).select_from(GoogleConnection).where(GoogleConnection.status == GoogleConnectionStatus.active)) or 0
@@ -346,7 +369,7 @@ def check_monitoring_and_mail() -> list[dict]:
 
 
 def run_checks(db: Session) -> dict:
-    checks = [check_database(db), check_redis(), check_migrations(db), check_heartbeat(), *check_task_failures(), check_failed_work(db), *check_google_access(db), *check_ai(db)]
+    checks = [check_database(db), check_redis(), check_migrations(db), check_heartbeat(), *check_task_failures(), check_failed_work(db), check_stuck_sync(db), *check_google_access(db), *check_ai(db)]
     rk = check_rank_quota(db)
     if rk:
         checks.append(rk)

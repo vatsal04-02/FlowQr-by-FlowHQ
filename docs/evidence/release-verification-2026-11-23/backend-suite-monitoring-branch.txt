@@ -1,0 +1,10 @@
+# Backend suite, monitoring branch (RC 05405771 + check_stuck_sync + 12 tests), Linux, image built from the real backend/Dockerfile with the exact pinned requirements, whole repo mounted, 8 shards
+shard 1: 412 passed in 571.09s (0:09:31)  exit=0
+shard 2: 411 passed in 566.16s (0:09:26)  exit=0
+shard 3: 345 passed in 560.17s (0:09:20)  exit=0
+shard 4: 487 passed in 457.69s (0:07:37)  exit=0
+shard 5: 361 passed in 631.55s (0:10:31)  exit=0
+shard 6: 444 passed in 646.76s (0:10:46)  exit=0
+shard 7: 451 passed in 859.56s (0:14:19)  exit=0
+shard 8: 546 passed in 519.02s (0:08:39)  exit=0
+total passed: 3457 (release candidate 3445 + 12 new = 3457); failed: 0; skipped: 0

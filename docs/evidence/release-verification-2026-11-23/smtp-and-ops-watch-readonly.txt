@@ -1,0 +1,8 @@
+# Read-only checks on the production API/worker containers, 2026-11-22 20:1x UTC (nothing written, no message sent)
+## SMTP login-only test (smtp_check.py: connect, EHLO, STARTTLS verified with the default CA store, authenticate, quit; host/user/password never printed)
+smtp_host_set: True | smtp_user_set: True | port: 587 | starttls: True | from_address_set: True
+RESULT: PASS - connected, EHLO 250 | TLS verified with the default CA store: True | authenticated: True | no message sent
+## delivery failures ("SMTP delivery to ... failed" / "Email not sent") in the retained api and worker logs: api 0, worker 0
+## ops_watch (the job that sends the alert e-mails): 33 successful runs and 0 failures in the retained worker log (since the last restart, ~8 h).
+## The job's own counter in redis says: 569 failures in total, the last one ~88,450 s (24.6 h) before the status run, and a success 481 s before it.
+## i.e. it was failing on nearly every 15-minute run for about 6 days (before the retained logs begin) and has been healthy for about a day. The cause could not be determined from retained logs.

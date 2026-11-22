@@ -1,0 +1,49 @@
+== date (UTC): 2026-11-22T20:06:23Z   disk /opt/flowqr: 50G free of 96G (49% used)
+== running containers of the production project (name, image, status)
+flowqr-production-worker-1 | flowqr-backend:prod-10bcbbe | Up 8 hours (healthy)
+flowqr-production-api-1 | flowqr-backend:prod-10bcbbe | Up 8 hours (healthy)
+flowqr-production-beat-1 | flowqr-backend:prod-10bcbbe | Up 8 hours (healthy)
+flowqr-production-db-1 | postgres:16-alpine | Up 7 days (healthy)
+flowqr-production-redis-1 | redis:7-alpine | Up 7 days (healthy)
+== port of the api (must be 172.17.0.1:18000 and 127.0.0.1:18000)
+  8000/tcp -> 127.0.0.1:18000
+  8000/tcp -> 172.17.0.1:18000
+== backend images on the server (rollback candidates), newest first
+prod-10bcbbe | id 4b0911d02d7b | created 8 hours ago | 405MB
+prod-77bd70d | id 129b49ce0c0f | created 9 hours ago | 405MB
+prod-2945623 | id 859b1b946253 | created 10 hours ago | 405MB
+prod-ee0fa0b | id 36e052a3993e | created 10 hours ago | 405MB
+prod-31d1ccf | id 9706bc73f13a | created 25 hours ago | 405MB
+prod-6d61d85 | id 08013831d322 | created 26 hours ago | 405MB
+prod-72bd037 | id 14418daf1091 | created 47 hours ago | 404MB
+prod-4c4c92f | id ca78d3225591 | created 2 days ago | 403MB
+prod-e71f1d8 | id ee3296000359 | created 3 days ago | 403MB
+prod-852c10f | id ccbc120d6904 | created 3 days ago | 402MB
+prod-a2fb68c | id 2cc42c389210 | created 4 days ago | 402MB
+prod-069469f | id 48b02112f46e | created 4 days ago | 402MB
+== image the api, worker and beat are running
+  api: flowqr-backend:prod-10bcbbe sha256:4b0911d02d7b23ed114fb5be8976ca1e254d45037f85c9cc939e419
+  worker: flowqr-backend:prod-10bcbbe sha256:4b0911d02d7b23ed114fb5be8976ca1e254d45037f85c9cc939e419
+  beat: flowqr-backend:prod-10bcbbe sha256:4b0911d02d7b23ed114fb5be8976ca1e254d45037f85c9cc939e419
+== backups folder (name, size, modified) - newest 8, and the status file
+  2026-11-22 17:10  319547  pre-grants-20261122114007.sql.gz
+  2026-11-22 16:16  319360  flowqr-20261122T104602Z.sql.gz.enc
+  2026-11-22 16:16  2207  backup.log
+  2026-11-22 16:16  212  status.json
+  2026-11-22 16:16  101  flowqr-20261122T104602Z.sql.gz.enc.sha256
+  2026-11-22 16:14  3714  env.production.pre-grants-20261122114007
+  2026-11-22 16:10  5760  backup.sh.pre-grants-20261122114007
+  2026-11-22 16:10  318728  pre-internal-20261122104043.sql.gz
+  status.json: {"ok": true, "error": "", "finished_at": "2026-11-22T10:46:06Z", "file": "flowqr-20261122T104602Z.sql.gz.enc", "size_mb": 0.30, "encrypted": true, "offsite": false, "restore_verified_at": "2026-11-15T20:52:13Z"}
+== is a nightly backup scheduled for the deploy user? (cron lines mentioning backup, no secrets)
+10 2 * * * /opt/flowqr/run-backup.sh
+== backup configuration present? (booleans only)
+  .backup.pass present: yes (mode 600)
+  .env.backup present: yes; defines BACKUP_REMOTE: 0
+== compose files (md5) and env file permissions, to compare after the release
+  5f7044c5b7eb66f3b0da80a6a3475fe2  docker-compose.yml
+  ba9863a3717f0a23b8bcefd9c79625f1  deploy/vps/docker-compose.vps.yml
+  .env.production mode: 600
+== is the git checkout on the server clean and at which commit? (read-only)
+fatal: not a git repository (or any of the parent directories): .git
+  fatal: not a git repository (or any of the parent directories): .git
