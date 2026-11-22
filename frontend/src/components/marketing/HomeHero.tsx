@@ -136,7 +136,7 @@ export function HomeHero({ line1, line2, outcome, sub }: { line1: string; line2:
               <span aria-hidden className="hh-pulse h-2 w-2 rounded-full bg-[#F97316]" />
               <span><b className="font-semibold text-[#0D1230]">Google profile.</b> <b className="font-semibold text-[#0D1230]">Reviews.</b> <b className="font-semibold text-[#0D1230]">WhatsApp.</b></span>
             </p>
-            <h1 aria-label={`${line1} ${line2}`} className="mt-8 font-[family-name:var(--font-tight)] text-[clamp(2rem,3.5vw,3.25rem)] font-medium leading-[1.12] tracking-[-.045em] text-[#0D1230] [text-wrap:balance]">
+            <h1 aria-label={`${line1} ${line2}`} className="mt-10 font-[family-name:var(--font-tight)] text-[clamp(2rem,3.5vw,3.25rem)] font-medium leading-[1.18] tracking-[-.045em] text-[#0D1230] [text-wrap:balance]">
               <Words text={line1} from={0} />{" "}<span className="text-[#E8590C]"><Words text={line2} from={line1.split(" ").length} /></span>
             </h1>
             <p style={{ "--d": "0.75s" } as CSSProperties} className="hh-in mt-9 max-w-[480px] [text-wrap:balance] font-[family-name:var(--font-tight)] text-[clamp(1.1rem,1.5vw,1.3rem)] font-medium leading-[1.4] tracking-[-.025em] text-[#0D1230]">{outcome}</p>
