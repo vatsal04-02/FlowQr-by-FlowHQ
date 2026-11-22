@@ -139,8 +139,8 @@ export function HomeHero({ line1, line2, outcome, sub }: { line1: string; line2:
             <h1 aria-label={`${line1} ${line2}`} className="mt-8 font-[family-name:var(--font-tight)] text-[clamp(2rem,3.5vw,3.25rem)] font-medium leading-[1.12] tracking-[-.045em] text-[#0D1230] [text-wrap:balance]">
               <Words text={line1} from={0} />{" "}<span className="text-[#E8590C]"><Words text={line2} from={line1.split(" ").length} /></span>
             </h1>
-            <p style={{ "--d": "0.75s" } as CSSProperties} className="hh-in mt-9 max-w-[480px] font-[family-name:var(--font-tight)] text-[clamp(1.1rem,1.5vw,1.3rem)] font-medium leading-[1.4] tracking-[-.025em] text-[#0D1230]">{outcome}</p>
-            <p style={{ "--d": "0.87s" } as CSSProperties} className="hh-in mt-5 max-w-[470px] font-[family-name:var(--font-inter)] text-[15.5px] leading-[1.7] text-[#4A4F6E]">{sub}</p>
+            <p style={{ "--d": "0.75s" } as CSSProperties} className="hh-in mt-9 max-w-[480px] [text-wrap:balance] font-[family-name:var(--font-tight)] text-[clamp(1.1rem,1.5vw,1.3rem)] font-medium leading-[1.4] tracking-[-.025em] text-[#0D1230]">{outcome}</p>
+            <p style={{ "--d": "0.87s" } as CSSProperties} className="hh-in mt-5 max-w-[470px] [text-wrap:pretty] font-[family-name:var(--font-inter)] text-[15.5px] leading-[1.7] text-[#4A4F6E]">{sub}</p>
             <div style={{ "--d": "1s" } as CSSProperties} className="hh-in mt-10"><HeroActions /></div>
           </div>
 
