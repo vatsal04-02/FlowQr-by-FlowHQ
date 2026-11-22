@@ -10,8 +10,8 @@ How the main runs were done (reproducible):
 | Backend, Linux (Python 3.13), exact pinned requirements | 8 containers of an image built from the real `backend/Dockerfile` plus `requirements-dev.txt`, repo mounted at `/repo`, `python -m pytest <shard files> -q` each against its own PostgreSQL 16 database | 3,445 passed, 0 failed, 0 skipped (`ev/backend-suite-pinned-requirements.txt`). An earlier run on an older test image (PyJWT 2.10.1, no sentry-sdk) gave the same result (`ev/backend-suite-summary.txt`). |
 | Backend baseline, Windows (Python 3.12, exact pinned requirements), before any change | same 8-shard split against PostgreSQL 16 | 3,424 passed, 3 failed (Windows-only artefacts; the same tests pass on Linux) |
 | Frontend | `npx tsc --noEmit`; `npm test`; `npm run build`; `npm audit --omit=dev` | 0 errors; 131/131; clean; 0 vulnerabilities (`ev/frontend-summary.txt`) |
-| Browser | `node e2e/production-audit-journeys.js` (Chromium, real UI, local stack) | 40/40 (`ev/browser-journeys-run.log`, `ev/browser-journeys-results.json`) |
-| Worker and beat | `python e2e/audit-worker-sync/drive_sync.py` (real Celery, Redis, PostgreSQL; mock Google) | 21/21 (`ev/worker-beat-sync-run.log`) |
+| Browser | `node e2e/production-audit-journeys.js` (Chromium, real UI, local stack) | 40/40 (`ev/browser-journeys-run.txt`, `ev/browser-journeys-results.json`) |
+| Worker and beat | `python e2e/audit-worker-sync/drive_sync.py` (real Celery, Redis, PostgreSQL; mock Google) | 21/21 (`ev/worker-beat-sync-run.txt`) |
 
 ## 1. Authentication, accounts, access control
 
@@ -128,7 +128,7 @@ How the main runs were done (reproducible):
 | Dependencies | `npm audit --omit=dev` | PASS | `ev/frontend-summary.txt` | `pip-audit` not run (PyPI too slow here) |
 | Python dependency audit | `pip-audit` inside the production image built from the pinned requirements (Python 3.13.18) | PASS | `ev/pip-audit-production-image.txt`: "No known vulnerabilities found" | Re-run on the exact image built on release day |
 | Backend suite with the exact pinned requirements, Linux | Real `backend/Dockerfile` image plus dev tools only; 8 shards | PASS | `ev/backend-suite-pinned-requirements.txt`: 3,445 passed, 0 failed, 0 skipped |  |
-| Startup guard, migration step, preflight and recreate in a throwaway production-shaped project | `deploy/vps/rehearse-release.sh` with a restored 0065 backup | PASS | `ev/rehearsal-script-run.log`: REHEARSAL PASSED; the guard refuses the 2026-11-22 incident configuration | Cannot see the real `.env.production`: run the real guard on release day |
+| Startup guard, migration step, preflight and recreate in a throwaway production-shaped project | `deploy/vps/rehearse-release.sh` with a restored 0065 backup | PASS | `ev/rehearsal-script-run.txt`: REHEARSAL PASSED; the guard refuses the 2026-11-22 incident configuration | Cannot see the real `.env.production`: run the real guard on release day |
 | Preflight itself | Same rehearsal | PASS | its FAIL lines (SMTP, Razorpay, AI, Sentry, backups) are expected in a fake environment | The Razorpay line is stale (production bills through Cashfree) and fails by design |
 | Production configuration (Sentry, SMTP, switches) read from the running API container | Read-only script over ssh | BLOCKED | `ev/production-readonly-status-NOT-RUN.txt`: the tool's safety check denied the connection | You run `deploy/vps/readonly-status.py` (runbook step 1) or authorise me to |
 | Secrets in evidence | Scan of the evidence folder | PASS | only the URL `/forgot-password` matches |  |

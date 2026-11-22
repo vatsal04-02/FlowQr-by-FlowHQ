@@ -1,0 +1,42 @@
+PASS  J1 registration through the form lands on onboarding
+PASS  J1 onboarding validates a required choice inline before continuing
+PASS  J1 wizard reaches the final step with the 7-day no-card trial
+PASS  J1 dashboard opens for the new business  -- http://localhost:3700/overview
+PASS  J1 a finished business is not sent back through onboarding  -- http://localhost:3700/overview
+PASS  J4 empty campaign form is refused with inline messages
+PASS  J4 campaign created through the UI  -- http://localhost:3700/gbp/campaigns/74012c11-3987-47b3-b483-b0039d9d1121
+PASS  J4 filling and submitting the New campaign dialog throws no page error (React #185 regression)
+PASS  J4 downloaded PNG decodes (scan) to the campaign page address  -- http://localhost:3700/r/38JKHdNh3eylNLXayU8X-g vs http://localhost:3700/r/38JKHdNh3eylNLXayU8X-g
+PASS  J4 SVG and PDF downloads are real files  -- svg 6039B pdf 2537B
+PASS  J4 SVG renders to a scannable code with the same address
+PASS  J4 scanned code opens the business landing page on a phone
+PASS  J4 landing page has no horizontal overflow on a phone
+PASS  J4 the Continue-to-Google button stays disabled until a review is written (empty is refused)
+PASS  J4 Hindi switch translates the landing page
+PASS  J4 optional feedback topic can be toggled
+PASS  J4 continuing opens the business Google review link in a new tab (FlowQr does not post it for the customer)  -- https://g.page/r/CabcDEF123/review
+PASS  J4 the public landing flow has no console or page errors
+PASS  J4 an invalid campaign address shows a clear unavailable page, not an error screen
+PASS  J4 the public API answers 404 for an unknown campaign  -- 404
+PASS  J4 the campaign page has exactly one main landmark and one h1 (the live preview adds neither)  -- {"mains":1,"h1s":1}
+PASS  J4 the campaign page counts the scan and the Continue-to-Google tap from real events  -- erformance all time QR scans 1 Unique scans 1 Feedback submitted 1 Drafts approved 1 Continued to Google 1 Unique scans count different devices per day (FlowQR keeps no identity for them). “Continued to Google” is a tap,
+PASS  J5 platform admin can issue a card batch  -- 201
+PASS  J5 card is assigned to the business, location and campaign  -- 200 {"id":"6acb70af-beae-4c6e-aa4d-671caf38b95b","card_code":"FQR-0005","status":"active","batch_id":"c6b516c4-899e-43e7-8c6
+PASS  J5 NFC redirect door answers a real 302 to the card landing page on the app  -- 302 http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj
+PASS  J5 the redirect is never cached
+PASS  J5 the NFC tag URL uses the /n/ door on the print domain  -- http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj
+PASS  J5 tapping the tag opens the correct business review page  -- http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj
+PASS  J5 the same card works through the QR door too  -- 302
+PASS  J5 an unknown NFC token is a 404, not a redirect  -- 404
+PASS  J5 a query string cannot change where the card goes (no open redirect)  -- http://localhost:3700/n/VA__BOzoi8lQpRXbakgnE0lj
+PASS  J5 a paused card shows a calm "switched off" notice to customers  -- 200
+PASS  SWEEP 111 screen/viewport loads (37 screens x 3 viewports, app + public): no crash, page error, broken image, failed request or HTTP error
+PASS  SWEEP no screen scrolls sideways on desktop, tablet or phone  -- []
+PASS  SWEEP every visible control has an accessible name  -- []
+PASS  SWEEP admin console: 36 loads (12 screens x 3 viewports): no crash, error, overflow, unlabeled control, denial or redirect
+PASS  a business owner who opens the admin console sees only "Platform admins only" and none of the admin content  -- Skip to content |  | Platform admins only |  | You don’t have access to this area.
+PASS  a business owner calling an admin API gets 403  -- 403
+PASS  J1/J4 the owner session saw no page errors from start to finish
+PASS  the owner session saw no unexpected console errors or failed API calls  -- {"c":[],"h":[],"f":[]}
+
+40/40 checks passed
