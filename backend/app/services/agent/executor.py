@@ -37,6 +37,7 @@ from app.services.agent import knowledge as kbs
 from app.services.agent.posts import describe_failure
 from app.services.agent.v2 import field_ops
 from app.services.agent.v2 import gate as v2gate
+from app.services.agent.v2 import present
 from app.services.audit import audit
 from app.services.google.tokens import get_access_token, note_not_approved
 
@@ -663,6 +664,8 @@ def action_out(db: Session, a: AgentAction, *, detail: bool = False) -> dict:
         "proposed_by": a.proposed_by, "expires_at": a.expires_at, "attempts": a.attempts, "last_error": a.last_error, "executed_at": a.executed_at, "verified_at": a.verified_at,
         "verification": a.verification, "created_at": a.created_at, "validation_status": a.validation_status, "v2": a.field_key in pol.V2_FIELDS,
     }
+    if a.field_key in pol.V2_FIELDS:  # lists of objects are shown to a person as plain lines (what is added, what is removed), never as raw JSON
+        out["diff"] = present.describe(a.field_key, out["before"], out["after"], a.evidence)
     if detail:
         out["proposed_raw"] = a.proposed_value.get("value")
         out["baseline"], out["outcome"], out["google_result"], out["validation"] = a.baseline, a.outcome, a.google_result, a.validation

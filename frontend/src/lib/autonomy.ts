@@ -12,6 +12,8 @@ export interface ActionRow {
   evidence: Record<string, unknown>; policy_reasons: string[]; proposed_by: "agent" | "user"; expires_at: string | null; attempts: number; last_error: string | null;
   executed_at: string | null; verified_at: string | null; verification: { matched?: boolean; detail?: string; actual?: unknown } | null; created_at: string;
   subject_type?: string | null;
+  /** Plain-language before and after for the profile structures (services, categories, special hours, attributes, service area): the server sends it so no screen prints raw JSON. */
+  diff?: { before: string[]; after: string[]; added: string[]; removed: string[]; changed: boolean };
 }
 export interface ActionDetail extends ActionRow {
   approvals: { decision: string; basis: string; by: string | null; at: string; expires_at: string | null; reason: string | null; invalidated_at: string | null; invalidated_reason: string | null }[];

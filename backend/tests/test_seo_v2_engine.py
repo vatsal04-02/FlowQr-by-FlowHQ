@@ -687,3 +687,15 @@ def test_no_notice_is_sent_for_a_change_that_failed_or_was_never_approved(tp):
     tp.fake.apply_v2 = False
     assert run(tp, a)["status"] == "failed"
     assert mailer.OUTBOX == []
+
+
+# ============================================================================ 10. plain-language diff everywhere an action is shown
+def test_every_screen_that_lists_actions_gets_a_plain_diff_for_v2_changes_never_raw_json(tp):
+    scan(tp)
+    rows = tp.biz.get("/agent/actions").json()["actions"]
+    svc = next(r for r in rows if r["field"] == "services")
+    assert svc["diff"]["added"] and svc["diff"]["removed"] == [] and all(isinstance(x, str) for x in svc["diff"]["after"])
+    assert "{" not in " ".join(svc["diff"]["before"] + svc["diff"]["after"])  # no JSON object text reaches a person
+    assert "diff" in tp.biz.get(f"/agent/actions/{svc['id']}").json()
+    legacy = next((r for r in rows if r["field"] not in ("services", "categories", "special_hours", "attributes", "service_area")), None)
+    assert legacy is None or "diff" not in legacy  # legacy fields keep their existing presentation
