@@ -86,14 +86,14 @@ def _operator_row(db, conn: GoogleConnection, *, compact: bool) -> dict:
 
 @router.get("/journeys")
 def journeys(state: str | None = None, tenant_id: uuid.UUID | None = None, limit: int = 100, ctx: AuthContext = Depends(require_operator)):
-    """Every connection that has an agency authorization: the business, the selected Google location, where the onboarding stands (one of the journey states), the consent given, the last
+    """Every Google connection, newest activity first (including those still waiting on the customer or held back by a rule, which have no authorization yet): the business, the selected Google location, where the onboarding stands (one of the journey states), the consent given, the last
     synchronization and its failures, and any revocation. Never a token, a review or other Google content. `state` filters by journey state."""
     if state is not None and state not in agency_journey.JOURNEY_STATES:
         raise HTTPException(status_code=422, detail="Unknown state")
-    q = select(GoogleConnection).join(GoogleAgencyAuthorization, GoogleAgencyAuthorization.connection_id == GoogleConnection.id)
+    q = select(GoogleConnection)
     if tenant_id:
         q = q.where(GoogleConnection.tenant_id == tenant_id)
-    q = q.group_by(GoogleConnection.id).order_by(func.max(GoogleAgencyAuthorization.updated_at).desc()).limit(max(1, min(limit, 300)))
+    q = q.order_by(GoogleConnection.updated_at.desc()).limit(max(1, min(limit, 300)))
     rows = [_operator_row(ctx.db, c, compact=True) for c in ctx.db.scalars(q)]
     if state:
         rows = [r for r in rows if r["state"] == state]

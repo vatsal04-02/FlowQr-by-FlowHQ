@@ -87,3 +87,12 @@ test("the operator can filter by every state and see counts only for states that
   assert.deepEqual(stateCounts({ CONNECTED: 2, BLOCKED: 1, FAILED: 0 }), [{ state: "CONNECTED", n: 2 }, { state: "BLOCKED", n: 1 }]);
   assert.deepEqual(stateCounts({}), []);
 });
+
+import { extraNote } from "../src/lib/agency-journey.ts";
+test("an extra note is never a repeat of the server's own detail (the page once printed the same sentence twice)", () => {
+  const same = "FlowQR is a Manager of your profile and its access was checked against Google.";
+  assert.equal(extraNote("CONNECTED", same), null);
+  assert.equal(extraNote("CONNECTED", "FlowQR is a Manager of your profile and its access was checked against Google"), null);
+  assert.ok(extraNote("CONNECTED", "Something else entirely."));
+  assert.equal(extraNote("CUSTOMER_CONSENT_PENDING", "anything"), null); // no note defined for this state
+});

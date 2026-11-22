@@ -11,6 +11,8 @@ import { fmtDate, timeAgo } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
 
 interface OpList { states: string[]; counts: Record<string, number>; journeys: Journey[] }
+/** Authorization statuses where running the steps again can change something (the server refuses the rest). */
+const RETRYABLE = ["consented", "invited", "accepted", "verified", "needs_attention"];
 const when = (iso: string | null | undefined) => (iso ? fmtDate(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "–");
 
 /**
@@ -70,8 +72,9 @@ function Detail({ id, onClose, onChanged }: { id: string; onClose: () => void; o
     setBusy(true);
     try { setData(await api<Journey>(`/agency-ops/journeys/${id}/advance`, { method: "POST" })); toast("Checked again."); onChanged(); } catch (e) { toast(errorMessage(e), "error"); } finally { setBusy(false); }
   }
+  const retryable = !!data?.locations.some((l) => l.authorization && RETRYABLE.includes(l.authorization.status));
   return (
-    <Modal open onClose={onClose} title={data?.tenant_name ?? "Business"} footer={<><Button variant="secondary" onClick={onClose}>Close</Button><Button loading={busy} onClick={() => void again()}>Check again</Button></>}>
+    <Modal open onClose={onClose} title={data?.tenant_name ?? "Business"} footer={<><Button variant="secondary" onClick={onClose}>Close</Button><Button loading={busy} disabled={!retryable} title={retryable ? undefined : "Nothing to retry: the business has to start again"} onClick={() => void again()}>Check again</Button></>}>
       {loading && !data ? <Skeleton className="h-48" /> : error || !data ? <Alert tone="error">{error ?? "Not found"}</Alert> : (
         <div className="space-y-4 text-sm">
           <p><Status tone={stateTone(data.state)}>{stateLabel(data.state)}</Status> <span className="text-ink-600">{data.detail}</span></p>

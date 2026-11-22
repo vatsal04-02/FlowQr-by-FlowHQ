@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { newRequestId, parseConsent } from "@/lib/agency-ui";
 import {
-  actionsToSend, canApprove, initialActions, pollDelay, progressSummary, stateLabel, stateTone, stepTone, stepWord, toggleAction, visibleActions, WHAT_HAPPENS_NEXT,
+  actionsToSend, canApprove, initialActions, extraNote, pollDelay, progressSummary, stateLabel, stateTone, stepTone, stepWord, toggleAction, visibleActions,
   type ActionCategory, type AvailableLocation, type Journey, type JourneyResponse, type JourneyStep, type StartView,
 } from "@/lib/agency-journey";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -41,7 +41,8 @@ function Inner() {
   const seenAt = useRef<number>(Date.now());
   const err = sp.get("error");
 
-  useEffect(() => { if (sp.get("connected")) toast("Google account connected. Now choose your business location."); }, [sp, toast]);
+  const told = useRef(false);  // the toast context changes identity as toasts come and go: say it once per arrival, not once per change
+  useEffect(() => { if (sp.get("connected") && !told.current) { told.current = true; toast("Google account connected. Now choose your business location."); } }, [sp, toast]);
 
   // Keep looking while FlowQR or Google is working on it: quickly at first, then slower, and not at all once nothing is waiting.
   const working = data?.journeys.find((j) => pollDelay(j.state, 0) !== null);
@@ -126,9 +127,9 @@ function JourneyCard({ j, data, canAct, busy, connecting, onConnect, onCheck, on
         <p className="text-[13px] text-ink-500" aria-live="polite">{sum.done} of {sum.total} steps done{sum.next ? ` · next: ${sum.next.label}` : ""}</p>
         <Stages steps={j.steps} />
         <div className="mt-4" aria-live="polite">
-          <p className="text-[17px] font-semibold">{j.headline}</p>
+          <h3 className="text-[17px] font-semibold">{j.headline}</h3>
           <p className="mt-1 text-sm text-ink-700">{j.detail}</p>
-          {WHAT_HAPPENS_NEXT[j.state] && <p className="mt-1 text-[13px] text-ink-500">{WHAT_HAPPENS_NEXT[j.state]}</p>}
+          {extraNote(j.state, j.detail) && <p className="mt-1 text-[13px] text-ink-500">{extraNote(j.state, j.detail)}</p>}
         </div>
         {j.blocked && <div className="mt-3"><Alert tone="warning" title={j.state === "BLOCKED" ? "On hold: this is not an error" : "Note"}>{j.blocked.message}</Alert></div>}
         {(j.state === "FAILED" || j.state === "EXPIRED") && sel?.authorization && <div className="mt-3"><Alert tone={j.state === "EXPIRED" ? "warning" : "error"} title={j.state === "EXPIRED" ? "Expired" : "Could not finish"}>{j.detail} Nothing was changed on your profile.</Alert></div>}
@@ -194,7 +195,7 @@ function LocationPicker({ j, canAct, onChanged, onConnect }: { j: Journey; canAc
   }
 
   return (
-    <Panel title="Choose your business location" action={<MapPin className="h-5 w-5 text-ink-400" aria-hidden />}>
+    <Panel title="Pick the location FlowQR may manage" action={<MapPin className="h-5 w-5 text-ink-400" aria-hidden />}>
       {avail.length === 0 ? (
         <Alert tone="warning" title="No locations found" action={canAct ? <Button size="sm" onClick={onConnect}>Connect another Google account</Button> : undefined}>
           Google lists no Business Profile location for {j.google.email ?? "this account"}. Connect the Google account that owns or manages your listing.
@@ -246,7 +247,7 @@ function ConsentPanel({ j, data, canAct, onChanged }: { j: Journey; data: Journe
   }
 
   return (
-    <Panel title="Approve FlowQR as your Manager" action={<ShieldCheck className="h-5 w-5 text-ink-400" aria-hidden />}>
+    <Panel title="Your approval and permissions" action={<ShieldCheck className="h-5 w-5 text-ink-400" aria-hidden />}>
       <p className="text-sm text-ink-700">Nothing is sent to Google until you approve. FlowQR will be invited to: <b>{targets.map((t) => t.title ?? "your location").join(", ") || "the location you chose"}</b>.</p>
       <div className="mt-3"><p className="text-sm text-ink-700">{consent.lead}</p>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-ink-700">{consent.bullets.map((b) => <li key={b}>{b}</li>)}</ul></div>

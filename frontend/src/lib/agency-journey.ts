@@ -108,6 +108,14 @@ export const WHAT_HAPPENS_NEXT: Record<string, string> = {
   BLOCKED: "Nothing is wrong with your account. A rule or a setting holds this back, and nothing was changed on your profile.",
 };
 
+/** An extra explanatory line for a state, or null when it would only repeat what the server's own detail already says (the page used to print the same sentence twice). */
+export function extraNote(state: string, detail: string): string | null {
+  const note = WHAT_HAPPENS_NEXT[state];
+  if (!note) return null;
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return norm(detail).includes(norm(note)) || norm(note).includes(norm(detail)) ? null : note;
+}
+
 export const sinceLabel = (iso: string | null | undefined, fmt: (iso: string) => string): string | null => (iso ? fmt(iso) : null);
 
 // ---- the operator's table
