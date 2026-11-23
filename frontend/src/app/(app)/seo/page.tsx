@@ -33,7 +33,8 @@ export default function SeoOverviewPage() {
 
   return (
     <>
-      <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">How you show up on Google</h1>
+      <h1 className="mb-4 hidden text-[22px] font-semibold leading-7 sm:text-[26px] md:block">How you show up on Google</h1>
+      <div className="mb-4 md:hidden"><h1 className="fq-page-title">Google</h1><p className="fq-page-sub mt-1.5">How you show up on Google</p></div>
       {ov.error && <Alert tone="error">{ov.error}</Alert>}
       <div className="mb-3 lg:mb-4"><GoogleProfileCard /></div>
       <div className="mb-4 lg:mb-5"><OptimizationCenter /></div>
@@ -49,16 +50,16 @@ export default function SeoOverviewPage() {
 
         <Card label="From Google" className="lg:col-span-5">
           <Title right={<SourceTag source="google" />}>From Google</Title>
-          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
+          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 max-md:mt-2 max-md:gap-0">
             {SLOTS.map(([k, label, metrics]) => {
               const series = metrics.flatMap((m) => g?.series[m] ?? []);
               const byDay = new Map<string, number>(); series.forEach((p) => byDay.set(p.date, (byDay.get(p.date) ?? 0) + p.value));
               const vals = [...byDay.entries()].sort().map(([, v]) => v);
               const total = vals.reduce((a, b) => a + b, 0), top = Math.max(1, ...vals);
               return (
-                <div key={k} className="min-w-0">
-                  <dt className="text-[13px] text-muted">{label}</dt>
-                  <dd className="num text-[20px] font-semibold leading-7">{gOk && vals.length ? fmtNum(total) : "–"}</dd>
+                <div key={k} className="min-w-0 max-md:border-b max-md:border-set-line max-md:py-3.5 max-md:odd:border-r max-md:odd:pr-4 max-md:even:pl-4 max-md:[&:nth-last-child(-n+2)]:border-b-0">
+                  <dt className="text-[13px] text-muted max-md:text-xs max-md:font-bold max-md:text-set-soft">{label}</dt>
+                  <dd className="num text-[20px] font-semibold leading-7 max-md:text-2xl max-md:font-extrabold max-md:leading-tight">{gOk && vals.length ? fmtNum(total) : "–"}</dd>
                   {gOk && vals.length ? <span aria-hidden className="mt-1 flex h-10 items-end gap-[2px]">{vals.map((v, i) => <span key={i} className="flex-1 rounded-t-[1px] bg-chart" style={{ height: `${Math.max(3, (v / top) * 100)}%` }} />)}</span> : <Dashes className="mt-1" />}
                 </div>
               );

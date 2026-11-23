@@ -64,19 +64,19 @@ export default function CardsPage() {
             <Segmented label="View" value={view} onChange={setView} options={[["gallery", "Cards"], ["table", "Table"]] as const} />
           </div>}
           {loading && !data ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-64" />)}</div> : data && data.length === 0 ? (
-            <section aria-labelledby="first-card-h" className="overflow-hidden rounded-[16px] bg-surface shadow-card">
-              <div className="grid items-center gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-                <div>
+            <section aria-labelledby="first-card-h" className="overflow-hidden rounded-[16px] bg-surface shadow-card max-md:overflow-visible max-md:!bg-transparent max-md:!shadow-none max-md:!border-0">
+              <div className="grid items-center gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] max-md:flex max-md:flex-col max-md:gap-4 max-md:p-0">
+                <div className="max-md:order-2 max-md:w-full max-md:rounded-[18px] max-md:border max-md:border-set-line max-md:bg-set-surface max-md:p-4">
                   <h2 id="first-card-h" className="text-[17px] font-semibold">Your first card</h2>
                   <ol className="mt-5 space-y-3">
                     {[["Order cards", ""], ["Scan one to place it", ""], ["Put it at the counter", ""]].map(([t, d], i) => (
                       <li key={t} className="flex items-start gap-3"><span aria-hidden className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink-solid text-xs font-bold text-ink-on">{i + 1}</span><div><p className="text-[14px] font-semibold">{t}</p><p className="text-[13px] text-ink-700">{d}</p></div></li>))}
                   </ol>
-                  <div className="mt-6"><LinkButton href="/settings/billing/payments" variant="brand" size="lg">Order cards</LinkButton></div>
+                  <div className="mt-6 max-md:mt-4"><LinkButton href="/settings/billing/payments" variant="brand" size="lg" className="max-md:w-full">Order cards</LinkButton></div>
                 </div>
-                <div className="flex items-start justify-center gap-4" aria-hidden>
-                  <FlowCard code="FQR-0000" state="unassigned" className="w-[150px] sm:w-[170px]" />
-                  <FlowCard code="FQR-0000" state="unassigned" className="mt-10 w-[150px] sm:w-[170px]" />
+                <div className="flex items-start justify-center gap-4 max-md:order-1 max-md:w-full max-md:items-center max-md:rounded-[18px] max-md:bg-[#EEE8E0] max-md:py-6 dark:max-md:bg-set-neutral-bg" aria-hidden>
+                  <FlowCard code="FQR-0000" state="unassigned" className="w-[150px] sm:w-[170px] max-md:w-[136px] max-md:-rotate-[4deg]" />
+                  <FlowCard code="FQR-0000" state="unassigned" className="mt-10 w-[150px] sm:w-[170px] max-md:mt-0 max-md:w-[136px] max-md:rotate-[4deg]" />
                 </div>
               </div>
             </section>
