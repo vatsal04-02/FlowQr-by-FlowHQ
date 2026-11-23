@@ -16,6 +16,49 @@ interface AutoReply {
   rules: string[]; recent: { id: string; rating: number; body: string; status: string; at: string; published_at: string | null; error: string | null }[];
 }
 
+interface ConsentInfo {
+  wording_version: string; scopes: { scope: string; label: string; wording: string }[]; locations: { id: string; title: string | null }[];
+  grants: { id: string; google_location_id: string; scope: string; active: boolean; granted_at: string }[];
+}
+const REPLY_SCOPE = "reply_template";
+
+/** The owner's own agreement, per location, to automatic template replies. Without it nothing is ever sent, however the switch above is set; the wording shown is the wording the server records. */
+function ReplyConsent({ onChanged }: { onChanged: () => void }) {
+  const { isAdmin } = useAuth();
+  const toast = useToast();
+  const { data, error, reload } = useFetch<ConsentInfo>("/agent/consents");
+  const [busy, setBusy] = useState<string | null>(null);
+  if (error || !data) return null;
+  const scope = data.scopes.find((x) => x.scope === REPLY_SCOPE);
+  if (!scope || data.locations.length === 0) return null;
+  const active = (loc: string) => data.grants.find((g) => g.google_location_id === loc && g.scope === REPLY_SCOPE && g.active);
+
+  async function act(loc: string, grant: boolean, id?: string) {
+    setBusy(loc);
+    try {
+      if (grant) await api("/agent/consents", { method: "POST", body: { location_id: loc, scope: REPLY_SCOPE, wording_version: data!.wording_version } });
+      else await api(`/agent/consents/${id}/revoke`, { method: "POST", body: { reason: "Withdrawn by the owner" } });
+      await reload(); onChanged(); toast(grant ? "Agreement recorded. Automatic replies can now run for this location." : "Withdrawn. Nothing is sent automatically for this location.");
+    } catch (e) { toast(errorMessage(e), "error"); } finally { setBusy(null); }
+  }
+
+  return (
+    <div className="rounded-xl bg-surface-2 p-4 text-sm">
+      <p className="font-semibold">Your agreement for each location</p>
+      <p className="mt-1 text-muted">{scope.wording}</p>
+      <ul className="mt-3 space-y-2">
+        {data.locations.map((l) => { const g = active(l.id); return (
+          <li key={l.id} className="flex flex-wrap items-center justify-between gap-2">
+            <span className="min-w-0"><span className="font-medium">{l.title ?? "Location"}</span> <Badge tone={g ? "green" : "amber"}>{g ? "You agreed" : "Not agreed yet"}</Badge>{g && <span className="ml-2 text-xs text-muted">{fmtDate(g.granted_at)}</span>}</span>
+            {isAdmin && (g ? <Button variant="secondary" size="sm" loading={busy === l.id} onClick={() => void act(l.id, false, g.id)}>Withdraw</Button>
+              : <Button size="sm" loading={busy === l.id} onClick={() => void act(l.id, true)}>I agree</Button>)}
+          </li>); })}
+      </ul>
+      <p className="mt-2 text-xs text-muted">Only the business owner can agree or withdraw.</p>
+    </div>
+  );
+}
+
 /** AI › Autonomy › Automatic replies: the switch, the lowest rating, the reply templates, the plan allowance, and every reply that was sent without a person. Nothing is invented: the list is what was really sent. */
 export function AutoReplies() {
   const { isAdmin } = useAuth();
@@ -42,6 +85,8 @@ export function AutoReplies() {
             {!data.running && data.not_running_because && <p className="mt-1 text-sm text-warn">Not running: {data.not_running_because}.</p>}</div>
           <Toggle on={data.enabled} disabled={!isAdmin || busy} label="Automatic replies" onChange={(v) => void save({ enabled: v }, v ? "Automatic replies are on. Only reviews from now on are answered." : "Automatic replies are off.")} />
         </div>
+
+        <ReplyConsent onChanged={() => void reload()} />
 
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted">{data.rules.map((r) => <li key={r}>{r}</li>)}</ul>
 
