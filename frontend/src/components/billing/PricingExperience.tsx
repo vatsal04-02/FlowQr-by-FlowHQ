@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 // The prepaid pricing screen: hero, term selector, three plans, comparison, how billing works, questions.
 // Phone first: one plan at a time behind a plan switcher, compact rounded cards, the long lists folded away. From md up all three plans sit side by side.
 //
@@ -200,7 +200,7 @@ const phoneOk = (v: string) => /^[6-9]\d{9}$/.test(v.replace(/\D/g, "").replace(
 /** The pay button. It asks the SERVER to create a one-time Cashfree order for (plan, months, phone): the request carries NO amount, the server prices it. It then sends the browser to Cashfree's
  *  payment page. Nothing is granted here: the plan starts only after the server has asked Cashfree and been told the order is paid (the return page, the webhook and the hourly check all do that). */
 function PayButton({ open, label, disabled, busy, onClick }: { open: boolean; label: string; disabled: boolean; busy: boolean; onClick: () => void }) {
-  return <Button className={pill} disabled={!open || disabled} loading={busy} onClick={onClick} aria-describedby="pay-note">{open ? label : "Payment opens soon"}</Button>;
+  return <Button className={`${pill} w-full sm:w-auto`} size="lg" disabled={!open || disabled} loading={busy} onClick={onClick} aria-describedby="pay-note">{open ? label : "Payment opens soon"}</Button>;
 }
 
 function OrderSummary({ plan, months, terms, offers, onClose }: { plan: Plan | null; months: number; terms: PrepaidTerms; offers: PrepaidOffer[]; onClose: () => void }) {
@@ -219,22 +219,36 @@ function OrderSummary({ plan, months, terms, offers, onClose }: { plan: Plan | n
     } catch (e) { setErr(errorMessage(e)); setBusy(false); }
   }
   const name = plan ? (PLAN_NAME[plan.code] ?? plan.name) : "";
-  const rows: [string, string][] = plan && total !== null ? [["Plan", name], ["Term", monthsLabel(months)], ["Per month", rupees(effectiveMonthlyPaise(total, months))], ...(offer ? [[`${offer.label} (normally ${rupees(offer.list_price_paise)})`, "only for your business"] as [string, string]] : []), ["Total, paid once", rupees(total)]] : [];
+  const Icon = plan ? (THEME[plan.code]?.icon ?? Rocket) : Rocket;
+  const bad = phone.length > 0 && !phoneOk(phone);
+  const steps: [LucideIcon, string][] = [[ShieldCheck, "You pay on the payment provider's own secure page."], [BadgeCheck, "Your plan starts only once the payment is confirmed."], [CalendarClock, `It runs for ${monthsLabel(months)} and does not renew by itself.`]];
   return (
-    <Modal open={!!plan && total !== null} onClose={onClose} title="Review your plan" footer={<><Button className={pill} variant="secondary" onClick={onClose} disabled={busy}>Close</Button><PayButton open={terms.checkout_open} label={total !== null ? `Pay ${rupees(total)}` : "Pay"} disabled={!phoneOk(phone)} busy={busy} onClick={() => void pay()} /></>}>
-      <dl className="overflow-hidden rounded-2xl bg-surface-2 text-sm">
-        {rows.map(([k, v], i) => <div key={k} className={`flex justify-between gap-4 px-4 py-3 ${i ? "border-t border-line" : ""} ${i === rows.length - 1 ? "font-semibold text-ink" : "text-ink-700"}`}><dt>{k}</dt><dd className="num">{v}</dd></div>)}
-      </dl>
+    <Modal open={!!plan && total !== null} onClose={onClose} title="Review your plan"
+      footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button className={pill} variant="secondary" onClick={onClose} disabled={busy}>Close</Button>
+        <PayButton open={terms.checkout_open} label={total !== null ? `Pay ${rupees(total)}` : "Pay"} disabled={!phoneOk(phone)} busy={busy} onClick={() => void pay()} />
+      </div>}>
+      <div className="overflow-hidden rounded-[22px] bg-set-navy p-5 text-white">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><Icon className="h-5 w-5" /></span><span className="text-[17px] font-semibold">{name}</span></span>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-[13px] font-semibold">{monthsLabel(months)}</span>
+        </div>
+        <p className="num mt-5 text-[40px] font-bold leading-none tracking-[-.02em]">{total !== null ? rupees(total) : ""}</p>
+        <p className="mt-1.5 text-[13px] text-white/75">paid once{total !== null && months > 1 ? ` · ${rupees(effectiveMonthlyPaise(total, months))} a month` : ""}</p>
+        {offer && <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-[13px] leading-5">{offer.label} (normally {rupees(offer.list_price_paise)}), only for your business.</p>}
+      </div>
+      <ul className="mt-4 space-y-2.5">
+        {steps.map(([I, t]) => <li key={t} className="flex items-start gap-3 text-[13.5px] leading-5 text-ink-700"><span aria-hidden className="mt-px grid h-7 w-7 shrink-0 place-items-center rounded-full bg-pos-tint text-pos"><I className="h-4 w-4" /></span><span className="pt-1">{t}</span></li>)}
+      </ul>
       {terms.checkout_open && (
-        <div className="mt-4">
+        <div className="mt-5">
           <label htmlFor={phoneId} className="text-[13px] font-medium text-ink">Mobile number</label>
           <input id={phoneId} type="tel" inputMode="numeric" autoComplete="tel" placeholder="98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={16}
-            aria-invalid={phone.length > 0 && !phoneOk(phone)} aria-describedby={`${phoneId}-h`}
-            className="mt-1.5 min-h-11 w-full rounded-full border border-transparent bg-surface-2 px-4 text-base text-ink outline-none placeholder:text-muted-soft hover:border-ink-200 focus-visible:border-accent sm:text-sm" />
-          <p id={`${phoneId}-h`} className={`mt-1.5 text-xs ${phone.length > 0 && !phoneOk(phone) ? "text-neg" : "text-muted"}`}>{phone.length > 0 && !phoneOk(phone) ? "Enter a 10-digit Indian mobile number." : "The payment provider needs it for this payment. We do not keep it."}</p>
+            aria-invalid={bad} aria-describedby={`${phoneId}-h`}
+            className="mt-1.5 min-h-12 w-full rounded-2xl border border-transparent bg-surface-2 px-4 text-base text-ink outline-none placeholder:text-muted-soft hover:border-ink-200 focus-visible:border-accent" />
+          <p id={`${phoneId}-h`} className={`mt-1.5 text-xs ${bad ? "text-neg" : "text-muted"}`}>{bad ? "Enter a 10-digit Indian mobile number." : "The payment provider needs it for this payment. We do not keep it."}</p>
         </div>
       )}
-      <p className="mt-4 text-sm text-muted">One payment. Your plan runs for {monthsLabel(months)} from the day the payment is confirmed, and does not renew by itself.</p>
       {err && <div className="mt-4"><Alert tone="error" title="Couldn't start the payment">{err}{/charged/i.test(err) ? "" : " Nothing was charged."}</Alert></div>}
       {!terms.checkout_open && <div id="pay-note" className="mt-4"><Alert tone="info" title="Online payment is not open yet">Nothing has been charged and your account has not changed. We will switch prepaid plans on soon; until then everything you have today keeps working.</Alert></div>}
     </Modal>

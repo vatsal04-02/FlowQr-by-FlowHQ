@@ -16,7 +16,8 @@ export default function RegionPage() {
   const { tenant, isAdmin, refresh } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const f = useForm({ language: tenant?.language ?? "en", timezone: tenant?.timezone ?? "Asia/Kolkata" }, {});
+  const start = { language: tenant?.language ?? "en", timezone: tenant?.timezone ?? "Asia/Kolkata" };
+  const f = useForm(start, {});
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); f.setServerError(null); setBusy(true);
@@ -35,7 +36,7 @@ export default function RegionPage() {
             <Select label="Time zone" {...f.bind("timezone")}>{TIMEZONES.map((t) => <option key={t}>{t}</option>)}</Select>
           </fieldset>
         </Panel>
-        {isAdmin && <StickyActionBar note="Nothing changes for your customers until you save."><Button type="submit" variant="brand" loading={busy} className="w-full md:w-auto">Save</Button></StickyActionBar>}
+        {isAdmin && <StickyActionBar note="Nothing changes for your customers until you save."><Button type="button" variant="secondary" onClick={() => { f.setValues(start); f.setServerError(null); }} className="w-full md:w-auto">Discard</Button><Button type="submit" variant="brand" loading={busy} className="w-full md:w-auto">Save changes</Button></StickyActionBar>}
       </form>
     </>
   );

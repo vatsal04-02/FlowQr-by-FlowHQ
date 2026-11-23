@@ -38,7 +38,7 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
   return (
     <AnimatePresence>
     {open && (
-    <motion.div key="modal" className="fixed inset-0 z-50 grid items-end bg-[rgba(13,10,16,.45)] backdrop-blur-[8px] sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <motion.div key="modal" className="fixed inset-0 z-[56] grid items-end bg-[rgba(13,10,16,.45)] backdrop-blur-[8px] sm:place-items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <motion.div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         initial={{ opacity: 0, y: 28, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: "spring", stiffness: 420, damping: 34 }}
         className="flex max-h-[92dvh] w-full flex-col rounded-t-card bg-white shadow-lift outline-none sm:max-w-lg sm:rounded-card">

@@ -70,25 +70,39 @@ function Workspace({ children }: { children: ReactNode }) {
 
   return (
     <ReviewsCtx.Provider value={ctx}>
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-[22px] font-semibold leading-7 sm:text-[26px] sm:leading-8">Reviews</h1>
+      <div className={clsx("mb-3 flex flex-wrap items-end justify-between gap-3", seg && "max-md:hidden")}>
+        <div className="min-w-0">
+          <h1 className="text-[28px] font-extrabold leading-[1.15] tracking-[-0.02em] sm:text-[26px] sm:font-semibold sm:leading-8 sm:tracking-normal">Reviews</h1>
+          {ov.data && <p className="mt-1.5 text-sm text-set-muted md:hidden">{ov.data.reviews.total_synced} {ov.data.reviews.total_synced === 1 ? "review" : "reviews"} &middot; {counts.none ?? 0} need a reply</p>}
+        </div>
         {isAdmin && connected && <button type="button" aria-label="Sync reviews from Google now" title="Sync reviews from Google now" disabled={syncing} onClick={() => void sync()}
           className="grid h-11 w-11 place-items-center rounded-[12px] text-ink-600 ring-1 ring-line hover:bg-surface-2 disabled:opacity-50"><RefreshCw className={clsx("h-4 w-4", syncing && "fq-spin")} aria-hidden /></button>}
       </div>
       {ov.data && (
-        <ul aria-label="Review summary" className="mb-3 flex flex-wrap gap-2 text-[13.5px] text-ink-700">
+        <section aria-label="Review summary" className={clsx("mb-4 flex rounded-[18px] border border-set-line bg-set-surface p-4 md:hidden", seg && "hidden")}>
+          {([
+            [ov.data.reviews.average_rating_all_time !== null ? ov.data.reviews.average_rating_all_time.toFixed(1) : "–", "Average"],
+            [ov.data.reviews.total_synced > 0 ? `${Math.round(((ov.data.reviews.total_synced - ov.data.reviews.awaiting_reply) / ov.data.reviews.total_synced) * 100)}%` : "–", "Replied"],
+            [String(counts.none ?? 0), "Needs reply"],
+          ] as const).map(([v, l], i) => (
+            <div key={l} className={clsx("flex min-w-0 flex-1 flex-col gap-1", i > 0 && "border-l border-set-line pl-4")}><span className="num text-2xl font-extrabold leading-none text-set-ink">{v}</span><span className="text-xs font-bold text-set-soft">{l}</span></div>
+          ))}
+        </section>
+      )}
+      {ov.data && (
+        <ul aria-label="Review summary" className="mb-3 hidden flex-wrap gap-2 text-[13.5px] text-ink-700 md:flex">
           {ov.data.reviews.average_rating_all_time !== null && <li className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3.5 shadow-pill ring-1 ring-line"><Star className="h-3.5 w-3.5 fill-star text-star" aria-hidden /><b className="num font-semibold text-ink"><CountUp value={ov.data.reviews.average_rating_all_time} decimals={1} /></b> average</li>}
           <li className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3.5 shadow-pill ring-1 ring-line"><b className="num font-semibold text-ink"><CountUp value={ov.data.reviews.total_synced} /></b> reviews</li>
           {ov.data.reviews.total_synced > 0 && <li className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3.5 shadow-pill ring-1 ring-line"><CheckCircle2 className="h-3.5 w-3.5 text-pos" aria-hidden /><b className="num font-semibold text-ink"><CountUp value={Math.round(((ov.data.reviews.total_synced - ov.data.reviews.awaiting_reply) / ov.data.reviews.total_synced) * 100)} />%</b> replied</li>}
           {counts.none !== undefined && <li className={clsx("inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 shadow-pill ring-1", counts.none > 0 ? "bg-warn-tint text-warn ring-transparent" : "bg-surface ring-line")}><MessageSquareWarning className="h-3.5 w-3.5" aria-hidden /><b className="num font-semibold"><CountUp value={counts.none} /></b> {counts.none === 1 ? "needs a reply" : "need a reply"}</li>}
         </ul>
       )}
-      <div className="panel grid grid-cols-[minmax(0,1fr)] overflow-hidden md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">
+      <div className="panel grid grid-cols-[minmax(0,1fr)] overflow-hidden max-md:!bg-transparent max-md:!shadow-none max-md:!border-0 max-md:!ring-0 md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">
         <section aria-label="Review list" className={clsx("flex min-h-0 flex-col border-ink-100 md:border-r", seg ? "hidden md:flex" : "flex")}>
-          <div className="space-y-2 border-b border-ink-100 p-3">
+          <div className="space-y-2 border-b border-ink-100 p-3 max-md:space-y-3 max-md:border-0 max-md:p-0 max-md:pb-3">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden />
-              <input aria-label="Search reviews" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search text or name" className="min-h-11 w-full rounded-lg border border-ink-300 pl-8 pr-3 text-base sm:min-h-8 sm:text-sm" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400 max-md:left-3.5 max-md:h-5 max-md:w-5" aria-hidden />
+              <input aria-label="Search reviews" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search text or name" className="min-h-11 w-full rounded-lg border border-ink-300 pl-8 pr-3 text-base max-md:h-12 max-md:rounded-[14px] max-md:border-set-line max-md:bg-set-surface max-md:pl-10 sm:min-h-8 sm:text-sm" />
             </div>
             <div className="flex items-center gap-1.5">
               <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto no-scrollbar" role="tablist" aria-label="Reply status">
@@ -97,7 +111,7 @@ function Workspace({ children }: { children: ReactNode }) {
                   const on = f.reply_state === v;
                   return (
                     <button key={v} role="tab" aria-selected={on} onClick={() => { setF({ ...f, reply_state: v }); setPage(0); }}
-                      className={clsx("inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[10px] px-2.5 text-[13px] font-medium transition-colors sm:min-h-8", on ? "bg-ink-solid text-ink-on" : "text-ink-700 hover:bg-surface-2")}>
+                      className={clsx("inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[10px] px-2.5 text-[13px] font-medium transition-colors max-md:min-h-10 max-md:rounded-full max-md:px-4 max-md:font-bold sm:min-h-8", on ? "bg-ink-solid text-ink-on max-md:bg-set-navy max-md:text-white" : "text-ink-700 hover:bg-surface-2 max-md:bg-set-surface max-md:text-set-soft max-md:ring-1 max-md:ring-set-line")}>
                       {l}{n !== undefined && n > 0 && <span className="num text-[13px] opacity-70">{n}</span>}
                     </button>
                   );
@@ -132,10 +146,10 @@ function Workspace({ children }: { children: ReactNode }) {
                     const sensitive = r.sensitive_reasons.length > 0 && r.reply_state !== "published";
                     const on = seg === r.id;
                     return (
-                      <li key={r.id} className="border-b border-ink-100 last:border-b-0">
+                      <li key={r.id} className="border-b border-ink-100 last:border-b-0 max-md:mb-3 max-md:border-0">
                         <Link href={`/gbp/reviews/${r.id}`} aria-current={on ? "true" : undefined}
-                          className={clsx("relative grid gap-1 py-3 pl-4 pr-3 transition-colors", on ? "bg-accent-tint" : sensitive ? "bg-neg-tint/50 hover:bg-neg-tint" : "hover:bg-surface-2")}>
-                          <span aria-hidden className={clsx("absolute inset-y-0 left-0 w-[3px] origin-center transition-transform duration-300 ease-spring motion-reduce:transition-none", on ? "scale-y-100 bg-accent" : sensitive ? "scale-y-100 bg-neg" : clsx("scale-y-100", st.bar))} />
+                          className={clsx("relative grid gap-1 py-3 pl-4 pr-3 transition-colors max-md:gap-2.5 max-md:rounded-[18px] max-md:border max-md:border-set-line max-md:bg-set-surface max-md:p-4", on ? "bg-accent-tint" : sensitive ? "bg-neg-tint/50 hover:bg-neg-tint" : "hover:bg-surface-2")}>
+                          <span aria-hidden className={clsx("absolute inset-y-0 left-0 w-[3px] max-md:hidden origin-center transition-transform duration-300 ease-spring motion-reduce:transition-none", on ? "scale-y-100 bg-accent" : sensitive ? "scale-y-100 bg-neg" : clsx("scale-y-100", st.bar))} />
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-2"><Stars rating={r.rating} size={13} /><span data-words="skip" className="truncate text-sm font-semibold">{r.reviewer_name ?? "Google user"}</span></span>
                             <span className="shrink-0 text-xs text-ink-500">{timeAgo(r.review_created_at)}</span>
@@ -165,7 +179,7 @@ function Workspace({ children }: { children: ReactNode }) {
           )}
         </section>
 
-        <section aria-label="Review detail" className={clsx("min-h-0 min-w-0 overflow-y-auto bg-white", seg ? "block" : "hidden md:block")}><div key={seg ?? "none"} className="fq-slide">{children}</div></section>
+        <section aria-label="Review detail" className={clsx("min-h-0 min-w-0 overflow-y-auto bg-white", seg ? "block" : "hidden md:block", "max-md:bg-transparent")}><div key={seg ?? "none"} className="fq-slide">{children}</div></section>
       </div>
     </ReviewsCtx.Provider>
   );

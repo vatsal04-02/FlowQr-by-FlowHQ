@@ -1,4 +1,4 @@
-import { Bell, Building2, CreditCard, Database, Globe, History, Link2, MapPin, Palette, Plug, Receipt, Sparkles, User, Users } from "lucide-react";
+import { Bell, Building2, CreditCard, Database, Globe, History, Link2, MapPin, MessageCircle, Palette, Receipt, Share2, Sparkles, User, Users } from "lucide-react";
 import type { NavIcon } from "@/lib/nav";
 import type { Role } from "@/lib/types";
 
@@ -8,13 +8,13 @@ import type { Role } from "@/lib/types";
  * `status` names a live chip (see useSettingsStatus); a row without one shows its subtitle (what you can do or see there, under 40 characters).
  */
 export type GroupId = "account" | "business" | "connect" | "prefs" | "billing" | "security";
-export type StatusKey = "google" | "plan";
+export type StatusKey = "google" | "plan" | "whatsapp" | "meta";
 export type SettingsRow = { id: string; href: string; title: string; sub: string; icon: NavIcon; group: GroupId; only?: Role[]; status?: StatusKey; also?: string[] };
 
 export const GROUPS: { id: GroupId; label: string; action?: { label: string; href: string } }[] = [
   { id: "account", label: "Your account" },
   { id: "business", label: "Business" },
-  { id: "connect", label: "Connected accounts" },
+  { id: "connect", label: "Connected accounts", action: { label: "See all", href: "/settings/connections" } },
   { id: "prefs", label: "Preferences" },
   { id: "billing", label: "Billing" },
   { id: "security", label: "Security & activity" },
@@ -28,7 +28,8 @@ export const ROWS: SettingsRow[] = [
   { id: "team", href: "/settings/team", title: "Team", sub: "Who can sign in, and what they see", icon: Users, group: "business" },
 
   { id: "google", href: "/settings/connections/google", title: "Google Business Profile", sub: "Reviews, replies and your profile", icon: Link2, group: "connect", status: "google", also: ["/gbp/connect"] },
-  { id: "connections", href: "/settings/connections", title: "Other connections", sub: "WhatsApp, Facebook, email", icon: Plug, group: "connect" },
+  { id: "whatsapp", href: "/whatsapp/connect", title: "WhatsApp Business", sub: "Customer chats and messages", icon: MessageCircle, group: "connect", status: "whatsapp" },
+  { id: "meta", href: "/settings/connections", title: "Facebook and Instagram", sub: "Posting to your pages", icon: Share2, group: "connect", status: "meta" },
 
   { id: "notifications", href: "/settings/notifications", title: "Notifications", sub: "Which emails you get", icon: Bell, group: "prefs" },
   { id: "ai", href: "/settings/ai/voice", title: "AI and brand voice", sub: "How replies and posts sound", icon: Sparkles, group: "prefs", also: ["/settings/ai"] },
@@ -42,7 +43,8 @@ export const ROWS: SettingsRow[] = [
   { id: "data", href: "/settings/data", title: "Your data", sub: "Export or delete your data", icon: Database, group: "security" },
 ];
 
-export const rowsFor = (role: Role | null) => ROWS.filter((r) => !r.only || (role !== null && r.only.includes(role)));
+/** The rows this person may open. WhatsApp is listed only while the server has it switched on (same switch as the sidebar). */
+export const rowsFor = (role: Role | null, flags: { whatsapp?: boolean } = {}) => ROWS.filter((r) => (!r.only || (role !== null && r.only.includes(role))) && (r.id !== "whatsapp" || !!flags.whatsapp));
 
 const covers = (path: string, h: string) => path === h || path.startsWith(h + "/");
 /** The row a path belongs to (the longest matching address wins, so /settings/billing/payments is Payments, not Plan). */

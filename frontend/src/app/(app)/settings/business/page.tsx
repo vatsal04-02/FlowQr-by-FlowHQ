@@ -16,11 +16,14 @@ export default function BusinessProfilePage() {
   const { tenant, isAdmin, refresh } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const f = useForm({
+  const start = {
     name: tenant?.name ?? "", category: tenant?.category ?? CATEGORIES[0], email: tenant?.email ?? "", phone: tenant?.phone ?? "", address: tenant?.address ?? "", website: tenant?.website ?? "",
     logo_url: tenant?.logo_url ?? "",
-  }, { name: required("Business name"), email: (v) => (String(v).trim() ? emailRule(v) : undefined), phone: phoneRule,
+  };
+  const f = useForm(start, { name: required("Business name"), email: (v) => (String(v).trim() ? emailRule(v) : undefined), phone: phoneRule,
     logo_url: (v) => (!String(v).trim() || String(v).startsWith("https://") ? undefined : "Logo link must start with https://") });
+
+  const discard = () => { f.setValues(start); f.setServerError(null); };
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); f.setServerError(null);
@@ -52,7 +55,7 @@ export default function BusinessProfilePage() {
             <Input label="Logo link" inputMode="url" placeholder="https://…/logo.png" hint="Shown on the QR landing page. Must be an https link to an image you own." {...f.bind("logo_url")} />
           </fieldset>
         </Panel>
-        {isAdmin && <StickyActionBar note="Your customers see these details on the review page."><Button type="submit" variant="brand" loading={busy} className="w-full md:w-auto">Save business profile</Button></StickyActionBar>}
+        {isAdmin && <StickyActionBar note="Your customers see these details on the review page."><Button type="button" variant="secondary" onClick={discard} className="w-full md:w-auto">Discard</Button><Button type="submit" variant="brand" loading={busy} className="w-full md:w-auto">Save changes</Button></StickyActionBar>}
       </form>
     </>
   );

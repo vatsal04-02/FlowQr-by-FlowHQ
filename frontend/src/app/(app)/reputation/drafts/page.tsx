@@ -45,7 +45,7 @@ function DraftCard({ r, canApprove, onDone, selected }: { r: Review; canApprove:
   }
 
   return (
-    <li className={clsx("flex flex-col rounded-tile p-[18px]", selected ? "bg-accent-tint ring-1 ring-inset ring-accent-edge" : "bg-surface-2")}>
+    <li className={clsx("flex flex-col rounded-tile p-[18px] max-md:rounded-[18px] max-md:p-4", selected ? "bg-accent-tint ring-1 ring-inset ring-accent-edge" : "bg-surface-2 max-md:border max-md:border-set-line max-md:bg-set-surface")}>
       <div className="flex items-start justify-between gap-3">
         <span className={clsx("grid h-10 w-10 shrink-0 place-items-center rounded-inner bg-surface", flagged ? "text-warn" : "text-accent-ink")} aria-hidden>{flagged ? <AlertTriangle className="h-[18px] w-[18px]" /> : <Star className="h-[18px] w-[18px]" />}</span>
         <span className="text-xs text-muted">{timeAgo(r.review_created_at)}</span>

@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 import clsx from "clsx";
 import { Download, Image as ImageIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Ring, toneOf } from "@/components/charts/Bars";
 import { CountUp } from "@/components/charts/CountUp";
 import { SendLink } from "@/components/growth/SendLink";
@@ -85,9 +85,11 @@ export default function GoalsPage() {
 
   return (
     <>
-      <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Goals</h1>
+      <h1 className="fq-page-title mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Goals</h1>
+      <GoalHero rv={rv} loading={score.loading && !rv} isAdmin={isAdmin} onEdit={() => { setGoalVal(String(rv?.goal ?? 10)); setGoalOpen(true); }}
+        send={pick ? <SendLink url={pick.url} name={tenant?.name ?? pick.name} label="Send review link" variant="brand" size="md" className="!min-h-[52px] w-full !rounded-[14px] !text-[15px] !font-extrabold" /> : <LinkButton href="/gbp/campaigns" variant="brand" className="!min-h-[52px] w-full">Set up a review link</LinkButton>} />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <Card label="This month" tone="teal" className="lg:col-span-7">
+        <Card label="This month" tone="teal" className="max-md:hidden lg:col-span-7">
           <Title>This month</Title>
           {score.loading && !rv ? <Skeleton className="mt-3 h-36" /> : (
             <div className="mt-3 flex flex-wrap items-center gap-5">
@@ -140,6 +142,37 @@ export default function GoalsPage() {
 }
 
 /** Goal ring colour by pace, not by share: 20 of 80 on day 16 is on track, so it reads green. Expected = goal × share of the month gone. */
+function GoalHero({ rv, loading, isAdmin, onEdit, send }: { rv: { count?: number | null; goal?: number | null; to_go?: number | null; days_left?: number | null; goal_set?: boolean } | null | undefined; loading: boolean; isAdmin: boolean; onEdit: () => void; send: ReactNode }) {
+  if (loading) return <Skeleton className="mb-4 h-56 md:hidden" />;
+  const count = rv?.count ?? 0, goal = rv?.goal ?? 0, daysLeft = rv?.days_left ?? 0;
+  const now = new Date(), days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const expected = goal ? goal * (Math.max(1, days - daysLeft) / days) : 0, behind = expected - count, cells = Math.max(1, Math.min(goal || 5, 20));
+  const filled = goal ? Math.min(cells, Math.round((count / goal) * cells)) : 0, toGo = rv?.to_go ?? Math.max(0, goal - count);
+  return (
+    <section aria-label="This month" className="mb-4 flex flex-col gap-4 rounded-[22px] bg-set-navy p-5 text-white md:hidden">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="num text-[32px] font-extrabold leading-[1.1] tracking-[-0.02em]">{goal ? (toGo > 0 ? `${toGo} to go` : "Goal reached") : "No goal yet"}</span>
+        {goal ? <span className="text-sm font-semibold text-white/75">{daysLeft} {daysLeft === 1 ? "day" : "days"} left</span> : null}
+      </div>
+      {goal ? (
+        <>
+          <div className="flex gap-1.5" role="img" aria-label={`${count} of ${goal} reviews this month`}>
+            {Array.from({ length: cells }, (_, i) => <span key={i} className={clsx("h-2.5 flex-1 rounded-[5px]", i < filled ? "bg-[#FB923C]" : "bg-white/20")} />)}
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-bold">{count} of {goal} this month</span>
+            <span className="text-[13px] leading-snug text-white/75">Pace for today is {expected.toFixed(1)}, so you&rsquo;re {behind > 0 ? `${behind.toFixed(1)} behind` : "on track"}.</span>
+          </div>
+        </>
+      ) : <p className="text-[13px] leading-snug text-white/75">Set a monthly review goal and FlowQR shows your pace each day.</p>}
+      <div className="flex flex-wrap gap-2.5">
+        <div className="min-w-[160px] flex-1">{send}</div>
+        {isAdmin && <button type="button" onClick={onEdit} className="h-[52px] rounded-[14px] border-[1.5px] border-white/40 px-5 text-sm font-bold text-white">{rv?.goal_set ? "Edit goal" : "Set goal"}</button>}
+      </div>
+    </section>
+  );
+}
+
 function paceTone(rv: { count?: number | null; goal?: number | null; days_left?: number | null } | null | undefined) {
   if (!rv || !rv.goal) return undefined;
   const now = new Date(), days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();

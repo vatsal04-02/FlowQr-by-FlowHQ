@@ -30,7 +30,7 @@ export function Sheet({ open, onClose, title, children, footer }: { open: boolea
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-[55] flex items-end justify-center md:items-center md:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} onKeyDown={onKey}>
+        <motion.div className="fixed inset-0 z-[56] flex items-end justify-center md:items-center md:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} onKeyDown={onKey}>
           <button type="button" aria-label="Close" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/40" />
           <motion.div ref={panel} role="dialog" aria-modal="true" aria-label={title}
             initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} transition={{ duration: 0.2, ease: [0.2, 0.7, 0.2, 1] }}

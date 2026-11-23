@@ -4,13 +4,13 @@ import type { ReactNode } from "react";
 
 /** DESIGN.md "Card": white, 28px radius, soft shadow, no border. */
 export function Card({ children, className, pad = true }: { children: ReactNode; className?: string; pad?: boolean }) {
-  return <section className={clsx("panel min-w-0", pad && "p-5 sm:p-6", className)}>{children}</section>;
+  return <section className={clsx("panel min-w-0", pad && "p-4 sm:p-6", className)}>{children}</section>;
 }
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-[18px] font-semibold leading-6">{title}</h2>{subtitle && <p className="mt-0.5 text-[15px] leading-[22px] text-muted">{subtitle}</p>}</div>
+      <div><h2 className="fq-card-title text-[18px] font-semibold leading-6">{title}</h2>{subtitle && <p className="fq-page-sub mt-0.5 text-[15px] leading-[22px] text-muted">{subtitle}</p>}</div>
       {action}
     </div>
   );
@@ -22,8 +22,8 @@ export function PageHeader({ title, subtitle, actions, eyebrow }: { title: strin
     <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 sm:mb-5 lg:mb-6">
       <div className="min-w-0">
         {/* `eyebrow` is accepted for older callers but not shown: the section pill and the rail already say where you are. */}
-        <h1 className="text-[30px] font-bold leading-[36px] tracking-[-.015em] text-ink sm:text-[32px] sm:leading-10 lg:text-[34px]">{title}</h1>
-        {subtitle && <div className="mt-1.5 max-w-2xl text-[15px] leading-[22px] text-muted sm:text-base sm:leading-6">{subtitle}</div>}
+        <h1 className="fq-page-title text-[30px] font-bold leading-[36px] tracking-[-.015em] text-ink sm:text-[32px] sm:leading-10 lg:text-[34px]">{title}</h1>
+        {subtitle && <div className="fq-page-sub mt-1.5 max-w-2xl text-[15px] leading-[22px] text-muted sm:text-base sm:leading-6">{subtitle}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -72,7 +72,7 @@ export function Alert({ tone = "info", title, children, action }: { tone?: "info
 /** Says what is missing, why, and the next step. Never fake data (product rule). */
 export function EmptyState({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="panel flex flex-wrap items-start gap-4 p-5 sm:p-6">
+    <div className="panel flex flex-wrap items-start gap-4 p-4 sm:p-6">
       {icon && <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-accent-tint text-accent-ink [&_svg]:h-6 [&_svg]:w-6" aria-hidden>{icon}</div>}
       <div className="min-w-0 flex-1 basis-60">
         <h3 className="text-lg font-semibold">{title}</h3>

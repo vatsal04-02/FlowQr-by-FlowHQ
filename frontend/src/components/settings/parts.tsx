@@ -26,7 +26,7 @@ const TILE: Record<GroupId, string> = {
 };
 
 /** One row: 40px icon tile in the group's tint, title, then a status chip or a short subtitle, an optional value, a chevron. The whole row is the link. */
-export function SettingsRow({ row, chip, value, current }: { row: RowT; chip?: { kind: ChipKind; label: string } | null; value?: ReactNode; current?: boolean }) {
+export function SettingsRow({ row, chip, sub, value, current }: { row: RowT; chip?: { kind: ChipKind; label: string } | null; sub?: string; value?: ReactNode; current?: boolean }) {
   const Icon = row.icon;
   return (
     <Link href={row.href} aria-current={current ? "page" : undefined}
@@ -34,7 +34,7 @@ export function SettingsRow({ row, chip, value, current }: { row: RowT; chip?: {
       <span aria-hidden className={clsx("grid h-10 w-10 shrink-0 place-items-center rounded-xl", TILE[row.group])}><Icon className="h-5 w-5" strokeWidth={1.75} /></span>
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-bold leading-tight text-set-ink">{row.title}</span>
-        {chip ? <StatusChip kind={chip.kind} className="mt-1">{chip.label}</StatusChip> : <span className="mt-0.5 block truncate text-[13px] font-medium leading-snug text-set-muted">{row.sub}</span>}
+        {chip ? <StatusChip kind={chip.kind} className="mt-1">{chip.label}</StatusChip> : <span className="mt-0.5 block truncate text-[13px] font-medium leading-snug text-set-muted">{sub ?? row.sub}</span>}
       </span>
       {value && <span className="shrink-0 text-[13px] font-medium text-set-muted">{value}</span>}
       <ChevronRight aria-hidden className="h-[18px] w-[18px] shrink-0 text-set-switch-off" />
@@ -55,7 +55,7 @@ export function SettingsGroup({ label, action, children, id }: { label: string; 
   );
 }
 
-export type AttentionItem = { id: string; text: string; href: string; cta: string };
+export type AttentionItem = { id: string; text: string; sub?: string; href: string; cta: string };
 
 /** At the top of the hub, once: "N things need attention", each a link to the fix. Gone when nothing is left. */
 export function AttentionCard({ items }: { items: AttentionItem[] }) {
@@ -66,9 +66,9 @@ export function AttentionCard({ items }: { items: AttentionItem[] }) {
       <ul className="mt-2 divide-y divide-set-attn-line/70">
         {items.map((i) => (
           <li key={i.id}>
-            <Link href={i.href} className="set-focus flex min-h-11 items-center justify-between gap-3 py-2 text-[14px] font-medium text-set-attn-body">
-              <span className="min-w-0">{i.text}</span>
-              <span className="inline-flex shrink-0 items-center gap-0.5 font-bold text-set-attn-title">{i.cta}<ChevronRight aria-hidden className="h-4 w-4" /></span>
+            <Link href={i.href} className="set-focus flex min-h-12 items-center justify-between gap-3 py-2.5">
+              <span className="min-w-0"><span className="block text-[14px] font-bold text-set-attn-title">{i.text}</span>{i.sub && <span className="block text-[13px] font-medium leading-snug text-set-attn-body">{i.sub}</span>}</span>
+              <span className="inline-flex shrink-0 items-center text-set-attn-title"><span className="sr-only">{i.cta}</span><ChevronRight aria-hidden className="h-5 w-5" /></span>
             </Link>
           </li>
         ))}
