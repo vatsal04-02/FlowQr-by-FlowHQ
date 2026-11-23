@@ -412,3 +412,11 @@ html.fq-app[data-theme="dark"] .set-focus:focus-visible { outline-color: rgb(var
   .fq-sticky-bar { position: sticky; bottom: calc(env(safe-area-inset-bottom) + 76px); z-index: 20; }
   @media (min-width: 1024px) { .fq-sticky-bar { bottom: 16px; } }
 }
+
+/* ---- Phone screens match the design canvas: 18px cards with a hairline border, 28px page titles, 17px card titles. Laptop widths are untouched. ---- */
+@media (max-width: 767px) {
+  html.fq-app .panel { border-radius: 18px; background: rgb(var(--s-surface)); border: 1px solid rgb(var(--s-line)); box-shadow: 0 1px 2px rgb(20 22 58 / .05); }
+  html.fq-app .fq-page-title { font-size: 28px; line-height: 32px; font-weight: 800; letter-spacing: -0.02em; color: rgb(var(--s-ink)); }
+  html.fq-app .fq-card-title { font-size: 17px; line-height: 24px; font-weight: 800; color: rgb(var(--s-ink)); }
+  html.fq-app .fq-page-sub { font-size: 14px; line-height: 21px; color: rgb(var(--s-muted)); }
+}
