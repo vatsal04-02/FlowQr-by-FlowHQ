@@ -868,6 +868,21 @@ def _invitation_withdrawn(db: Session, conn: GoogleConnection, gl: GoogleLocatio
     return not any(e.pending for e in entries)
 
 
+def pick_invitation(invitations, gl: GoogleLocation):
+    """The pending invitation that is for THIS location, or None. Two exact identifiers only, never a display name: the location's resource id (`locations/456`, what the reference documents), or
+    its Google place id. Google's live answer (2026-11-23) carries the display name in `locationName` ("FlowHQ") and the place id beside it, so a plain id comparison never matched and the
+    invitation was never accepted. A place id that matches more than one invitation is ambiguous and accepts nothing."""
+    want = location_key(gl.google_location_name)
+    by_id = [i for i in invitations if location_key(i.location_name) == want]
+    if by_id:
+        return by_id[0]
+    if gl.place_id:
+        by_place = [i for i in invitations if getattr(i, "place_id", None) and i.place_id == gl.place_id]
+        if len(by_place) == 1:
+            return by_place[0]
+    return None
+
+
 def _step_accept(db: Session, conn: GoogleConnection, gl: GoogleLocation, a: Auth, client, provider) -> None:
     try:
         token = agency_access_token(a.agency_account_id, provider)
@@ -880,12 +895,11 @@ def _step_accept(db: Session, conn: GoogleConnection, gl: GoogleLocation, a: Aut
     group = a.target_type == GROUP
     try:
         if not inv_name:
-            want = location_key(gl.google_location_name)
-            # A group invitation is looked for in the GROUP's own list first (TODO(verify): that is where Google puts it). A refusal there means this agency user has no access to the
+            # A group invitation is looked for in the GROUP's own list first (CONFIRMED live: that is where Google puts it). A refusal there means this agency user has no access to the
             # group. If it is not in that list, every account the user can see is searched, and the account it was really found under is recorded, never assumed.
-            found = next((i for i in client.list_pending_invitations(token, [a.target_account_name] if group else None) if location_key(i.location_name) == want), None)
+            found = pick_invitation(client.list_pending_invitations(token, [a.target_account_name] if group else None), gl)
             if found is None and group and settings.google_agency_invitation_discovery:
-                found = next((i for i in client.list_pending_invitations(token) if location_key(i.location_name) == want), None)
+                found = pick_invitation(client.list_pending_invitations(token), gl)
             if found is not None:
                 inv_name, a.receiving_account_name = found.name, found.receiving_account
         if not inv_name:

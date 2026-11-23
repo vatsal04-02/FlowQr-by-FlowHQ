@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { newRequestId, parseConsent } from "@/lib/agency-ui";
 import {
-  actionsToSend, canApprove, initialActions, extraNote, pollDelay, progressSummary, stateLabel, stateTone, stepTone, stepWord, toggleAction, visibleActions,
+  actionsToSend, canApprove, withRestartApproval, initialActions, extraNote, pollDelay, progressSummary, stateLabel, stateTone, stepTone, stepWord, toggleAction, visibleActions,
   type ActionCategory, type AvailableLocation, type Journey, type JourneyResponse, type JourneyStep, type StartView,
 } from "@/lib/agency-journey";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -118,6 +118,8 @@ function JourneyCard({ j, data, canAct, busy, connecting, onConnect, onCheck, on
   j: Journey; data: JourneyResponse; canAct: boolean; busy: boolean; connecting: boolean; onConnect: () => void; onCheck: () => void; onStop: () => void; onChanged: () => void;
 }) {
   const actions = visibleActions(j.actions, canAct);
+  const [restarting, setRestarting] = useState(false);  // "Start again" opens the approval below; nothing is sent until the customer approves it
+  const withApproval = { ...j, actions: withRestartApproval(j.actions, restarting) };
   const sel = j.locations[0];
   const sum = progressSummary(j.steps);
   return (
@@ -137,14 +139,14 @@ function JourneyCard({ j, data, canAct, busy, connecting, onConnect, onCheck, on
           <div className="mt-4 flex flex-wrap gap-2">
             {actions.map((a) => a === "connect" ? <Button key={a} size="sm" variant="secondary" icon={<Link2 className="h-4 w-4" />} loading={connecting} onClick={onConnect}>{j.google.status === "active" ? "Reconnect Google" : "Connect Google"}</Button>
               : a === "check_again" ? <Button key={a} size="sm" variant="secondary" loading={busy} onClick={onCheck}>Check again</Button>
-              : a === "restart" ? <Button key={a} size="sm" variant="secondary" onClick={onConnect}>Start again</Button>
+              : a === "restart" ? <Button key={a} size="sm" variant="secondary" onClick={() => setRestarting(true)}>Start again</Button>
               : <Button key={a} size="sm" variant="danger" onClick={onStop}>Stop FlowQR managing my profile</Button>)}
           </div>
         )}
       </Panel>
 
       {j.actions.includes("select_location") && <LocationPicker j={j} canAct={canAct} onChanged={onChanged} onConnect={onConnect} />}
-      {(j.actions.includes("approve") || (j.state === "CUSTOMER_CONSENT_PENDING")) && <ConsentPanel j={j} data={data} canAct={canAct} onChanged={onChanged} />}
+      {(withApproval.actions.includes("approve") || (j.state === "CUSTOMER_CONSENT_PENDING")) && <ConsentPanel j={withApproval} data={data} canAct={canAct} onChanged={() => { setRestarting(false); onChanged(); }} />}
       {sel && j.state !== "LOCATION_SELECTION_PENDING" && j.state !== "CUSTOMER_CONSENT_PENDING" && <Details j={j} data={data} />}
       <Account j={j} />
     </>

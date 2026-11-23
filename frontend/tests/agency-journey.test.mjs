@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   JOURNEY_STATES, STATE_TONE, stateTone, stateLabel, isWorking, isEnded, pollDelay, stepTone, stepWord, progressSummary, initialActions, toggleAction, actionsToSend, canApprove,
-  visibleActions, actionLabel, OPERATOR_FILTERS, stateCounts, WORKING_STATES,
+  withRestartApproval, visibleActions, actionLabel, OPERATOR_FILTERS, stateCounts, WORKING_STATES,
 } from "../src/lib/agency-journey.ts";
 
 const CATALOG = [
@@ -104,4 +104,13 @@ test("the guided-setup entry is shown only when the server says the path is open
   assert.equal(journeyOffered({}), false); // an older server that does not say is treated as closed, never as open
   assert.equal(journeyOffered(null), false);
   assert.equal(journeyOffered(undefined), false);
+});
+
+test("Start again opens the approval only when the server offered restart, and never invents approve", () => {
+  assert.deepEqual(withRestartApproval(["connect", "restart"], true), ["connect", "restart", "approve"]);
+  assert.deepEqual(withRestartApproval(["connect", "restart"], false), ["connect", "restart"]);
+  assert.deepEqual(withRestartApproval(["connect", "disconnect"], true), ["connect", "disconnect"]); // not offered: nothing opens
+  assert.deepEqual(withRestartApproval(["approve", "restart"], true), ["approve", "restart"]);
+  assert.equal(canApprove({ agreed: true, canAct: true, offered: withRestartApproval(["connect", "restart"], true), locations: 1 }), true);
+  assert.equal(canApprove({ agreed: true, canAct: true, offered: withRestartApproval(["connect", "restart"], false), locations: 1 }), false);
 });
