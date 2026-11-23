@@ -397,7 +397,7 @@ export function PricingExperience({ plans, terms, sub, isOwner, trialDays, offer
   const locked = sub?.source === "prepaid" && sub.active && endsOn ? `Your plan is active until ${endsOn}. You can buy another term then.` : sub?.has_cashfree_subscription || sub?.has_razorpay_subscription ? "You already have a monthly payment set up. Contact support to move to a prepaid plan." : null;
 
   return (
-    <div className="mt-8 sm:mt-12">
+    <div id="plans" className="mt-8 scroll-mt-4 sm:mt-12">
       <Hero trialDays={trialDays} />
       {!plans ? <div className="space-y-3" aria-busy="true" aria-label="Loading plans"><Skeleton className="h-12 rounded-full" /><div className="grid gap-3 md:grid-cols-3"><Skeleton className="h-[26rem] rounded-[22px]" /><Skeleton className="hidden h-[26rem] rounded-[22px] md:block" /><Skeleton className="hidden h-[26rem] rounded-[22px] md:block" /></div></div>
         : !ready ? <Alert tone="warning" title="Plan prices are unavailable right now">We could not load the price list, so we are not showing any. Please refresh in a moment. Nothing about your account has changed.</Alert>

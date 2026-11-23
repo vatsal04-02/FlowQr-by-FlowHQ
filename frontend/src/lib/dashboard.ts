@@ -71,7 +71,7 @@ export interface Todo { id: string; tone: "bad" | "warn" | "info"; title: string
 const n = (v: number, one: string, many: string) => `${v} ${plural(v, one, many)}`;
 
 const TASK_ACTION: Partial<Record<Task["kind"], [string, string]>> = {
-  profile_fix: ["/gbp/info", "Fix it"], add_photo: ["/gbp/photos", "Add photos"], connect_google: ["/gbp/locations", "Connect Google"],
+  profile_fix: ["/gbp/info", "Fix it"], add_photo: ["/gbp/photos", "Add photos"], connect_google: ["/settings/connections/google", "Connect Google"],
   complete_knowledge: ["/settings/ai/brain", "Add details"], create_post: ["/ai/tasks", "Write the post"],
 };
 
@@ -103,7 +103,7 @@ export function buildTodos(a: {
   const noLink = a.locations.filter((l) => l.is_active && !l.review_url);
   if (noLink.length) out.push({ id: "no-link", tone: "warn", title: `${noLink.map((l) => l.name).join(", ")} can't send customers to Google yet`, detail: "Add your Google review link so customers who scan a card can leave a review.", href: "/gbp/locations", cta: "Add the link" });
   if (!a.connections.some((c) => c.status === "active") && (o?.reviews.total_synced ?? 0) === 0 && !out.some((x) => x.id.startsWith("task-") && x.cta === "Connect Google")) {
-    out.push({ id: "connect", tone: "info", title: "Connect Google", detail: a.googleConfigured === false ? "Google sign-in isn't switched on for this server yet. Cards and the review helper still work." : "Then your reviews appear here and the AI can help you reply.", href: "/gbp/locations", cta: "Connect Google" });
+    out.push({ id: "connect", tone: "info", title: "Connect Google", detail: a.googleConfigured === false ? "Google sign-in isn't switched on for this server yet. Cards and the review helper still work." : "Then your reviews appear here and the AI can help you reply.", href: "/settings/connections/google", cta: "Connect Google" });
   }
   const rank = { bad: 0, warn: 1, info: 2 };
   return out.sort((x, y) => rank[x.tone] - rank[y.tone]);

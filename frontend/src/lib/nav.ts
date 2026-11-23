@@ -36,7 +36,7 @@ export const DESTS: Dest[] = [
     { href: "/reputation/drafts", label: "Drafts" },
     { href: "/reputation/insights", label: "Insights" },
   ] },
-  { id: "seo", href: "/seo", label: "GBP", desc: "Google Business Profile: how you show up on Google", icon: GbpIcon, group: "main", children: [
+  { id: "seo", href: "/seo", label: "GBP", short: "Google", desc: "Google Business Profile: how you show up on Google", icon: GbpIcon, group: "main", children: [
     { href: "/seo", label: "Overview" },
     { href: "/seo/rankings", label: "Rankings", also: ["/seo/searches", "/seo/competitors"] },
     { href: "/seo/performance", label: "Performance" },
@@ -84,22 +84,8 @@ export const DESTS: Dest[] = [
     { href: "/ai/approvals", label: "Approvals" },
   ] },
   { id: "activity", href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph, group: "assistant" },
-  { id: "settings", href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph, group: "account", children: [
-    { href: "/settings", label: "Business" },
-    { href: "/settings/account", label: "Account" },
-    { href: "/settings/team", label: "Team" },
-    { href: "/settings/connections", label: "Connections" },
-    { href: "/settings/notifications", label: "Notifications" },
-    { href: "/settings/ai/voice", label: "AI & automation", also: ["/settings/ai"], tabs: [
-      { href: "/settings/ai/voice", label: "Voice" }, { href: "/settings/ai/brain", label: "Brain" }, { href: "/settings/ai/autonomy", label: "Autonomy", only: ["owner", "admin"] }, { href: "/settings/ai/usage", label: "Usage", only: ["owner", "admin"] },
-    ] },
-    { href: "/settings/appearance", label: "Appearance" },
-    { href: "/settings/audit", label: "Audit", only: ["owner", "admin"] },
-  ] },
-  { id: "billing", href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, group: "account", only: ["owner", "admin"], children: [
-    { href: "/settings/billing", label: "Plan" },
-    { href: "/settings/billing/payments", label: "Payments" },
-  ] },
+  { id: "settings", href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph, group: "account" },
+  { id: "billing", href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, group: "account", only: ["owner", "admin"] },
 ];
 
 /** The four destinations on the phone's bottom bar, in order. The fifth, More, opens the sheet below. */

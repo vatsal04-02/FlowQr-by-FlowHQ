@@ -1,4 +1,5 @@
 "use client";
+import { ConnectGoogleEmptyState } from "@/components/settings/parts";
 import clsx from "clsx";
 import { Check, ChevronRight } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +27,7 @@ export default function ProfilePage() {
       <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Profile</h1>
       {q.error && <Alert tone="error">{q.error}</Alert>}
       {q.loading && !d ? <Skeleton className="h-64" /> : !d || d.state === "no_location" ? (
-        <Card><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-[14px] text-muted">Connect a Google location first.</p><LinkButton href="/gbp/locations" variant="secondary" size="sm">Connect Google</LinkButton></div></Card>
+        <ConnectGoogleEmptyState what="The profile checklist needs a connected Google location." />
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
           {d.locations.map((l) => {

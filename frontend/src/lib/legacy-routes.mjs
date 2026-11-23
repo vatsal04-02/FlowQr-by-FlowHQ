@@ -5,6 +5,8 @@
 // Order matters: the more specific path comes first.
 /** @type {[string, string][]} */
 export const LEGACY_ROUTES = [
+  // Settings pass: Google has one home (the Google connection page absorbed the guided-setup page)
+  ["/gbp/connect", "/settings/connections/google"],
   // The book-a-demo page was removed: old links go to Sign up.
   ["/demo", "/register"],
   // ---- Phase 3 UI plan: GBP (was SEO & Google) and Growth sections (one hop from every older URL)

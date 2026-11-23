@@ -68,7 +68,7 @@ export function GoogleProfileCard() {
     const none = !g.anyConn, why = none ? "Connect your Google Business Profile and your photos, rating, address and hours will show here, the way customers see them on Google."
       : g.anyConn?.status === "revoked" ? "Google access was lost. Reconnect to show your profile here." : "Choose a location to show its Google profile here.";
     return (
-      <Panel dense title="How Google shows you" action={<LinkButton href="/gbp/locations" variant="secondary" size="sm">{none ? "Connect Google" : "Open Google connection"}</LinkButton>}>
+      <Panel dense title="How Google shows you" action={<LinkButton href="/settings/connections/google" variant="secondary" size="sm">{none ? "Connect Google" : "Open Google connection"}</LinkButton>}>
         <div className="flex items-center gap-4"><span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-[14px] bg-surface-2"><ImageIcon className="h-6 w-6 text-muted" /></span><p className="max-w-xl text-[14px] text-muted">{why}</p></div>
       </Panel>
     );

@@ -2,9 +2,9 @@
 import clsx from "clsx";
 import { ExternalLink, MapPin, Pencil, Plus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { GoogleConnectionSection } from "@/components/gbp/GoogleConnection";
 import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
 import { ErrorSummary, Input } from "@/components/ui/Form";
 import { Status } from "@/components/ui/kit";
@@ -21,6 +21,10 @@ import { useFetch } from "@/lib/use-api";
 const COLS = "md:grid-cols-[minmax(0,1.15fr)_minmax(0,1.2fr)_minmax(0,1.35fr)_minmax(0,1fr)_auto]";
 
 export default function LocationsPage() {
+  // Google sends people back here after sign-in (and old emails link here): the connection now lives on its own page, so carry them there with the result.
+  const router = useRouter();
+  const sp = useSearchParams();
+  useEffect(() => { if (sp.get("connected") || sp.get("error")) router.replace(`/settings/connections/google?${sp.toString()}`); }, [sp, router]);
   const { isAdmin, role } = useAuth();
   const toast = useToast();
   const { data, error, loading, reload } = useFetch<Location[]>("/locations");
@@ -52,7 +56,7 @@ export default function LocationsPage() {
       <PageHeader title="Locations & Google"
         subtitle={data ? `${data.length} ${data.length === 1 ? "branch" : "branches"} · ${connected} synced with Google · ${needs ? `${needs} need${needs === 1 ? "s" : ""} attention` : "all healthy"}` : "Each branch has its own cards, review link and stats."}
         actions={isAdmin ? <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => setEditing("new")}>Add location</Button> : undefined} />
-      <div className="panel mb-6 p-5 sm:p-6"><GoogleConnectionSection /></div>
+      <Link href="/settings/connections/google" className="panel mb-6 flex min-h-[68px] items-center justify-between gap-3 p-4 hover:bg-surface-2"><span className="min-w-0"><span className="block font-semibold">Google connection</span><span className="block text-[13px] text-muted">{conn ? "Connected. Choose locations, or stop FlowQR managing your profile." : "Not connected. Connect once to sync reviews."}</span></span><span className="shrink-0 text-[13px] font-semibold text-accent-ink">Open</span></Link>
       <h2 className="mb-3 text-lg font-semibold">Your locations</h2>
       {error && <Alert tone="error">{error}</Alert>}
       {loading && !data ? <Skeleton className="h-48" /> : data && data.length === 0 ? (
@@ -64,9 +68,8 @@ export default function LocationsPage() {
           </div>
           <ul className="divide-y divide-ink-100">
             {rows.map(({ l, g, mine, sync, attention }) => (
-              <li key={l.id} className={clsx("relative grid gap-x-4 gap-y-2 px-4 py-3.5", COLS, !l.is_active && "opacity-60")}>
-                {attention && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-amber-500" />}
-                <div className="min-w-0">
+              <li key={l.id} className={clsx("relative grid gap-x-4 gap-y-2 px-4 py-3.5", COLS, !l.is_active && "opacity-60", attention && "bg-warn-tint/40")}>
+                                <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{l.name}{!l.is_active && <span className="ml-2 text-xs font-normal text-ink-500">deactivated</span>}</p>
                   <p className="truncate text-[13px] text-ink-500">{[l.address_line, l.city, l.state, l.postal_code].filter(Boolean).join(", ") || "No address"}</p>
                 </div>

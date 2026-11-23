@@ -1,4 +1,5 @@
 "use client";
+import { ConnectGoogleEmptyState } from "@/components/settings/parts";
 import Link from "next/link";
 import { Ring } from "@/components/charts/Bars";
 import { Card, Dashes, RankLadder, SeeAll, Title, WhoIsAhead } from "@/components/seo/visuals";
@@ -40,7 +41,7 @@ export default function SeoOverviewPage() {
         <Card label="Your words on Google Maps" className="lg:col-span-7">
           <Title right={<SourceTag source="places" />}>Your words on Maps</Title>
           <div className="mt-4">
-            {ov.loading && !d ? <Skeleton className="h-40" /> : !d || d.state === "no_location" ? <Empty text="Connect a Google location to track words." href="/gbp/locations" cta="Connect Google" />
+            {ov.loading && !d ? <Skeleton className="h-40" /> : !d || d.state === "no_location" ? <ConnectGoogleEmptyState compact what="Tracking words needs a connected Google location." />
               : d.keywords.length === 0 ? <Empty text="Add the words customers search for." href="/seo/rankings" cta="Add a word" />
               : <><RankLadder words={d.keywords} limit={4} />{d.keywords.length > 4 && <div className="mt-2"><SeeAll href="/seo/rankings" /></div>}</>}
           </div>

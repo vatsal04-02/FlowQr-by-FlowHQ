@@ -4,18 +4,26 @@ import { CornerDownLeft, MapPin, MessageSquare, QrCode, Search, Star } from "luc
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { ROWS } from "@/components/settings/model";
 import type { Dest } from "@/lib/nav";
 
 type Entry = { key: string; label: string; hint: string; href: string; icon: Dest["icon"] };
 
 /** Every page this person can see (and each page's sibling pages and tabs), flattened. */
-const pagesOf = (dests: Dest[]): Entry[] => dests.flatMap((d) => [
+const navPages = (dests: Dest[]): Entry[] => dests.flatMap((d) => [
   { key: d.href, label: d.label, hint: d.desc, href: d.href, icon: d.icon },
   ...(d.children ?? []).filter((c) => c.href !== d.href).flatMap((c) => [
     { key: c.href, label: c.label, hint: d.label, href: c.href, icon: d.icon },
     ...(c.tabs ?? []).filter((t) => t.href !== c.href).map((t) => ({ key: t.href, label: t.label, hint: `${d.label} · ${c.label}`, href: t.href, icon: d.icon })),
   ]),
 ]);
+
+/** The settings pages (the sidebar lists Settings as one item): those this person may open, found by title or what is on them. */
+const settingsPages = (dests: Dest[]): Entry[] => {
+  const admin = dests.some((d) => d.id === "billing");   // billing is listed for owners and admins only, the same people who see the audit log
+  return ROWS.filter((r) => !r.only || admin).map((r) => ({ key: r.href, label: r.title, hint: `Settings · ${r.sub}`, href: r.href, icon: r.icon }));
+};
+const pagesOf = (dests: Dest[]): Entry[] => [...navPages(dests), ...settingsPages(dests)];
 
 /**
  * Ctrl/⌘ K: jump to any page, or search reviews by reviewer or text (opens the reviews inbox with that search). Keyboard first:

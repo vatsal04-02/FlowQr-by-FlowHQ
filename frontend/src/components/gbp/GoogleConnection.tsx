@@ -1,4 +1,5 @@
 "use client";
+import { AgencyJourneyScreen } from "@/components/gbp/AgencyJourney";
 import { Check, Link2, RefreshCw, Unplug, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -76,7 +77,7 @@ function Inner() {
       {pending && <div className="mb-4"><Alert tone="warning" title="Configuration pending">{pending}</Alert></div>}
       {connectError && <div className="mb-4"><Alert tone="error" title="Couldn't start the Google connection">{connectError}</Alert></div>}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.15fr]">
+      <div>
         <Panel title="Current mode">
           {loading && !data ? <Skeleton className="h-20" /> : (
             <>
@@ -92,15 +93,6 @@ function Inner() {
             </>
           )}
         </Panel>
-        <Panel title="What works in each mode" flush>
-          <table className="dt" aria-label="Feature availability by mode">
-            <thead><tr><th>Feature</th><th className={`!text-center ${mode === "manual" ? "!text-ink" : ""}`}>Manual link</th><th className={`!text-center ${mode === "connected" ? "!text-ink" : ""}`}>Connected</th></tr></thead>
-            <tbody>{MODES.map(([f, a, b]) => (
-              <tr key={f}><td>{f}</td>
-                <td className="text-center">{a ? <Check className="mx-auto h-4 w-4 text-ok" aria-label="Included" /> : <X className="mx-auto h-4 w-4 text-ink-300" aria-label="Not included" />}</td>
-                <td className="text-center">{b ? <Check className="mx-auto h-4 w-4 text-ok" aria-label="Included" /> : <X className="mx-auto h-4 w-4 text-ink-300" aria-label="Not included" />}</td></tr>))}</tbody>
-          </table>
-        </Panel>
       </div>
 
       <div className="mt-4 space-y-4">
@@ -109,15 +101,6 @@ function Inner() {
 
       <JourneyLink />
       <AgencyManager available={data?.agency_available === true} />
-
-      <details className="panel mt-4 p-4 text-sm">
-        <summary className="cursor-pointer text-[13px] font-semibold">What FlowQR accesses</summary>
-        <ul className="mt-3 space-y-1.5 text-[13px] text-ink-700">
-          <li>Your Business Profile locations and reviews (one permission: <code className="rounded bg-ink-50 px-1 font-mono text-xs">business.manage</code>).</li>
-          <li>We reply only after <b>you</b> approve each reply, and show &ldquo;published&rdquo; only after Google confirms.</li>
-          <li>Tokens are encrypted and never sent to your browser. You can disconnect at any time.</li>
-        </ul>
-      </details>
 
       <Modal open={!!disconnectId} onClose={() => setDisconnectId(null)} title="Disconnect Google?" footer={<><Button variant="secondary" onClick={() => setDisconnectId(null)}>Cancel</Button><Button variant="danger" onClick={() => void disconnect()}>Disconnect</Button></>}>
         <p className="text-ink-700">We&rsquo;ll revoke FlowQR&rsquo;s access and delete the stored tokens. Reviews already synced stay in your inbox. Your cards keep working with the manual review link.</p>
@@ -191,7 +174,7 @@ function JourneyLink() {
   const { data } = useFetch<{ offered?: boolean }>("/google/agency/journey");
   if (!data || !journeyOffered(data)) return null;  // closed for this business (or the feature is off): nothing is shown
   return (
-    <div className="mt-4"><Alert tone="info" title="Guided setup" action={<Link href="/gbp/connect" className="inline-flex min-h-9 items-center rounded-full bg-surface-2 px-4 text-sm font-semibold hover:bg-ink-100">Open guided setup</Link>}>
-      Let FlowQR manage your Google profile as your Manager: you sign in once and approve, and FlowQR does the rest, step by step.</Alert></div>
+    <div className="mt-6"><h3 className="text-base font-semibold">Guided setup</h3>
+      <p className="mb-3 mt-0.5 text-sm text-muted">Let FlowQR manage your Google profile as your Manager: you sign in once and approve, and FlowQR does the rest, step by step.</p><AgencyJourneyScreen /></div>
   );
 }

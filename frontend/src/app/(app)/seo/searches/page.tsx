@@ -1,4 +1,5 @@
 "use client";
+import { ConnectGoogleEmptyState } from "@/components/settings/parts";
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { SourceTag, Unavailable, when } from "@/components/seo/parts";
@@ -24,7 +25,7 @@ export default function SearchesPage() {
       <PageHeader title="Searches people use" subtitle="The words customers typed on Google before they saw your business. This tells you what people look for. It does not say where you appear." />
       {q.error && <Alert tone="error" title="We couldn't load this">{q.error}</Alert>}
       {q.loading && !d && <Skeleton className="h-64" />}
-      {d?.state === "no_location" && <EmptyState icon={<Search className="h-5 w-5" />} title="Connect a Google location first" action={<Link href="/gbp/locations" className="font-semibold text-accent-ink hover:underline">Connect Google</Link>}>These words come from your Google Business Profile.</EmptyState>}
+      {d?.state === "no_location" && <ConnectGoogleEmptyState what="These words come from your Google Business Profile." />}
       {d && d.state !== "no_location" && (
         <Panel dense title="Most used words" meta={t ? `monthly, ${t.months.join(", ") || "latest month"}` : undefined} action={<SourceTag source="google" />}>
           {!t ? <Unavailable title="Google hasn't shared these numbers with FlowQR yet">When Google shares them, the words people used before finding your business appear here.</Unavailable> : (

@@ -12,10 +12,10 @@ export type Tone = "ok" | "warn" | "bad" | "idle";
 export function googleLine(conns: Conn[] | null | undefined): { label: string; tone: Tone; href: string } | null {
   if (!conns) return null;
   const live = conns.filter((c) => c.status !== "disconnected");
-  if (live.some((c) => c.status === "active")) return { label: "Google connected", tone: "ok", href: "/settings/connections" };
-  if (live.some((c) => c.status === "pending_selection")) return { label: "Choose your Google locations", tone: "warn", href: "/settings/connections" };
-  if (live.some((c) => c.status === "error" || c.status === "revoked")) return { label: "Reconnect Google", tone: "warn", href: "/settings/connections" };
-  return { label: "Google not connected", tone: "idle", href: "/settings/connections" };
+  if (live.some((c) => c.status === "active")) return { label: "Google connected", tone: "ok", href: "/settings/connections/google" };
+  if (live.some((c) => c.status === "pending_selection")) return { label: "Choose your Google locations", tone: "warn", href: "/settings/connections/google" };
+  if (live.some((c) => c.status === "error" || c.status === "revoked")) return { label: "Reconnect Google", tone: "warn", href: "/settings/connections/google" };
+  return { label: "Google not connected", tone: "idle", href: "/settings/connections/google" };
 }
 
 /** Statuses that mean "Google asked us to wait", not "something broke". */

@@ -124,11 +124,11 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const routeKey = at ? `${at.dest.id}:${at.child?.href ?? ""}` : path;
   const notices = useMemo<Notice[]>(() => {
     const out: Notice[] = [];
-    if (s && !s.active) out.push({ id: "inactive", tone: "bad", title: "Plan inactive", body: "Your data is safe and your cards keep working. Editing, AI and sync are paused until you choose a plan.", href: "/settings/billing", cta: "Choose a plan" });
+    if (s && !s.active) out.push({ id: "inactive", tone: "warn", title: "Plan inactive", body: "Your data is safe and your cards keep working. Editing, AI and sync are paused until you choose a plan.", href: "/settings/billing", cta: "Choose a plan" });
     else if (s?.status === "past_due") out.push({ id: "past-due", tone: "bad", title: "Payment failed", body: "We couldn't charge your payment method.", href: "/settings/billing", cta: "Review billing" });
     // trial ending comes from GET /notifications (the bell), so it is not repeated here
     if (me && !me.user.email_verified_at) out.push({ id: "verify", tone: "warn", title: "Verify your email", body: "Needed to invite staff, connect Google and manage billing.", href: "/settings/account", cta: "Open your account" });
-    if (deletion?.requested) out.push({ id: "deletion", tone: "warn", title: "This business is scheduled for deletion", body: "You can cancel it in Settings until the date.", href: "/settings#data", cta: "Review" });
+    if (deletion?.requested) out.push({ id: "deletion", tone: "warn", title: "This business is scheduled for deletion", body: "You can cancel it in Settings until the date.", href: "/settings/data", cta: "Review" });
     return out;
   }, [s, me, deletion]);
 

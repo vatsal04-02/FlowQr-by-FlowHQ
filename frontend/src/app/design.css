@@ -21,12 +21,12 @@ html.fq-app .num, html.fq-app .tnum { font-variant-numeric: tabular-nums; letter
 /* Labels that used to be tracked capitals read as plain small text: capitals are for names, not for decoration. */
 html.fq-app .eyebrow { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; }
 
-/* ---- Palette: navy-tinted neutrals (light) ---- */
+/* ---- Palette: warm paper ground, navy-tinted ink (light). Values from docs/DESIGN_SETTINGS_MOBILE.md: paper #F5F4F0, line #E7E5DF, ink #14163A, muted #646889. ---- */
 html.fq-app {
-  --c-ink: 17 23 63; --c-ink-800: 35 42 85; --c-ink-700: 58 65 102; --c-ink-600: 77 84 120; --c-ink-500: 90 97 128; --c-ink-400: 122 129 159; --c-ink-300: 163 169 192; --c-ink-200: 213 217 230; --c-ink-100: 227 230 239; --c-ink-50: 241 243 248;
-  --c-ink-solid: 17 23 63; --c-on-ink: 255 255 255; --c-navy: 17 23 63;
-  --c-canvas-outer: 233 235 242; --c-canvas: 244 245 249; --c-surface: 255 255 255; --c-surface-2: 238 240 246; --c-surface-3: 226 229 239;
-  --c-muted: 90 97 128; --c-muted-soft: 107 114 144; --c-line: 227 230 239;
+  --c-ink: 20 22 58; --c-ink-800: 35 42 85; --c-ink-700: 74 78 110; --c-ink-600: 77 84 120; --c-ink-500: 100 104 137; --c-ink-400: 122 129 159; --c-ink-300: 163 169 192; --c-ink-200: 214 211 203; --c-ink-100: 231 229 223; --c-ink-50: 241 239 234;
+  --c-ink-solid: 20 22 58; --c-on-ink: 255 255 255; --c-navy: 23 26 69;
+  --c-canvas-outer: 238 236 231; --c-canvas: 245 244 240; --c-surface: 255 255 255; --c-surface-2: 240 238 233; --c-surface-3: 231 228 221;
+  --c-muted: 100 104 137; --c-muted-soft: 100 104 137; --c-line: 231 229 223;
   --c-cta: 254 106 5; --c-cta-hover: 236 95 0; --c-on-cta: 17 23 63;
   --hatch: rgb(var(--c-surface-3));
   /* Flat sheets: a hairline and almost no shadow. Depth comes from the grey ground, not from glows. */

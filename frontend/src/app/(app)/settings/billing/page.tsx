@@ -2,6 +2,7 @@
 import { AlertTriangle, CalendarClock, CreditCard } from "lucide-react";
 import { useState } from "react";
 import { PricingExperience } from "@/components/billing/PricingExperience";
+import { StatusChip } from "@/components/settings/parts";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton } from "@/components/ui/Card";
 import { Ring } from "@/components/charts/Bars";
@@ -119,7 +120,13 @@ export default function SubscriptionPage() {
       {plans.data?.billing.mode === "test" && <div className="mb-5"><Alert tone="info" title="Payment test mode">Payments are simulated by the payment provider&rsquo;s test environment. No real money moves.</Alert></div>}
       {s && <CashfreeNotices s={s} isOwner={isOwner} onSetup={() => setCfPlan(plans.data?.plans.find((x) => x.code === (s.pending_plan ?? s.plan)) ?? plans.data?.plans[1] ?? null)} />}
       {s && <CashfreeOverview s={s} isOwner={isOwner} retrying={retrying} onRetry={() => void retry()} onSetup={() => setCfPlan(plans.data?.plans.find((x) => x.code === (s.pending_plan ?? s.plan)) ?? plans.data?.plans[1] ?? null)} />}
-      {s && !s.active && <div className="mb-5"><Alert tone="error" title="Your subscription is not active" action={undefined}>{s.inactive_reason === "payment_failed" ? "Your last payment failed. Update your payment method or choose a plan to restore access." : s.inactive_reason === "trial_ended" ? "Your free trial has ended. Choose a plan to keep using reviews, replies and AI." : s.inactive_reason === "plan_expired" ? "Your prepaid plan has ended. Buy another term below to switch everything back on. Your data is kept." : "Choose a plan to continue."} Your QR/NFC cards keep working for customers.</Alert></div>}
+      {s && !s.active && (
+        <section aria-label="Plan status" className="mb-5 rounded-[18px] border border-set-attn-line bg-set-attn-bg p-4">
+          <StatusChip kind="warn">Plan inactive</StatusChip>
+          <p className="mt-2 text-[14px] font-medium leading-snug text-set-attn-body">{s.inactive_reason === "payment_failed" ? "Your last payment failed. Update your payment method or choose a plan to restore access." : s.inactive_reason === "trial_ended" ? "Your free trial has ended. Choose a plan to keep using reviews, replies and AI." : s.inactive_reason === "plan_expired" ? "Your prepaid plan has ended. Buy another term below to switch everything back on. Your data is kept." : "Choose a plan to continue."} Your QR/NFC cards keep working for customers.</p>
+          <a href="#plans" className="set-focus mt-3 inline-flex min-h-11 items-center rounded-[14px] bg-set-action px-5 text-[15px] font-extrabold text-white">Choose a plan</a>
+        </section>
+      )}
       {s?.status === "past_due" && s.grace_until && <div className="mb-5"><Alert tone="warning" title="Payment failed">We couldn&rsquo;t charge your payment method. Access continues until {fmtDate(s.grace_until)} while the payment provider retries.</Alert></div>}
 
       {s?.promo && <div className="mb-5"><Alert tone="success" title={`Free ${s.promo.plan_name} until ${fmtDate(s.promo.ends_at)}`}>Included with your card purchase. {s.promo.note} Choose a plan whenever you like; you are only charged for a plan you pick yourself.</Alert></div>}

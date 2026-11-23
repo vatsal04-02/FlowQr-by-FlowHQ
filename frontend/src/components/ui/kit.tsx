@@ -91,7 +91,7 @@ export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChang
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)}
       className="grid h-11 w-[60px] shrink-0 place-items-center disabled:opacity-50">
-      <span className={clsx("relative h-[30px] w-[52px] rounded-full transition-colors duration-300", on ? "bg-accent" : "bg-surface-3")}>
+      <span className={clsx("relative h-[30px] w-[52px] rounded-full transition-colors duration-300", on ? "bg-set-switch-on" : "bg-set-switch-off")}>
         <span className={clsx("absolute top-[3px] h-6 w-6 rounded-full bg-pure-white shadow transition-[left] duration-300 ease-spring", on ? "left-[25px]" : "left-[3px]")} />
       </span>
     </button>
