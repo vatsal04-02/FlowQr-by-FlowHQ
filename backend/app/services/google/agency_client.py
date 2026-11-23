@@ -83,6 +83,7 @@ class PendingInvitation:
     location_name: str | None  # Invitation.targetLocation.locationName; None for an account-level invitation
     role: str | None = None
     receiving_account: str | None = None  # the account whose invitation list this was FOUND in (the `parent` of the list call). Read, never assumed
+    place_id: str | None = None  # Invitation.targetLocation.placeId. CONFIRMED live (2026-11-23): Google puts the location's DISPLAY NAME in `locationName` ("FlowHQ"), not `locations/{id}`, so this is what identifies it
 
 
 class AgencyAdminClient(Protocol):
@@ -153,9 +154,10 @@ class HttpAgencyClient(HttpGoogleProvider):
                         break
                     raise
                 for inv in j.get("invitations", []):
-                    loc = (inv.get("targetLocation") or {}).get("locationName") if isinstance(inv, dict) else None
+                    tl = (inv.get("targetLocation") or {}) if isinstance(inv, dict) else {}
+                    loc = tl.get("locationName")
                     if inv.get("name") and loc:
-                        out.append(PendingInvitation(name=inv["name"], location_name=loc, role=inv.get("role"), receiving_account=acct_name))
+                        out.append(PendingInvitation(name=inv["name"], location_name=loc, role=inv.get("role"), receiving_account=acct_name, place_id=tl.get("placeId")))
                 token = j.get("nextPageToken")  # TODO(verify): the page does not say this list is paged; read if present
                 if not token:
                     break
