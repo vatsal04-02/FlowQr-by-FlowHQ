@@ -3,6 +3,9 @@ import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
+/** Open modals, oldest first. Only the newest one handles Esc and Tab, so a confirm dialog opened over a form closes alone. */
+const stack: symbol[] = [];
+
 export function Modal({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
@@ -14,7 +17,9 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
     const el = panel.current;
     const focusable = () => Array.from(el?.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])') ?? []);
     (focusable()[1] ?? focusable()[0] ?? el)?.focus();
+    const me = Symbol("modal"); stack.push(me);
     const onKey = (e: KeyboardEvent) => {
+      if (stack[stack.length - 1] !== me) return;
       if (e.key === "Escape") { e.stopPropagation(); onClose(); }
       if (e.key === "Tab") {
         const f = focusable();
@@ -27,7 +32,7 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; (lastFocus.current as HTMLElement | null)?.focus?.(); };
+    return () => { stack.splice(stack.indexOf(me), 1); document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; (lastFocus.current as HTMLElement | null)?.focus?.(); };
   }, [open, onClose]);
 
   return (

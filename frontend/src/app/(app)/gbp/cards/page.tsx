@@ -8,7 +8,7 @@ import { AssignCards } from "@/components/cards/AssignCards";
 import { PosterDownload } from "@/components/cards/PosterDownload";
 import { QrNfc } from "@/components/QrNfc";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Panel, Segmented, Status } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth";
@@ -49,7 +49,7 @@ export default function CardsPage() {
         actions={<>
           <Segmented label="Section" value={tab} onChange={setTab} options={isAdmin ? ([["inventory", "Inventory"], ["assign", "Assign cards"]] as const) : ([["inventory", "Inventory"]] as const)} />
         </>} />
-      {error && <Alert tone="error">{error}</Alert>}
+      {error && <ErrorState error={error} onRetry={() => void reload()} />}
 
       {tab === "assign" && isAdmin ? <AssignCards mode="tenant" onDone={() => void reload()} /> : (
         <>

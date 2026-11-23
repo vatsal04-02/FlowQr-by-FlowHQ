@@ -148,3 +148,34 @@ Real headless Chrome, a throwaway local business with test data (deleted afterwa
 * Per page: no horizontal overflow, no console errors, no touch target under 44px (phones), bottom bar visible and flush with the bottom edge.
 * `npx tsc --noEmit` and `npx next build` clean; backend suite unchanged.
 * Scripts: `e2e/mobile-shell.js` (Playwright) and the CDP sweep described in `docs/PHASE_3_UI_REDESIGN_REPORT.md`.
+
+## UX patterns and design laws: where each one lives
+
+Two checklists guide every screen: 20 SaaS UX patterns and 20 design laws. Shared pieces carry most of them, so a page gets them by using the kit.
+
+### The 20 UX patterns
+| # | Pattern | Where |
+|---|---|---|
+| 1 | Optimistic UI updates | `optimistic()` and `useUndoable()` (`lib/hooks.ts`, `ui/Toast.tsx`); Notifications toggles |
+| 2 | Skeleton loaders | `Skeleton`, `SkeletonRows` (`ui/Card.tsx`); `(app)/loading.tsx` |
+| 3 | Command palette | `shell/CommandPalette.tsx` (Ctrl/⌘ K, or `/`) |
+| 4 | Persistent sidebar | `shell/Sidebar.tsx`, remembers collapsed state |
+| 5 | Loading and empty states | `EmptyState`, `Skeleton`; every empty state says why and the next step |
+| 6 | Autosave | `useAutosave()` + `SaveStatus` (built; no page uses it yet, current forms save on a button) |
+| 7 | Debouncing | `useDebounce`, `useDebouncedCallback` |
+| 8 | Throttling | `useThrottledCallback` (built; not yet used on a page) |
+| 9 | Smart form validation | `lib/form.ts` + `ui/Form.tsx` (`ErrorSummary`, inline errors, validate on blur) |
+| 10 | Bulk actions on lists | `DataTable` `bulk` prop (checkboxes, select all, action bar) |
+| 11 | Reusable data table | `ui/DataTable.tsx` (table on desktop, cards on a phone) |
+| 12 | Advanced filtering | Sortable headers (`Col.sort`); filter bars on Reviews, Cards, Customers |
+| 13 | Keyboard shortcuts | `shell/Shortcuts.tsx`: `?` list, `/` search, `g` then a letter to go to a page |
+| 14 | Tier-based indicators | `TierBadge` (`ui/Card.tsx`); trial/plan notices in the shell |
+| 15 | Onboarding data capture | `components/onboarding/*` |
+| 16 | Referral and affiliate pages | Not built yet |
+| 17 | Custom 404 | `app/not-found.tsx` |
+| 18 | Mobile-optimised layouts | `shell/BottomNav.tsx`, 44px targets, `DataTable` cards |
+| 19 | Destructive action protection | `useConfirm()` (`ui/Confirm.tsx`) replaces every browser `confirm()`; `typeToConfirm` for irreversible steps; `useUndoable` for reversible ones |
+| 20 | Graceful error recovery | `ErrorState` with "Try again" on load failures; toasts take an action (`Try again`, `Undo`); `app/error.tsx` |
+
+### The 20 design laws
+Aesthetic-usability: one palette, depth tokens, soft motion. Proximity and common region: `Panel`, `.panel`, grouped rows. Von Restorff: one orange `brand` button per view. Zeigarnik: setup progress and unfinished tasks stay visible (`Tasks & Approvals`, the Growth score). Tesler: the product absorbs complexity (drafts are written for you, rules have safe defaults). Prägnanz: `text-wrap: balance` on headings and `pretty` on text. Serial position: the 4 most-used pages are first and last on the bottom bar. Progressive disclosure: `Accordion`, `Sheet`, "More". Goal-gradient: `Meter` and the Growth score. Similarity: one `Status`/`Badge` language for state. Recognition over recall: the palette lists pages, shortcut list (`?`), labels beside every icon. Pareto: Home shows the few moves that matter this week. Occam: no decoration without meaning. Parkinson: short forms with defaults. Uniform connectedness: table rows read as one band on hover (`globals.css`). Paradox of the active user: sensible defaults, no manual needed (and the tour is optional). Cognitive load: one task per screen, tabular numbers. Default effect: safe defaults are pre-selected (never auto-publish). Peak-end: `Celebrate` for the moment something finishes, and a calm, plain end state.

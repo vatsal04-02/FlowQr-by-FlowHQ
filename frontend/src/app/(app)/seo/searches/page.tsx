@@ -3,7 +3,7 @@ import { ConnectGoogleEmptyState } from "@/components/settings/parts";
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { SourceTag, Unavailable, when } from "@/components/seo/parts";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Panel } from "@/components/ui/kit";
 import { fmtNum } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
@@ -23,7 +23,7 @@ export default function SearchesPage() {
   return (
     <>
       <PageHeader title="Searches people use" subtitle="The words customers typed on Google before they saw your business. This tells you what people look for. It does not say where you appear." />
-      {q.error && <Alert tone="error" title="We couldn't load this">{q.error}</Alert>}
+      {q.error && <ErrorState title="We couldn't load this" error={q.error} onRetry={() => void q.reload()} />}
       {q.loading && !d && <Skeleton className="h-64" />}
       {d?.state === "no_location" && <ConnectGoogleEmptyState what="These words come from your Google Business Profile." />}
       {d && d.state !== "no_location" && (

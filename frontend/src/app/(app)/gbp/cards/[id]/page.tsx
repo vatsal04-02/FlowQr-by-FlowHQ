@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { PosterDownload } from "@/components/cards/PosterDownload";
 import { Alert, Skeleton } from "@/components/ui/Card";
 import { KV, Panel, Status } from "@/components/ui/kit";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -21,6 +22,7 @@ import type { Card as CardT, Location, Overview } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 
 export default function CardDetail() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const { isAdmin } = useAuth();
   const toast = useToast();
@@ -64,14 +66,10 @@ export default function CardDetail() {
             {card.status === "paused" && <Button size="sm" icon={<Play className="h-3.5 w-3.5" />} loading={acting === "activate"} onClick={() => void act("activate", "Card resumed. The same printed code works again.")}>Resume</Button>}
             {card.status === "deactivated" && <Button variant="secondary" size="sm" icon={<Zap className="h-3.5 w-3.5" />} loading={acting === "activate"} onClick={() => void act("activate", "Card reactivated. The same printed code works again.")}>Reactivate</Button>}
             {live && <Button variant="secondary" size="sm" icon={<Pause className="h-3.5 w-3.5" />} loading={acting === "pause"} onClick={() => void act("pause", "Card paused. Scans show an inactive notice until you resume it.")}>Pause</Button>}
-            {(live || card.status === "paused") && <Button variant="danger" size="sm" icon={<Ban className="h-3.5 w-3.5" />} loading={acting === "deactivate"} onClick={() => { if (confirm(`Deactivate ${card.card_code}? Anyone scanning the printed card will see an inactive notice. You can reactivate it later; the printed code does not change.`)) void act("deactivate", "Card deactivated. Scans now show a notice."); }}>Deactivate</Button>}
+            {(live || card.status === "paused") && <Button variant="danger" size="sm" icon={<Ban className="h-3.5 w-3.5" />} loading={acting === "deactivate"} onClick={async () => { if (await confirm({ title: `Deactivate ${card.card_code}?`, body: "Anyone scanning the printed card will see an inactive notice. You can reactivate it later; the printed code does not change.", confirmLabel: "Deactivate" })) void act("deactivate", "Card deactivated. Scans now show a notice."); }}>Deactivate</Button>}
             {card.location_id && card.status !== "retired" && <PosterDownload path={`/cards/${card.id}/poster`} filename={card.card_code} label="Download poster" />}
-            {card.status !== "retired" && <Button variant="ghost" size="sm" loading={acting === "retire"} onClick={() => { if (confirm(`Retire ${card.card_code} permanently?
-
-Anyone who scans or taps it will see that it is no longer active, and it can never be used again. Its history is kept.
-
-To stop it temporarily, use Pause instead.`)) void act("retire", "Card retired. Its history is kept.", { confirm: true }); }}>Retire</Button>}
-            {card.status !== "lost" && card.status !== "retired" && <Button variant="ghost" size="sm" onClick={() => { if (confirm(`Report ${card.card_code} as lost? Scans will show an inactive notice, and only FlowQR support can switch a lost card back on.`)) void act("report-lost", "Marked as lost."); }}>Report lost</Button>}
+            {card.status !== "retired" && <Button variant="ghost" size="sm" loading={acting === "retire"} onClick={async () => { if (await confirm({ title: `Retire ${card.card_code} permanently?`, body: "Anyone who scans or taps it will see that it is no longer active, and it can never be used again. Its history is kept. To stop it temporarily, use Pause instead.", confirmLabel: "Retire for good", typeToConfirm: "retire" })) void act("retire", "Card retired. Its history is kept.", { confirm: true }); }}>Retire</Button>}
+            {card.status !== "lost" && card.status !== "retired" && <Button variant="ghost" size="sm" onClick={async () => { if (await confirm({ title: `Report ${card.card_code} as lost?`, body: "Scans will show an inactive notice, and only FlowQR support can switch a lost card back on.", confirmLabel: "Report lost" })) void act("report-lost", "Marked as lost."); }}>Report lost</Button>}
           </div>
         )}
       </div>

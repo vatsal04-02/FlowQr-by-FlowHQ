@@ -4,7 +4,7 @@ import { useState } from "react";
 import { HealthCard } from "@/components/agent/HealthCard";
 import { TaskCard } from "@/components/agent/TaskCard";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import type { TasksResponse } from "@/lib/agent";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -48,7 +48,7 @@ export default function DailyPlan() {
       })()}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section aria-label="Tasks" className="min-w-0 space-y-3">
-          {error && <Alert tone="error">{error}</Alert>}
+          {error && <ErrorState error={error} onRetry={() => void reload()} />}
           {loading && !data ? <Skeleton className="h-64" /> : open.length === 0 ? (
             <EmptyState title={finished.length ? "All done for now" : "No tasks yet"} action={isAdmin ? <Button size="sm" onClick={() => void run("plan")} loading={busy === "plan"}>Build today&rsquo;s plan</Button> : undefined}>
               {finished.length ? "Everything in today's plan has been handled." : "The plan is built from real reviews, your Google profile and your knowledge base. If nothing is shown, either everything is in order or the agent hasn't run yet."}</EmptyState>

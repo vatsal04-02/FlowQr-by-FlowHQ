@@ -14,6 +14,7 @@ import { useAppChrome } from "@/lib/theme";
 import type { SubscriptionInfo } from "@/lib/types";
 import { useFetch } from "@/lib/use-api";
 import { CommandPalette } from "./shell/CommandPalette";
+import { Shortcuts } from "./shell/Shortcuts";
 import { BellMenu } from "./shell/Bell";
 import { BottomNav, MoreSheet } from "./shell/BottomNav";
 import { HelpMenu, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
@@ -78,6 +79,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [palette, setPalette] = useState(false);
+  const [keys, setKeys] = useState(false);
   const [more, setMore] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [tour, setTour] = useState(false);
@@ -148,7 +150,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const switchTenant = async (id: string) => { await api("/auth/select-tenant", { method: "POST", params: { tenant_id: id } }); await refresh(); router.refresh(); };
   const name = me.user.full_name?.trim() || me.user.email;
   const avatar = <Avatar src={me.user.picture_url} initials={initials(me.user.full_name, me.user.email)} className="h-9 w-9" />;
-  const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
+  const help = (inRail?: boolean) => <HelpMenu supportEmail={legal?.support_email} onSearch={() => setPalette(true)} onKeys={() => setKeys(true)} align={inRail ? "left" : "right"} inRail={inRail} />;
 
   const business = (
     <PopoverButton label="Business menu" align="left" className="min-w-0 flex-1 md:flex-none" buttonClass="group flex min-h-11 w-full min-w-0 items-center gap-2 sm:gap-2.5 md:w-auto md:max-w-[calc(100vw-232px)] rounded-[14px] bg-transparent py-1 pl-0 pr-1 text-left transition-[transform,box-shadow] duration-200 ease-spring sm:bg-surface sm:pl-1.5 sm:pr-2.5 sm:shadow-pill sm:ring-1 sm:ring-line sm:hover:-translate-y-px sm:hover:shadow-lift active:scale-[.98] motion-reduce:transition-none motion-reduce:hover:transform-none sm:max-w-[340px]"
@@ -247,6 +249,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
       <BottomNav path={path} dests={dests} moreOpen={more} onMore={setMore} />
       <MoreSheet open={more} onClose={() => setMore(false)} role={role} whatsapp={waOn} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
       <CommandPalette open={palette} onClose={() => setPalette(false)} dests={dests} />
+      <Shortcuts dests={dests} onSearch={() => setPalette(true)} helpOpen={keys} onHelp={() => setKeys(true)} onHelpClose={() => setKeys(false)} />
     </div>
     <Tour open={tour} onClose={() => setTour(false)} />
     </LocationScopeProvider>

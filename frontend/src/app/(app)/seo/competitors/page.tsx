@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { Move, SourceTag, when } from "@/components/seo/parts";
 import { DataTable } from "@/components/ui/DataTable";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -43,7 +43,7 @@ export default function CompetitorsPage() {
   return (
     <>
       <PageHeader title="Nearby competitors" subtitle="Other businesses that show up next to yours on Google for the words you track, with their rating and reviews on each date." />
-      {q.error && <Alert tone="error" title="We couldn't load competitor observations">{q.error}</Alert>}
+      {q.error && <ErrorState title="We couldn't load competitor observations" error={q.error} onRetry={() => void q.reload()} />}
       {q.loading && !d && <Skeleton className="h-64" />}
       {d?.state === "no_location" && <ConnectGoogleEmptyState what="Competitors are found through the searches you track for a location." />}
       {d?.state === "no_keywords" && <EmptyState icon={<Crosshair className="h-5 w-5" />} title="Track a search term first" action={<Link href="/seo/rankings" className="font-semibold text-accent-ink hover:underline">Add a search term</Link>}>Competitors are the businesses that appear for the terms you track.</EmptyState>}

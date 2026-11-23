@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Violations } from "@/components/agent/TaskCard";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, EmptyState, PageHeader, Skeleton, Stars } from "@/components/ui/Card";
+import { Alert, Badge, EmptyState, PageHeader, Skeleton, Stars, ErrorState } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Form";
 import { Panel } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/Toast";
@@ -33,7 +33,7 @@ export default function ApprovalsPage() {
     <>
       <PageHeader title="Waiting for your approval" subtitle="Only the exact text you approve here is sent to Google." />
       {!isAdmin && <div className="mb-4"><Alert tone="info">You can see what is waiting; an owner or admin approves it.</Alert></div>}
-      {error && <Alert tone="error">{error}</Alert>}
+      {error && <ErrorState error={error} onRetry={() => void reload()} />}
       {data && total > 0 && (
         <ul aria-label="What is waiting" className="mb-4 flex flex-wrap gap-2 text-[13.5px] text-ink-700">
           {([["Review replies", data.replies.length], ["Google posts", data.posts.length], ["Profile changes", data.profile.length]] as const).filter(([, n]) => n > 0).map(([l, n]) => (

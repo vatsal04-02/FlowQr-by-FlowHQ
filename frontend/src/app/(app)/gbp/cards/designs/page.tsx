@@ -4,8 +4,9 @@ import { Download, ImagePlus, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QrPreview, QrStyleEditor, styleProblem } from "@/components/QrStyleEditor";
 import { Button } from "@/components/ui/Button";
-import { Alert, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Panel, Segmented, Status } from "@/components/ui/kit";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, apiFile, errorMessage, saveBlob } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -30,6 +31,7 @@ function explain(e: unknown): string {
 }
 
 export default function QrPage() {
+  const confirm = useConfirm();
   const { isAdmin } = useAuth();
   const toast = useToast();
   const info = useFetch<QRStyleInfo>("/qr/style");
@@ -51,7 +53,7 @@ export default function QrPage() {
     catch (e) { setSaveError(explain(e)); } finally { setSaving(false); }
   }
   async function reset() {
-    if (!confirm("Go back to the plain FlowQR design? Your logo is removed too. Printed codes are not affected.")) return;
+    if (!(await confirm({ title: "Go back to the plain design?", body: "Your logo is removed too. Printed codes are not affected.", confirmLabel: "Reset design" }))) return;
     setSaving(true); setSaveError(null);
     try { const d = await api<QRStyleInfo>("/qr/style", { method: "DELETE" }); info.setData(d); setStyle(d.style); setLogoVersion((v) => v + 1); toast("Back to the plain design."); }
     catch (e) { setSaveError(explain(e)); } finally { setSaving(false); }
@@ -73,7 +75,7 @@ export default function QrPage() {
   return (
     <>
       <PageHeader title="Designs & export" subtitle="Change how your QR codes look and download them for printing. The design never changes where a code leads, so codes you have already printed keep working." />
-      {info.error && <Alert tone="error" title="Couldn't load your QR design">{info.error}</Alert>}
+      {info.error && <ErrorState title="Couldn't load your QR design" error={info.error} onRetry={() => void info.reload()} />}
       {!isAdmin && <div className="mb-4"><Alert tone="info" title="View only">Owners and admins can change the design and export codes.</Alert></div>}
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
         <Panel title="Design" meta={info.data ? (info.data.is_default ? "plain FlowQR design" : "custom design") : undefined}>

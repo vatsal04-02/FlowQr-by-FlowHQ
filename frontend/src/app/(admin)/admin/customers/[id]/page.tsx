@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Input, Select, Textarea } from "@/components/ui/Form";
 import { Modal } from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
 import { rupees } from "@/lib/billing";
@@ -35,6 +36,7 @@ interface Detail {
 }
 
 export default function CustomerDetail() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
   const { data: d, error, reload } = useFetch<Detail>(`/admin/tenants/${id}`);
@@ -46,7 +48,7 @@ export default function CustomerDetail() {
     setBusy(true);
     try { await fn(); toast(msg); setModal(null); setText(""); await reload(); } catch (e) { toast(errorMessage(e), "error"); } finally { setBusy(false); }
   }
-  if (error) return <Alert tone="error">{error}</Alert>;
+  if (error) return <ErrorState error={error} onRetry={() => void reload()} />;
   if (!d) return <Skeleton className="h-96" />;
   const t = d.tenant, s = d.subscription;
   return (
@@ -71,7 +73,7 @@ export default function CustomerDetail() {
         <SpendingCeilings tenantId={id} />
         <Card><CardHeader title="Team" /><ul className="divide-y divide-ink-100 text-sm">{d.members.length === 0 && <li className="py-2 text-ink-500">No one has a login for this business. Its cards, scans and review page work without one.</li>}{d.members.map((m) => (
           <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><div><p className="font-semibold">{m.full_name} <Badge tone={m.role === "owner" ? "blue" : "gray"}>{m.role}</Badge></p><p className="text-ink-500">{m.email}{!m.email_verified && " · unverified"}</p></div>
-            <Button size="sm" variant={m.is_active ? "danger" : "secondary"} onClick={() => { if (confirm(`${m.is_active ? "Deactivate" : "Reactivate"} ${m.email}?`)) void run(() => api(`/admin/users/${m.user_id}`, { method: "PATCH", body: { is_active: !m.is_active } }), "User updated."); }}>{m.is_active ? "Deactivate" : "Reactivate"}</Button></li>))}</ul></Card>
+            <Button size="sm" variant={m.is_active ? "danger" : "secondary"} onClick={async () => { if (await confirm({ title: `${m.is_active ? "Deactivate" : "Reactivate"} ${m.email}?`, tone: m.is_active ? "danger" : "neutral", confirmLabel: m.is_active ? "Deactivate" : "Reactivate" })) void run(() => api(`/admin/users/${m.user_id}`, { method: "PATCH", body: { is_active: !m.is_active } }), "User updated."); }}>{m.is_active ? "Deactivate" : "Reactivate"}</Button></li>))}</ul></Card>
         <LocationsCard tenantId={id} locations={d.locations} reload={reload} />
         <WebsiteCard tenantId={id} />
         <WhatsAppAddonCard tenantId={id} />

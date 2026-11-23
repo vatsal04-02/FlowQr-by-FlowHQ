@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Alert, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, ErrorState, PageHeader, Skeleton } from "@/components/ui/Card";
 import { Panel, Toggle } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
@@ -22,7 +22,7 @@ const ROWS: [Key, string, string][] = [
  */
 export default function NotificationsPage() {
   const toast = useToast();
-  const { data, error, loading, setData } = useFetch<Prefs>("/notifications/preferences");
+  const { data, error, loading, setData, reload } = useFetch<Prefs>("/notifications/preferences");
   const [busy, setBusy] = useState<Key | null>(null);
 
   async function set(k: Key, v: boolean) {
@@ -39,7 +39,7 @@ export default function NotificationsPage() {
   return (
     <>
       <PageHeader title="Notifications" subtitle="Choose what FlowQR emails you about for this business. The bell shows everything either way." />
-      {error && <Alert tone="error">{error}</Alert>}
+      {error && <ErrorState error={error} onRetry={() => void reload()} />}
       {loading && !data ? <Skeleton className="h-72" /> : data && (
         <div className="max-w-3xl space-y-4">
           {!data.verified && <Alert tone="warning" title="Verify your email first">Emails only go to a verified address. Check your inbox for the verification link.</Alert>}

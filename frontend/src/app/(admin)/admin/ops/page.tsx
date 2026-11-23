@@ -1,6 +1,6 @@
 "use client";
 import { CheckCircle2, HelpCircle, OctagonAlert, TriangleAlert } from "lucide-react";
-import { Alert, Badge, Card, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, Card, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { PlatformStop } from "@/components/admin/PlatformControls";
 import { Button } from "@/components/ui/Button";
 import { fmtDate } from "@/lib/format";
@@ -24,7 +24,7 @@ export default function AdminOps() {
     <>
       <PageHeader eyebrow="Platform" title="Operations" subtitle="Is FlowQR healthy right now, and what needs a person? Checked live each time you open this page; the scheduler also checks every 15 minutes and emails admins about new critical items."
         actions={<Button variant="secondary" size="sm" onClick={() => void ops.reload()}>Check again</Button>} />
-      {ops.error && <Alert tone="error" title="Couldn't run the checks">{ops.error}</Alert>}
+      {ops.error && <ErrorState title="Couldn't run the checks" error={ops.error} onRetry={() => void ops.reload()} />}
       {!d && !ops.error && <Skeleton className="h-64" />}
       {d && (
         <>

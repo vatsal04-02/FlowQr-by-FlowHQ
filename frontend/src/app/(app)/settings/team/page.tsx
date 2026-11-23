@@ -2,10 +2,11 @@
 import { MailPlus, MapPin, Trash2, UserX } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { ErrorSummary, Input, Select } from "@/components/ui/Form";
 import { Panel } from "@/components/ui/kit";
 import { Modal } from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -47,6 +48,7 @@ function LocationPicker({ locations, all, picked, onAll, onToggle, idPrefix }: {
 }
 
 export default function StaffPage() {
+  const confirm = useConfirm();
   const { me, role, isAdmin } = useAuth();
   const toast = useToast();
   const { data, error, loading, reload } = useFetch<Staff>("/staff");
@@ -97,7 +99,7 @@ export default function StaffPage() {
   return (
     <>
       <PageHeader eyebrow="Business" title="Team" subtitle={data ? `${data.members.length} ${data.members.length === 1 ? "person" : "people"}${data.invitations.length ? ` · ${data.invitations.length} invited` : ""}` : "Invite teammates and control what they can do."} />
-      {error && <Alert tone="error">{error}</Alert>}
+      {error && <ErrorState error={error} onRetry={() => void reload()} />}
       {locs.error && <div className="mb-3"><Alert tone="error" title="Couldn't load locations">{locs.error} Location access can&rsquo;t be edited until this loads.</Alert></div>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-4">
@@ -109,7 +111,7 @@ export default function StaffPage() {
                   <tr key={m.user_id}>
                     <td><p className="font-medium">{m.full_name}{m.user_id === me?.user.id && <span className="ml-2 text-xs font-normal text-ink-500">you</span>}</p><p className="text-[13px] text-ink-500">{m.email}</p></td>
                     <td>{role === "owner" && m.user_id !== me?.user.id ? (
-                      <select aria-label={`Role for ${m.full_name}`} value={m.role} onChange={(e) => { const next = e.target.value; if (m.role === "staff" && !m.all_locations && next !== "staff" && !confirm(`${m.full_name} is limited to specific locations. As ${next === "owner" ? "an owner" : "an admin"} they will see every location, and the limit is removed. Continue?`)) return; void run(() => api(`/staff/${m.user_id}`, { method: "PATCH", body: { role: next } }), "Role updated."); }} className="min-h-9 rounded-lg border border-ink-300 bg-white px-2 text-sm">
+                      <select aria-label={`Role for ${m.full_name}`} value={m.role} onChange={async (e) => { const next = e.target.value; if (m.role === "staff" && !m.all_locations && next !== "staff" && !(await confirm({ title: `Make ${m.full_name} ${next === "owner" ? "an owner" : "an admin"}?`, body: "They are limited to specific locations now. As an owner or admin they will see every location, and the limit is removed.", tone: "neutral", confirmLabel: "Change role" }))) return; void run(() => api(`/staff/${m.user_id}`, { method: "PATCH", body: { role: next } }), "Role updated."); }} className="min-h-9 rounded-lg border border-ink-300 bg-white px-2 text-sm">
                         <option value="owner">Owner</option><option value="admin">Admin</option><option value="staff">Staff</option></select>
                     ) : <Badge tone={m.role === "owner" ? "blue" : "gray"}>{m.role}</Badge>}</td>
                     <td>
@@ -117,7 +119,7 @@ export default function StaffPage() {
                       {isAdmin && m.role === "staff" && m.user_id !== me?.user.id && <Button variant="ghost" size="sm" className="ml-1" icon={<MapPin className="h-3.5 w-3.5" />} aria-label={`Change location access for ${m.full_name}`} disabled={!locs.data} onClick={() => openAccess(m)}>Change</Button>}
                     </td>
                     <td className="text-right">{isAdmin && m.user_id !== me?.user.id && m.role !== "owner" && (
-                      <Button variant="ghost" size="sm" aria-label={`Remove ${m.full_name}`} icon={<UserX className="h-4 w-4 text-red-600" />} onClick={() => { if (confirm(`Remove ${m.full_name} from this business?`)) void run(() => api(`/staff/${m.user_id}`, { method: "DELETE" }), "Member removed."); }} />)}</td>
+                      <Button variant="ghost" size="sm" aria-label={`Remove ${m.full_name}`} icon={<UserX className="h-4 w-4 text-red-600" />} onClick={async () => { if (await confirm({ title: `Remove ${m.full_name}?`, body: "They lose access to this business straight away. You can invite them again later.", confirmLabel: "Remove" })) void run(() => api(`/staff/${m.user_id}`, { method: "DELETE" }), "Member removed."); }} />)}</td>
                   </tr>))}</tbody>
               </table></div>
             )}

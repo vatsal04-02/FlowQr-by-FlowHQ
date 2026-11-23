@@ -4,7 +4,7 @@ import { GeoGrid } from "@/components/gbp/GeoGrid";
 import { LocalRank } from "@/components/gbp/LocalRank";
 import { SourceTag } from "@/components/seo/parts";
 import { Card, Dashes, RankLadder, SeeAll, Title, WhoIsAhead } from "@/components/seo/visuals";
-import { Alert, Skeleton } from "@/components/ui/Card";
+import { Alert, Skeleton, ErrorState } from "@/components/ui/Card";
 import { CountUp } from "@/components/charts/CountUp";
 import { shares } from "@/lib/charts";
 import { fmtNum } from "@/lib/format";
@@ -33,7 +33,7 @@ export default function RankingsPage() {
   return (
     <>
       <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Rankings</h1>
-      {ov.error && <Alert tone="error">{ov.error}</Alert>}
+      {ov.error && <ErrorState error={ov.error} onRetry={() => void ov.reload()} />}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
         <Card label="Your words" tone="teal" className="lg:col-span-7">
           <Title right={<SourceTag source="places" />}>Your words</Title>

@@ -1,6 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/Button";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Meter, Panel, Status } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/Toast";
 import type { Activity } from "@/lib/agent";
@@ -17,7 +17,7 @@ export default function ActivityPage() {
   const toast = useToast();
   const { data: a, error, loading, reload } = useFetch<Activity>("/agent/activity");
   const retry = async (id: string) => { try { const r = await api<{ status: string; failure_reason: string | null }>(`/posts/${id}/retry`, { method: "POST" }); toast(r.status === "published" ? "Published on Google." : r.failure_reason ?? "Will retry.", r.status === "published" ? "success" : "error"); await reload(); } catch (e) { toast(errorMessage(e), "error"); } };
-  if (error) return <Alert tone="error">{error}</Alert>;
+  if (error) return <ErrorState error={error} onRetry={() => void reload()} />;
   if (loading || !a) return <Skeleton className="h-64" />;
   return (
     <>

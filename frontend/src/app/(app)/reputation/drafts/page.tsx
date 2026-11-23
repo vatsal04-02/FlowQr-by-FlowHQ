@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Alert, PageHeader, Skeleton } from "@/components/ui/Card";
 import { Panel, Toggle } from "@/components/ui/kit";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -76,6 +77,7 @@ function DraftCard({ r, canApprove, onDone, selected }: { r: Review; canApprove:
  * sensitive-review flagging (always on) and reviewer-language drafting (always on).
  */
 export default function ReplyAssistantPage() {
+  const confirm = useConfirm();
   const { isAdmin } = useAuth();
   const toast = useToast();
   const drafts = useFetch<List>("/reviews", { reply_state: "draft", limit: 12 });
@@ -99,7 +101,7 @@ export default function ReplyAssistantPage() {
   const [bulk, setBulk] = useState<{ done: number; total: number; ok: number; failed: number } | null>(null);
   const ready = (drafts.data?.items ?? []).filter((r) => r.latest_draft && r.latest_draft.status === "draft" && !r.latest_draft.requires_human_handling && r.sensitive_reasons.length === 0);
   async function approveAll() {
-    if (!window.confirm(`Approve and publish ${ready.length} ${ready.length === 1 ? "reply" : "replies"} exactly as written? Flagged reviews are not included.`)) return;
+    if (!(await confirm({ title: `Publish ${ready.length} ${ready.length === 1 ? "reply" : "replies"}?`, body: "Each is approved and published to Google exactly as written. Flagged reviews are not included.", tone: "neutral", confirmLabel: "Approve and publish" }))) return;
     let ok = 0, failed = 0;
     setBulk({ done: 0, total: ready.length, ok, failed });
     for (const [i, r] of ready.entries()) {

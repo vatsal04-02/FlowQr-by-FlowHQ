@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -43,6 +44,7 @@ export function SafeImage({ m, className }: { m: Pick<Media, "thumbnail" | "url"
 export function Gallery({ gid, canAdd = true }: { gid: string; canAdd?: boolean }) {
   const { isAdmin } = useAuth();
   const toast = useToast();
+  const confirm = useConfirm();
   const { data, error, loading, reload } = useFetch<Media[]>(`/gbp/${gid}/media`);
   const [url, setUrl] = useState(""); const [cat, setCat] = useState("ADDITIONAL"); const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("ALL");
@@ -60,7 +62,7 @@ export function Gallery({ gid, canAdd = true }: { gid: string; canAdd?: boolean 
     catch (e) { toast(errorMessage(e), "error"); } finally { setBusy(false); }
   }
   async function remove(m: Media) {
-    if (!confirm("Delete this photo from Google?")) return;
+    if (!(await confirm({ title: "Delete this photo from Google?", body: "It is removed from your Google profile. You can add it again later.", confirmLabel: "Delete photo" }))) return;
     try { await api(`/gbp/${gid}/media`, { method: "DELETE", params: { name: m.name } }); toast("Photo deleted."); setOpen(null); void reload(); }
     catch (e) { toast(errorMessage(e), "error"); }
   }

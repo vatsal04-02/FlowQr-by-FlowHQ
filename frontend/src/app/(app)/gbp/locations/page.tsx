@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, ErrorState, PageHeader, Skeleton } from "@/components/ui/Card";
 import { ErrorSummary, Input } from "@/components/ui/Form";
 import { Status } from "@/components/ui/kit";
 import { Modal } from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError, api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -58,7 +59,7 @@ export default function LocationsPage() {
         actions={isAdmin ? <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => setEditing("new")}>Add location</Button> : undefined} />
       <Link href="/settings/connections/google" className="panel mb-6 flex min-h-[68px] items-center justify-between gap-3 p-4 hover:bg-surface-2"><span className="min-w-0"><span className="block font-semibold">Google connection</span><span className="block text-[13px] text-muted">{conn ? "Connected. Choose locations, or stop FlowQR managing your profile." : "Not connected. Connect once to sync reviews."}</span></span><span className="shrink-0 text-[13px] font-semibold text-accent-ink">Open</span></Link>
       <h2 className="mb-3 text-lg font-semibold">Your locations</h2>
-      {error && <Alert tone="error">{error}</Alert>}
+      {error && <ErrorState error={error} onRetry={() => void reload()} />}
       {loading && !data ? <Skeleton className="h-48" /> : data && data.length === 0 ? (
         <EmptyState icon={<MapPin className="h-5 w-5" />} title="No locations yet" action={isAdmin ? <Button size="sm" onClick={() => setEditing("new")}>Add your first location</Button> : undefined}>Add a branch to start assigning cards and collecting reviews.</EmptyState>
       ) : (
@@ -107,6 +108,7 @@ export default function LocationsPage() {
 }
 
 function LocationModal({ loc, onClose, onSaved, canDeactivate }: { loc: Location | null; onClose: () => void; onSaved: (msg: string) => void; canDeactivate: boolean }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const f = useForm({
     name: loc?.name ?? "", address_line: loc?.address_line ?? "", city: loc?.city ?? "", state: loc?.state ?? "", postal_code: loc?.postal_code ?? "", phone: loc?.phone ?? "", review_url: loc?.review_url ?? "",
@@ -130,7 +132,7 @@ function LocationModal({ loc, onClose, onSaved, canDeactivate }: { loc: Location
       // The server refuses to switch off a location that live printed codes lead to unless we say we mean it.
       if (!confirmed && err instanceof ApiError && err.code === "codes_would_stop") {
         setBusy(false);
-        if (window.confirm(`${err.message}\n\nDeactivate this location anyway?`)) return deactivate(true);
+        if (await confirm({ title: "Deactivate this location anyway?", body: err.message, confirmLabel: "Deactivate anyway" })) return deactivate(true);
         return;
       }
       f.fail(errorMessage(err));

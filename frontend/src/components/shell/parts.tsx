@@ -120,7 +120,7 @@ export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests
 
 export type Notice = { id: string; tone: "warn" | "bad" | "info"; title: string; body: string; href: string; cta: string };
 
-export function HelpMenu({ supportEmail, onSearch, align = "right", inRail }: { supportEmail: string | null | undefined; onSearch: () => void; align?: "left" | "right"; inRail?: boolean }) {
+export function HelpMenu({ supportEmail, onSearch, onKeys, align = "right", inRail }: { supportEmail: string | null | undefined; onSearch: () => void; onKeys?: () => void; align?: "left" | "right"; inRail?: boolean }) {
   return (
     <PopoverButton label="Help" align={align} className={inRail ? "[&>[role=dialog]]:bottom-0 [&>[role=dialog]]:left-[calc(100%+12px)] [&>[role=dialog]]:top-auto" : undefined}
       icon={<HelpCircle className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />}>
@@ -130,6 +130,9 @@ export function HelpMenu({ supportEmail, onSearch, align = "right", inRail }: { 
           <button type="button" onClick={() => { close(); onSearch(); }} className="flex w-full items-center justify-between gap-3 rounded-full px-3 py-2.5 text-left font-medium hover:bg-surface-2">
             Search and jump to any page<kbd className="rounded-md bg-surface-2 px-1.5 py-0.5 font-sans text-xs text-muted">Ctrl K</kbd>
           </button>
+          {onKeys && <button type="button" onClick={() => { close(); onKeys(); }} className="hidden w-full items-center justify-between gap-3 rounded-full px-3 py-2.5 text-left font-medium hover:bg-surface-2 lg:flex">
+            Keyboard shortcuts<kbd className="rounded-md bg-surface-2 px-1.5 py-0.5 font-sans text-xs text-muted">?</kbd>
+          </button>}
           {supportEmail
             ? <a href={`mailto:${supportEmail}`} className="block rounded-full px-3 py-2.5 font-medium hover:bg-surface-2">Email support <span className="font-normal text-muted">({supportEmail})</span></a>
             : <p className="px-3 py-2.5 text-muted">A support address hasn&rsquo;t been set up on this server yet.</p>}

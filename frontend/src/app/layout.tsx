@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "./design.css";
 import { AuthProvider } from "@/lib/auth";
+import { ConfirmProvider } from "@/components/ui/Confirm";
 import { ToastProvider } from "@/components/ui/Toast";
 import { APP_PREFIXES } from "@/lib/nav";
 import { themeBootScript } from "@/lib/theme-boot";
@@ -34,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-pop">Skip to content</a>
-        <AuthProvider><ToastProvider><div id="main">{children}</div></ToastProvider></AuthProvider>
+        <AuthProvider><ToastProvider><ConfirmProvider><div id="main">{children}</div></ConfirmProvider></ToastProvider></AuthProvider>
       </body>
     </html>
   );

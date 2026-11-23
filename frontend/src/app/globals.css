@@ -381,3 +381,34 @@ html.fq-app[data-theme="dark"] { --s-paper: 17 18 38; --s-surface: 27 29 58; --s
 html.fq-app .set-focus:focus-visible { outline: 2px solid rgb(var(--s-navy)); outline-offset: 2px; }
 html.fq-app[data-theme="dark"] .set-focus:focus-visible { outline-color: rgb(var(--s-ink)); }
 @media (prefers-reduced-motion: reduce) { .set-motion { transition: none !important; } }
+
+/* ---- UX laws pass (logged-in app only) ---- */
+@layer base {
+  /* Prägnanz and cognitive load: short lines that end evenly, no one-word last lines; numbers line up in columns and tiles. */
+  html.fq-app p, html.fq-app li { text-wrap: pretty; }
+  html.fq-app :is(td, th, time, .dt, .tnum) { font-variant-numeric: tabular-nums; }
+  /* Fitts: a pressed control gives way a little so it feels like it was caught. */
+  html.fq-app :is(button, [role="button"]):not(:disabled):active { transform: scale(.985); }
+  /* Quiet, thin scrollbars inside panels (they are chrome, not content). */
+  html.fq-app * { scrollbar-width: thin; scrollbar-color: rgb(var(--c-ink-200)) transparent; }
+}
+@layer components {
+  /* Uniform connectedness / common region: a table row that is hovered or selected reads as one band across its cells; the header stays in view while a long list scrolls. */
+  html.fq-app .dt tbody tr { transition: background-color .15s; }
+  html.fq-app .dt tbody tr:hover > td { background: rgb(var(--c-surface-2) / .6); }
+  html.fq-app .dt tbody tr:last-child > td { border-bottom-color: transparent; }
+  html.fq-app .dt th button { text-transform: inherit; letter-spacing: inherit; }
+  /* Aesthetic-usability: cards that are links or buttons rise slightly under the pointer and settle on press. */
+  html.fq-app a.panel, html.fq-app button.panel { transition: transform .25s var(--ease-spring), box-shadow .25s; }
+  html.fq-app a.panel:hover, html.fq-app button.panel:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  /* Peak-end: the moment something is finished (a reply published, a set-up step done, a payment made) gets a short, warm pop; <Celebrate/> uses this. */
+  @keyframes fq-pop { 0% { transform: scale(.6); opacity: 0; } 55% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+  @keyframes fq-ripple { from { transform: scale(.6); opacity: .55; } to { transform: scale(2.1); opacity: 0; } }
+  .fq-pop { animation: fq-pop .55s var(--ease-spring, cubic-bezier(.3,1.35,.5,1)) both; }
+  .fq-ripple { animation: fq-ripple 1s cubic-bezier(.2,.7,.2,1) .15s both; }
+  /* Skeletons are still, not shimmering, when motion is reduced. */
+  @media (prefers-reduced-motion: reduce) { .fq-skeleton { animation: none; background: rgb(var(--c-ink-100)); } }
+  /* Sticky save/action bars sit above the bottom nav on a phone. */
+  .fq-sticky-bar { position: sticky; bottom: calc(env(safe-area-inset-bottom) + 76px); z-index: 20; }
+  @media (min-width: 1024px) { .fq-sticky-bar { bottom: 16px; } }
+}

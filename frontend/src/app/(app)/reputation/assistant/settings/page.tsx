@@ -3,7 +3,7 @@ import { Check, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { BusinessContext } from "@/components/review-growth/BusinessContext";
 import { ReviewLinkEditor } from "@/components/review-growth/shared";
-import { Alert, Badge, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { KV, Meter, Panel, Status } from "@/components/ui/kit";
 import { useAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/format";
@@ -17,7 +17,7 @@ export default function ReviewGrowthSettings() {
   return (
     <>
       <PageHeader title="Review page settings" subtitle="Google review links, AI status and how customer data is handled." />
-      {error && <Alert tone="error">{error}</Alert>}
+      {error && <ErrorState error={error} onRetry={() => void reload()} />}
       {!s && !error && <Skeleton className="h-80" />}
       {s && (
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

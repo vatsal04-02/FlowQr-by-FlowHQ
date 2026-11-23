@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Loader2, Lock, RotateCw, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 /** DESIGN.md "Card": white, 28px radius, soft shadow, no border. */
@@ -105,5 +105,57 @@ export function Stars({ rating, size = 16 }: { rating: number; size?: number }) 
         </svg>
       ))}
     </span>
+  );
+}
+
+/** Graceful error recovery: say what happened in plain words, that nothing was lost, and give one button that tries again. */
+export function ErrorState({ title = "This didn't load", error, onRetry, retrying, compact }: { title?: string; error?: string | null; onRetry?: () => void; retrying?: boolean; compact?: boolean }) {
+  return (
+    <div role="alert" className={clsx("panel flex flex-wrap items-center gap-4", compact ? "p-4" : "p-5 sm:p-6")}>
+      <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-neg-tint text-neg"><XCircle className="h-6 w-6" /></span>
+      <div className="min-w-0 flex-1 basis-56">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <p className="mt-0.5 text-sm text-muted">{error ? `${error} ` : ""}Nothing was lost or changed.</p>
+      </div>
+      {onRetry && (
+        <button type="button" onClick={onRetry} disabled={retrying} className="btn-glass tap inline-flex items-center gap-2 rounded-[12px] px-5 text-sm font-semibold text-ink disabled:opacity-60">
+          {retrying ? <Loader2 className="h-4 w-4 fq-spin" aria-hidden /> : <RotateCw className="h-4 w-4" aria-hidden />}Try again
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Autosave status line: "Saving…", "All changes saved", or what failed with a retry. Quiet when nothing changed. */
+export function SaveStatus({ state, error, onRetry, className }: { state: "idle" | "dirty" | "saving" | "saved" | "error"; error?: string | null; onRetry?: () => void; className?: string }) {
+  if (state === "idle") return <span className={clsx("text-xs text-muted-soft", className)} aria-live="polite">Saves automatically</span>;
+  return (
+    <span aria-live="polite" className={clsx("inline-flex items-center gap-1.5 text-xs font-medium", state === "error" ? "text-neg" : state === "saved" ? "text-pos" : "text-muted", className)}>
+      {state === "saving" && <Loader2 className="h-3.5 w-3.5 fq-spin" aria-hidden />}
+      {state === "saved" && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
+      {state === "error" && <XCircle className="h-3.5 w-3.5" aria-hidden />}
+      {state === "dirty" ? "Unsaved changes…" : state === "saving" ? "Saving…" : state === "saved" ? "All changes saved" : (error ?? "Could not save")}
+      {state === "error" && onRetry && <button type="button" onClick={onRetry} className="underline underline-offset-2">Retry</button>}
+    </span>
+  );
+}
+
+/** A plan marker beside a feature the current plan doesn't include (tier-based indicators). Text and an icon, never colour alone. */
+export function TierBadge({ plan = "Growth", className }: { plan?: string; className?: string }) {
+  return <span className={clsx("inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-gold-50 px-2 py-0.5 text-[11px] font-semibold text-gold-700 ring-1 ring-inset ring-gold-400/40 dark:bg-gold-500/15 dark:text-gold-400", className)}><Lock className="h-3 w-3" aria-hidden />{plan}</span>;
+}
+
+/** Placeholder rows for a list or table that is loading, the same height as the real rows so nothing jumps when data arrives. */
+export function SkeletonRows({ rows = 5, className }: { rows?: number; className?: string }) {
+  return (
+    <div aria-busy="true" aria-label="Loading" className={clsx("space-y-2.5", className)}>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 rounded-tile bg-surface p-3">
+          <Skeleton className="h-10 w-10 shrink-0 !rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2"><Skeleton className="h-3.5 w-2/5 !rounded-md" /><Skeleton className="h-3 w-4/5 !rounded-md" /></div>
+          <Skeleton className="hidden h-7 w-20 !rounded-full sm:block" />
+        </div>
+      ))}
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { TaskCard } from "@/components/agent/TaskCard";
-import { Alert, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/kit";
 import type { TasksResponse } from "@/lib/agent";
 import { useFetch } from "@/lib/use-api";
@@ -19,7 +19,7 @@ export default function Recommendations() {
       <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Filter by kind">
         {KINDS.map(([k, l]) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`min-h-9 rounded-full px-3.5 text-[13px] font-medium transition-[background-color,color,transform] duration-200 ease-spring active:scale-95 ${kind === k ? "bg-ink-solid text-ink-on" : "bg-surface text-ink-700 ring-1 ring-line hover:bg-surface-2"}`}>{l}</button>)}
       </div>
-      {error && <Alert tone="error">{error}</Alert>}
+      {error && <ErrorState error={error} onRetry={() => void reload()} />}
       {loading && !data ? <Skeleton className="h-48" /> : (data?.tasks.length ?? 0) === 0 ? <EmptyState title={scope === "open" ? "Nothing open" : "No history yet"}>{scope === "open" ? "No open recommendations in this view." : "Finished tasks appear here."}</EmptyState>
         : <ul className="space-y-3">{data!.tasks.map((t) => <TaskCard key={t.id} t={t} onChange={() => void reload()} />)}</ul>}
     </>

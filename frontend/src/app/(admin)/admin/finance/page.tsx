@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Form";
 import { rupees } from "@/lib/billing";
 import { useFetch } from "@/lib/use-api";
@@ -67,7 +67,7 @@ export default function AdminFinance() {
     <>
       <PageHeader title="Finance and usage" subtitle="What was earned, what it cost, and how much of that is measured." actions={<div className="w-44"><Input label="Month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></div>} />
       <div className="mb-5"><Alert tone="info" title="How to read this page">{fin.data?.reading_guide ?? "actual = measured. estimated = measured plus an assumption or a figure you configured. missing = an input was never provided; it is never treated as zero."}</Alert></div>
-      {fin.error && <Alert tone="error">{fin.error}</Alert>}
+      {fin.error && <ErrorState error={fin.error} onRetry={() => void fin.reload()} />}
       {!fin.data ? <Skeleton className="h-64" /> : (
         <div className="space-y-6">
           <Card><CardHeader title="Revenue" subtitle="MRR counts only subscriptions paid through the payment provider. The free card month, trials and comped subscriptions are not revenue." /><Rows rows={rev} /></Card>

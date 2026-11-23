@@ -7,7 +7,7 @@ import { Ring } from "@/components/charts/Bars";
 import { CountUp } from "@/components/charts/CountUp";
 import { SourceTag } from "@/components/seo/parts";
 import { Card, Dashes, Title } from "@/components/seo/visuals";
-import { Alert, Skeleton } from "@/components/ui/Card";
+import { Alert, Skeleton, ErrorState } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { useLocationScope } from "@/lib/location-scope";
 import type { HealthCheck, ProfileHealth } from "@/lib/seo";
@@ -25,7 +25,7 @@ export default function ProfilePage() {
   return (
     <>
       <h1 className="mb-4 text-[22px] font-semibold leading-7 sm:text-[26px]">Profile</h1>
-      {q.error && <Alert tone="error">{q.error}</Alert>}
+      {q.error && <ErrorState error={q.error} onRetry={() => void q.reload()} />}
       {q.loading && !d ? <Skeleton className="h-64" /> : !d || d.state === "no_location" ? (
         <ConnectGoogleEmptyState what="The profile checklist needs a connected Google location." />
       ) : (

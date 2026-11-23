@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, Card, CardHeader, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Form";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorMessage } from "@/lib/api";
@@ -43,7 +43,7 @@ interface Gate { id: string; label: string; status: "passed" | "not_done"; date:
 export default function AdminPlans() {
   const { data, error, reload } = useFetch<Plans>("/admin/plans");
   const gates = useFetch<{ overall: string; gates: Gate[] }>("/admin/release-gates");
-  if (error) return <Alert tone="error">{error}</Alert>;
+  if (error) return <ErrorState error={error} onRetry={() => void reload()} />;
   if (!data) return <Skeleton className="h-64" />;
   const pending = data.plans.filter((p) => p.pending_owner_configuration.length > 0);
   return (

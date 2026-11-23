@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { signIn, type UserDetail } from "@/components/admin/LoginCheck";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { Panel } from "@/components/ui/kit";
 import { useToast } from "@/components/ui/Toast";
@@ -30,7 +30,7 @@ export default function UserPage() {
     setBusy(key);
     try { await fn(); toast(ok); setConfirm(null); await reload(); } catch (e) { toast(errorMessage(e), "error"); } finally { setBusy(null); }
   }
-  if (error) return <Alert tone="error">{error}</Alert>;
+  if (error) return <ErrorState error={error} onRetry={() => void reload()} />;
   if (!d) return <Skeleton className="h-64" />;
   const u = d.user, self = me?.user.id === u.id;
   return (

@@ -8,10 +8,11 @@ import { BulkAssignModal } from "@/components/cards/BulkAssignModal";
 import { CardDetail } from "@/components/cards/CardDetail";
 import { PosterDownload } from "@/components/cards/PosterDownload";
 import { Button } from "@/components/ui/Button";
-import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
 import { ErrorSummary, FilterSelect, Input, Select, Textarea } from "@/components/ui/Form";
 import { Segmented } from "@/components/ui/kit";
 import { Modal } from "@/components/ui/Modal";
+import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, apiFile, errorMessage, saveBlob } from "@/lib/api";
 import { CARD_LIFECYCLE, CARD_STATUS, STATUS_TONE } from "@/lib/card-ui";
@@ -27,6 +28,7 @@ interface TenantRow { id: string; name: string }
 interface Opt { id: string; name: string; city?: string | null; location_id?: string | null; status?: string }
 
 export default function AdminCards() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [tab, setTab] = useState<"inventory" | "assign">("inventory");
   const [f, setF] = useState({ search: "", status: "", batch_id: "", tenant_id: "", location_id: "", campaign_id: "", created_from: "", created_to: "", has_destination: "", nfc: "" });
@@ -53,10 +55,10 @@ export default function AdminCards() {
 
   /** Run a card action. A 409 "confirmation_required" is explained and, if confirmed in the browser, repeated with confirm: true. */
   async function act(c: CardT, path: string, body: Record<string, unknown>, msg: string, ask?: string) {
-    if (ask && !confirm(ask)) return;
+    if (ask && !(await confirm({ title: "Are you sure?", body: ask }))) return;
     try { await api(`/admin/cards/${c.id}/${path}`, { method: "POST", body }); toast(msg); refresh(); }
     catch (e) {
-      if (e instanceof ApiError && e.code === "confirmation_required" && !body.confirm && confirm(`${e.message}\n\nContinue?`)) return act(c, path, { ...body, confirm: true }, msg);
+      if (e instanceof ApiError && e.code === "confirmation_required" && !body.confirm && (await confirm({ title: "Please confirm", body: e.message, tone: "neutral", confirmLabel: "Continue" }))) return act(c, path, { ...body, confirm: true }, msg);
       toast(errorMessage(e), "error");
     }
   }
@@ -138,7 +140,7 @@ export default function AdminCards() {
                 <Button size="sm" variant="inverse" className="!rounded-full" onClick={() => setPicked(new Set())}>Clear</Button></span>
             </div>)}
 
-          {cards.error && <Alert tone="error">{cards.error}</Alert>}
+          {cards.error && <ErrorState error={cards.error} onRetry={() => void cards.reload()} />}
           {cards.loading && !cards.data ? <Skeleton className="h-64" /> : cards.data && cards.data.items.length === 0 ? (
             <EmptyState icon={<FileStack className="h-6 w-6" />} title="No cards found" action={<Button onClick={() => setNewBatch(true)}>Create a batch</Button>}>Generate a batch of unique cards to get started.</EmptyState>
           ) : (
