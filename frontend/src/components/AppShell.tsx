@@ -238,7 +238,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1320px] min-[1024px]:max-w-[1360px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
+        <main id="app-main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1320px] min-[1024px]:max-w-[1360px] px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-6 md:pb-12 lg:px-8">
           <StatusStrip notices={path.startsWith("/settings/billing") ? notices.filter((n) => !n.href.startsWith("/settings/billing")) : notices} />
           <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialPill s={s ?? null} path={path} className="min-[1280px]:hidden" />}<LocationPicker className="md:hidden" /></div>
           {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}

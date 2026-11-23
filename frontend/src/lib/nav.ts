@@ -91,21 +91,23 @@ export const DESTS: Dest[] = [
 /** The four destinations on the phone's bottom bar, in order. The fifth, More, opens the sheet below. */
 export const BOTTOM_IDS = ["home", "reviews", "seo", "growth"] as const;
 
-export type MoreItem = { href: string; label: string; desc: string; icon: NavIcon; only?: Role[]; help?: boolean; flag?: "whatsapp" };
+/** Which group tint a More tile's icon wears (the same five as Settings, docs/DESIGN_SETTINGS_MOBILE.md §2). */
+export type MoreTint = "connect" | "business" | "prefs" | "billing" | "security";
+export type MoreItem = { href: string; label: string; desc: string; icon: NavIcon; tint: MoreTint; only?: Role[]; help?: boolean; flag?: "whatsapp" };
 export const MORE_GROUPS: { label: string; items: MoreItem[] }[] = [
-  { label: "Business", items: [
-    { href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: LocationsGlyph },
-    { href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, flag: "whatsapp" },
+  { label: "Customers", items: [
+    { href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, tint: "connect", flag: "whatsapp" },
+    { href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: LocationsGlyph, tint: "business" },
   ] },
   { label: "Assistant", items: [
-    { href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph },
-    { href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph },
-    { href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph },
+    { href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph, tint: "prefs" },
+    { href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph, tint: "prefs" },
+    { href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph, tint: "prefs" },
   ] },
   { label: "Account", items: [
-    { href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph },
-    { href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, only: ["owner", "admin"] },
-    { href: "/help", label: "Help & Support", desc: "Search, or email us", icon: CircleHelp, help: true },
+    { href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph, tint: "security" },
+    { href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, tint: "billing", only: ["owner", "admin"] },
+    { href: "/help", label: "Help & Support", desc: "Search, or email us", icon: CircleHelp, tint: "security", help: true },
   ] },
 ];
 

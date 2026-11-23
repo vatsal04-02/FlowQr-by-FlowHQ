@@ -19,7 +19,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         {hub && <SettingsHub className="md:hidden" />}
       </aside>
       <div className={hub ? "hidden md:block" : "min-w-0 md:max-w-[760px]"}>
-        {!hub && <BackLink className="mb-1 md:hidden" />}
+        {!hub && (path.startsWith("/settings/connections/") ? <BackLink href="/settings/connections" className="mb-1 md:hidden">Connected accounts</BackLink> : <BackLink className="mb-1 md:hidden" />)}
         {children}
       </div>
     </div>

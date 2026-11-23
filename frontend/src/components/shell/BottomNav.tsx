@@ -1,58 +1,53 @@
 "use client";
 import clsx from "clsx";
-import { ChevronRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { MoreGlyph } from "@/components/icons/Nav";
-import { BOTTOM_IDS, bottomActive, moreFor, type Dest } from "@/lib/nav";
+import { BOTTOM_IDS, bottomActive, moreFor, type Dest, type MoreTint } from "@/lib/nav";
 import type { Role } from "@/lib/types";
 
+/** The bar is 72px tall (docs/DESIGN_SETTINGS_MOBILE.md §6); the More sheet sits directly above it, so both read the same number. */
+const BAR = "72px";
+
 /**
- * Phone navigation: a floating glass dock with five fixed destinations (Home, Reviews, GBP, Growth, More), an icon and a visible name each, every target at least 56px tall, above the
- * home indicator, with matching bottom padding on the page so nothing hides behind it. Hidden from tablet width up, where the sidebar takes over.
- * It answers the tap before the page does: the highlight starts gliding to the pressed item at once (not when the next page has loaded), the glyph lifts and fills in, and the press gives
- * a small squeeze. Reduced motion skips the glide and the squeeze (MotionConfig in the app shell).
+ * Phone navigation: a flat 72px bar with five fixed destinations (Home, Reviews, Google, Growth, More): a 22px icon in a 56x30 pill, a 12px name always visible, the current one in a
+ * soft indigo pill with a heavier navy label, above the home indicator. The page keeps matching bottom padding so nothing hides behind it. Hidden from tablet width up, where the sidebar
+ * takes over. The pill glides to the pressed item at once (not when the next page has loaded); reduced motion skips the glide (MotionConfig in the app shell).
  */
 export function BottomNav({ path, dests, moreOpen, onMore }: { path: string; dests: Dest[]; moreOpen: boolean; onMore: (open: boolean) => void }) {
   const [pending, setPending] = useState<string | null>(null);
   useEffect(() => { setPending(null); }, [path]);               // the page arrived: the real route takes over
   const active = pending ?? bottomActive(path);
   const four = BOTTOM_IDS.map((id) => dests.find((d) => d.id === id)).filter((d): d is Dest => !!d);
-  const item = "relative flex !min-h-[56px] w-full flex-col items-center justify-center gap-[3px] rounded-[18px] px-1 text-[12px] font-semibold leading-[14px] transition-colors duration-300";
-  const pill = <motion.span layoutId="dock-on" aria-hidden className="absolute inset-0.5 rounded-[18px] bg-accent-tint shadow-[inset_0_1px_0_rgb(255_255_255/.6)]" transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.9 }} />;
-  const glyph = (Icon: Dest["icon"], on: boolean) => (
-    <motion.span aria-hidden className="relative grid place-items-center" animate={{ y: on ? -1.5 : 0, scale: on ? 1.08 : 1 }} transition={{ type: "spring", stiffness: 420, damping: 26 }}>
-      <Icon className="h-[23px] w-[23px]" strokeWidth={on ? 1.9 : 1.7} />
-    </motion.span>
+  const item = "set-focus relative flex h-[72px] w-full flex-col items-center justify-center gap-1 px-0.5";
+  const cell = (Icon: Dest["icon"], on: boolean, label: string, sr?: string) => (
+    <>
+      <span className="relative grid h-[30px] w-14 place-items-center rounded-full">
+        {on && <motion.span layoutId="bar-pill" aria-hidden className="absolute inset-0 rounded-full bg-set-info-bg" transition={{ type: "spring", stiffness: 420, damping: 38 }} />}
+        <Icon aria-hidden className={clsx("relative h-[22px] w-[22px]", on ? "text-set-navy dark:text-set-ink" : "text-set-soft")} strokeWidth={1.8} />
+      </span>
+      <span aria-hidden={sr ? true : undefined} className={clsx("text-[12px] leading-[14px]", on ? "font-extrabold text-set-navy dark:text-set-ink" : "font-semibold text-set-soft")}>{label}</span>
+      {sr && <span className="sr-only">{sr}</span>}
+    </>
   );
-  const tap = { scale: 0.9 };
   return (
-    <nav aria-label="Primary" className="fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-40 md:hidden">
-      <ul className="dock grid grid-cols-5 rounded-[24px] p-1">
+    <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-[55] border-t border-set-line bg-set-surface pb-[env(safe-area-inset-bottom)] md:hidden">
+      <ul className="grid h-[72px] grid-cols-5 px-1">
         {four.map((d) => {
           const on = active === d.id && !moreOpen;
           return (
             <li key={d.id}>
-              <Link href={d.href} aria-current={bottomActive(path) === d.id && !moreOpen ? "page" : undefined} data-on={on ? "" : undefined} onClick={() => setPending(d.id)}
-                className={clsx(item, on ? "text-accent-ink" : "text-ink-500 active:text-ink")}>
-                {on && pill}
-                <motion.span className="relative flex flex-col items-center gap-[3px]" whileTap={tap} transition={{ type: "spring", stiffness: 500, damping: 30 }}>
-                  {glyph(d.icon, on)}
-                  {d.short ? <><span aria-hidden>{d.short}</span><span className="sr-only">{d.label}</span></> : <span>{d.label}</span>}
-                </motion.span>
+              <Link href={d.href} aria-current={bottomActive(path) === d.id && !moreOpen ? "page" : undefined} onClick={() => setPending(d.id)} className={item}>
+                {cell(d.icon, on, d.short ?? d.label, d.short ? d.label : undefined)}
               </Link>
             </li>
           );
         })}
         <li>
-          <button type="button" aria-haspopup="dialog" aria-expanded={moreOpen} data-on={active === "more" || moreOpen ? "" : undefined} onClick={() => onMore(!moreOpen)}
-            className={clsx(item, active === "more" || moreOpen ? "text-accent-ink" : "text-ink-500 active:text-ink")}>
-            {(active === "more" || moreOpen) && pill}
-            <motion.span className="relative flex flex-col items-center gap-[3px]" whileTap={tap} transition={{ type: "spring", stiffness: 500, damping: 30 }}>
-              {glyph(MoreGlyph, active === "more" || moreOpen)}
-              <span>More</span>
-            </motion.span>
+          <button type="button" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => onMore(!moreOpen)} className={item}>
+            {cell(MoreGlyph, active === "more" || moreOpen, "More")}
           </button>
         </li>
       </ul>
@@ -60,9 +55,16 @@ export function BottomNav({ path, dests, moreOpen, onMore }: { path: string; des
   );
 }
 
+/** The tile's icon colours: the same group tints as Settings (tokens in globals.css). */
+const TINT: Record<MoreTint, string> = {
+  connect: "bg-set-t-connect text-set-i-connect", business: "bg-set-t-business text-set-i-business", prefs: "bg-set-t-prefs text-set-i-prefs",
+  billing: "bg-set-t-billing text-set-i-billing", security: "bg-set-t-security text-set-i-security",
+};
+
 /**
- * The More sheet: everything that is not one of the four main places, in three named groups. It slides up over the page, closes with its button, the backdrop, Escape or by choosing a
- * page, keeps keyboard focus inside while open and returns focus to the More button. Motion respects the reduced-motion setting (MotionConfig in the app shell).
+ * The More sheet: everything that is not one of the four main places, in three labelled groups of two-column tiles (56px high, a tinted 32px icon, a plain name). It rises from just above
+ * the bar over a navy scrim, closes with its button, the scrim, Escape or by choosing a page, keeps keyboard focus inside while open and returns focus to the More button.
+ * Motion respects the reduced-motion setting (MotionConfig in the app shell).
  */
 export function MoreSheet({ open, onClose, role, whatsapp = false, onSearch, supportEmail }: { open: boolean; onClose: () => void; role: Role | null; whatsapp?: boolean; onSearch: () => void; supportEmail: string | null | undefined }) {
   const panel = useRef<HTMLDivElement>(null);
@@ -89,45 +91,45 @@ export function MoreSheet({ open, onClose, role, whatsapp = false, onSearch, sup
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
 
-  const row = "flex !min-h-[52px] w-full items-center gap-3 rounded-xl px-3 text-left transition-colors active:bg-surface-3 hover:bg-surface-2";
+  const tile = "set-focus flex min-h-14 items-center gap-2.5 rounded-[14px] border border-set-line bg-set-surface px-3 text-left text-[14px] font-bold leading-tight text-set-ink active:bg-set-paper";
   return (
     <AnimatePresence>
       {open && (
         <motion.div className="fixed inset-0 z-50 md:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onKeyDown={onKey}>
-          <button type="button" aria-label="Close menu" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/45" />
+          <button type="button" aria-label="Close menu" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-set-navy/50" />
           <motion.div ref={panel} role="dialog" aria-modal="true" aria-label="More"
-            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 420, damping: 40 }}
-            className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto overscroll-contain rounded-t-[20px] bg-surface pb-[calc(20px+env(safe-area-inset-bottom))] shadow-lift">
-            <div className="sticky top-0 z-10 flex items-center justify-between bg-surface px-4 pb-1 pt-3">
-              <div className="flex items-center gap-3"><span aria-hidden className="h-1 w-9 rounded-full bg-ink-200" /><h2 className="text-lg font-semibold">More</h2></div>
-              <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close" className="grid h-11 w-11 place-items-center rounded-full text-ink-600 hover:bg-surface-2"><X className="h-5 w-5" aria-hidden /></button>
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 420, damping: 42 }}
+            style={{ bottom: `calc(${BAR} + env(safe-area-inset-bottom))`, maxHeight: `calc(100dvh - ${BAR} - env(safe-area-inset-bottom) - 16px)` }}
+            className="absolute inset-x-0 flex flex-col gap-4 overflow-y-auto overscroll-contain rounded-t-3xl bg-set-paper px-4 pb-5 pt-2.5 shadow-[0_-8px_30px_rgba(20,22,58,.18)]">
+            <span aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-set-line-strong" />
+            <div className="-mt-1 flex items-center justify-between">
+              <h2 className="text-xl font-extrabold text-set-ink">More</h2>
+              <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close" className="set-focus -mr-2 grid h-11 w-11 place-items-center rounded-full text-set-soft hover:bg-set-surface"><X className="h-5 w-5" aria-hidden /></button>
             </div>
-            <div className="space-y-4 px-2 pt-1">
-              {groups.map((g) => (
-                <section key={g.label} aria-label={g.label}>
-                  <h3 className="px-3 pb-1 text-[13px] font-medium text-muted">{g.label}</h3>
-                  <ul>
-                    {g.items.map((it) => (
+            {groups.map((g) => (
+              <section key={g.label} aria-label={g.label} className="space-y-2">
+                <h3 className="px-0.5 text-[13px] font-extrabold text-set-soft">{g.label}</h3>
+                <ul className="grid grid-cols-2 gap-2.5">
+                  {g.items.map((it) => {
+                    const icon = <span aria-hidden className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-xl", TINT[it.tint])}><it.icon className="h-[18px] w-[18px]" strokeWidth={1.8} /></span>;
+                    return (
                       <li key={it.label}>
                         {it.help ? (
                           supportEmail
-                            ? <a href={`mailto:${supportEmail}`} onClick={onClose} className={row}><Ico it={it} /><Text it={it} desc={`Email ${supportEmail}`} /></a>
-                            : <button type="button" onClick={() => { onClose(); onSearch(); }} className={row}><Ico it={it} /><Text it={it} desc="Search the app for a page" /></button>
+                            ? <a href={`mailto:${supportEmail}`} onClick={onClose} className={tile}>{icon}<span className="min-w-0">{it.label}</span></a>
+                            : <button type="button" onClick={() => { onClose(); onSearch(); }} className={clsx(tile, "w-full")}>{icon}<span className="min-w-0">{it.label}</span></button>
                         ) : (
-                          <Link href={it.href} onClick={onClose} className={row}><Ico it={it} /><Text it={it} /><ChevronRight className="h-4 w-4 shrink-0 text-ink-300" aria-hidden /></Link>
+                          <Link href={it.href} onClick={onClose} className={tile}>{icon}<span className="min-w-0">{it.label}</span></Link>
                         )}
                       </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
-
-const Ico = ({ it }: { it: { icon: Dest["icon"] } }) => <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-ink-700"><it.icon className="h-[18px] w-[18px]" strokeWidth={1.75} /></span>;
-const Text = ({ it, desc }: { it: { label: string; desc: string }; desc?: string }) => <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-medium">{it.label}</span><span className="block truncate text-[13px] text-muted">{desc ?? it.desc}</span></span>;

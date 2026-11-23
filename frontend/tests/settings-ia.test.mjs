@@ -31,7 +31,8 @@ test("the longest matching address wins, so Payments is not Plan and AI tabs sta
   assert.equal(rowAt("/settings/billing")?.id, "plan");
   assert.equal(rowAt("/settings/ai/brain")?.id, "ai");
   assert.equal(rowAt("/settings/connections/google")?.id, "google");
-  assert.equal(rowAt("/settings/connections")?.id, "connections");
+  assert.equal(rowAt("/settings/connections")?.id, "meta");
+  assert.equal(rowAt("/whatsapp/connect")?.id, "whatsapp");
   assert.equal(rowAt("/overview"), null);
 });
 

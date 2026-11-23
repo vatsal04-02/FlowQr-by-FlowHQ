@@ -21,7 +21,8 @@ const navPages = (dests: Dest[]): Entry[] => dests.flatMap((d) => [
 /** The settings pages (the sidebar lists Settings as one item): those this person may open, found by title or what is on them. */
 const settingsPages = (dests: Dest[]): Entry[] => {
   const admin = dests.some((d) => d.id === "billing");   // billing is listed for owners and admins only, the same people who see the audit log
-  return ROWS.filter((r) => !r.only || admin).map((r) => ({ key: r.href, label: r.title, hint: `Settings · ${r.sub}`, href: r.href, icon: r.icon }));
+  const wa = dests.some((d) => d.id === "whatsapp");
+  return ROWS.filter((r) => (!r.only || admin) && (r.id !== "whatsapp" || wa)).map((r) => ({ key: r.href, label: r.title, hint: `Settings · ${r.sub}`, href: r.href, icon: r.icon }));
 };
 const pagesOf = (dests: Dest[]): Entry[] => [...navPages(dests), ...settingsPages(dests)];
 
