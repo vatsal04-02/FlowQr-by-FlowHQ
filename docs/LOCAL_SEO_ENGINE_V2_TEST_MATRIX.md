@@ -54,15 +54,40 @@ I verified two guards actually guard, by temporarily disabling each in the code 
 
 ## Frontend
 
-`tsc --noEmit` clean. `node --test tests/*.test.mjs`: 128 pass. **The new dashboard component was type-checked but not opened in a browser**: no visual or Playwright check was done, so layout at phone width is unverified.
+`tsc --noEmit` clean. `node --test tests/*.test.mjs`: 128 pass. Browser (`e2e/seo-v2-dashboard.js`, real Chrome, the release image against a throwaway database, **not production**): gate-closed mode 21/21, designated-test-profile mode 20/20, at 1440 and 390 px, plus loading, error, not-read and empty states. It found and fixed two real defects (V2 values printed as raw JSON on the shared approval card; the area text squeezed beside its chip at 390 px). One 'failed' row and one 'verified' row in that run are **seeded fixtures** that exercise the rendering. Signed out, production `/seo` redirects to `/login` with no overflow or console errors (desktop and mobile). **A signed-in view of production was not opened: there is no production login for this work and registration there is allowlisted.**
 
-## Proven against a real Google profile
+## Proven against a real Google profile (2026-11-22/23)
 
-| Operation | Live status |
-|---|---|
-| (everything V2) | **Not run.** No dedicated test profile or credentials were used. |
+One profile only: the FlowHQ-owned test profile "FlowHQ", `locations/6589197820321114990` (owner-authorised, `hasBusinessAuthority=true`, `hasVoiceOfMerchant=true`), reached through the production deployment's stored OAuth connection. Evidence files: `docs/evidence/seo-v2-live-2026-11-23/` (API-level facts and outcomes only; no customer values). Run with image `prod-43539cc` (probes) and `prod-5ec9e93` (engine steps), in one-off containers whose own environment listed only this location in `SEO_V2_TEST_LOCATION_NAMES`.
 
-The existing description/post/photo live results in `docs/PRODUCTION_EXTERNAL_VALIDATION.md` pre-date V2 and do not cover it. The `google-readiness` tool now carries V2 dry-run and read probes (`docs/LOCAL_SEO_ENGINE_V2_RUNBOOK.md` section 3); a clean run of it on a FlowHQ-owned test profile is the next evidence to record here.
+| Operation | Result against real Google | How |
+|---|---|---|
+| OAuth refresh with the stored token, title guard | PASS | `google-readiness` |
+| `canModifyServiceList` read | PASS: `true` | readiness + live-test refresh |
+| V2 reads: service items, special hours, attributes (31 offered, 0 set), category service types (16), `getGoogleUpdated` (empty masks) | PASS | readiness |
+| `validateOnly`: services body built by FlowQr (current list + one new custom item) | **Accepted by Google** | readiness |
+| `validateOnly`: categories, primary + additional together | **Accepted** | readiness |
+| `validateOnly`: primary category alone | **400 INVALID_ARGUMENT** (confirms the documented rule that categories cannot be updated one sub-field at a time) | readiness |
+| `validateOnly`: special hours alone on a profile with no regular hours | **400** (confirms the documented precondition); regular + special hours together **accepted** | readiness |
+| Engine, services: propose, owner approval, Google dry run (`validateOnly`) accepted, write, **independent read-back matched**, history chain intact, `email.sent` notice audited | **PASS** (action `35b18fbf`) | `seo-v2-live-test` |
+| Engine, services: the profile read back after the write holds the new service (0 before, 1 now) | PASS | same |
+| Cleanup: the profile restored to 0 services and read back | PASS, **done directly, not by the engine**: the engine refuses to empty a list by design | same |
+| Engine, refused change: a custom service with a non-existent category | Google's dry run answered **400**; the engine ended `blocked / validation_failed`, never wrote, the profile read back unchanged | same (action `26ff2bc3`) |
+| Final state | services and special hours identical to before the run | same |
+
+**Not proven live, and why:**
+* Special hours: the test profile has no regular opening hours, so the step correctly skipped. Only the dry-run acceptance of regular + special hours together is proven.
+* Attributes and category changes: dry runs / reads only; no attribute or category was written (the test profile's categories were not changed).
+* Whole-list vs merge semantics of `serviceItems`: the test started from an empty list, so it cannot distinguish them. The engine always sends the complete list, which is correct either way.
+* BOOL attribute wire form, prices (Money): untested.
+* The notice email: Google-side nothing; SMTP accepted it, **receipt in the mailbox was not checked**.
+* Any customer profile: none was touched, by design.
+
+**Findings from the real run (each is a defect or fact a mock could not show):**
+1. The category search answered **400** for a multi-word term and, quoted, returned nothing, because Google matches the *start* of the name. This also broke the existing category picker for multi-word queries. Fixed (commit `8931233`): the first word is sent, the rest narrows the answer. Verified live only through the unquoted/quoted probes; the fix itself is contract-tested.
+2. `app.cli` did not route the new command; found on the first production dry run, fixed (`18d0161`).
+3. A test tenant whose trial has ended is correctly **held** (`held/plan`) with nothing written; the test needed the test tenant's trial extended (approved by the owner of the platform; original values restored and audited).
+4. A refused change records `validation_failed` twice in the history (cosmetic duplicate, not fixed).
 
 ## Remains unverified
 

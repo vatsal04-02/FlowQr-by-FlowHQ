@@ -1,0 +1,51 @@
+{
+  "mode": "live",
+  "location": "locations/6589197820321114990",
+  "finished_at": "2026-11-22T22:12:37.297693+00:00",
+  "failed": 0,
+  "results": [
+    {
+      "step": "special-hours: add a closed day",
+      "status": "SKIP",
+      "verified_by_read_back": false,
+      "detail": "the test profile has no regular opening hours, and Google does not accept special hours without them (a real precondition, not a failure of the engine)"
+    },
+    {
+      "step": "services: add one marked custom service through the engine, Google must show the complete list",
+      "status": "PASS",
+      "verified_by_read_back": true,
+      "detail": "action 35b18fbf-2099-4904-8f28-f92c2a20c2ad; engine says executed; dry run validated via validateOnly; read-back matched=True; history chain intact"
+    },
+    {
+      "step": "services: every earlier service is still there and the new one is added",
+      "status": "PASS",
+      "verified_by_read_back": true,
+      "detail": "0 before, 1 now"
+    },
+    {
+      "step": "services: restored directly (cleanup, not the engine: the engine never empties a list), Google must show the original",
+      "status": "PASS",
+      "verified_by_read_back": true,
+      "detail": ""
+    },
+    {
+      "step": "failure: the refused change is blocked in Google's dry run and never reported as success",
+      "status": "PASS",
+      "verified_by_read_back": false,
+      "detail": "action 26ff2bc3-f015-4df3-9135-5d65b050049e; engine says blocked/validation_failed; validation rejected; Google's answer: ['Google API error 400: Request contains an invalid argument.']; history chain intact"
+    },
+    {
+      "step": "failure: the profile is unchanged after the refused change",
+      "status": "PASS",
+      "verified_by_read_back": true,
+      "detail": ""
+    },
+    {
+      "step": "the test profile is back exactly as it was (services and special hours)",
+      "status": "PASS",
+      "verified_by_read_back": true,
+      "detail": "services identical=True, special hours identical=True"
+    }
+  ],
+  "note": "mode 'live' = real Google calls; mode 'mocked' = a test double, NOT evidence that Google accepts anything."
+}
