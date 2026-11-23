@@ -1,0 +1,27 @@
+{
+  "mode": "live",
+  "location": "locations/6589197820321114990",
+  "finished_at": "2026-11-22T22:07:14.578882+00:00",
+  "failed": 0,
+  "results": [
+    {
+      "step": "refresh: the profile was read with the V2 reads",
+      "status": "PASS",
+      "verified_by_read_back": false,
+      "detail": "service_items=True (0), special_hours=True (0), attributes=True, canModifyServiceList=True, has_regular_hours=False, catalog parts=['attribute_metadata', 'categories', 'google_updated', 'service_types'], catalog errors=[\"category search 'Physiotherapy clinic': Google API error 400: Request contains "
+    },
+    {
+      "step": "scan: the V2 scan ran (nothing applied)",
+      "status": "PASS",
+      "verified_by_read_back": false,
+      "detail": "proposed=0 recommended=0 superseded=0 detected={'contacts': {'phone': 'missing_everywhere', 'website': 'missing_everywhere'}} skipped=['services: no services in your Business Brain to compare with']"
+    },
+    {
+      "step": "the test profile is back exactly as it was (services and special hours)",
+      "status": "PASS",
+      "verified_by_read_back": true,
+      "detail": "services identical=True, special hours identical=True"
+    }
+  ],
+  "note": "mode 'live' = real Google calls; mode 'mocked' = a test double, NOT evidence that Google accepts anything."
+}

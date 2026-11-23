@@ -1,0 +1,394 @@
+{
+  "tool": "google-readiness",
+  "date": "2026-11-22",
+  "guard": "passed",
+  "profile_changed": false,
+  "calls": [
+    {
+      "name": "oauth: refresh access token",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "expires_in=3599s business.manage=True"
+    },
+    {
+      "name": "guard: location title",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "title read"
+    },
+    {
+      "name": "accounts.list",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "1 account(s)"
+    },
+    {
+      "name": "locations.get (full read mask)",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "fields returned: categories,languageCode,latlng,metadata,name,openInfo,phoneNumbers,profile,storeCode,storefrontAddress,title",
+      "fields_returned": [
+        "categories",
+        "languageCode",
+        "latlng",
+        "metadata",
+        "name",
+        "openInfo",
+        "phoneNumbers",
+        "profile",
+        "storeCode",
+        "storefrontAddress",
+        "title"
+      ],
+      "shape": {
+        "name": "str",
+        "languageCode": "str",
+        "storeCode": "str",
+        "title": "str",
+        "phoneNumbers": {},
+        "categories": {
+          "primaryCategory": {
+            "name": "\u2026",
+            "displayName": "\u2026",
+            "serviceTypes": "\u2026",
+            "moreHoursTypes": "\u2026"
+          }
+        },
+        "storefrontAddress": {
+          "regionCode": "str",
+          "languageCode": "str",
+          "postalCode": "str",
+          "administrativeArea": "str",
+          "locality": "str",
+          "addressLines": "list[1]"
+        },
+        "latlng": {
+          "latitude": "float",
+          "longitude": "float"
+        },
+        "openInfo": {
+          "status": "str",
+          "canReopen": "bool"
+        },
+        "metadata": {
+          "canDelete": "bool",
+          "canModifyServiceList": "bool",
+          "placeId": "str",
+          "mapsUri": "str",
+          "newReviewUri": "str",
+          "hasVoiceOfMerchant": "bool"
+        },
+        "profile": {
+          "description": "str"
+        }
+      }
+    },
+    {
+      "name": "reviews.list",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "1 on first page"
+    },
+    {
+      "name": "localPosts.list",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "0 post(s)"
+    },
+    {
+      "name": "media.list",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "0 item(s)"
+    },
+    {
+      "name": "notificationSetting.get (account)",
+      "kind": "read",
+      "outcome": "api_not_enabled_or_not_approved",
+      "http": 403,
+      "why": "service_disabled",
+      "service": "mybusinessnotifications.googleapis.com",
+      "message": "A Google Business Profile API is not enabled on the project (mybusinessnotifications.googleapis.com)"
+    },
+    {
+      "name": "performance.fetchMultiDaily (7 days)",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "10/10 metrics returned data: ['BUSINESS_BOOKINGS', 'BUSINESS_DIRECTION_REQUESTS', 'BUSINESS_FOOD_MENU_CLICKS', 'BUSINESS_IMPRESSIONS_DESKTOP_MAPS', 'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH', 'BUSINESS_IMPRESSIONS_MOBILE_MAPS', 'BUSINESS_IMPRESSIONS_MOBILE_SEARCH', 'CALL_CLICKS', 'MESSAGING_CLICKS', 'WEBSITE_CLICKS']"
+    },
+    {
+      "name": "searchkeywords.impressions.monthly",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "0 term(s)"
+    },
+    {
+      "name": "locations.getGoogleUpdated",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "diffMask='' pendingMask=''"
+    },
+    {
+      "name": "verifications: getVoiceOfMerchantState",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "fields: hasBusinessAuthority,hasVoiceOfMerchant | hasVoiceOfMerchant=True hasBusinessAuthority=True"
+    },
+    {
+      "name": "verifications: list",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "fields: verifications"
+    },
+    {
+      "name": "attributes: get (merchant's)",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "fields: name"
+    },
+    {
+      "name": "attributes: metadata for this location",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "31 attribute(s)"
+    },
+    {
+      "name": "attributes: metadata for the primary category",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "31 attribute(s)"
+    },
+    {
+      "name": "placeActionLinks.list",
+      "kind": "read",
+      "outcome": "api_not_enabled_or_not_approved",
+      "http": 403,
+      "why": "service_disabled",
+      "service": "mybusinessplaceactions.googleapis.com",
+      "message": "A Google Business Profile API is not enabled on the project (mybusinessplaceactions.googleapis.com)"
+    },
+    {
+      "name": "validateOnly: NEW label value (semantic proof)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response fields: labels, languageCode, metadata, name"
+    },
+    {
+      "name": "validateOnly semantics",
+      "kind": "guard",
+      "outcome": "ok",
+      "detail": "new value not applied"
+    },
+    {
+      "name": "validateOnly: description (profile.description)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, profile)"
+    },
+    {
+      "name": "validateOnly: specialHours: one future closed day",
+      "kind": "validate",
+      "outcome": "rejected",
+      "http": 400,
+      "google_status": "INVALID_ARGUMENT",
+      "reason": "SPECIAL_HOURS_SET_WITHOUT_REGULAR_HOURS",
+      "message": "Google API error 400: Request contains an invalid argument."
+    },
+    {
+      "name": "validateOnly: categories (current primary + additional)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: categories, languageCode, metadata, name)"
+    },
+    {
+      "name": "validateOnly: categories: primaryCategory only (documented sub-field rule)",
+      "kind": "validate",
+      "outcome": "rejected",
+      "http": 400,
+      "google_status": "INVALID_ARGUMENT",
+      "reason": null,
+      "message": "Google API error 400: Request contains an invalid argument."
+    },
+    {
+      "name": "validateOnly: serviceItems (current items round-trip)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name)"
+    },
+    {
+      "name": "validateOnly: serviceItems: add ONE new free-form service",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, serviceItems)"
+    },
+    {
+      "name": "validateOnly: title (current; a Level 3 field)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, title)"
+    },
+    {
+      "name": "validateOnly: storefrontAddress (current; Level 3)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, storefrontAddress)"
+    },
+    {
+      "name": "validateOnly: openInfo (current)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, openInfo)"
+    },
+    {
+      "name": "validateOnly: regularHours: NEW Mon-Fri 09:00-17:00",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, regularHours)"
+    },
+    {
+      "name": "validateOnly: regularHours + specialHours: NEW, together",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, regularHours, specialHours)"
+    },
+    {
+      "name": "validateOnly: phoneNumbers: NEW primary phone",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, phoneNumbers)"
+    },
+    {
+      "name": "validateOnly: websiteUri: NEW website",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, websiteUri)"
+    },
+    {
+      "name": "validateOnly: profile.description: NEW text",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, metadata, name, profile)"
+    },
+    {
+      "name": "V2 normaliser: services round trip",
+      "kind": "local",
+      "outcome": "ok",
+      "detail": "0 item(s) read, rebuilt and re-read identically"
+    },
+    {
+      "name": "V2 eligibility: metadata.canModifyServiceList",
+      "kind": "local",
+      "outcome": "ok",
+      "detail": "value=True (None means Google did not say; FlowQR then assumes NO)"
+    },
+    {
+      "name": "V2 validateOnly: services (our builder, current list + ONE new custom item)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted by Google in a dry run (nothing applied)"
+    },
+    {
+      "name": "V2 validateOnly: categories (our builder, primary + additional TOGETHER)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted by Google in a dry run (nothing applied)"
+    },
+    {
+      "name": "V2 read: attributes normalised",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "0 attribute(s) normalised"
+    },
+    {
+      "name": "V2 read: attribute metadata for this location",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "31 attribute(s) offered"
+    },
+    {
+      "name": "V2 check: current attributes pass FlowQR's own metadata check",
+      "kind": "local",
+      "outcome": "ok",
+      "detail": "0 of 0 current attribute(s) accepted by FlowQR's check"
+    },
+    {
+      "name": "V2 read: category service types (view=FULL)",
+      "kind": "read",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "16 predefined service type(s)"
+    },
+    {
+      "name": "V2 check: structured services are among the category's service types",
+      "kind": "local",
+      "outcome": "ok",
+      "detail": "0 of 0 structured item(s) found in the category's list"
+    },
+    {
+      "name": "validateOnly: EXPECT REJECT: a field that does not exist",
+      "kind": "validate",
+      "outcome": "rejected",
+      "http": 400,
+      "google_status": "INVALID_ARGUMENT",
+      "reason": null,
+      "message": "Google API error 400: Invalid JSON payload received. Unknown name \"notARealField\" at 'location': Cannot find field."
+    },
+    {
+      "name": "validateOnly: EXPECT REJECT: output-only field `metadata`",
+      "kind": "validate",
+      "outcome": "rejected",
+      "http": 400,
+      "google_status": "INVALID_ARGUMENT",
+      "reason": null,
+      "message": "Google API error 400: Request contains an invalid argument."
+    },
+    {
+      "name": "validateOnly: EXPECT REJECT/PERMISSION: latlng (approved clients only)",
+      "kind": "validate",
+      "outcome": "ok",
+      "http": 200,
+      "detail": "accepted; response is the location as it WOULD be (fields: languageCode, latlng, metadata, name)"
+    },
+    {
+      "name": "validateOnly: EXPECT REJECT: languageCode (immutable)",
+      "kind": "validate",
+      "outcome": "rejected",
+      "http": 400,
+      "google_status": "INVALID_ARGUMENT",
+      "reason": null,
+      "message": "Google API error 400: Request contains an invalid argument."
+    }
+  ]
+}

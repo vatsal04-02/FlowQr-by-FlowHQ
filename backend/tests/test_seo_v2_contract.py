@@ -177,3 +177,20 @@ def test_every_new_write_goes_through_the_one_patch_builder_so_validation_matche
     p.update_location("AT", LOC, changes)
     dry, real = wire.requests[0], wire.requests[1]
     assert body(dry) == body(real) and q(dry)["updateMask"] == q(real)["updateMask"] and "validateOnly" in q(dry) and "validateOnly" not in q(real)
+
+
+def test_a_multi_word_category_search_sends_only_the_first_word_and_narrows_the_answer_here():
+    """Found against live Google: `displayName=Physiotherapy clinic` answers 400, the quoted phrase answers nothing (matching is by prefix of the name). Only the first word is sent."""
+    p, wire = provider((200, {"categories": [{"name": "categories/gcid:physiotherapy_center", "displayName": "Physiotherapy Center"},
+                                             {"name": "categories/gcid:physiotherapy_equipment_supplier", "displayName": "Physiotherapy equipment supplier"},
+                                             {"name": "categories/gcid:physiotherapist", "displayName": "Physiotherapist"}]}))
+    out = p.search_categories("AT", "Physiotherapy cen")
+    assert q(wire.last())["filter"] == ["displayName=Physiotherapy"] and q(wire.last())["pageSize"] == ["100"]
+    assert [c["name"] for c in out] == ["Physiotherapy Center"]  # "cen" narrows to the one name with a word starting that way
+    assert p.search_categories("AT", "   ") == [] and len(wire.requests) == 1  # nothing to search for: Google is not called
+
+
+def test_the_catalog_searches_the_leading_words_of_the_owners_terms():
+    from app.services.agent.v2.catalog import queries_for
+    assert queries_for(["Physiotherapy clinic", "Sports injury rehab", "Back care", "Physio"]) == ["Physiotherapy", "clinic", "Sports", "injury", "Back", "care", "Physio"]  # the first two meaningful words of each term
+    assert len(queries_for([f"alpha{i} beta{i}" for i in range(20)])) == 10 and queries_for(["a b"]) == []

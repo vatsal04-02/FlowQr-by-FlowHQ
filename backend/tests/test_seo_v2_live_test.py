@@ -127,3 +127,14 @@ def test_the_command_is_registered():
     add_commands(p.add_subparsers(dest="cmd"))
     ns = p.parse_args(["seo-v2-live-test", "--location", "locations/1"])
     assert ns.cmd == "seo-v2-live-test" and ns.execute is False and ns.steps is None
+
+
+def test_the_command_is_reachable_through_the_real_cli_entry_point(monkeypatch, capsys):
+    """app.cli routes only the commands it lists: a command that exists in ops_cli but is not routed fails before it does anything (found on the first production dry run)."""
+    import sys
+
+    from app import cli
+    monkeypatch.setattr(sys, "argv", ["app.cli", "seo-v2-live-test", "--location", "locations/1"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert e.value.code == 0 and "DRY RUN" in capsys.readouterr().out

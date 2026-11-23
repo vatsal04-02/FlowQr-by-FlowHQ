@@ -48,3 +48,13 @@ Use a **dedicated test profile that FlowHQ owns**, never a customer's.
 3. Add the three env vars to the VPS overlay when the gate decision is made.
 4. Decide whether to store competitor categories (billed Place Details) so category evidence can include them.
 5. Decide on the owner-facing wording for the notice email before enabling any customer write.
+
+## 6. The live test command (used on 2026-11-22/23)
+
+`python -m app.cli seo-v2-live-test --connection <id> --location locations/<n> [--steps refresh scan special-hours services failure] [--execute --confirm-location <same> --confirm-title "<exact title>" --report file.json]`
+
+* Dry run by default. `--execute` also needs `FLOWQR_LIVE_WRITE_AUTHORIZED=<location>` and the location listed in `SEO_V2_TEST_LOCATION_NAMES` **in that one process**. Run it in a one-off container: `docker compose -p flowqr-production ... run --rm --no-deps -T -e SEO_V2_TEST_LOCATION_NAMES=<loc> -e FLOWQR_LIVE_WRITE_AUTHORIZED=<loc> ... api python -m app.cli seo-v2-live-test ...`. The running api, worker and beat never see those variables, so the gate for every customer stays closed.
+* The acting person is the business owner recorded for the test tenant; the report says `live` or `mocked`.
+* Preconditions the command cannot satisfy for you: the test tenant needs an **active plan** (otherwise every change is held with reason `plan` and nothing is written); the platform emergency stop (`AUTONOMY_EMERGENCY_STOP=true` in production) holds every write too, so a live run needs it overridden **for that one process only** (`-e AUTONOMY_EMERGENCY_STOP=false`), which is a deliberate, recorded decision, never a change to the running services.
+* `deploy` note: on 2026-11-23 the test tenant's trial was extended for the run and restored afterwards (audit actions `ops.test_tenant_trial_extended` / `ops.test_tenant_trial_restored`; the original was status `expired`, `trial_ends_at` 2026-11-22 20:51:37+00).
+* Token expiry: while Google's OAuth consent screen is in *Testing*, a refresh token dies seven days after the connection was made (the Geeta customer connection was revoked on 2026-11-22 at 21:16, exactly seven days after 2026-11-15 20:47). The FlowHQ test connection (made 2026-11-21 15:04) will expire about 2026-11-28 15:04; reconnect it before the next live run.

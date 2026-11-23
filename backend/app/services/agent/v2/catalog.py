@@ -17,13 +17,23 @@ from app.services.google.errors import GoogleError
 
 log = logging.getLogger("flowqr.v2catalog")
 CATEGORY_SEARCH_EVERY = timedelta(days=7)
-MAX_CATEGORY_QUERIES = 6
+MAX_CATEGORY_QUERIES = 10
 GOOGLE_UPDATED_MASK = "title,profile,regularHours,specialHours,categories,websiteUri,phoneNumbers,serviceItems,serviceArea"
 KEEP_META = ("valueType", "displayName", "groupDisplayName", "repeatable", "valueMetadata", "deprecated")
 
 
 def _region(info: dict) -> str:
     return "IN"  # FlowQR is India-first; a profile's own region is not in the read mask. Kept in one place so it can follow the profile later.
+
+
+def queries_for(terms: list[str]) -> list[str]:
+    """Google matches a category by the START of its name, so each of the owner's terms is searched by its first two meaningful words ("Sports injury rehab" -> "Sports", "injury"), de-duplicated."""
+    out: list[str] = []
+    for t in terms:
+        for w in [x for x in "".join(c if c.isalnum() else " " for c in t).split() if len(x) >= 4][:2]:
+            if w.lower() not in {o.lower() for o in out}:
+                out.append(w)
+    return out[:MAX_CATEGORY_QUERIES]
 
 
 def fetch(provider, token: str, location_name: str, info: dict, *, search_terms: list[str], previous: dict | None, now: datetime) -> tuple[dict, list[str]]:
@@ -52,17 +62,17 @@ def fetch(provider, token: str, location_name: str, info: dict, *, search_terms:
         if meta is not None:
             cat["attribute_metadata"] = {n: {k: m[k] for k in KEEP_META if k in m} for n, m in meta.items()}
     searched_at = (prev.get("categories") or {}).get("searched_at")
-    fresh = searched_at and datetime.fromisoformat(searched_at) > now - CATEGORY_SEARCH_EVERY and (prev.get("categories") or {}).get("terms") == search_terms[:MAX_CATEGORY_QUERIES]
+    fresh = searched_at and datetime.fromisoformat(searched_at) > now - CATEGORY_SEARCH_EVERY and (prev.get("categories") or {}).get("terms") == queries_for(search_terms)
     if fresh:
         cat["categories"] = prev["categories"]
     elif search_terms and hasattr(provider, "search_categories"):
         found: dict[str, dict] = {}
-        for term in search_terms[:MAX_CATEGORY_QUERIES]:
+        for term in queries_for(search_terms):
             res = attempt(f"category search '{term[:20]}'", lambda t=term: provider.search_categories(token, t, _region(info), "en"))
             for c in res or []:
                 if c and c.get("id"):
                     found.setdefault(c["id"], {"id": c["id"], "name": c.get("name"), "matched_term": term})
-        cat["categories"] = {"candidates": list(found.values()), "searched_at": now.isoformat(), "terms": search_terms[:MAX_CATEGORY_QUERIES]}
+        cat["categories"] = {"candidates": list(found.values()), "searched_at": now.isoformat(), "terms": queries_for(search_terms)}
     if hasattr(provider, "get_google_updated"):
         gu = attempt("google updated", lambda: provider.get_google_updated(token, location_name, GOOGLE_UPDATED_MASK))
         if gu is not None:
