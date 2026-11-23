@@ -93,7 +93,12 @@ export function canApprove(o: { agreed: boolean; canAct: boolean; offered: strin
   return o.agreed && o.canAct && o.offered.includes("approve") && o.locations > 0;
 }
 
-export type JourneyAction = "connect" | "select_location" | "approve" | "check_again" | "restart" | "disconnect";
+/** "Start again" after a failed, expired or ended attempt opens the approval again (a new agreement, a new invitation). It only does so when the server offered `restart`; it never invents `approve`. */
+export function withRestartApproval(offered: string[], restarting: boolean): string[] {
+  return restarting && offered.includes("restart") && !offered.includes("approve") ? [...offered, "approve"] : offered;
+}
+
+export type JourneyAction ="connect" | "select_location" | "approve" | "check_again" | "restart" | "disconnect";
 export const ACTION_LABEL: Record<JourneyAction, string> = {
   connect: "Connect Google", select_location: "Use this location", approve: "Approve and invite FlowQR", check_again: "Check again", restart: "Start again", disconnect: "Stop FlowQR managing my profile",
 };
