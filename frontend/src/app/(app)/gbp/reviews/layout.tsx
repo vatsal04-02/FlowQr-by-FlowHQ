@@ -97,7 +97,7 @@ function Workspace({ children }: { children: ReactNode }) {
           {counts.none !== undefined && <li className={clsx("inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 shadow-pill ring-1", counts.none > 0 ? "bg-warn-tint text-warn ring-transparent" : "bg-surface ring-line")}><MessageSquareWarning className="h-3.5 w-3.5" aria-hidden /><b className="num font-semibold"><CountUp value={counts.none} /></b> {counts.none === 1 ? "needs a reply" : "need a reply"}</li>}
         </ul>
       )}
-      <div className="panel grid grid-cols-[minmax(0,1fr)] overflow-hidden max-md:!bg-transparent max-md:!shadow-none max-md:!ring-0 md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">
+      <div className="panel grid grid-cols-[minmax(0,1fr)] overflow-hidden max-md:!bg-transparent max-md:!shadow-none max-md:!border-0 max-md:!ring-0 md:h-[calc(100dvh-14rem)] md:min-h-[480px] md:grid-cols-[320px_minmax(0,1fr)] lg:h-[calc(100dvh-9.25rem)] lg:min-h-[520px] lg:grid-cols-[372px_minmax(0,1fr)]">
         <section aria-label="Review list" className={clsx("flex min-h-0 flex-col border-ink-100 md:border-r", seg ? "hidden md:flex" : "flex")}>
           <div className="space-y-2 border-b border-ink-100 p-3 max-md:space-y-3 max-md:border-0 max-md:p-0 max-md:pb-3">
             <div className="relative">
@@ -179,7 +179,7 @@ function Workspace({ children }: { children: ReactNode }) {
           )}
         </section>
 
-        <section aria-label="Review detail" className={clsx("min-h-0 min-w-0 overflow-y-auto bg-white", seg ? "block" : "hidden md:block")}><div key={seg ?? "none"} className="fq-slide">{children}</div></section>
+        <section aria-label="Review detail" className={clsx("min-h-0 min-w-0 overflow-y-auto bg-white", seg ? "block" : "hidden md:block", "max-md:bg-transparent")}><div key={seg ?? "none"} className="fq-slide">{children}</div></section>
       </div>
     </ReviewsCtx.Provider>
   );

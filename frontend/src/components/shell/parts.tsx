@@ -90,17 +90,17 @@ export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests
     }
     return (
       <nav aria-label={label} className={clsx(small ? "mb-3" : "mb-4", hideWide && "md:hidden")}>
-        <ul className={clsx("grid gap-1", small ? "rounded-[12px] bg-surface-2 p-1" : "border-b border-line")} style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+        <ul className={clsx("grid gap-1", small ? "rounded-[12px] bg-surface-2 p-1" : "border-b border-line max-md:flex max-md:gap-2 max-md:overflow-x-auto max-md:border-0 no-scrollbar")} style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
           {items.map((x) => {
             const active = x.href === current;
             return (
-              <li key={x.href} className="min-w-0">
+              <li key={x.href} className={clsx("min-w-0", !small && "max-md:shrink-0")}>
                 <Link href={x.href} aria-current={active ? "page" : undefined}
                   className={clsx("relative flex min-h-11 items-center justify-center whitespace-nowrap px-2 text-center font-medium transition-colors",
                     small ? clsx("rounded-[10px] text-[13px] sm:min-h-9", active ? "bg-surface text-ink shadow-card" : "text-muted hover:text-ink")
-                      : clsx("text-[15px] font-semibold", active ? "text-ink" : "text-muted hover:text-ink"))}>
+                      : clsx("text-[15px] font-semibold max-md:min-h-10 max-md:rounded-full max-md:px-4 max-md:text-[13px] max-md:font-bold", active ? "text-ink max-md:bg-set-navy max-md:text-white" : "text-muted hover:text-ink max-md:bg-set-surface max-md:text-set-soft max-md:ring-1 max-md:ring-set-line"))}>
                   {x.label}
-                  {!small && active && <span aria-hidden className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink-solid" />}
+                  {!small && active && <span aria-hidden className="max-md:hidden absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink-solid" />}
                 </Link>
               </li>
             );
