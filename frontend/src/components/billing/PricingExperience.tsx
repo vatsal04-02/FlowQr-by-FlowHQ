@@ -12,6 +12,7 @@ import { BadgeCheck, Building2, CalendarClock, Check, ChevronDown, Hourglass, In
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
+import { BillingPlans, type CurrentState } from "./BillingPlans";
 import { Modal } from "@/components/ui/Modal";
 import { Alert, Skeleton } from "@/components/ui/Card";
 import { api, errorMessage } from "@/lib/api";
@@ -84,147 +85,6 @@ function Hero({ trialDays }: { trialDays: number | null }) {
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------ B. duration
-
-function TermSelector({ terms, plans, value, onChange }: { terms: PrepaidTerms; plans: Plan[]; value: number; onChange: (m: number) => void }) {
-  const id = useId();
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const months = terms.months;
-  const best = Math.max(0, ...plans.map((p) => termSaving(terms, p.code, value)?.percent ?? 0));
-  const move = (e: KeyboardEvent, i: number) => {
-    const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
-    if (!d) return;
-    e.preventDefault();
-    const n = (i + d + months.length) % months.length;
-    onChange(months[n]); refs.current[n]?.focus();
-  };
-  return (
-    <>
-      <div className="sticky top-[4.6rem] z-10 -mx-4 bg-canvas px-4 py-2 sm:static sm:mx-0 sm:bg-transparent sm:p-0">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <p id={id} className="hidden text-sm font-medium text-ink sm:block">How long do you want to pay for?</p>
-          <LayoutGroup id={id}>
-            <div role="radiogroup" aria-label="How long do you want to pay for?" className="grid w-full grid-cols-4 rounded-full bg-surface-2 p-1 shadow-pill sm:w-auto sm:min-w-[24rem] sm:shadow-none">
-              {months.map((m, i) => {
-                const on = m === value;
-                return (
-                  <button key={m} ref={(el) => { refs.current[i] = el; }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(m)} onKeyDown={(e) => move(e, i)}
-                    className={`relative min-h-10 rounded-full px-1 text-center text-[13px] font-medium transition-colors sm:text-[13px] ${ring} ${on ? "text-on-accent" : "text-muted hover:text-ink"}`}>
-                    {on && <motion.span layoutId="term-pill" className="absolute inset-0 rounded-full bg-accent-ink shadow-pill" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
-                    <span className="relative">{termTabLabel(m)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </LayoutGroup>
-        </div>
-      </div>
-      <p className="mt-1.5 flex min-h-6 items-center gap-2 px-1 text-[13px] text-muted sm:justify-end" aria-hidden>{best > 0 ? <><span className="rounded-full bg-pos-tint px-2 py-0.5 font-medium text-pos">Up to {best}% less</span>than paying month by month</> : "Pay one month at a time"}</p>
-    </>
-  );
-}
-
-// ------------------------------------------------------------------------------------------------------------------------------------------ C. plans
-
-type CurrentState = "none" | "current" | "trial";
-
-function PlanSwitcher({ plans, value, onChange }: { plans: Plan[]; value: string; onChange: (c: string) => void }) {
-  const id = useId();
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const move = (e: KeyboardEvent, i: number) => {
-    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!d) return;
-    e.preventDefault();
-    const n = (i + d + plans.length) % plans.length;
-    onChange(plans[n].code); refs.current[n]?.focus();
-  };
-  return (
-    <LayoutGroup id={id}>
-      <div role="radiogroup" aria-label="Plan" className="mt-3 grid grid-cols-3 gap-1.5 md:hidden">
-        {plans.map((p, i) => {
-          const on = p.code === value;
-          return (
-            <button key={p.code} ref={(el) => { refs.current[i] = el; }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(p.code)} onKeyDown={(e) => move(e, i)}
-              className={`relative min-h-11 rounded-full border px-2 text-[13px] font-semibold transition-colors ${ring} ${on ? "border-transparent text-ink-on" : "border-line bg-surface text-ink hover:bg-surface-2"}`}>
-              {on && <motion.span layoutId="plan-pill" className="absolute inset-0 rounded-full bg-ink-solid" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
-              <span className="relative inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${THEME[p.code]?.dot ?? "bg-muted"}`} aria-hidden />{PLAN_NAME[p.code] ?? p.name}</span>
-            </button>
-          );
-        })}
-      </div>
-    </LayoutGroup>
-  );
-}
-
-function PlanCard({ plan, below, terms, months, state, endsOn, isOwner, locked, offer, onChoose, index, active }: {
-  plan: Plan; below: Plan | null; terms: PrepaidTerms; months: number; state: CurrentState; endsOn: string | null; isOwner: boolean; locked: string | null; offer: PrepaidOffer | undefined; onChoose: (p: Plan, months: number) => void; index: number; active: boolean;
-}) {
-  const total = offer ? offer.amount_paise : termPrice(terms, plan.code, months);  // a temporary price for THIS business, if the server says there is one; otherwise the list
-  const monthly = total === null ? null : effectiveMonthlyPaise(total, months);
-  const saving = termSaving(terms, plan.code, months);
-  const groups = useMemo(() => newFeatureGroups(plan, below), [plan, below]);
-  const recommended = plan.code === RECOMMENDED;
-  const th = THEME[plan.code] ?? THEME.starter;
-  const name = PLAN_NAME[plan.code] ?? plan.name;
-  const disabled = total === null || !isOwner || state === "current" || !!locked;
-  return (
-    <div className={`${active ? "block" : "hidden"} md:block`}>
-      <motion.article key={active ? "on" : "off"} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -2 }} transition={{ duration: 0.4, delay: 0.07 * index, ease: EASE }} aria-labelledby={`plan-${plan.code}`}
-        className={`flex h-full flex-col overflow-hidden rounded-[22px] bg-surface shadow-card ${recommended ? "ring-2 ring-accent/70" : "ring-1 ring-line"}`}>
-        <div className={`px-5 pb-4 pt-5 sm:px-6 ${th.band}`}>
-        <div className="flex min-h-8 items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5"><span className={`grid h-8 w-8 place-items-center rounded-xl ${th.chipIcon}`}><th.icon className="h-4 w-4" aria-hidden /></span>
-          <h3 id={`plan-${plan.code}`} className="font-display text-[17px] font-semibold tracking-tight text-ink">{name}</h3></div>
-          {state === "current" ? <span className="rounded-full bg-pos-tint px-2.5 py-1 text-[12px] font-medium text-pos">Current plan</span>
-            : state === "trial" ? <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-muted shadow-pill">In your free trial</span>
-            : recommended ? <span className="rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium text-accent-ink shadow-pill">Recommended</span> : null}
-        </div>
-        <p className="mt-2 text-[13px] text-ink-700">{POSITIONING[plan.code]}</p>
-        </div>
-        <div className="flex flex-1 flex-col p-5 sm:p-6">
-
-        <div>
-          {total === null ? <p className="font-display text-2xl font-semibold text-muted">Unavailable</p> : (
-            <>
-              <p className="flex items-baseline gap-1.5 font-display text-ink"><span className="text-xl font-medium text-muted">₹</span><Glide value={total / 100} className="num text-[2.4rem] font-semibold leading-none tracking-[-0.03em] sm:text-[2.7rem]" /><span className="text-[13px] font-normal text-muted">for {monthsLabel(months)}</span></p>
-              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px]">
-                <span className={`rounded-full px-2.5 py-1 text-ink-700 ${th.chip}`}><span className="num font-medium text-ink">₹<Glide value={(monthly ?? 0) / 100} /></span> a month</span>
-                {saving && !offer && <span className="rounded-full bg-pos-tint px-2.5 py-1 font-medium text-pos">Save {rupees(saving.paise)} ({saving.percent}%)</span>}
-                {offer && <span className="rounded-full bg-accent-tint px-2.5 py-1 font-medium text-accent-ink">{offer.label} · normally {rupees(offer.list_price_paise)}</span>}
-              </div>
-            </>
-          )}
-        </div>
-
-        <Button className={`mt-5 w-full ${pill}`} variant={recommended ? "brand" : "primary"} disabled={disabled} onClick={() => onChoose(plan, months)}
-          aria-label={state === "current" ? `${name} is your current plan` : `Choose ${name} for ${monthsLabel(months)}`}>
-          {state === "current" ? "Current plan" : `Choose ${name}`}
-        </Button>
-        {state === "current" && endsOn && <p className="mt-2 text-center text-xs text-muted">Active until {endsOn}</p>}
-        {!isOwner && state !== "current" && <p className="mt-2 text-center text-xs text-muted">Only the business owner can buy a plan.</p>}
-        {isOwner && locked && state !== "current" && <p className="mt-2 text-center text-xs text-muted">{locked}</p>}
-
-        <dl className="mt-5 grid grid-cols-2 gap-2">
-          {LIMIT_ROWS.map((r) => (
-            <div key={r.id} className={`rounded-2xl px-3 py-2.5 ${th.tile}`}><dd className="num font-display text-lg font-semibold leading-6 text-ink">{r.value(plan).toLocaleString("en-IN")}</dd><dt className="mt-0.5 text-[12px] leading-4 text-muted">{r.label}</dt></div>
-          ))}
-        </dl>
-
-        <Fold label={below ? `What's included · everything in ${PLAN_NAME[below.code] ?? below.name}, plus` : "What's included"} className="mt-4">
-          <div className="space-y-4 md:pt-1">
-            <p className="hidden text-[12px] font-medium uppercase tracking-[.08em] text-muted md:block">{below ? `Everything in ${PLAN_NAME[below.code] ?? below.name}, plus` : "Includes"}</p>
-            {groups.map((g) => (
-              <div key={g.id}>
-                <p className="text-[13px] font-semibold text-ink">{g.title}</p>
-                <ul className="mt-1.5 space-y-1.5">{g.items.map((it) => <li key={it} className="flex gap-2 text-[13px] leading-5 text-ink-700"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pos" aria-hidden />{it}</li>)}</ul>
-              </div>
-            ))}
-          </div>
-        </Fold>
-        </div>
-      </motion.article>
-    </div>
-  );
-}
 
 // ------------------------------------------------------------------------------------------------------------------------------------------ D. comparison
 
@@ -403,15 +263,12 @@ export function PricingExperience({ plans, terms, sub, isOwner, trialDays, offer
         : !ready ? <Alert tone="warning" title="Plan prices are unavailable right now">We could not load the price list, so we are not showing any. Please refresh in a moment. Nothing about your account has changed.</Alert>
         : (
           <>
-            <TermSelector terms={terms!} plans={ordered} value={months} onChange={choose} />
             <p className="sr-only" role="status" aria-live="polite">{announce}</p>
             {!terms!.checkout_open && (
-              <p className="mt-2 flex items-start gap-2 rounded-2xl bg-surface-2 px-3.5 py-2.5 text-[13px] leading-5 text-muted"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />Online payment for prepaid plans is not open yet. Compare prices and plans now; the buy buttons work once payment is ready.</p>
+              <p className="mb-3 flex items-start gap-2 rounded-2xl bg-surface-2 px-3.5 py-2.5 text-[13px] leading-5 text-muted"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />Online payment for prepaid plans is not open yet. Compare prices and plans now; the buy buttons work once payment is ready.</p>
             )}
-            <PlanSwitcher plans={ordered} value={shown} onChange={setShown} />
-            <div className="mt-4 grid items-stretch gap-4 md:grid-cols-3">
-              {ordered.map((p, i) => <PlanCard key={p.code} plan={p} below={i ? ordered[i - 1] : null} terms={terms!} months={months} state={stateOf(p.code)} endsOn={endsOn} isOwner={isOwner} locked={locked} offer={offers.find((o) => o.plan === p.code && o.months === months)} index={i} active={p.code === shown} onChoose={(pl, m) => setPicked({ plan: pl, months: m })} />)}
-            </div>
+            <BillingPlans plans={ordered} terms={terms!} months={months} onMonths={choose} shown={shown} onShown={setShown} stateOf={stateOf} endsOn={endsOn} isOwner={isOwner} locked={locked} offers={offers}
+              onChoose={(pl, m) => setPicked({ plan: pl, months: m })} />
             <Comparison plans={ordered} />
           </>
         )}

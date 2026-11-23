@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { Check, Minus, Star } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { effectiveMonthlyPaise } from "@/lib/pricing";
 import { track } from "@/lib/track";
 import { Rise } from "./motion";
 import { SignupDialog } from "./SignupDialog";
+import { PlanTile, tileButtonClass, useMedia } from "./PlanTile";
 import { TalkToUs, usePlansLive } from "./PlansFromConfig";
 
 /**
@@ -19,17 +20,6 @@ import { TalkToUs, usePlansLive } from "./PlansFromConfig";
  * Monthly is selected first. Every price is read from the prepaid price list the server serves, every allowance and feature from lib/plan-compare.ts; nothing is written here, and a plan
  * without both prices is left out rather than guessed. A yearly price is one payment for 12 months (no automatic renewal); the AI allowances stay monthly.
  */
-
-/** Matches a CSS media query, false on the server and until the browser says otherwise (so the markup is the same for everyone on first render). */
-function useMedia(query: string) {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia(query), f = () => setOn(m.matches);
-    f(); m.addEventListener("change", f);
-    return () => m.removeEventListener("change", f);
-  }, [query]);
-  return on;
-}
 
 /** A small burst of round confetti from a point (the switch), in the brand's colours. Skipped for people who asked for reduced motion. Draws on its own throwaway canvas, then removes it. */
 function confetti(x: number, y: number) {
@@ -59,19 +49,6 @@ function confetti(x: number, y: number) {
     if (el < 1500) requestAnimationFrame(frame); else c.remove();
   };
   requestAnimationFrame(frame);
-}
-
-/** A rupee amount that counts to its new value when it changes (the server's whole-rupee prices; formatting is the same as everywhere else on the site). */
-function AnimatedPrice({ paise }: { paise: number }) {
-  const reduced = useReducedMotion();
-  const mv = useMotionValue(paise / 100);
-  const text = useTransform(mv, (v) => rupees(Math.round(v) * 100));
-  useEffect(() => {
-    if (reduced) { mv.set(paise / 100); return; }
-    const a = animate(mv, paise / 100, { duration: 0.55, ease: [0.22, 1, 0.36, 1] });
-    return () => a.stop();
-  }, [paise, reduced, mv]);
-  return <motion.span className="tabular-nums">{text}</motion.span>;
 }
 
 function Switch({ yearly, onChange, savePct }: { yearly: boolean; onChange: (yearly: boolean, el: HTMLElement) => void; savePct: string | null }) {
@@ -121,40 +98,13 @@ export function PricingPlans() {
           const hot = p.code === "growth";
           const paise = periodPrice(data.terms, p.code, billing) as number;
           const save = yearly ? yearlySaving(data.terms, p.code) : null;
-          const side = i === 0 ? 1 : i === plans.length - 1 ? -1 : 0;
           return (
-            <motion.div key={p.code} data-plan={p.code} initial={{ y: 40 }}
-              whileInView={wide && !reduced ? { y: hot ? -20 : 0, x: side * 14, scale: hot ? 1 : 0.95 } : { y: 0 }} viewport={{ once: true }}
-              transition={{ duration: 1.1, type: "spring", stiffness: 100, damping: 26, delay: 0.25 + i * 0.08 }}
-              style={{ transformOrigin: side === 1 ? "right center" : side === -1 ? "left center" : "center" }}
-              className={clsx("relative flex flex-col rounded-2xl bg-m-surface p-6 text-center md:p-7", hot ? "z-10 border-2 border-m-accent shadow-[var(--shadow-float)]" : "z-0 border border-m-line")}>
-              {hot && (
-                <span className="absolute right-0 top-0 inline-flex items-center rounded-bl-xl rounded-tr-[14px] bg-m-accent px-2.5 py-1 text-[12.5px] font-semibold text-m-ink">
-                  <Star className="mr-1 h-3.5 w-3.5 fill-current" aria-hidden />Recommended
-                </span>
-              )}
-              <h2 className="text-[13px] font-semibold uppercase tracking-[.08em] text-m-muted">{p.name}</h2>
-              <p className="mt-6 flex items-baseline justify-center gap-x-2 text-m-ink t-number"><AnimatedPrice paise={paise} /><span className="text-[14px] font-semibold tracking-normal text-m-muted">{BILLING_SUFFIX[billing].replace("/", "/ ")}</span></p>
-              <p className="mt-1 text-[12.5px] leading-5 text-m-muted">{yearly ? "billed once for 12 months, no auto-renewal" : "billed monthly"} · + GST as applicable</p>
-              <div className="min-h-[44px]">
-                {save && <p className="mt-2 text-[13px] leading-snug text-m-ink2">About {rupees(effectiveMonthlyPaise(paise, 12))} a month. {rupees(save.paise)} less than paying monthly for a year.</p>}
-              </div>
-              <ul className="mt-4 flex flex-col gap-2.5 text-left text-[14.5px]">
-                {cardPoints(p).map((pt) => (
-                  <li key={pt.text} className="flex items-start gap-2.5">
-                    <Check className={clsx("mt-1 h-4 w-4 shrink-0 text-m-accentText", pt.soon && "opacity-40")} strokeWidth={2.25} aria-hidden />
-                    <span>{pt.text}{pt.soon && <span className="ml-2 rounded-full bg-m-ink/10 px-2 py-0.5 text-[11px] font-semibold">Coming soon</span>}</span>
-                  </li>
-                ))}
-              </ul>
-              <hr className="my-5 border-m-line" />
-              <Link href="/register" onClick={(e) => { track("signup_cta_click"); if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); setSignup(true); } }}
-                className={clsx("group relative inline-flex min-h-12 w-full items-center justify-center overflow-hidden rounded-full text-[17px] font-semibold tracking-[-.02em] transition-all duration-300 ease-out",
-                  hot ? "bg-m-accent text-m-ink hover:bg-[#F06000]" : "border border-m-ink/70 bg-m-surface text-m-ink hover:bg-m-accent hover:text-m-ink hover:ring-2 hover:ring-m-accent hover:ring-offset-1")}>
-                Start free trial
-              </Link>
-              <p className="mt-5 text-[12.5px] leading-5 text-m-muted">{POSITION[p.code]}</p>
-            </motion.div>
+            <PlanTile key={p.code} code={p.code} name={p.name} hot={hot} index={i} count={plans.length} wide={wide} paise={paise} suffix={BILLING_SUFFIX[billing].replace("/", "/ ")}
+              badge={hot ? <span className="absolute right-0 top-0 inline-flex items-center rounded-bl-xl rounded-tr-[14px] bg-m-accent px-2.5 py-1 text-[12.5px] font-semibold text-m-ink"><Star className="mr-1 h-3.5 w-3.5 fill-current" aria-hidden />Recommended</span> : null}
+              fine={`${yearly ? "billed once for 12 months, no auto-renewal" : "billed monthly"} · + GST as applicable`}
+              extra={save && <p className="mt-2 text-[13px] leading-snug text-m-ink2">About {rupees(effectiveMonthlyPaise(paise, 12))} a month. {rupees(save.paise)} less than paying monthly for a year.</p>}
+              points={cardPoints(p)} footnote={POSITION[p.code]}
+              cta={<Link href="/register" onClick={(e) => { track("signup_cta_click"); if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); setSignup(true); } }} className={tileButtonClass(hot)}>Start free trial</Link>} />
           );
         })}
       </div>
