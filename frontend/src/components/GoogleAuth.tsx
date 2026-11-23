@@ -17,7 +17,7 @@ const MESSAGES: Record<string, string> = {
   already_linked: "A different Google account is already connected to this FlowQR account.",
   account_disabled: "This account is disabled. Contact FlowQR support.",
   session_mismatch: "You were signed in as a different user. Please try connecting Google again.",
-  age_required: "To create a new account with Google, go to Sign up and confirm that you are 18 years of age or older first. If you already have an account, log in with the email and password you registered with.",
+  age_required: "To create a new account with Google, go to Sign up and tick the box confirming you are 18 or older and agree to the privacy policy first. If you already have an account, log in with the email and password you registered with.",
   registration_restricted: "FlowQR is open to approved businesses only at the moment. If you expected access, contact FlowQR support. If you already have an account, log in with the email and password you registered with.",
 };
 

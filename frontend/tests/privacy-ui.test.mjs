@@ -51,12 +51,12 @@ test("sign-up with Google cannot start until the declaration is ticked, and then
   assert.match(g, /age_required:/, "the login page explains a refused brand-new Google account");
 });
 
-test("the refund page no longer presents placeholder text as a policy", () => {
-  const page = src("app/(marketing)/refund-policy/page.tsx"), body = src("components/marketing/RefundPending.tsx");
-  for (const s of [page, body]) assert.doesNotMatch(s, /LEGAL TEXT TO BE PROVIDED/);
-  assert.match(body, /has not been published yet/);
-  assert.doesNotMatch(body, /\b(full refund|within \d+ days|money-back|guarantee)/i, "no invented refund terms");
-  assert.match(page, /index: false/);
+test("the refund page is a real draft policy, kept out of search until it is confirmed", () => {
+  const page = src("app/(marketing)/refund-policy/page.tsx"), layout = src("app/(marketing)/refund-policy/layout.tsx");
+  assert.doesNotMatch(page, /LEGAL TEXT TO BE PROVIDED|has not been published yet/);
+  assert.match(page, /Cancelling a subscription/);
+  assert.match(page, /When we refund/);
+  assert.match(layout, /index: false/);
 });
 
 test("deleting my own account: email typed, password for password accounts, never offered to a sole owner", () => {

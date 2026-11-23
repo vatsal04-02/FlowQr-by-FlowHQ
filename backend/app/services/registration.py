@@ -21,7 +21,7 @@ from __future__ import annotations
 
 # The age declaration shown at sign-up (docs/PRIVACY_COMPLIANCE_AUDIT.md, A). The VERSION is stored with each declaration so that a later change of wording is traceable. The wording itself
 # lives in the frontend (English and Hindi); a change there must bump this string.
-AGE_DECLARATION_VERSION = "2026-11-18.1"
+AGE_DECLARATION_VERSION = "2026-11-23.1"  # 2026-11-23: the same single box now also records consent to the privacy notice (DPDP s6); the version names the wording shown
 
 import hashlib
 import logging

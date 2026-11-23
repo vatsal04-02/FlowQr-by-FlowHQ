@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     frontend_url: str = "http://localhost:3000"
+    api_public_url: str = ""  # API_PUBLIC_URL: where mail apps can reach this API (the one-click Unsubscribe header). Empty = header omitted; the in-email link still works
     # Base URL printed into QR codes / NFC tags. NEVER hardcode in code.
     public_card_base_url: str = "http://localhost:3000"
     cors_origins: str = "http://localhost:3000"
@@ -233,6 +234,8 @@ class Settings(BaseSettings):
     gemini_data_terms_verified: bool = False
     support_email: str = ""  # shown on the legal pages; empty = pages say it is not configured
     legal_company_name: str = "FlowHQ"
+    legal_company_address: str = ""  # LEGAL_COMPANY_ADDRESS: registered/postal address shown in the site footer and legal pages; empty = not shown
+    grievance_officer_name: str = ""  # GRIEVANCE_OFFICER_NAME: person or title who answers privacy questions and complaints (DPDP Rules: published contact); empty = pages say "our support team"
     review_session_retention_days: int = 90  # customer answers/drafts are deleted after this; aggregate analytics are kept
     review_max_drafts_per_session: int = 5  # 1 generation + 4 regenerations
     review_max_refinements: int = 15  # times a customer can change stars/topics and have the draft rewritten in one session (the page does this automatically)

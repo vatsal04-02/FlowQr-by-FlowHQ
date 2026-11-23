@@ -11,7 +11,7 @@ export default function Terms() {
         <p>FlowQR provides QR/NFC review cards, a review page, AI writing assistance, and tools to sync, reply to and manage a business&rsquo;s Google Business Profile. Features that depend on Google, payment or messaging providers need those providers&rsquo; approval and may be unavailable or limited; where they are, FlowQR says so instead of pretending.</p>
 
         <h2>Your account</h2>
-        <p>You are responsible for your login, for the people you invite, and for the accuracy of what you enter. You must have the right to manage any Google Business Profile you connect.</p>
+        <p>You must be 18 or over to create an account. You are responsible for your login, for the people you invite, and for the accuracy of what you enter. You must have the right to manage any Google Business Profile you connect.</p>
 
         <h2>Reviews: what is not allowed</h2>
         <ul>

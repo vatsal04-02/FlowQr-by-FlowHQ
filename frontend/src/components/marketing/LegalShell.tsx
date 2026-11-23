@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { useFetch } from "@/lib/use-api";
 
-export interface LegalInfo { company: string; support_email: string | null; deletion_grace_days: number; review_session_retention_days: number; ai_provider: string | null }
+export interface LegalInfo { company: string; support_email: string | null; company_address?: string | null; grievance_officer?: string | null; deletion_grace_days: number; review_session_retention_days: number; ai_provider: string | null }
 
 /** Shared frame for the public legal pages (inside the marketing layout, which adds the nav and footer). Contact details come from the server. */
 export function LegalShell({ title, updated, children }: { title: string; updated: string; children: (info: LegalInfo | null) => ReactNode }) {

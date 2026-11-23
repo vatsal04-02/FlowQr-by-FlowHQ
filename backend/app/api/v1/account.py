@@ -28,6 +28,7 @@ ACTIVE_PAID = {"active", "past_due", "pending", "authenticated"}
 def legal_info():
     """Public. What the privacy, terms and data-deletion pages show. Nothing is invented: an unset support email is reported as unset."""
     return {"company": settings.legal_company_name, "support_email": settings.support_email or None,
+            "company_address": settings.legal_company_address or None, "grievance_officer": settings.grievance_officer_name or None,
             "deletion_grace_days": settings.account_deletion_grace_days, "review_session_retention_days": settings.review_session_retention_days,
             "ai_provider": settings.ai_provider if settings.ai_configured else None}
 

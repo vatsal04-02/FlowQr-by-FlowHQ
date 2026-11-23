@@ -13,7 +13,7 @@ import { TrialNote } from "./TrialNote";
  */
 const PRODUCT: FooterColumn = { title: "Product", links: [{ text: "Google Business", href: "/google-business" }, { text: "Review Cards", href: "/review-cards" }, { text: "AI Growth Agent", href: "/ai-growth-agent" }, { text: "WhatsApp Marketing AI Agent", href: "/whatsapp-marketing-ai-agent" }, { text: "Pricing", href: "/pricing" }] };
 const COMPANY: FooterColumn = { title: "Company", links: [{ text: "Industries", href: "/industries" }, { text: "About", href: "/about" }, { text: "FlowHQ services", href: "/about#services" }] };
-const LEGAL: FooterColumn = { title: "Legal", links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }, { text: "Refunds", href: "/refund-policy" }, { text: "Delete your data", href: "/data-deletion" }] };
+const LEGAL: FooterColumn = { title: "Legal", links: [{ text: "Privacy", href: "/privacy" }, { text: "Terms", href: "/terms" }, { text: "Cookies", href: "/cookie-policy" }, { text: "Refunds", href: "/refund-policy" }, { text: "Delete your data", href: "/data-deletion" }] };
 
 export function FooterCards() {
   const { data } = useFetch<{ support_email: string | null }>("/legal/info");

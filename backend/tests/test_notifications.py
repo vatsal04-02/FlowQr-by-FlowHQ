@@ -75,3 +75,49 @@ def test_voice_preview_uses_unsaved_text_and_saves_nothing(monkeypatch):
     assert r.json()["body"] and "review" in r.json()
     t = biz.get("/tenant").json()
     assert t["brand_tone"] == "formal" and t["ai_instructions"] is None  # the edited text was only used for the sample
+
+
+def test_notification_email_has_a_working_unsubscribe_link(connected, fake):  # noqa: F811
+    import re
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.services import notifications as nsvc
+    from app.workers.tasks import notify_by_email
+
+    fake.reviews = [greview(1, 5, "Lovely staff")]
+    sync_select(connected, fake)
+    notify_by_email()  # starts the watermark
+    fake.reviews = [greview(1, 5, "Lovely staff"), greview(2, 1, "I will take you to court")]
+    assert connected.post("/google/sync").status_code == 200
+    mailer.OUTBOX.clear()
+    notify_by_email()
+    mine = [m for m in mailer.OUTBOX if m["to"] == connected.email]
+    assert len(mine) == 1
+    token = re.search(r"/unsubscribe\?t=(\S+)", mine[0]["body"]).group(1)
+
+    anon = TestClient(app)  # no session, no CSRF token: the signed link is the proof
+    assert anon.post("/api/v1/notifications/unsubscribe", params={"t": token + "x"}).status_code == 400
+    assert anon.post("/api/v1/notifications/unsubscribe", params={"t": "unsub:" + str(uuid.uuid4()) + ":" + str(uuid.uuid4())}).status_code == 400
+    assert anon.post("/api/v1/notifications/unsubscribe", params={"t": token}).json() == {"unsubscribed": True}
+    assert anon.post("/api/v1/notifications/unsubscribe", params={"t": token}).status_code == 200  # safe to repeat
+    prefs = connected.get("/notifications/preferences").json()
+    assert not any(prefs[k] for k in nsvc.DEFAULTS)
+
+    mailer.OUTBOX.clear()
+    fake.reviews = fake.reviews + [greview(3, 1, "my lawyer will sue")]
+    assert connected.post("/google/sync").status_code == 200
+    notify_by_email()
+    assert not [m for m in mailer.OUTBOX if m["to"] == connected.email]
+
+
+def test_unsubscribe_headers_are_one_click():
+    import uuid
+
+    from app.services import notifications as nsvc
+
+    h = nsvc.unsubscribe_headers(uuid.uuid4(), uuid.uuid4(), "https://api.example.com/")
+    assert h["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+    assert h["List-Unsubscribe"].startswith("<https://api.example.com/api/v1/notifications/unsubscribe?t=unsub:")

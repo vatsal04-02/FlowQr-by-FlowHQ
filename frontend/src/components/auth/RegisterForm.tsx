@@ -86,9 +86,10 @@ export function RegisterFields({ r }: { r: Register }) {
             aria-required="true" aria-invalid={ageErr || undefined} aria-describedby={ageErr ? "age-confirm-error" : undefined} className="mt-0.5 h-5 w-5 shrink-0 accent-[#C94C00]" />
           <span className="text-[14px] leading-relaxed text-ink-700">
             I confirm that I am 18 years of age or older.
+            <span className="mt-1.5 block">I have read the <a href="/privacy" target="_blank" rel="noopener" className="underline">Privacy Policy</a> and <a href="/terms" target="_blank" rel="noopener" className="underline">Terms</a>, and I consent to FlowQR using my personal data for the purposes set out there: running my account and business tools, connecting Google and syncing reviews, AI drafts I ask for, security, billing and service emails. I can withdraw this consent at any time. Changes FlowQR would make to my Google profile on its own still need my separate approval.</span>
           </span>
         </label>
-        {ageErr && <p id="age-confirm-error" role="alert" className="mt-1.5 text-[13px] font-medium text-[#B3261E]">Please confirm that you are 18 years of age or older to create an account.</p>}
+        {ageErr && <p id="age-confirm-error" role="alert" className="mt-1.5 text-[13px] font-medium text-[#B3261E]">Please tick the box to confirm you are 18 or older and agree to the privacy policy and terms.</p>}
       </div>
       <GoogleSignIn label="Sign up with Google" divider="or sign up with email" ageConfirmed={age} onNeedAge={needAge} />
       <form onSubmit={submit} noValidate className="space-y-4">

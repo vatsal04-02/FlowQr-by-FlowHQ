@@ -1,9 +1,11 @@
 """Bell, notification preferences and the command-palette search (PRD §6.5, §9). Read-only over existing data, tenant- and location-scoped."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import or_, select
 
+from app.core.db import get_db, set_rls_context
 from app.core.deps import TenantContext, get_tenant_context
+from app.core.rate_limit import limit_by_ip
 from app.models import Location, QRCard, Review
 from app.models.base import utcnow
 from app.services import notifications as svc
@@ -50,6 +52,24 @@ def put_prefs(body: PrefsIn, ctx: TenantContext = Depends(get_tenant_context)):
         p.last_emailed_at = utcnow()
     ctx.db.commit()
     return _prefs_out(p) | {"email": ctx.user.email, "verified": ctx.user.email_verified_at is not None}
+
+
+@router.post("/notifications/unsubscribe", dependencies=[Depends(limit_by_ip("unsub", 30, 300))])
+def unsubscribe(t: str = Query(max_length=300), db=Depends(get_db)):
+    """The Unsubscribe link in every notification email (also the mail app's one-click button). No sign-in: the signed token names the
+    person and business. Turns every email choice off for them there; the bell still works. Safe to repeat."""
+    ids = svc.parse_unsubscribe_token(t)
+    if not ids:
+        raise HTTPException(status_code=400, detail="This unsubscribe link is not valid.")
+    tenant_id, user_id = ids
+    set_rls_context(db, tenant_id=tenant_id)
+    p = svc.prefs_for(db, tenant_id, user_id, create=True)
+    for k in svc.DEFAULTS:
+        setattr(p, k, False)
+    if p.last_emailed_at is None:
+        p.last_emailed_at = utcnow()
+    db.commit()
+    return {"unsubscribed": True}
 
 
 @router.get("/search")

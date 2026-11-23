@@ -47,6 +47,11 @@ def test_legal_info_is_public_and_never_invents_a_contact(client, monkeypatch):
     assert j["support_email"] is None and j["company"] and j["deletion_grace_days"] == 14
     monkeypatch.setattr(settings, "support_email", "help@flowhq.example")
     assert client.get("/api/v1/legal/info").json()["support_email"] == "help@flowhq.example"
+    assert j["company_address"] is None and j["grievance_officer"] is None  # never invented
+    monkeypatch.setattr(settings, "grievance_officer_name", "Privacy lead")
+    monkeypatch.setattr(settings, "legal_company_address", "1 Example Road, Pune")
+    k = client.get("/api/v1/legal/info").json()
+    assert k["grievance_officer"] == "Privacy lead" and k["company_address"] == "1 Example Road, Pune"
 
 
 def test_export_is_owner_only_complete_and_contains_no_secrets(clinic, admin):

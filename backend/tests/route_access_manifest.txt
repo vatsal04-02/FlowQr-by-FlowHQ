@@ -302,6 +302,7 @@ member	GET	/api/v1/notifications
 member	GET	/api/v1/notifications/preferences
 member	PUT	/api/v1/notifications/preferences
 member	POST	/api/v1/notifications/seen
+public	POST	/api/v1/notifications/unsubscribe
 signed-in	GET	/api/v1/places/autocomplete
 signed-in	GET	/api/v1/places/details
 signed-in	GET	/api/v1/places/pincode/{pin}

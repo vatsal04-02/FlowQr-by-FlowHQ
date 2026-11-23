@@ -131,6 +131,30 @@ def digest_for(db: Session, tenant: Tenant, m: Membership, prefs: NotificationPr
     return [i for i in items if (key := PREF_FOR_KIND.get(i.kind)) and getattr(prefs, key) and i.at > since]
 
 
+def unsubscribe_token(tenant_id: uuid.UUID, user_id: uuid.UUID) -> str:
+    """Signed (HMAC) so the link in an email works without signing in, and cannot be forged for someone else."""
+    from app.core.security import sign_state
+    return sign_state(f"unsub:{tenant_id}:{user_id}")
+
+
+def parse_unsubscribe_token(token: str) -> tuple[uuid.UUID, uuid.UUID] | None:
+    from app.core.security import verify_state
+    payload = verify_state(token or "")
+    parts = (payload or "").split(":")
+    if len(parts) != 3 or parts[0] != "unsub":
+        return None
+    try:
+        return uuid.UUID(parts[1]), uuid.UUID(parts[2])
+    except ValueError:
+        return None
+
+
+def unsubscribe_headers(tenant_id: uuid.UUID, user_id: uuid.UUID, api_url: str) -> dict[str, str]:
+    """RFC 8058 one-click: mail apps show an Unsubscribe button that POSTs to this address."""
+    url = f"{api_url.rstrip('/')}/api/v1/notifications/unsubscribe?t={unsubscribe_token(tenant_id, user_id)}"
+    return {"List-Unsubscribe": f"<{url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
+
+
 def email_text(tenant: Tenant, user: User, items: list[Item], frontend_url: str) -> tuple[str, str]:
     n = len(items)
     subject = f"FlowQR: {items[0].title}" if n == 1 else f"FlowQR: {n} updates for {tenant.name}"
@@ -139,5 +163,6 @@ def email_text(tenant: Tenant, user: User, items: list[Item], frontend_url: str)
         lines += [f"- {i.title}", f"  {i.body}", f"  {frontend_url.rstrip('/')}{i.href}", ""]
     if n > 15:
         lines.append(f"…and {n - 15} more on your FlowQR dashboard.")
-    lines += ["", "Nothing is posted to Google until you approve it.", f"Change which emails you get: {frontend_url.rstrip('/')}/settings/notifications"]
+    lines += ["", "Nothing is posted to Google until you approve it.", f"Change which emails you get: {frontend_url.rstrip('/')}/settings/notifications",
+              f"Stop these emails: {frontend_url.rstrip('/')}/unsubscribe?t={unsubscribe_token(tenant.id, user.id)}"]
     return subject, "\n".join(lines)

@@ -34,6 +34,7 @@ PUBLIC_PREFIXES = (
     "/api/v1/account/me/deletion/confirm",  # POST: the emailed single-use link for deleting one's own account; proves the mailbox like a password reset, rate-limited per IP, one answer for every failure
     "/api/v1/auth/registration",  # GET: only the registration MODE (closed/allowlist/open), nothing about any address
     "/api/v1/auth/providers",  # GET: one boolean, whether Google sign-in is configured
+    "/api/v1/notifications/unsubscribe",  # POST: the Unsubscribe link in notification emails; an HMAC-signed token names the person, rate-limited per IP, can only switch that person's email choices off
     "/api/v1/webhooks/",  # POST: payment-provider webhooks, each authenticated by its own signature over the raw body (not by a session)
     "/api/v1/site-enquiry",  # POST: a website visitor's enquiry, relayed by the hosting Worker with a shared secret (X-Sites-Token, constant-time compared); 404 when sites are disabled, rate limited, honeypot
 )

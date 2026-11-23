@@ -95,6 +95,7 @@ def test_every_route_is_classified_and_nothing_mutating_is_public_by_accident():
     reviewed_public_writes = {
         "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/password-reset/request", "/api/v1/auth/password-reset/confirm", "/api/v1/auth/verify-email",
         "/api/v1/account/me/deletion/confirm",  # reviewed: single-use, expiring, hashed link from the person's own mailbox; 10 per 5 minutes per IP; one identical answer for every failure
+        "/api/v1/notifications/unsubscribe",  # reviewed: HMAC-signed link from the person's own notification email, 30 per 5 minutes per IP, only switches that person's email choices OFF, safe to repeat
         "/api/v1/billing/razorpay/webhook",
         "/api/v1/webhooks/cashfree",  # reviewed: signature over the raw body, 5-minute window, stored before processing, treated as a hint (tests/test_cashfree_billing.py)
         "/api/v1/integrations/v1/customers", "/api/v1/integrations/v1/visits", "/api/v1/integrations/v1/enquiries", "/api/v1/integrations/v1/bookings",  # reviewed: authenticated by a hashed, scoped, revocable, rate-limited API key (no cookie, so no CSRF); Pro only; every POST idempotent; never creates consent without an explicit agreement and a note of how (tests/test_whatsapp_integrations.py)

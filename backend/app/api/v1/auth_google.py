@@ -212,7 +212,7 @@ def _sign_in(db: Session, request: Request, identity, fail, flow: _Flow) -> Redi
             db.flush()
             created = True
             audit(db, action="auth.register", user_id=user.id, entity_type="user", entity_id=user.id,
-                  ip=client_ip(request), meta={"via": "google", "age_declared": True, "age_declaration_version": registration.AGE_DECLARATION_VERSION})
+                  ip=client_ip(request), meta={"via": "google", "age_declared": True, "privacy_consent": True, "age_declaration_version": registration.AGE_DECLARATION_VERSION})
     elif not user.is_active:
         return fail("account_disabled")
 

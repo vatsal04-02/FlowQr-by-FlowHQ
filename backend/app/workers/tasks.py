@@ -634,7 +634,7 @@ def notify_by_email():
                     items = nsvc.digest_for(db, t, m, prefs, now)
                     if items:
                         subject, body = nsvc.email_text(t, u, items, settings.frontend_url)
-                        if send_email(u.email, subject, body):
+                        if send_email(u.email, subject, body, headers=nsvc.unsubscribe_headers(t.id, u.id, settings.api_public_url) if settings.api_public_url else None):
                             sent += 1
                     prefs.last_emailed_at = now
                     db.commit()

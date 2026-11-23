@@ -86,7 +86,7 @@ def register(body: RegisterIn, request: Request, response: Response, db: Session
     email = body.email.lower()
     registration.gate_new_account(db, request, email, "password")  # FIRST: a refused address never learns whether it is listed or already registered
     if not body.age_confirmed:  # validated here, not only in the form: a direct API call without the declaration creates nothing
-        raise HTTPException(status_code=422, detail={"code": "age_declaration_required", "message": "Please confirm that you are 18 years of age or older to create an account."})
+        raise HTTPException(status_code=422, detail={"code": "age_declaration_required", "message": "Please tick the box to confirm you are 18 or older and agree to the privacy policy and terms."})
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=409, detail="An account with this email already exists")
     user = User(
@@ -100,7 +100,7 @@ def register(body: RegisterIn, request: Request, response: Response, db: Session
     set_rls_context(db, bypass=True)
     send_verification(db, user)
     audit(db, action="auth.register", user_id=user.id, entity_type="user", entity_id=user.id, ip=client_ip(request),
-          meta={"age_declared": True, "age_declaration_version": registration.AGE_DECLARATION_VERSION})
+          meta={"age_declared": True, "privacy_consent": True, "age_declaration_version": registration.AGE_DECLARATION_VERSION})
     db.commit()
     return build_me(db, user, sess)
 

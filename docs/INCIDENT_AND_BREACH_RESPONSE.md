@@ -37,8 +37,8 @@ Write down the **time the incident was first known** the moment it is declared (
 
 | Duty | Who | Deadline to confirm with the lawyer |
 |---|---|---|
-| Tell the Data Protection Board of India (DPDP Act 2023 and Rules) | FlowHQ as data fiduciary | [LAWYER: "without delay", plus the detailed report window] |
-| Tell each affected person | FlowHQ | [LAWYER: "without delay", and what the message must contain] |
+| Tell the Data Protection Board of India (DPDP Act 2023 and Rules) | FlowHQ as data fiduciary | Report to the Board **without delay**, then a detailed report within **72 hours** of becoming aware (the Board may extend it). From the DPDP Rules 2025, Rule 7, as summarised by law firms; the government explainer confirms only "without delay" for people. [LAWYER: confirm against the Gazette text] |
+| Tell each affected person | FlowHQ | **Without delay**, in plain language: what happened, the likely effect, what was done, what they can do, and a contact for help (government explainer, 17 Nov 2025) |
 | Tell the EU/UK supervisory authority (GDPR/UK GDPR) if EU/UK people are affected | FlowHQ | **72 hours** from becoming aware, as the checklist states; [LAWYER: confirm applicability] |
 | Business customers whose own customers' data is involved (FlowQR processes reviews for them) | FlowHQ as processor | [LAWYER: contract-dependent; tell without undue delay] |
 | Payment providers, Google, others per their agreements | FlowHQ | [CHECK each agreement] |

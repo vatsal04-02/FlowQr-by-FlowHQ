@@ -10,14 +10,16 @@ log = logging.getLogger("flowqr.mailer")
 OUTBOX: list[dict] = []  # populated only when APP_ENV=test (assertable in tests)
 
 
-def send_email(to: str, subject: str, body: str) -> bool:
+def send_email(to: str, subject: str, body: str, headers: dict[str, str] | None = None) -> bool:
     """Returns True if the message was handed to an SMTP server."""
     if settings.app_env == "test":
-        OUTBOX.append({"to": to, "subject": subject, "body": body})
+        OUTBOX.append({"to": to, "subject": subject, "body": body, "headers": headers or {}})
         return True
     if settings.smtp_host:
         msg = EmailMessage()
         msg["From"], msg["To"], msg["Subject"] = settings.smtp_from, to, subject
+        for k, v in (headers or {}).items():
+            msg[k] = v
         msg.set_content(body)
         try:
             with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
