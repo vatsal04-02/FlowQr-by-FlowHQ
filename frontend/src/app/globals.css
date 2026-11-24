@@ -429,10 +429,11 @@ html.fq-app[data-theme="dark"] .set-focus:focus-visible { outline-color: rgb(var
 /* Operator console motion: the phone drawer slides in over a fading scrim, and a page eases in when you navigate. Everything is off for people who ask for reduced motion. */
 @keyframes adm-slide-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 @keyframes adm-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes adm-rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+/* opacity only: a transform left on the page container would trap every fixed dialog inside it */
+@keyframes adm-rise-in { from { opacity: 0; } to { opacity: 1; } }
 .adm-drawer { animation: adm-slide-in 220ms cubic-bezier(.22, 1, .36, 1) both; }
 .adm-scrim { animation: adm-fade-in 180ms ease-out both; }
-.adm-page { animation: adm-rise-in 200ms ease-out both; }
+.adm-page { animation: adm-rise-in 180ms ease-out; }
 .adm-card-link { transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease; }
 .adm-card-link:active { transform: scale(.985); }
 @media (prefers-reduced-motion: reduce) {
