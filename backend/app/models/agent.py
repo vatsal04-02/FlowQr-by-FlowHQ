@@ -161,6 +161,11 @@ class ScheduledPost(IdMixin, TimestampMixin, Base):
     publishing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     first_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     publish_token: Mapped[uuid.UUID | None] = mapped_column()
+    # Google Marketing Studio (migration 0068): the campaign this post belongs to, the library image attached, the keywords it targets and the date the AI suggested.
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("marketing_campaigns.id", ondelete="SET NULL"))
+    asset_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("marketing_assets.id", ondelete="SET NULL"))
+    keywords: Mapped[list | None] = mapped_column(JSONB)
+    suggested_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ScheduledMedia(IdMixin, TimestampMixin, Base):

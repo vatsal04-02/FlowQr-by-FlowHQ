@@ -70,7 +70,9 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   "whatsapp_conversation_settings", "whatsapp_conversations", "whatsapp_conversation_messages",
                   "whatsapp_ai_settings", "whatsapp_knowledge_items", "whatsapp_ai_runs", "whatsapp_unanswered_questions",
                   "whatsapp_booking_settings", "whatsapp_booking_services", "whatsapp_booking_hours", "whatsapp_booking_closed", "whatsapp_bookings",
-                  "whatsapp_api_keys", "whatsapp_api_requests", "whatsapp_webhook_endpoints", "whatsapp_webhook_deliveries")
+                  "whatsapp_api_keys", "whatsapp_api_requests", "whatsapp_webhook_endpoints", "whatsapp_webhook_deliveries",
+                  # Google Marketing Studio: campaigns and the uploaded library (descriptions only: file bytes are in the "data" column, which exports exclude)
+                  "marketing_campaigns", "marketing_assets")
 EXPORTED_ELSEWHERE = {"qr_styles"}  # written by build_export itself, together with the logo file
 
 

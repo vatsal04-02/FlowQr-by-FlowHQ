@@ -40,6 +40,7 @@ export const DESTS: Dest[] = [
     { href: "/seo", label: "Overview" },
     { href: "/seo/rankings", label: "Rankings", also: ["/seo/searches", "/seo/competitors"] },
     { href: "/seo/performance", label: "Performance" },
+    { href: "/gbp/studio", label: "Marketing Studio", also: ["/gbp/studio/new"] },
     { href: "/seo/profile", label: "Profile", tabs: [
       { href: "/seo/profile", label: "Checklist" }, { href: "/gbp/info", label: "Info", also: ["/gbp/hours"] }, { href: "/gbp/posts", label: "Posts" }, { href: "/gbp/photos", label: "Photos" },
     ] },

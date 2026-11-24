@@ -118,7 +118,8 @@ def _out(ctx: TenantContext, p: ScheduledPost, kb: dict | None = None) -> dict:
             "published_at": p.published_at, "google_post_name": p.google_post_name, "attempts": p.attempts, "failure_reason": p.failure_reason, "generated_by_ai": p.generated_by_ai,
             "approved_at": p.approved_at, "created_at": p.created_at, "violations": svc.validate_content(p, kb) if p.status in ("draft", "awaiting_approval", "failed", "approved") else [],
             "topic_type": p.topic_type or "STANDARD", "event_title": p.event_title, "event_start": p.event_start, "event_end": p.event_end, "offer_coupon": p.offer_coupon,
-            "offer_url": p.offer_url, "offer_terms": p.offer_terms, "visual_hint": p.visual_hint, "topic_problems": svc.topic_problems(p)}
+            "offer_url": p.offer_url, "offer_terms": p.offer_terms, "visual_hint": p.visual_hint, "topic_problems": svc.topic_problems(p),
+            "campaign_id": str(p.campaign_id) if p.campaign_id else None, "asset_id": str(p.asset_id) if p.asset_id else None, "keywords": p.keywords or [], "suggested_for": p.suggested_for}
 
 
 def _wrap(fn):
