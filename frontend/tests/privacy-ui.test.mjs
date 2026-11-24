@@ -23,7 +23,7 @@ test("the AI notice follows the selected language: Hindi for Hindi, English for 
 test("the notice is on BOTH customer pages, only where AI help is offered, and is not a pre-ticked consent box", () => {
   const campaign = src("components/public/ReviewLanding.tsx"), card = src("components/public/CardLanding.tsx"), notice = src("components/public/AiNotice.tsx");
   assert.match(campaign, /page\.ai_available && <div[^>]*><AiNotice lang=\{lang\} \/>/);
-  assert.match(card, /data\.ai_available \? \(<>\s*<div className="mt-4"><AiNotice lang=/);
+  assert.match(card, /data\.ai_available && !aiDown \? \(<>\s*<div className="mt-4"><AiNotice lang=/);
   assert.ok(card.indexOf("<AiNotice") < card.indexOf("Improve my wording"), "the notice comes before the button that sends text for AI help");
   assert.match(notice, /lang=\{n\.lang\}/, "the notice marks its own language for screen readers");
   assert.doesNotMatch(notice, /checkbox|defaultChecked|checked/i, "a notice, not a consent box");

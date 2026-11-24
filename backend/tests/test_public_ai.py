@@ -126,3 +126,36 @@ def test_language_detection():
 ])
 def test_sensitive_flags(text, rating, expected):
     assert set(assess_review(text, rating)) == expected
+
+
+def test_a_rejected_ai_key_pauses_the_writing_help_for_everyone_instead_of_failing_for_each_customer(client, live_card, monkeypatch):
+    from app.services.ai import AIUnavailable, health
+
+    calls = []
+
+    class Down:
+        name, model, usage = "down-stub", "m", None
+
+        def generate(self, *a, **k):
+            calls.append(1)
+            raise AIUnavailable("AI service rejected the API credentials", code="auth")
+
+    token = live_card["public_token"]
+    landing = lambda: client.get(f"/api/v1/public/c/{token}", headers=UA).json()  # noqa: E731
+    patch_provider(monkeypatch, Down())
+    from app.core.config import Settings
+    monkeypatch.setattr(Settings, "ai_configured", property(lambda self: True))  # pretend a key is set so the page offers the button at all
+    monkeypatch.setattr("app.api.v1.public.privacy.blocked_now", lambda: None)  # the data-terms switch is a separate gate with its own tests
+    assert landing()["ai_available"] is True  # offered while the provider is healthy
+    body = {"text": "The doctor listened carefully and explained everything.", "language": "auto"}
+    r = client.post(f"/api/v1/public/c/{token}/assist", json=body, headers=UA)
+    assert r.status_code == 503 and "couldn't improve" in r.json()["detail"] and len(calls) == 1  # the first customer finds out
+    assert health.current()["code"] == "auth"
+    assert landing()["ai_available"] is False  # the next customer is never offered a button that cannot work
+    r2 = client.post(f"/api/v1/public/c/{token}/assist", json=body, headers=UA)
+    assert r2.status_code == 503 and "unavailable right now" in r2.json()["detail"] and len(calls) == 1  # and nothing waits on the provider again
+    health.reset()
+    assert landing()["ai_available"] is True  # and it comes back as soon as the pause ends
+    patch_provider(monkeypatch, StubProviderForTests())
+    assert client.post(f"/api/v1/public/c/{token}/assist", json=body, headers=UA).status_code == 200  # recovery is automatic once the key works
+    assert health.current() is None

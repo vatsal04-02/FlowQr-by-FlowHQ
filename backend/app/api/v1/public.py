@@ -16,6 +16,7 @@ from app.models.base import utcnow
 from app.schemas.cards import TrackEventIn
 from app.services import cards as svc
 from app.services.ai import AIUnavailable, get_provider, privacy
+from app.services.ai import health as ai_health
 from app.services.ai.review_assist import improve_review
 from app.services.ai_usage import log_generation, metered, quota_exceeded
 
@@ -117,7 +118,7 @@ def resolve_card(token: str, request: Request, channel: str | None = None, ref: 
             "address": ", ".join(p for p in [location.address_line, location.city] if p) or None,
         },
         "review_url": location.review_url,
-        "ai_available": settings.ai_configured and privacy.blocked_now() is None,  # not offered while review data may not be sent (services/ai/privacy.py)
+        "ai_available": settings.ai_configured and privacy.blocked_now() is None and ai_health.current() is None,  # not offered while review data may not be sent (services/ai/privacy.py), nor while the provider is known to be down (services/ai/health.py)
         "ai_disclaimer": AI_DISCLAIMER,
         "card_code": card.card_code,
     }
@@ -150,6 +151,8 @@ def assist(token: str, body: AssistIn, request: Request, db: Session = Depends(p
     if quota_exceeded(db, tenant.id, "review_assist"):
         raise HTTPException(status_code=503, detail="The writing assistant is unavailable right now. You can still post your own words.")
 
+    if ai_health.current():  # a known-bad provider state (bad key, no credits): don't make the customer wait for a call that will fail
+        raise HTTPException(status_code=503, detail="The writing assistant is unavailable right now. You can still post your own words.")
     started = time.monotonic()
     try:
         provider = metered(get_provider(), db, tenant.id, "review_assist")
@@ -158,11 +161,13 @@ def assist(token: str, body: AssistIn, request: Request, db: Session = Depends(p
     try:
         suggestion, lang = improve_review(provider, text, language=body.language, business_name=tenant.name, category=tenant.category)
     except AIUnavailable as exc:
+        ai_health.mark_down(exc.code, exc.retry_after)  # pauses the button for everyone for a few minutes when the cause will not fix itself in seconds
         log_generation(db, tenant_id=tenant.id, kind="review_assist", provider=provider.name, model=provider.model,
                        language=body.language, input_chars=len(text), output_chars=0, status="error",
                        started=started, location_id=card.location_id, card_id=card.id, error=str(exc), usage=getattr(provider, "usage", None))
         db.commit()
         raise HTTPException(status_code=503, detail="We couldn't improve your text just now. You can still post your own words.")
+    ai_health.clear()
     log_generation(db, tenant_id=tenant.id, kind="review_assist", provider=provider.name, model=provider.model,
                    language=lang, input_chars=len(text), output_chars=len(suggestion), status="ok",
                    started=started, location_id=card.location_id, card_id=card.id, usage=getattr(provider, "usage", None))

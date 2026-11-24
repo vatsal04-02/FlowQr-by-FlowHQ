@@ -46,6 +46,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiDown, setAiDown] = useState(false);  // the server said the helper is unavailable: stop offering it and carry on in plain "write, copy, post" mode
   const [copied, setCopied] = useState(false);
   const viewed = useRef(false);
 
@@ -78,7 +79,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
     try {
       const r = await api<{ suggestion: string }>(`/public/c/${token}/assist`, { method: "POST", body: { text, language: lang } });
       setSuggestion(r.suggestion);
-    } catch (e) { setAiError(errorMessage(e)); } finally { setBusy(false); }
+    } catch (e) { if (e instanceof ApiError && e.status === 503) setAiDown(true); else setAiError(errorMessage(e)); } finally { setBusy(false); }
   }
 
   async function copy() {
@@ -125,7 +126,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
           className="mt-1.5 w-full resize-y rounded-lg border border-ink-300 bg-white p-3.5 text-[16px] leading-relaxed placeholder:text-ink-400 hover:border-ink-500 focus-visible:border-brand-600" />
         <div className="mt-1 flex justify-between text-xs text-ink-500"><span>Be honest. Your words, your review.</span><span>{text.length}/1200</span></div>
 
-        {data.ai_available ? (<>
+        {data.ai_available && !aiDown ? (<>
           <div className="mt-4"><AiNotice lang={lang === "auto" ? (biz?.language ?? "en") : lang} /></div>{/* before the button that sends the text for AI help; Hindi when Hindi is chosen */}
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="sm:w-44">
@@ -140,7 +141,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
             </button>
           </div>
         </>) : (
-          <p className="mt-4 flex gap-2 rounded-lg bg-white p-3 text-sm text-ink-700"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />Writing help isn't available right now. You can still copy your own words and post them on Google.</p>
+          <p role={aiDown ? "status" : undefined} className="mt-4 flex gap-2 rounded-lg bg-white p-3 text-sm text-ink-700"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{aiDown ? "Writing help is taking a break. Your own words are just as welcome: copy them below and post them on Google." : "Writing help isn't available right now. You can still copy your own words and post them on Google."}</p>
         )}
         {aiError && <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{aiError}</p>}
 
