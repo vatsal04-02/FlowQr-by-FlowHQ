@@ -214,6 +214,16 @@ def _check(key, label, status, detail, link=None, weight=None):
     return {"key": key, "label": label, "status": status, "detail": detail, "link": link, "weight": weight}
 
 
+# A row that can be fixed opens the change FlowQR prepares for it (`/ai/changes` drafts it on arrival, shows BEFORE and AFTER and the approval), never the generic editor, which showed the
+# same page whatever was clicked. `editor` is where the owner can still make the change by hand; the change page offers it when nothing can be prepared.
+PREPARE_AREA = {"description": "description", "hours": "hours", "phone": "contacts", "website": "contacts", "category": "categories", "additional_categories": "categories", "services": "services"}
+
+
+def _fix_link(key: str, gid) -> str | None:
+    area = PREPARE_AREA.get(key)
+    return f"/ai/changes?prepare={area}&location={gid}" if area else None
+
+
 @router.get("/profile-health")
 def profile_health(location_id: uuid.UUID | None = None, ctx: TenantContext = Depends(get_tenant_context)):
     """A checklist per location built from the last profile Google returned (GbpSnapshot), plus the existing Business Health Score and its formula. A location FlowQR has not
@@ -241,13 +251,13 @@ def profile_health(location_id: uuid.UUID | None = None, ctx: TenantContext = De
         services = info.get("services") or []
         extra = info.get("additional_categories") or []
         checks = [
-            _check("description", "Business description", "ok" if len(desc) >= 250 else "warn" if desc else "missing", f"{len(desc)} characters" if desc else "No description yet.", "/gbp/info", 30),
-            _check("hours", "Opening hours", "ok" if info.get("hours") else "missing", "Weekly hours are set." if info.get("hours") else "No weekly hours.", "/gbp/hours", 25),
-            _check("phone", "Phone number", "ok" if (info.get("phone") or "").strip() else "missing", "Set." if (info.get("phone") or "").strip() else "No phone number.", "/gbp/info", 15),
-            _check("website", "Website", "ok" if (info.get("website") or "").strip() else "missing", "Set." if (info.get("website") or "").strip() else "No website link.", "/gbp/info", 15),
+            _check("description", "Business description", "ok" if len(desc) >= 250 else "warn" if desc else "missing", f"{len(desc)} characters" if desc else "No description yet.", _fix_link("description", g.id), 30),
+            _check("hours", "Opening hours", "ok" if info.get("hours") else "missing", "Weekly hours are set." if info.get("hours") else "No weekly hours.", _fix_link("hours", g.id), 25),
+            _check("phone", "Phone number", "ok" if (info.get("phone") or "").strip() else "missing", "Set." if (info.get("phone") or "").strip() else "No phone number.", _fix_link("phone", g.id), 15),
+            _check("website", "Website", "ok" if (info.get("website") or "").strip() else "missing", "Set." if (info.get("website") or "").strip() else "No website link.", _fix_link("website", g.id), 15),
             _check("category", "Main category", "ok" if info.get("primary_category") else "missing", (info.get("primary_category") or {}).get("name") if isinstance(info.get("primary_category"), dict) else (info.get("primary_category") or "No main category."), "/gbp/info", 15),
-            _check("additional_categories", "Additional categories", "ok" if extra else "warn", f"{len(extra)} added." if extra else "None added. Extra categories help you appear for related searches.", "/gbp/info"),
-            _check("services", "Services listed", "ok" if services else "warn", f"{len(services)} listed." if services else "No services listed on the profile.", "/gbp/info"),
+            _check("additional_categories", "Additional categories", "ok" if extra else "warn", f"{len(extra)} added." if extra else "None added. Extra categories help you appear for related searches.", _fix_link("additional_categories", g.id)),
+            _check("services", "Services listed", "ok" if services else "warn", f"{len(services)} listed." if services else "No services listed on the profile.", _fix_link("services", g.id)),
         ]
         media = s.media or []
         newest = max((m.get("created_at") for m in media if m.get("created_at")), default=None)

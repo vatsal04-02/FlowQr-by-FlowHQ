@@ -85,10 +85,12 @@ export const DESTS: Dest[] = [
     { href: "/ai/today", label: "Today" },
     { href: "/ai/automations", label: "Helpers" },
     { href: "/ai/studio", label: "Write a post" },
+    { href: "/ai/operator", label: "AI Operator" },
   ] },
   { id: "tasks", href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph, group: "assistant", children: [
     { href: "/ai/tasks", label: "Tasks" },
     { href: "/ai/approvals", label: "Approvals" },
+    { href: "/ai/changes", label: "Pending changes" },
   ] },
   { id: "activity", href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph, group: "assistant" },
   { id: "settings", href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph, group: "account" },

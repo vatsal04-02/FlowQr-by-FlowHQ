@@ -27,6 +27,8 @@ from app.services.agent.v2 import present  # noqa: F401  (kept for callers that 
 CATEGORIES = {"profile": "Profile improvements", "business_info": "Business information", "reviews": "Reviews", "posts": "Posts and campaigns", "other": "Other"}
 FIELD_CATEGORY = {"description": "profile", "categories": "profile", "additional_categories": "profile", "primary_category": "profile", "services": "profile", "attributes": "profile",
                   "hours": "business_info", "special_hours": "business_info", "website": "business_info", "phone": "business_info", "service_area": "business_info"}
+FIELD_TITLE = {"description": "Business description", "categories": "Business categories", "additional_categories": "Additional categories", "primary_category": "Main category", "services": "Services",
+               "attributes": "Business attributes", "hours": "Opening hours", "special_hours": "Holiday hours", "website": "Website", "phone": "Phone number", "service_area": "Service area"}
 EDITABLE_ACTION_FIELDS = frozenset({"description"})  # the only action text a person can reword before approving: every other field is a structured list the engine validates
 STATUS_WORDS = {"pending_approval": "Waiting for your approval", "recommended": "Drafted: not applied by FlowQR yet", "approved": "Approved: being applied", "executing": "Being applied now",
                 "executed": "Applied and confirmed on Google", "failed": "Failed", "blocked": "Blocked", "invalidated": "Out of date", "awaiting_approval": "Waiting for your approval",
@@ -75,7 +77,7 @@ def _action_item(db: Session, a: AgentAction, gloc: GoogleLocation) -> dict:
         ops["edit"] = _off(why if a.field_key not in EDITABLE_ACTION_FIELDS else "Only a waiting change can be edited.")
         ops["regenerate"] = _off("A new version can be prepared for the description. The other fields are rebuilt from your answers and your Business Brain on the next scan.")
     ai = (a.evidence or {}).get("ai") or {}
-    return {"key": f"action:{a.id}", "kind": "action", "id": str(a.id), "category": _category_for(a.field_key), "title": row["label"], "field": a.field_key,
+    return {"key": f"action:{a.id}", "kind": "action", "id": str(a.id), "category": _category_for(a.field_key), "title": FIELD_TITLE.get(a.field_key or "", row["label"]), "field": a.field_key,
             "status": a.status, "status_label": STATUS_WORDS.get(a.status, a.status), "risk": a.risk_level, "level": a.policy_level,
             "google_location_id": str(a.google_location_id), "location_title": gloc.title, "before": before, "after": after, "diff": diff,
             "problem": a.problem, "reason": a.reason, "expected_outcome": a.expected_outcome, "source": (a.source or {}).get("kind"), "quality_score": ai.get("quality"),

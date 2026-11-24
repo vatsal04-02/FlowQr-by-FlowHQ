@@ -44,8 +44,10 @@ def _check(a: AgentAction) -> None:
         raise ChangeError(f"This change is {a.status.replace('_', ' ')} and can no longer be edited.")
 
 
-def _propose(db: Session, tenant: Tenant, gloc: GoogleLocation, text: str, *, user_id: uuid.UUID, trigger: str, problem: str, reason: str, evidence: dict, now: datetime) -> AgentAction:
-    return executor.propose(db, tenant, gloc, "description_improve", proposed=text, source={"kind": "owner_input", "user_id": str(user_id), "refs": ["description"]}, trigger=trigger,
+def _propose(db: Session, tenant: Tenant, gloc: GoogleLocation, text: str, *, user_id: uuid.UUID, trigger: str, problem: str, reason: str, evidence: dict, now: datetime, ai: bool = False) -> AgentAction:
+    kb = kbs.context(db, tenant)
+    source = ({"kind": "business_knowledge", "refs": [r for r in ("description", "services") if kb.get(r)]} if ai else {"kind": "owner_input", "user_id": str(user_id), "refs": ["description"]})
+    return executor.propose(db, tenant, gloc, "description_improve", proposed=text, source=source, trigger=trigger,
                             problem=problem, reason=reason, evidence=evidence, proposed_by="user", user_id=user_id, force_owner=True, now=now)
 
 
@@ -84,7 +86,7 @@ def regenerate_description(db: Session, tenant: Tenant, gloc: GoogleLocation, a:
     text = text.strip()[:MAX_LEN]
     if len(text) < 100:
         raise ChangeError("The new draft was too short to be useful. Try again, or write it yourself.", 502)
-    ai = {"model": getattr(provider, "model", None), "provider": getattr(provider, "name", None), "quality": qa.score if qa else None, "checked_against": "business knowledge (services, prices, claims)"}
+    ai_meta = {"model": getattr(provider, "model", None), "provider": getattr(provider, "name", None), "quality": qa.score if qa else None, "checked_against": "business knowledge (services, prices, claims)"}
     problem, reason = a.problem, "A new version of the description, written only from the facts in your Business Brain."
     _retire(db, a, user_id=user_id, role=role, now=now)
-    return _propose(db, tenant, gloc, text, user_id=user_id, trigger="owner_regenerate", problem=problem, reason=reason, evidence={"ai": ai, "replaces": str(a.id)}, now=now)
+    return _propose(db, tenant, gloc, text, user_id=user_id, trigger="owner_regenerate", problem=problem, reason=reason, evidence={"ai": ai_meta, "replaces": str(a.id)}, now=now, ai=True)

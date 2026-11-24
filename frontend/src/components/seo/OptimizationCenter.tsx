@@ -1,6 +1,8 @@
 "use client";
 import clsx from "clsx";
 import { ArrowRight, CheckCircle2, CircleDashed, ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { WaitingCard } from "@/components/autonomy/Actions";
 import { Card, Title } from "@/components/seo/visuals";
@@ -13,6 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { STATUS_WORDS } from "@/lib/autonomy";
 import { fmtNum, timeAgo } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
+import { areaStep, type AreaStep, type PrepareResponse } from "@/lib/operator";
 import type { AreaState, V2Action, V2Area, V2Location, V2Overview } from "@/lib/seo-v2";
 import { useFetch } from "@/lib/use-api";
 
@@ -80,9 +83,9 @@ function LocationBlock({ l, multi, canDecide, isOwner, reload }: { l: V2Location
       {multi && <h3 className="text-[15px] font-semibold">{l.title}</h3>}
       {l.google_changed && l.google_changed.length > 0 && <Alert tone="warning" title="Google changed some details itself">Google shows a different value for: {l.google_changed.join(", ")}. FlowQR will not suggest changes over these and never undoes Google's edits. Review them in Google Business Profile.</Alert>}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <Card label="Profile areas" className="lg:col-span-7"><Title>Your profile, area by area</Title><AreaList areas={l.areas} /></Card>
+        <Card label="Profile areas" className="lg:col-span-7"><Title>Your profile, area by area</Title><AreaList areas={l.areas} gid={l.google_location_id} actions={[...a.pending, ...a.recommended, ...a.in_progress]} canDecide={canDecide} /></Card>
         <div className="space-y-3 lg:col-span-5 lg:space-y-4">
-          <Card label="Your answers needed"><Title>Tell us what we cannot know</Title><OwnerInputs l={l} canDecide={canDecide} reload={reload} /></Card>
+          <div id="owner-inputs" className="scroll-mt-24"><Card label="Your answers needed"><Title>Tell us what we cannot know</Title><OwnerInputs l={l} canDecide={canDecide} reload={reload} /></Card></div>
           {l.performance && <Card label="Google performance"><Title>Customer actions</Title><Performance p={l.performance} /></Card>}
         </div>
       </div>
@@ -95,20 +98,50 @@ function LocationBlock({ l, multi, canDecide, isOwner, reload }: { l: V2Location
   );
 }
 
-function AreaList({ areas }: { areas: V2Area[] }) {
+function AreaList({ areas, gid, actions, canDecide }: { areas: V2Area[]; gid: string; actions: V2Action[]; canDecide: boolean }) {
   return (
     <ul className="mt-3 divide-y divide-line">
-      {areas.map((x) => (
-        <li key={x.key} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2.5">
-          <div className="min-w-[14rem] flex-1">
-            <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-semibold">{x.label}</span><Badge tone={STATE_TONE[x.state]}>{STATE_WORDS[x.state]}</Badge></div>
-            <p className="mt-0.5 text-[13px] text-ink-700">{x.summary}</p>
-            {x.note && <p className="mt-0.5 text-[12px] text-muted">{x.note}</p>}
-          </div>
-          {x.fix && <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-ink-700">{x.fix.label}</span>}
-        </li>
-      ))}
+      {areas.map((x) => {
+        const step = areaStep(x, actions);
+        return (
+          <li key={x.key} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2.5">
+            <div className="min-w-[14rem] flex-1">
+              <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-semibold">{x.label}</span><Badge tone={STATE_TONE[x.state]}>{STATE_WORDS[x.state]}</Badge></div>
+              <p className="mt-0.5 text-[13px] text-ink-700">{x.summary}</p>
+              {x.note && <p className="mt-0.5 text-[12px] text-muted">{x.note}</p>}
+              {x.fix && step?.kind !== "info" && <p className="mt-0.5 text-[12px] text-muted">{x.fix.label}</p>}
+            </div>
+            {step && <AreaAction step={step} gid={gid} canDecide={canDecide} />}
+          </li>);
+      })}
     </ul>
+  );
+}
+
+/** What an area's button really does: open the prepared change, have the AI prepare it and then open it, jump to the questions only the owner can answer, or say in words why FlowQr cannot. */
+function AreaAction({ step, gid, canDecide }: { step: AreaStep; gid: string; canDecide: boolean }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const cls = "inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface-2 px-3 text-[13px] font-semibold text-accent-ink ring-1 ring-inset ring-line hover:bg-accent-tint";
+  if (step.kind === "info") return <p className="max-w-xs text-[12px] text-muted">{step.text}{step.href && <> <a href={step.href} target="_blank" rel="noreferrer" className="font-semibold text-accent-ink hover:underline">{step.linkLabel}</a></>}</p>;
+  if (step.kind === "open") return <Link href={step.href} className={cls}>{step.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>;
+  if (step.kind === "inputs") return <a href="#owner-inputs" className={cls}>{step.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></a>;
+  async function prepare() {
+    setBusy(true); setNote(null);
+    try {
+      const r = await api<PrepareResponse>("/operator/prepare", { method: "POST", body: { google_location_id: gid, area: step.kind === "prepare" ? step.area : "" } });
+      if (r.change) router.push(`/ai/changes?focus=${encodeURIComponent(r.change.key)}`);
+      else { setNote(r.message); toast(r.message, r.status === "cannot_prepare" ? "error" : undefined); }
+    } catch (e) { setNote(errorMessage(e)); } finally { setBusy(false); }
+  }
+  return (
+    <div className="flex max-w-xs flex-col items-end gap-1">
+      <Button size="sm" variant="secondary" loading={busy} disabled={!canDecide} onClick={() => void prepare()}>{step.label}</Button>
+      {!canDecide && <p className="text-[12px] text-muted">An owner or admin prepares changes.</p>}
+      {note && <p role="status" className="text-right text-[12px] text-muted">{note}</p>}
+    </div>
   );
 }
 
@@ -138,7 +171,7 @@ function Recommended({ a, canDecide, reload }: { a: V2Action; canDecide: boolean
       <Diff a={a} />
       <p className="text-sm"><span className="font-medium">Why: </span>{a.reason}</p>
       <p className="text-xs text-muted">{a.expected_outcome}</p>
-      {canDecide && <Button size="sm" variant="secondary" onClick={() => void dismiss()} loading={busy}>Dismiss</Button>}
+      <div className="flex flex-wrap items-center gap-2"><Link href={`/ai/changes?focus=action:${a.id}`} className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">Open this change<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>{canDecide && <Button size="sm" variant="secondary" onClick={() => void dismiss()} loading={busy}>Dismiss</Button>}</div>
     </li>
   );
 }

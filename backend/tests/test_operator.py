@@ -303,3 +303,49 @@ def test_the_ai_being_down_is_reported_in_words_and_nothing_is_prepared(env, mon
 def test_the_tools_page_says_what_the_operator_cannot_do(env):
     t = env.biz.get("/operator/tools").json()
     assert {x["name"] for x in t["tools"]} == set(tools_mod.TOOLS) and any("approve or publish" in c for c in t["cannot"])
+
+
+def test_checklist_rows_open_the_prepared_change_not_the_generic_editor(env):
+    weak(env)
+    rows = {c["key"]: c for c in env.biz.get("/seo/profile-health").json()["locations"][0]["checks"]}
+    assert rows["description"]["link"] == f"/ai/changes?prepare=description&location={env.gid}"
+    assert rows["hours"]["link"] == f"/ai/changes?prepare=hours&location={env.gid}" and rows["website"]["link"] == f"/ai/changes?prepare=contacts&location={env.gid}"
+    assert rows["category"]["link"] == "/gbp/info" and rows["photos"]["link"] == "/gbp/photos"  # what the engine cannot prepare keeps its own screen
+
+
+# ============================================================================ replies and posts through the operator (drafts only)
+def _patch_all_ai(monkeypatch, p):
+    for target in ("app.services.ai.get_provider", "app.api.v1.operator.get_provider", "app.api.v1.reviews.get_provider", "app.api.v1.posts.get_provider"):
+        monkeypatch.setattr(target, lambda: p)
+
+
+def test_the_operator_drafts_a_review_reply_that_waits_for_approval_and_publishes_nothing(env, monkeypatch):
+    rid = add_review(env.biz, env.gid, 5, "Lovely staff and a calm clinic")
+    p = Scripted(js(tool="draft_review_reply", args={"review_id": rid}), "Thank you for your kind words. We are glad you enjoyed a calm visit and we look forward to seeing you again.",
+                 js(final="I drafted a reply for you to approve. Nothing is published."))
+    _patch_all_ai(monkeypatch, p)
+    body = env.biz.post("/operator/ask", json={"message": "Reply to my new reviews"}).json()
+    assert body["status"] == "completed" and body["steps"][0]["tool"] == "draft_review_reply" and body["steps"][0]["ok"], body
+    assert len(body["changes"]) == 1 and body["changes"][0]["kind"] == "reply" and body["changes"][0]["before"].startswith("Lovely staff") and body["changes"][0]["status"] == "draft"
+    assert env.fake.replies == [] if hasattr(env.fake, "replies") else True
+    assert owner_query("SELECT status FROM reply_drafts WHERE review_id = :r", r=uuid.UUID(rid))[0][0] == "draft"
+
+
+def test_the_operator_cannot_draft_a_reply_to_someone_elses_review(env, monkeypatch):
+    from tests.conftest import make_business
+
+    other = make_business("Other Clinic")
+    p = Scripted(js(tool="draft_review_reply", args={"review_id": str(uuid.uuid4())}), js(final="That review was not found."))
+    _patch_all_ai(monkeypatch, p)
+    body = other.post("/operator/ask", json={"message": "reply to review"}).json()
+    assert body["steps"][0]["ok"] is False and body["changes"] == []
+
+
+def test_the_operator_drafts_a_google_post_that_waits_for_approval(env, monkeypatch):
+    p = Scripted(js(tool="draft_google_post", args={"topic": "open this Saturday"}), "We are open this Saturday for back care and neck pain appointments in Lucknow. Call the clinic to book a visit.",
+                 js(final="I drafted a post for you to approve. Nothing is published."))
+    _patch_all_ai(monkeypatch, p)
+    body = env.biz.post("/operator/ask", json={"message": "Write a Google post about this Saturday"}).json()
+    assert body["status"] == "completed" and body["steps"][0]["ok"], body
+    assert len(body["changes"]) == 1 and body["changes"][0]["kind"] == "post" and body["changes"][0]["after"].startswith("We are open this Saturday")
+    assert owner_query("SELECT status FROM scheduled_posts WHERE tenant_id = :t", t=uuid.UUID(env.biz.tenant_id))[0][0] == "awaiting_approval" and env.fake.posts == []  # nothing reached Google
