@@ -36,7 +36,17 @@ export default function Users() {
         </div>} flush>
         {error && <div className="p-3"><Alert tone="error">{error}</Alert></div>}
         {loading && !data ? <Skeleton className="m-3 h-64" /> : data && data.items.length === 0 ? <div className="p-3"><EmptyState title="No users match">Try a different search or filter.</EmptyState></div> : (
-          <div className="overflow-x-auto"><table className="dt min-w-[860px]">
+          <>
+          <ul aria-label="Users" className="space-y-2 p-3 xl:hidden">{data?.items.map((u) => (
+            <li key={u.id} className="adm-card-link rounded-xl border border-ink-100 bg-surface p-3.5">
+              <div className="flex items-start justify-between gap-2"><Link href={`/admin/users/${u.id}`} className="min-w-0 break-all text-[15px] font-semibold text-accent-ink">{u.email}</Link>
+                {!u.is_active ? <Badge tone="red">deactivated</Badge> : <Badge tone="green">active</Badge>}</div>
+              <p className="mt-1 truncate text-[13px] text-ink-700">{u.businesses ? (u.business_names?.join(", ") ?? u.businesses) : "No business"}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted"><span>{signIn(u)}</span>{!u.email_verified && <Badge tone="amber">unverified</Badge>}</div>
+              <p className="mt-1 text-xs text-muted">{u.last_login_at ? `Last login ${timeAgo(u.last_login_at)}` : "Never logged in"} · Joined {fmtDate(u.created_at)}</p>
+              <Link href={`/admin/users/${u.id}`} className="mt-2.5 inline-flex min-h-11 items-center rounded-full bg-ink-solid px-4 text-[13px] font-semibold text-ink-on">View user</Link>
+            </li>))}</ul>
+          <div className="hidden overflow-x-auto xl:block"><table className="dt min-w-[860px]">
             <thead><tr><th>Person</th><th>Businesses</th><th>Sign-in</th><th>Status</th><th>Last login</th><th>Joined</th></tr></thead>
             <tbody>{data?.items.map((u) => (
               <tr key={u.id}>
@@ -48,6 +58,7 @@ export default function Users() {
                 <td className="whitespace-nowrap text-muted">{fmtDate(u.created_at)}</td>
               </tr>))}</tbody>
           </table></div>
+          </>
         )}
       </Panel>
       {data && data.total > PAGE && <div className="mt-4 flex items-center justify-between"><Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button>

@@ -1,5 +1,5 @@
 "use client";
-import { Download, Image as ImageIcon, TriangleAlert } from "lucide-react";
+import { Download, Image as ImageIcon, Printer, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Alert, Skeleton } from "@/components/ui/Card";
@@ -19,6 +19,9 @@ const CHOICES: { id: Choice; label: string; hint: string }[] = [
   { id: "svg", label: "SVG", hint: "Editable vector file" },
 ];
 
+/** What most people need: print at the approved size, print on a normal A4 sheet, or send a picture on WhatsApp. The rest sit under "More formats". */
+const MAIN: Choice[] = ["pdf-ref", "pdf-a4", "png-1"];
+
 /**
  * The approved FlowQR review poster with this code in it, in every print format. The design is the same for every business and campaign;
  * only the QR code differs. The server checks that the finished file decodes to exactly the right address before it will send it.
@@ -33,6 +36,7 @@ export function PosterDownload({ path, filename, label = "Download poster", vari
   const [problem, setProblem] = useState<string | null>(null);
   const [notForPrint, setNotForPrint] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState<{ file: File; url: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +49,8 @@ export function PosterDownload({ path, filename, label = "Download poster", vari
     return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
   }, [open, path]);
 
+  useEffect(() => { setReady((r) => { if (r) URL.revokeObjectURL(r.url); return null; }); }, [choice, open]);
+
   async function download() {
     setBusy(true); setProblem(null);
     const [kind, opt] = choice.split("-");
@@ -56,30 +62,56 @@ export function PosterDownload({ path, filename, label = "Download poster", vari
     } catch (e) { setProblem(errorMessage(e)); } finally { setBusy(false); }
   }
 
+  /**
+   * Phones cannot print a downloaded file directly, and they only allow a share sheet or a new tab straight from a tap (not after waiting for a file). So it takes two taps: the first
+   * prepares the file, the second hands it to the phone's own share sheet (Print, AirPrint, a nearby printer, WhatsApp) or, where that is not supported, opens it in a new tab where Print is one tap away.
+   */
+  async function printOrShare() {
+    setProblem(null);
+    if (ready) {
+      if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [ready.file] })) { try { await navigator.share({ files: [ready.file], title: "FlowQR poster" }); return; } catch (e) { if ((e as Error).name === "AbortError") return; } }
+      if (!window.open(ready.url, "_blank")) saveBlob(ready.file, ready.file.name);  // pop-up blocked: fall back to a normal download
+      return;
+    }
+    setBusy(true);
+    const [kind, opt] = choice.split("-");
+    const q = kind === "png" ? `?scale=${opt}` : kind === "pdf" ? `?size=${opt}` : "";
+    try {
+      const { blob, headers } = await apiFile(`${path}.${kind}${q}`);
+      setNotForPrint(!!headers.get("x-flowqr-not-for-print"));
+      const name = `${filename}-poster${kind === "pdf" ? `-${opt}` : ""}.${kind}`;
+      const file = new File([blob], name, { type: blob.type || (kind === "pdf" ? "application/pdf" : "image/png") });
+      setReady({ file, url: URL.createObjectURL(file) });
+    } catch (e) { setProblem(errorMessage(e)); } finally { setBusy(false); }
+  }
+  const row = (c: (typeof CHOICES)[number]) => (
+    <label key={c.id} className={`flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-sm ${choice === c.id ? "border-brand-600 bg-brand-50" : "border-ink-200 hover:bg-ink-50"}`}>
+      <input type="radio" name="poster-format" value={c.id} checked={choice === c.id} onChange={() => setChoice(c.id)} className="mt-1" />
+      <span className="min-w-0"><span className="font-medium">{c.label}</span><span className="block text-[13px] text-ink-500">{c.hint}</span></span>
+    </label>
+  );
+  const main = CHOICES.filter((c) => MAIN.includes(c.id)), more = CHOICES.filter((c) => !MAIN.includes(c.id));
+
   return (
     <>
       <Button size={size === "sm" ? "sm" : undefined} variant={variant} icon={<ImageIcon className="h-4 w-4" />} onClick={() => setOpen(true)}>{label}</Button>
       {open && (
         <Modal open onClose={() => setOpen(false)} title="Download the FlowQR poster"
-          footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Close</Button><Button loading={busy} icon={<Download className="h-4 w-4" />} onClick={() => void download()}>Download</Button></>}>
-          <div className="grid gap-5 sm:grid-cols-[200px_1fr]">
-            <div>
-              {preview ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={preview} alt="Preview of the FlowQR review poster with this code" className="w-full rounded-lg border border-ink-100 shadow-sm" data-testid="poster-preview" />
+          footer={<><Button variant="secondary" loading={busy} icon={<Download className="h-4 w-4" />} onClick={() => void download()} className="max-sm:order-2 max-sm:flex-1">Download</Button><Button loading={busy} icon={<Printer className="h-4 w-4" />} onClick={() => void printOrShare()} className="max-sm:order-1 max-sm:flex-[1.4]">{ready ? (typeof navigator !== "undefined" && navigator.canShare?.({ files: [ready.file] }) ? "Share or print" : "Open to print") : "Print or share"}</Button><Button variant="ghost" onClick={() => setOpen(false)} className="max-sm:hidden">Close</Button></>}>
+          <div className="grid gap-4 sm:grid-cols-[200px_1fr] sm:gap-5">
+            <div className="mx-auto w-full max-w-[104px] sm:max-w-none">
+              {preview ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={preview} alt="Preview of the FlowQR review poster with this code" decoding="async" width={1055} height={1491} className="h-auto w-full rounded-lg border border-ink-100 shadow-sm" data-testid="poster-preview" />
                 : problem ? null : <Skeleton className="aspect-[1055/1491] w-full" />}
             </div>
             <div className="min-w-0 space-y-3">
-              <p className="text-sm text-ink-700">Everything on the poster is the approved FlowQR design. Only the QR code is yours, and it always opens the same permanent link, even if you change where it points later.</p>
+              <p className="text-sm text-ink-700">Only the QR code is yours; it always opens the same permanent link. To print from a phone, tap <b>Print or share</b>.</p>
               {problem && <Alert tone="error">{problem}</Alert>}
               {notForPrint && <p role="alert" className="flex gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />This file uses a test address (not your permanent web address), so it must not be printed. Set the public card address first.</p>}
               <fieldset>
                 <legend className="mb-1 text-sm font-semibold">Format</legend>
                 <div className="grid gap-1.5" role="radiogroup" aria-label="Poster format">
-                  {CHOICES.map((c) => (
-                    <label key={c.id} className={`flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-sm ${choice === c.id ? "border-brand-600 bg-brand-50" : "border-ink-200 hover:bg-ink-50"}`}>
-                      <input type="radio" name="poster-format" value={c.id} checked={choice === c.id} onChange={() => setChoice(c.id)} className="mt-1" />
-                      <span><span className="font-medium">{c.label}</span><span className="block text-[13px] text-ink-500">{c.hint}</span></span>
-                    </label>
-                  ))}
+                  {main.map(row)}
+                  <details className="group" open={more.some((c) => c.id === choice)}><summary className="flex min-h-11 cursor-pointer items-center rounded-lg px-3 text-sm font-medium text-accent-ink hover:bg-ink-50">More formats</summary><div className="mt-1.5 grid gap-1.5">{more.map(row)}</div></details>
                 </div>
               </fieldset>
             </div>

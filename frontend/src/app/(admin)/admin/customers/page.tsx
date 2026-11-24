@@ -45,11 +45,11 @@ export default function Businesses() {
         <EmptyState title={filtered ? "No businesses match" : "No businesses yet"} action={filtered ? undefined : <Button onClick={() => setAdding(true)}>Add business</Button>}>{filtered ? "Try a different search or filter." : "Add the first shop to start assigning cards."}</EmptyState>
       ) : (
         <>
-        <ul aria-label="Businesses" className="space-y-2 lg:hidden">
+        <ul aria-label="Businesses" className="space-y-2 xl:hidden">
           {data?.items.map((t) => {
             const o = ONBOARDING[t.onboarding_status ?? "incomplete"];
             return (
-              <li key={t.id} className="rounded-xl border border-ink-100 bg-surface p-3.5">
+              <li key={t.id} className="adm-card-link rounded-xl border border-ink-100 bg-surface p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0"><Link href={`/admin/customers/${t.id}`} className="block truncate text-[15px] font-semibold text-brand-700">{t.name}</Link>
                     <p className="truncate text-xs text-ink-500">{[t.category, t.city].filter(Boolean).join(" · ") || "No category"}</p></div>
@@ -62,24 +62,23 @@ export default function Businesses() {
               </li>);
           })}
         </ul>
-        <Card pad={false} className="hidden lg:block"><div className="overflow-x-auto"><table className="dt min-w-[1240px]">
-          <thead><tr>{["Business", "Contact", "Phone", "Locations", "Cards", "Live", "Stage", "Website", "Access", "Added"].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
+        <Card pad={false} className="hidden xl:block"><div className="overflow-x-auto"><table className="dt min-w-[960px]">
+          <thead><tr>{["Business", "Contact", "Setup", "Stage", "Website", "Access", "Added"].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
           <tbody>{data?.items.map((t) => {
             const o = ONBOARDING[t.onboarding_status ?? "incomplete"];
             return (
               <tr key={t.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-50/60">
                 <td className="px-4 py-3"><Link href={`/admin/customers/${t.id}`} className="font-semibold text-brand-700 hover:underline">{t.name}</Link>{!t.is_active && <Badge tone="red">suspended</Badge>}
                   <span className="block text-xs text-ink-500">{[t.category, t.city].filter(Boolean).join(" · ")}</span></td>
-                <td className="px-4 text-ink-700">{t.contact_name ?? <span className="text-ink-400">–</span>}{t.owner_email && <span className="block text-xs text-ink-500">{t.owner_email}</span>}{!t.owner_email && t.email && <span className="block text-xs text-ink-500">{t.email}</span>}</td>
-                <td className="whitespace-nowrap px-4 tabular-nums">{t.phone ?? <span className="text-ink-400">–</span>}</td>
-                <td className="px-4 tabular-nums">{t.locations}</td><td className="px-4 tabular-nums">{t.cards}</td><td className="px-4 tabular-nums">{t.active_cards ?? 0}</td>
+                <td className="px-4 text-ink-700">{t.contact_name ?? <span className="text-ink-400">–</span>}{t.owner_email && <span className="block text-xs text-ink-500">{t.owner_email}</span>}{!t.owner_email && t.email && <span className="block text-xs text-ink-500">{t.email}</span>}{t.phone && <span className="block text-xs tabular-nums text-ink-500">{t.phone}</span>}</td>
+                <td className="whitespace-nowrap px-4 text-[13px] tabular-nums">{t.locations} loc<span className="block text-xs text-ink-500">{t.cards} cards · {t.active_cards ?? 0} live</span></td>
                 <td className="px-4"><Badge tone={o.tone}>{o.label}</Badge>{t.agreement_recorded && <span className="block text-xs text-ink-500">Agreement recorded</span>}</td>
-                <td className="px-4 text-xs">{t.site_status ? (
+                <td className="min-w-[132px] px-4 text-xs">{t.site_status ? (
                     <><Badge tone={STATUS_TONE[t.site_status] ?? "gray"}>{STATUS_LABEL[t.site_status] ?? t.site_status}</Badge><Link href={`/admin/customers/${t.id}/website`} className="mt-1 block font-semibold text-brand-700 hover:underline">Open editor</Link></>
                   ) : (
-                    <>{t.website_interest === "wants_site" ? <Badge tone="amber">Wants a website</Badge> : t.website_interest === "has_site" ? <Badge tone="gray">Has its own</Badge> : t.website_interest === "not_now" ? <Badge tone="gray">Not now</Badge> : <span className="text-ink-400">Not asked</span>}
+                    <>{t.website_interest === "wants_site" ? <Badge tone="amber">Wants a website</Badge> : t.website_interest === "has_site" ? <Badge tone="gray">Has its own</Badge> : t.website_interest === "not_now" ? <Badge tone="gray">Not now</Badge> : <span className="whitespace-nowrap text-ink-400">Not asked</span>}
                       {sitesOn ? <Link href={`/admin/customers/${t.id}?website=create`} className="mt-1 inline-flex min-h-8 items-center gap-1 font-semibold text-brand-700 hover:underline"><Globe className="h-3.5 w-3.5" aria-hidden />Generate site</Link>
-                        : cfg.data ? <span className="mt-1 block text-ink-400">Builder is off</span> : null}</>
+                        : cfg.data ? <span className="mt-1 block whitespace-nowrap text-ink-400">Builder is off</span> : null}</>
                   )}</td>
                 <td className="px-4 text-xs">{t.origin === "admin" ? (t.managed_access === "revoked" ? <Badge tone="red">managed: revoked</Badge> : t.managed_access === "managed" ? <Badge tone="green">managed by FlowQR</Badge> : <Badge tone="gray">{t.plan}</Badge>) : <Badge tone={SUB_TONE[t.subscription_status ?? ""] ?? "gray"}>{t.plan} · {t.subscription_status}</Badge>}</td>
                 <td className="whitespace-nowrap px-4">{fmtDate(t.created_at)}</td></tr>);

@@ -5,9 +5,17 @@ import { ADMIN_BOTTOM, ADMIN_GROUPS, ADMIN_ITEMS, adminActive, adminHere } from 
 test("every operator page appears exactly once in the grouped navigation", () => {
   const hrefs = ADMIN_ITEMS.map((i) => i.href);
   assert.equal(new Set(hrefs).size, hrefs.length);
-  for (const h of ["/admin", "/admin/customers", "/admin/users", "/admin/billing", "/admin/finance", "/admin/plans", "/admin/ops", "/admin/audit", "/admin/queue", "/admin/cards", "/admin/agency", "/admin/managed-usage",
-    "/admin/whatsapp-prices", "/admin/whatsapp-ai", "/admin/whatsapp-entry-window", "/admin/whatsapp-festivals"]) assert.ok(hrefs.includes(h), h);
-  assert.deepEqual(ADMIN_GROUPS.map((g) => g.id), ["command", "clients", "money", "plans", "ops", "admin"]);
+  for (const h of ["/admin", "/admin/customers", "/admin/users", "/admin/billing", "/admin/finance", "/admin/plans", "/admin/ops", "/admin/audit", "/admin/queue", "/admin/cards", "/admin/agency", "/admin/managed-usage", "/admin/whatsapp"]) assert.ok(hrefs.includes(h), h);
+  assert.deepEqual(ADMIN_GROUPS.map((g) => g.id), ["command", "clients", "money", "whatsapp", "ops"]);
+});
+
+test("the four WhatsApp pages are one menu entry and each address still highlights it", () => {
+  for (const h of ["/admin/whatsapp", "/admin/whatsapp-prices", "/admin/whatsapp-ai", "/admin/whatsapp-entry-window", "/admin/whatsapp-festivals"]) assert.equal(adminHere(h)?.item.href, "/admin/whatsapp", h);
+});
+
+test("Health and the Work queue carry a count badge, and the phone bar is Overview, Customers, Cards, Health", () => {
+  assert.deepEqual(ADMIN_ITEMS.filter((i) => i.badge).map((i) => [i.href, i.badge]), [["/admin/queue", "queue"], ["/admin/ops", "ops"]]);
+  assert.deepEqual([...ADMIN_BOTTOM], ["/admin", "/admin/customers", "/admin/cards", "/admin/ops"]);
 });
 
 test("a detail page keeps its list highlighted and Overview is only active on its own path", () => {
