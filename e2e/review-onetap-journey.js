@@ -71,7 +71,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await p.goto(`${BASE}/r/${camp.public_id}`);
     return p;
   }
-  const stars = (p) => p.getByRole("radiogroup", { name: /rate your visit|कितने स्टार/ }).getByRole("radio");
+  const stars = (p) => p.getByRole("radiogroup", { name: /rate your visit|tap your stars|स्टार चुनें|कितने स्टार/ }).getByRole("radio");
   const chips = (p, hi) => p.getByRole("group", { name: hi ? /क्या खास/ : /What stood out/ }).getByRole("button");
   const box = (p) => p.locator("#review");
   const cta = (p) => p.getByTestId("copy-continue");
@@ -86,7 +86,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     // ---------- A. automatic starter, skeleton, no Generate button, no required input ----------
     const p = await open(camp, dev, { starterDelay: 1500, refineDelay: 700 });
-    await p.getByRole("heading", { name: "Share your experience" }).waitFor();
+    await p.getByRole("heading", { name: "How was your visit?" }).waitFor();
     ok(`${tag} skeleton shown while the starter is prepared`, (await box(p).getAttribute("aria-busy")) === "true" && (await p.locator(".fq-skeleton").count()) >= 3);
     if (dname === "Android (Pixel 7)") await p.screenshot({ path: "shots4/01-android-loading.png", fullPage: false, animations: "disabled" });
     await p.waitForFunction(() => document.querySelector("#review")?.value.startsWith("Sharing my feedback"), null, { timeout: 8000 });
@@ -99,7 +99,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const bb = await cta(p).boundingBox(), vh = p.viewportSize().height;
     ok(`${tag} the one-tap button is visible on first screen`, bb && bb.y + bb.height <= vh + 1, `y=${Math.round(bb.y)} h=${Math.round(bb.height)} viewport=${vh}`);
     ok(`${tag} button is a real link to the DIRECT Google write-a-review URL`, (await cta(p).evaluate((a) => a.tagName)) === "A" && (await cta(p).getAttribute("href")) === GOOGLE && (await cta(p).getAttribute("target")) === "_blank" && /noopener/.test(await cta(p).getAttribute("rel")));
-    ok(`${tag} instruction under the button`, await p.getByText(/Your review will be copied. Paste it into Google.s review box./).isVisible());
+    ok(`${tag} instruction under the button`, await p.getByText(/We copy it for you. Google opens, you paste and tap Post./).isVisible());
     ok(`${tag} a visible Copy review fallback exists`, await p.getByTestId("copy-only").isVisible());
     const barH = await p.evaluate(() => { const a = document.querySelector("[data-testid=copy-continue]"); const bar = a.parentElement; return Math.round(bar.getBoundingClientRect().height); });
     ok(`${tag} the sticky bar is compact (does not hide the page)`, barH <= (mobile ? 135 : 150), `bar height ${barH}px of ${vh}px`);
@@ -122,7 +122,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const g1 = p.reqs.find((r) => r.path === "generate");
     ok(`${tag} stars+chip refined the box automatically (first call creates the session)`, g1 && g1.body.rating === 5 && g1.body.suggestions.length === 1 && g1.body.text === "" && g1.body.mode === "ai", JSON.stringify(g1?.body));
     ok(`${tag} AI-written starter text is never sent back as the customer's words`, g1.body.text === "");
-    ok(`${tag} label now says it was written from their answers`, (await p.getByTestId("origin-badge").innerText()).includes("Written from your answers"));
+    ok(`${tag} label now says it was written from their answers`, (await p.getByTestId("origin-badge").innerText()).includes("Written by AI"));
     await chips(p, false).nth(1).click();
     await p.waitForFunction(() => document.querySelector("#review")?.value.startsWith("I appreciated"), null, { timeout: 5000 });
     await sleep(1500);
@@ -277,7 +277,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await stars(d2).nth(4).click(); await d2.getByTestId("consent").check(); await d2.getByTestId("submit-review").click();
     await d2.getByText("We couldn't submit it from here.").waitFor({ timeout: 5000 });
     ok(`[Direct UI] ${label2}: never claims success; says so and keeps the review`, !(await d2.getByText("Your review was submitted to Google.").count()) && (await box(d2).inputValue()) === STARTER.en);
-    ok(`[Direct UI] ${label2}: falls back to Copy & Continue to Google (the supported route)`, await cta(d2).isVisible() && (await cta(d2).getAttribute("href")) === GOOGLE && (await d2.getByTestId("submit-review").count()) === 0);
+    ok(`[Direct UI] ${label2}: falls back to Copy review and post on Google (the supported route)`, await cta(d2).isVisible() && (await cta(d2).getAttribute("href")) === GOOGLE && (await d2.getByTestId("submit-review").count()) === 0);
     await finish(d2);
   }
   // ---------- the backend saw it (real sessions, approvals, redirects, copy flags) ----------

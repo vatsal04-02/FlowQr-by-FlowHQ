@@ -441,3 +441,15 @@ html.fq-app[data-theme="dark"] .set-focus:focus-visible { outline-color: rgb(var
   .adm-drawer, .adm-scrim, .adm-page { animation: none; }
   .adm-card-link { transition: none; }
 }
+
+/* Customer review page: decorative motion only. Everything below is switched off for people who ask for reduced motion, and the page reads the same without it. */
+@keyframes rv-twinkle { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes rv-drift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes rv-shine { 0%, 65% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
+@keyframes rv-glow { 0%, 100% { box-shadow: 0 14px 26px -14px rgba(194, 65, 12, .65), 0 0 0 0 rgba(245, 165, 36, 0); } 50% { box-shadow: 0 16px 30px -12px rgba(194, 65, 12, .8), 0 0 0 6px rgba(245, 165, 36, .18); } }
+.rv-twinkle { animation: rv-twinkle 2.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * .18s); transform-origin: center; }
+.rv-card { background: linear-gradient(120deg, #F5A524, #C2410C, #F5A524, #C2410C); background-size: 300% 300%; animation: rv-drift 5s ease-in-out infinite; }
+.rv-cta { position: relative; overflow: hidden; animation: rv-glow 3s ease-in-out infinite; }
+.rv-cta::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 38%, rgba(255, 255, 255, .38) 50%, transparent 62%); transform: translateX(-130%); animation: rv-shine 3s ease-in-out infinite; pointer-events: none; }
+.rv-cta-off, .rv-cta-off::after { animation: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .rv-twinkle, .rv-card, .rv-cta, .rv-cta::after { animation: none; } }

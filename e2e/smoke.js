@@ -77,7 +77,7 @@ async function apiCtx(browser, email, name) {
   const m = await phone.newPage();
   m.on('pageerror', (e) => errors.push('mobile pageerror: ' + e.message));
   await m.goto(`/c/${token}`);
-  await m.getByText('Share your experience').waitFor();
+  await m.getByText('How was your visit?').waitFor();
   await m.screenshot({ path: `${OUT}/07-public-mobile-initial.png`, fullPage: true });
   await m.getByLabel('Your experience').fill('doctor was very kind, my back pain is much better after 3 sessions');
   await m.route('**/assist', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ suggestion: 'The doctor was very kind, and my back pain is much better after three sessions.', language: 'en', ai_assisted: true, disclaimer: 'AI-assisted suggestion based on what you wrote. Edit it so it\'s truly your own words before posting.' }) }));

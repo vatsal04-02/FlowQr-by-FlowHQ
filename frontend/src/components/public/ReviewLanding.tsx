@@ -1,12 +1,12 @@
 "use client";
 import { API_V1 } from "@/lib/config";
 import clsx from "clsx";
-import { Check, Clock, Copy, ExternalLink, Loader2, Pencil, QrCode, ShieldCheck, PenLine, Star, TriangleAlert, UserCheck } from "lucide-react";
+import { Check, ChevronDown, Clock, Copy, ExternalLink, Globe, Loader2, Pencil, PenLine, Plus, QrCode, RefreshCw, Sparkles, Star, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AiNotice } from "@/components/public/AiNotice";
 import { LandingFrame } from "@/components/review-growth/LandingFrame";
 import { api, ApiError } from "@/lib/api";
-import { COPY, type Background, type Lang, type Rating, type Topic } from "@/lib/review-growth";
+import { COPY, effectiveBrand, type Background, type Lang, type Rating, type Topic } from "@/lib/review-growth";
 
 interface Landing {
   state: "ok";
@@ -32,10 +32,10 @@ const RATINGS: Rating[] = [1, 2, 3, 4, 5];
 const MIN_CHARS = 10;
 const btn = "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 text-[16px] font-semibold transition active:translate-y-px";
 // NB: Tailwind can't tell whether `x-[var(--brand)]` is a colour or a length, so the `color:` hint is required for accent/border/ring.
-const ring = "focus-visible:ring-[color:var(--brand)]";
+const ring = "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#171A45] focus-visible:ring-0";
 const primary = `${btn} ${ring} bg-[var(--brand)] text-[var(--on-brand)] shadow-panel hover:brightness-95`;
 const secondary = `${btn} ${ring} border border-ink-300 bg-white text-ink hover:bg-ink-50`;
-const headingCls = "text-[1.55rem] font-semibold sm:text-[1.7rem] leading-tight tracking-tight outline-none focus-visible:ring-0 focus-visible:ring-offset-0";
+const headingCls = "text-[1.75rem] font-extrabold leading-[1.15] tracking-[-0.02em] text-ink outline-none focus-visible:ring-0 focus-visible:ring-offset-0";
 const STORE = (id: string) => `fq-review-${id}`;
 
 const post = <T,>(id: string, path: string, body: unknown) => api<T>(`/public/reviews/${id}${path}`, { method: "POST", body });
@@ -91,6 +91,8 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const [needStars, setNeedStars] = useState(false);
   const [short, setShort] = useState(false);
   const [ready, setReady] = useState(false);
+  const [offline, setOffline] = useState(false);
+  useEffect(() => { const on = () => setOffline(false), off = () => setOffline(true); setOffline(!navigator.onLine); window.addEventListener("online", on); window.addEventListener("offline", off); return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); }; }, []);
   const [consent, setConsent] = useState(false);       // direct submission only: explicit consent to submit exactly this text
   const [submitState, setSubmitState] = useState<null | "sending" | "done" | "failed">(null);
 
@@ -108,6 +110,8 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const starsRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const t = COPY[lang];
+  // the review box grows with its text, so it reads like a paragraph on a card (it is still an ordinary editable field)
+  useEffect(() => { const el = boxRef.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.max(el.scrollHeight, 84)}px`; } });
 
   const edited = () => textRef.current.trim() !== "" && textRef.current.trim() !== aiRef.current.trim();
   const label = (s: Topic) => (lang === "hi" ? s.hi : s.en);
@@ -210,7 +214,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
       if (rating !== null && picked.length > 0) {
         if (edited()) { if (dismissed.current !== selKey) setAsk(true); } else void refine(false);
       }
-    }, 700);
+    }, 600);
     return () => clearTimeout(id);
   }, [selKey, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -305,35 +309,27 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const reviewUrl = page.review_url;
   const isEdited = text.trim() !== "" && text.trim() !== aiText.trim();
   const badge = handoff?.copied ? { icon: Check, text: t.badgeCopied } : isEdited || (origin === "none" && text.trim()) ? { icon: Pencil, text: t.badgeEdited }
-    : origin === "refined" ? { icon: PenLine, text: t.badgeRefined } : null;
+    : origin === "refined" ? { icon: Sparkles, text: t.badgeRefined } : null;
   const ready2go = text.trim().length >= MIN_CHARS;
   const busy = loading !== null;
 
-  const LangToggle = page.generator.languages.length > 1 ? (
-    <div role="radiogroup" aria-label={t.language} className="inline-grid grid-cols-2 rounded-xl bg-black/5 p-0.5">
-      {([["en", "English"], ["hi", "हिन्दी"]] as const).filter(([v]) => page.generator.languages.includes(v)).map(([v, l]) => (
-        <button key={v} type="button" role="radio" aria-checked={lang === v} onClick={() => setLang(v)}
-          className={clsx("min-h-9 rounded-[10px] px-3.5 text-[13px] font-semibold transition", ring, lang === v ? "bg-white text-ink shadow-panel" : "text-ink-500")}>{l}</button>))}
-    </div>
-  ) : null;
-
   const isDirect = page.submission?.mode === "direct" && submitState !== "failed"; // never true today; a failed direct submit drops back to the supported route
   const sending = submitState === "sending";
-  const ctaStyle = { background: "linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 80%, #000))", boxShadow: "0 14px 28px -12px color-mix(in srgb, var(--brand) 75%, transparent)" } as const;
-  const ctaCls = clsx(btn, ring, "group !min-h-[3.4rem] !px-4 !text-[16px] text-[var(--on-brand)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55", !ready2go && "opacity-60");
+  const isFlowqrOrange = effectiveBrand(page.branding.brand_color).toLowerCase() === "#c2410c";  // the design's own gradient; a colour the owner chose gets a derived one
+  const ctaStyle = { background: isFlowqrOrange ? "linear-gradient(135deg, #D9500F, #B93C08)" : "linear-gradient(135deg, color-mix(in srgb, var(--brand) 92%, #fff), color-mix(in srgb, var(--brand) 80%, #000))" } as const;
+  const blocked = rating === null;  // the spec: the button waits for a rating
+  const ctaCls = clsx(btn, ring, "rv-cta group !min-h-[58px] !rounded-2xl !px-4 !text-[16px] !font-extrabold min-[360px]:!text-[17px] text-[var(--on-brand)] active:!scale-[.98] disabled:cursor-not-allowed", blocked ? "rv-cta-off opacity-[.55]" : !ready2go && "opacity-80");
+  const hasText = text.trim().length > 0;
+  const showNew = !busy && origin !== "none" && !isEdited && hasText;
+  const GOLD = "#F5A524";
 
   return (
-    <LandingFrame business={{ name: page.business.name, logo_url: page.business.logo_url, location: place }} branding={page.branding}>
-      <section lang={lang} className="space-y-4">
+    <LandingFrame business={{ name: page.business.name, logo_url: page.business.logo_url, location: place }} branding={page.branding} poweredBy={t.poweredBy}
+      note={<><Clock className="h-4 w-4 shrink-0" aria-hidden />{t.quick}</>}>
+      <section lang={lang} className="space-y-5">
         <div className="fq-rise">
           <h2 className={headingCls}>{t.h}</h2>
-          <p className="mt-1 text-[15px] leading-relaxed text-ink-500 [@media(max-height:620px)]:hidden">{t.sub}</p>
-          <ul className="mt-2.5 flex flex-wrap [@media(max-height:620px)]:hidden gap-x-4 gap-y-1 text-[12px] font-medium text-ink-500">
-            {([[Clock, t.trust[0]], [ShieldCheck, t.trust[1]], [UserCheck, t.trust[2]]] as const).map(([Icon, label2]) => (
-              <li key={label2} className="inline-flex items-center gap-1"><Icon className="h-3.5 w-3.5 text-[var(--brand-ink)]" aria-hidden />{label2}</li>))}
-          </ul>
-          {LangToggle && <div className="mt-3">{LangToggle}</div>}
-          {page.ai_available && <div className="mt-3"><AiNotice lang={lang} /></div>}{/* shown before anything can be sent for AI help, in the language the customer picked */}
+          {page.ai_available && <div className="mt-3 [&_p]:rounded-xl [&_p]:bg-[#F6F4EF] [&_p]:text-[12.5px] [&_p]:leading-snug [&_p]:ring-0"><AiNotice lang={lang} /></div>}{/* shown before anything can be sent for AI help, in the language the customer picked */}
         </div>
 
         {submitState === "done" && (
@@ -350,7 +346,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
           </div>
         )}
         {handoff && (
-          <div role="status" className={clsx("fq-enter rounded-2xl p-4 ring-1", handoff.copied === false ? "bg-amber-50 ring-amber-300" : "bg-white ring-black/10 shadow-panel")}>
+          <div role="status" className={clsx("fq-enter rounded-2xl p-4 ring-1", handoff.copied === false ? "bg-amber-50 ring-amber-300" : "bg-[#F6F4EF] ring-black/10")}>
             {handoff.returned && handoff.copied !== false && <p className="mb-1 text-sm text-ink-500">{t.welcomeBack}</p>}
             <p className="flex items-start gap-2 text-[15px] font-semibold text-ink">
               {handoff.copied === false ? <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden /> : <Check className="mt-0.5 h-5 w-5 shrink-0 text-ok" aria-hidden />}
@@ -364,68 +360,88 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
           </div>
         )}
 
-        {submitState !== "done" && (
-          <div className="fq-rise rounded-[28px] bg-white/95 p-4 shadow-[0_22px_44px_-22px_rgba(20,24,28,.35)] ring-1 ring-black/5 sm:p-5" style={{ ["--d" as string]: "70ms" }}>
-            {/* ---------------------------------------------- stars */}
-            <div>
-              <p id="rate-l" className="text-sm font-semibold text-ink-700">{t.rateLabel}</p>
-              <div ref={starsRef} role="radiogroup" aria-labelledby="rate-l" aria-describedby="rate-h" onKeyDown={onStarKey} className="mt-0.5 flex flex-wrap items-center gap-x-0.5">
-                {RATINGS.map((n) => {
-                  const on = rating !== null && n <= rating;
+        {offline && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950 ring-1 ring-amber-200">{t.offline}</p>}
+        {submitState !== "done" && (<>
+          {/* ---------------------------------------------- stars */}
+          <div className="fq-rise" style={{ ["--d" as string]: "50ms" }}>
+            <svg width="0" height="0" aria-hidden className="absolute"><defs><linearGradient id="rv-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FFD66B" /><stop offset="1" stopColor="#F59E0B" /></linearGradient></defs></svg>
+            <p id="rate-l" className="sr-only">{t.rateLabel}</p>
+            <div ref={starsRef} role="radiogroup" aria-labelledby="rate-l" aria-describedby="rate-h" onKeyDown={onStarKey} className="flex items-center justify-between gap-1">
+              {RATINGS.map((n) => {
+                const on = rating !== null && n <= rating;
+                return (
+                  <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`Rate ${n} out of 5, ${t.rateWords[n - 1]}`}
+                    tabIndex={rating === n || (rating === null && n === 1) ? 0 : -1} onClick={() => pickRating(n)}
+                    className={clsx("grid h-[60px] w-[60px] shrink-0 place-items-center rounded-2xl transition active:scale-90", ring)}>
+                    <Star key={rating === n ? `p${n}` : n} className={clsx("h-[52px] w-[52px] transition-all duration-200", on && "rv-twinkle", rating === n && "fq-pop")} strokeWidth={1.6} aria-hidden
+                      style={on ? { fill: "url(#rv-gold)", color: "#E08A00", ["--i" as string]: n - 1, filter: "drop-shadow(0 4px 8px rgba(245,165,36,.55))" } : { fill: "#F1EFEA", color: "#C9C6BC" }} />
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 min-h-7 text-center text-[19px] font-bold text-[#9A3412]" aria-live="polite">{rating ? t.rateWords[rating - 1] : ""}</p>
+            <p id="rate-h" role={needStars ? "alert" : undefined} className={clsx("text-center text-sm", needStars ? "font-medium text-amber-800" : rating === null ? "text-ink-500" : "sr-only")}>{needStars ? t.needStars : rating === null ? t.rateLabel : ""}</p>
+          </div>
+
+          {/* ---------------------------------------------- topics: they tailor the review below */}
+          {chips.length > 0 && (
+            <div className="fq-rise" style={{ ["--d" as string]: "90ms" }}>
+              <div className="flex items-baseline justify-between gap-3"><p id="chips-l" className="text-[16px] font-bold text-ink">{t.topicsLabel}</p><span className="text-[13px] text-ink-500">{t.topicsHint}</span></div>
+              <div role="group" aria-labelledby="chips-l" className="mt-3 flex flex-wrap gap-2.5">
+                {chips.map((s) => {
+                  const on = picked.includes(s.id);
                   return (
-                    <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`${n} ${n === 1 ? t.star : t.stars}, ${t.rateWords[n - 1]}`}
-                      tabIndex={rating === n || (rating === null && n === 1) ? 0 : -1} onClick={() => pickRating(n)}
-                      className={clsx("grid h-14 w-12 place-items-center rounded-xl transition active:scale-90", ring)}>
-                      <Star key={rating === n ? `p${n}` : n} className={clsx("h-9 w-9 transition-colors duration-200", on ? "" : "text-ink-300", rating === n && "fq-pop")}
-                        style={on ? { fill: "var(--brand)", color: "var(--brand)", filter: "drop-shadow(0 3px 5px color-mix(in srgb, var(--brand) 40%, transparent))" } : undefined} strokeWidth={1.75} aria-hidden />
+                    <button key={s.id} type="button" aria-pressed={on} onClick={() => toggle(s.id)}
+                      className={clsx("inline-flex h-[46px] items-center gap-2 rounded-full px-[1.1rem] text-[15px] font-bold transition-[background-color,box-shadow,transform] duration-[120ms] active:scale-[.97]", ring,
+                        on ? "border-[1.5px] border-[#171A45] bg-[#171A45] text-white shadow-[0_8px_16px_-8px_rgba(23,26,69,.7)]" : "border-[1.5px] border-[#CFCDC5] bg-white text-ink hover:bg-[#FAF9F6]")}>
+                      {on ? <Check className="h-[18px] w-[18px]" style={{ color: GOLD }} strokeWidth={3} aria-hidden /> : <Plus className="h-4 w-4 text-[#C2410C]" strokeWidth={2.5} aria-hidden />}{label(s)}
                     </button>
                   );
                 })}
-                <span className="ml-2 min-w-20 text-[16px] font-semibold text-[var(--brand-ink)]" aria-live="polite">{rating ? t.rateWords[rating - 1] : ""}</span>
               </div>
-              <p id="rate-h" role={needStars ? "alert" : undefined} className={clsx("text-sm", needStars ? "font-medium text-amber-800" : rating !== null && picked.length === 0 && chips.length > 0 ? "text-ink-500" : "sr-only")}>{needStars ? t.needStars : rating !== null && picked.length === 0 && chips.length > 0 ? t.needTopics : t.rateHint}</p>
             </div>
+          )}
 
-            {/* ---------------------------------------------- the review box: the suggestion is here before they do anything */}
-            <div className="mt-3 border-t border-black/5 pt-3">
-              <div className="mb-1.5 flex min-h-6 items-center justify-between gap-3">
-                <label htmlFor="review" className="text-sm font-semibold text-ink-700">{t.editorLabel}</label>
-                {badge && (
-                  <span className={clsx("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold", handoff?.copied ? "bg-emerald-50 text-ok" : "bg-[var(--brand-tint)] text-[var(--brand-ink)]")} data-testid="origin-badge">
-                    <badge.icon className="h-3 w-3" aria-hidden />{badge.text}
+          {/* ---------------------------------------------- the review card: the suggestion is here before they do anything else */}
+          <div className="fq-rise rv-card rounded-[22px] p-[2px]" style={{ ["--d" as string]: "130ms" }}>
+            <div className="rounded-[20px] bg-white p-4">
+              <div className="flex min-h-8 items-center justify-between gap-3">
+                <label htmlFor="review" className="sr-only">{t.editorLabel}</label>
+                {badge ? (
+                  <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[12.5px] font-bold", handoff?.copied ? "bg-emerald-50 text-ok" : "bg-[#FFEFE5] text-[#9A3412]")} data-testid="origin-badge">
+                    <badge.icon className="h-3.5 w-3.5" aria-hidden />{badge.text}
                   </span>
-                )}
+                ) : <span />}
+                {showNew && <button type="button" onClick={() => void another()} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-1 text-[14px] font-bold text-[#171A45]"><RefreshCw className="h-4 w-4" aria-hidden />{t.another}</button>}
               </div>
-              <div className="relative">
-                <textarea id="review" ref={boxRef} rows={5} value={text} maxLength={max} readOnly={busy || sending} aria-busy={busy || undefined} aria-describedby="review-hint" placeholder={t.editorPh}
+              <div className="relative mt-2">
+                <textarea id="review" ref={boxRef} rows={3} value={text} maxLength={max} readOnly={busy || sending} aria-busy={busy || undefined} aria-describedby="review-hint" placeholder={t.editorPh}
                   onChange={(e) => { setText(e.target.value); setShort(false); setUndo(null); if (handoff?.copied === false) setHandoff(null); }}
-                  className={clsx("w-full resize-y rounded-2xl border px-4 py-3.5 text-[16px] leading-relaxed text-ink placeholder:text-ink-400 transition-colors hover:border-ink-500 focus-visible:border-[color:var(--brand)] focus-visible:bg-white", ring,
-                    busy ? "border-ink-200 text-transparent" : "border-ink-200", short && "border-amber-500", !isEdited && origin !== "none" && !busy ? "bg-[var(--brand-tint)]" : "bg-white")} />
+                  className={clsx("block w-full resize-none overflow-hidden rounded-xl border-0 bg-transparent px-0 py-1 text-[18px] leading-[1.55] text-ink placeholder:text-[15px] placeholder:leading-relaxed placeholder:text-ink-400 focus-visible:bg-[#FAF9F6] focus-visible:px-2 focus-visible:ring-2", ring,
+                    busy && "text-transparent", short && "ring-2 ring-amber-500")} />
                 {busy && (
-                  <div className="pointer-events-none absolute inset-0 rounded-2xl px-4 py-4" aria-hidden>
-                    <div className="fq-skeleton mb-2.5 h-4 w-11/12" /><div className="fq-skeleton mb-2.5 h-4 w-full" /><div className="fq-skeleton mb-2.5 h-4 w-10/12" /><div className="fq-skeleton h-4 w-7/12" />
+                  <div className="pointer-events-none absolute inset-0 py-2" aria-hidden>
+                    <div className="fq-skeleton mb-3 h-4 w-11/12" /><div className="fq-skeleton mb-3 h-4 w-full" /><div className="fq-skeleton mb-3 h-4 w-10/12" /><div className="fq-skeleton h-4 w-7/12" />
                   </div>
                 )}
                 {busy && <span className="sr-only" role="status">{t.tailoring}</span>}
+                <span className="sr-only" aria-live="polite">{!busy && origin === "refined" && !isEdited ? text : ""}</span>
               </div>
-              <div id="review-hint" className="mt-1 flex min-h-5 items-start justify-between gap-3 text-xs text-ink-500">
-                <span role={short ? "alert" : undefined} className={clsx(short && "font-medium text-amber-800")}>{short || (!busy && text.trim().length > 0 && text.trim().length < MIN_CHARS) ? t.tooShort : busy ? t.tailoring : ""}</span>
-                <span className="shrink-0 tabular-nums">{text.length}/{max}</span>
+              <div id="review-hint" className="min-h-4 text-xs text-ink-500">
+                <span role={short ? "alert" : undefined} className={clsx(short && "font-medium text-amber-800")}>{short || (!busy && text.trim().length > 0 && text.trim().length < MIN_CHARS) ? t.tooShort : ""}</span>
+                {text.length > max * 0.85 && <span className="float-right tabular-nums">{text.length}/{max}</span>}
               </div>
-              <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
-                <div className="flex flex-wrap gap-x-4">
-                  {!busy && undo && <button type="button" onClick={() => { setText(undo); setUndo(null); setOrigin("none"); }} className="min-h-9 font-semibold text-[var(--brand-ink)] hover:underline">{t.undo}</button>}
-                  {!busy && origin !== "none" && !isEdited && <button type="button" onClick={() => void another()} className="min-h-9 font-semibold text-[var(--brand-ink)] hover:underline">{t.another}</button>}
+              <div className="mt-1 flex items-center justify-between gap-3 text-sm">
+                <span className="text-[13.5px] text-ink-500">{chips.length > 0 && !isEdited ? t.liveNote : ""}</span>
+                <div className="flex items-center gap-3">
+                  {!busy && undo && <button type="button" onClick={() => { setText(undo); setUndo(null); setOrigin("none"); }} className="min-h-10 font-bold text-[#171A45] hover:underline">{t.undo}</button>}
+                  {!busy && isEdited && aiText.trim() && !undo && <button type="button" onClick={() => { setText(aiText); setOrigin("refined"); setShort(false); }} className="min-h-10 font-bold text-[#9A3412] hover:underline">{t.reset}</button>}
+                  <button type="button" onClick={() => { boxRef.current?.focus(); const n = boxRef.current?.value.length ?? 0; boxRef.current?.setSelectionRange(n, n); }} className="inline-flex min-h-10 items-center gap-1.5 font-bold text-[#171A45]"><Pencil className="h-4 w-4" aria-hidden />{t.editBtn}</button>
                 </div>
-                {reviewUrl && (
-                  <button type="button" onClick={() => void copyOnly()} data-testid="copy-only" className={clsx("inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 font-semibold text-[var(--brand-ink)] hover:underline", ring)}>
-                    {copiedFlash ? <Check className="h-4 w-4 text-ok" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}{copiedFlash ? t.copied : t.copyBtn}
-                  </button>
-                )}
               </div>
 
               {ask && (
-                <div role="alertdialog" aria-labelledby="refine-q" className="fq-enter mt-3 rounded-xl bg-white p-3.5 ring-1 ring-black/10">
+                <div role="alertdialog" aria-labelledby="refine-q" className="fq-enter mt-3 rounded-xl bg-[#F6F4EF] p-3.5">
                   <p id="refine-q" className="text-sm font-medium">{t.refineQ}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => { dismissed.current = selKey; setAsk(false); }} className={clsx(secondary, "!min-h-11 !px-3 !text-sm")}>{t.refineNo}</button>
@@ -434,39 +450,32 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
                 </div>
               )}
               {notice && (
-                <div role={notice.tone === "error" ? "alert" : "status"} className={clsx("mt-3 rounded-xl p-3.5 text-sm", notice.tone === "error" ? "bg-amber-50 text-amber-950" : "bg-black/[.03] text-ink-700")}>
+                <div role={notice.tone === "error" ? "alert" : "status"} className={clsx("mt-3 rounded-xl p-3.5 text-sm", notice.tone === "error" ? "bg-amber-50 text-amber-950" : "bg-[#F6F4EF] text-ink-700")}>
                   <p>{notice.text}</p>
                   {notice.retry && <button type="button" onClick={notice.retry} className="mt-1 min-h-9 font-semibold text-[var(--brand-ink)] hover:underline">{t.tryAgain}</button>}
                 </div>
               )}
               {followUp && origin === "refined" && !isEdited && (
-                <p className="mt-3 rounded-xl bg-black/[.03] p-3.5 text-sm"><span className="font-semibold">{t.followUp}</span> {followUp}{" "}
+                <p className="mt-3 rounded-xl bg-[#F6F4EF] p-3.5 text-sm"><span className="font-semibold">{t.followUp}</span> {followUp}{" "}
                   <button type="button" onClick={() => boxRef.current?.focus()} className="font-semibold text-[var(--brand-ink)] hover:underline">{t.followUpBtn}</button></p>
               )}
             </div>
-
-            {/* ---------------------------------------------- topics: they tailor the draft above */}
-            {chips.length > 0 && (
-              <div className="mt-3 border-t border-black/5 pt-3">
-                <p id="chips-l" className="text-sm font-semibold text-ink-700">{t.topicsLabel}</p>
-                <p className="text-xs text-ink-500">{t.topicsHint}</p>
-                <div role="group" aria-labelledby="chips-l" className="mt-2 flex flex-wrap gap-2">
-                  {chips.map((s) => {
-                    const on = picked.includes(s.id);
-                    return (
-                      <button key={s.id} type="button" aria-pressed={on} onClick={() => toggle(s.id)}
-                        className={clsx("inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-[15px] font-medium transition active:scale-[.97]", ring,
-                          on ? "bg-[var(--brand)] text-[var(--on-brand)] shadow-[0_6px_14px_-8px_var(--brand)]" : "bg-white text-ink-700 ring-1 ring-ink-300 hover:bg-ink-50")}>
-                        {on && <Check className="h-4 w-4" aria-hidden />}{label(s)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
-        )}
-        <p className="text-center text-xs text-ink-500">{t.privacy}</p>
+
+          {/* ---------------------------------------------- language */}
+          {page.generator.languages.length > 1 && (
+            <label className="fq-rise flex min-h-[3.4rem] items-center gap-2.5 rounded-2xl border border-[#E4E1D9] bg-white px-3.5 text-[15px]" style={{ ["--d" as string]: "160ms" }}>
+              <Globe className="h-5 w-5 shrink-0 text-ink-500" aria-hidden />
+              <span className="whitespace-nowrap text-[14px] text-ink-500 min-[360px]:text-[15px]">{t.reviewLang}</span>
+              <span className="relative ml-auto inline-flex items-center">
+                <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t.reviewLang} className={clsx("min-h-11 appearance-none rounded-lg bg-transparent py-1 pl-2 pr-6 text-right text-[15px] font-bold text-ink", ring)}>
+                  {([["en", "English"], ["hi", "हिन्दी"]] as const).filter(([v]) => page.generator.languages.includes(v)).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4 text-ink-700" aria-hidden />
+              </span>
+            </label>
+          )}
+        </>)}
         {page.whatsapp_optin && submitState !== "done" && (
           <div className="rounded-xl border border-ink-200 bg-white p-3 text-center" data-testid="whatsapp-optin">
             <a href={page.whatsapp_optin.url} target="_blank" rel="noopener noreferrer" className={`${secondary} !min-h-11 !text-[15px]`}>Get {page.whatsapp_optin.purpose_words} on WhatsApp</a>
@@ -474,9 +483,9 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
           </div>
         )}
 
-        {/* ------------------------------------------------ the one tap: a compact bar that stays in reach on phones */}
+        {/* ------------------------------------------------ the one tap: a bar that stays in reach on phones */}
         {submitState !== "done" && (
-          <div className="sticky bottom-0 z-10 -mx-5 bg-white/95 px-5 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-10px_24px_-14px_rgba(0,0,0,0.3)] backdrop-blur" data-testid="cta-bar">
+          <div className="sticky bottom-0 z-10 -mx-5 bg-white/95 px-5 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur" data-testid="cta-bar">
             {isDirect ? (
               <>
                 <label className="mb-2 flex cursor-pointer items-start gap-2.5 text-[12px] leading-snug text-ink-700">
@@ -487,20 +496,23 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
                   {sending ? <Loader2 className="h-5 w-5 fq-spin" aria-hidden /> : <PenLine className="h-5 w-5" aria-hidden />}{sending ? t.submitting : t.submit}
                 </button>
                 <p id="cta-hint" className="mt-1.5 text-center text-[12px] leading-snug text-ink-700">{t.submitHint}</p>
-                {reviewUrl && <a href={reviewUrl} target="_blank" rel="noopener noreferrer" onClick={onCopyContinue} data-testid="copy-continue" className="mt-0.5 flex min-h-10 items-center justify-center gap-1 text-[13px] font-semibold text-[var(--brand-ink)] hover:underline">{t.orHandoff}<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
+                {reviewUrl && <a href={reviewUrl} target="_blank" rel="noopener noreferrer" onClick={onCopyContinue} data-testid="copy-continue" className="mt-0.5 flex min-h-10 items-center justify-center gap-1 text-[13px] font-semibold text-[var(--brand-ink)] hover:underline">{t.orHandoff}</a>}
               </>
             ) : reviewUrl ? (
-              <a href={reviewUrl} target="_blank" rel="noopener noreferrer" onClick={onCopyContinue} aria-describedby="cta-hint" aria-disabled={!ready2go || undefined} data-testid="copy-continue" className={ctaCls} style={ctaStyle}>
-                {t.cta}<ExternalLink className="h-[18px] w-[18px] shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden />
+              <a href={reviewUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => { if (blocked) { e.preventDefault(); setNeedStars(true); starsRef.current?.querySelector<HTMLElement>("[tabindex='0']")?.focus(); return; } onCopyContinue(e); }} aria-describedby="cta-hint" aria-disabled={blocked || !ready2go || undefined} data-testid="copy-continue" className={ctaCls} style={ctaStyle}>
+                <Copy className="h-5 w-5 shrink-0" aria-hidden />{t.cta}
               </a>
             ) : (
               <button type="button" onClick={() => void copyOnly()} aria-describedby="cta-hint" className={ctaCls} style={ctaStyle}>
                 {copiedFlash ? <Check className="h-5 w-5" aria-hidden /> : <Copy className="h-5 w-5" aria-hidden />}{copiedFlash ? t.copied : t.ctaCopyOnly}
               </button>
             )}
-            {!isDirect && <p id="cta-hint" className="mt-1.5 text-center text-[12px] leading-snug text-ink-700">{reviewUrl ? t.ctaHint : t.noLink} <span className="text-ink-500">{t.confirmNote}</span></p>}
+            {!isDirect && <p id="cta-hint" className="mt-2 text-center text-[12.5px] leading-snug text-ink-700">{reviewUrl ? t.ctaHint : t.noLink} <span className="text-ink-500">{t.confirmNote}</span></p>}
+            {reviewUrl && !isDirect && <button type="button" onClick={() => void copyOnly()} data-testid="copy-only" className={clsx("mx-auto mt-0.5 flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-[13px] font-semibold text-ink-700 hover:underline", ring)}>
+              {copiedFlash ? <Check className="h-4 w-4 text-ok" aria-hidden /> : null}{copiedFlash ? t.copied : t.copyBtn}</button>}
           </div>
         )}
+        <p className="text-center text-xs text-ink-500">{t.privacy}</p>
       </section>
     </LandingFrame>
   );

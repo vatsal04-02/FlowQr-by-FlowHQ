@@ -1,8 +1,9 @@
 "use client";
 import { API_V1 } from "@/lib/config";
-import { Check, Copy, ExternalLink, Info, Loader2, QrCode, PenLine } from "lucide-react";
+import { Check, Clock, Copy, ExternalLink, Info, Loader2, QrCode, PenLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { LogoMark } from "@/components/ui/Brand";
+import { LandingFrame } from "@/components/review-growth/LandingFrame";
+import { DEFAULT_CUSTOMIZATION } from "@/lib/review-growth";
 import { publicButtonClass } from "@/components/ui/Button";
 import { AiNotice } from "@/components/public/AiNotice";
 import ReviewLanding from "@/components/public/ReviewLanding";
@@ -23,8 +24,10 @@ interface Landing {
   ai_disclaimer?: string;
 }
 
+const PLAIN_QUICK = { en: "Takes under a minute. Your own words.", hi: "एक मिनट से कम। आपके अपने शब्द।", hinglish: "Ek minute se kam. Aapke apne shabd." } as const;
+
 const COPY = {
-  en: { h: "Share your experience", sub: "Tell us how your visit went, in your own words.", label: "Your experience", ph: "e.g. The doctor listened carefully and my pain is much better…" },
+  en: { h: "How was your visit?", sub: "Tell us how your visit went, in your own words.", label: "Your experience", ph: "e.g. The doctor listened carefully and my pain is much better…" },
   hi: { h: "अपना अनुभव साझा करें", sub: "अपने शब्दों में बताइए कि आपका अनुभव कैसा रहा।", label: "आपका अनुभव", ph: "जैसे: डॉक्टर ने ध्यान से सुना और दर्द में बहुत आराम मिला…" },
   hinglish: { h: "Apna experience share karein", sub: "Apne shabdon mein batayein ki visit kaisi rahi.", label: "Aapka experience", ph: "e.g. Doctor ne dhyan se suna aur dard mein bahut aaram mila…" },
 } as const;
@@ -107,18 +110,10 @@ export default function CardLanding({ token, channel }: { token: string; channel
   if (data.campaign) return <ReviewLanding campaignId={data.campaign.id} via={{ token, channel }} />;
 
   return (
-    <Shell>
-      <header className="flex items-center gap-3">
-        {biz?.logo_url ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={biz.logo_url} alt="" className="h-14 w-14 rounded-xl border border-ink-100 object-cover" /> :
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-ink text-2xl font-semibold text-white" aria-hidden>{biz?.name.charAt(0).toUpperCase()}</span>}
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold leading-tight">{biz?.name}</h1>
-          <p className="truncate text-sm text-ink-500">{[data.location?.name, data.location?.city].filter(Boolean).join(" · ")}</p>
-        </div>
-      </header>
-
-      <section className="mt-7">
-        <h2 className="text-2xl font-semibold tracking-tight">{t.h}</h2>
+    <LandingFrame business={{ name: biz?.name ?? "", logo_url: biz?.logo_url ?? null, location: [data.location?.name, data.location?.city].filter(Boolean).join(" · ") }}
+      branding={{ brand_color: DEFAULT_CUSTOMIZATION.brand_color, background: "plain", welcome_message: null, footer_message: null }} note={<><Clock className="h-4 w-4 shrink-0" aria-hidden />{PLAIN_QUICK[(biz?.language as keyof typeof PLAIN_QUICK) ?? "en"] ?? PLAIN_QUICK.en}</>}>
+      <section>
+        <h2 className="text-[1.9rem] font-extrabold leading-[1.15] tracking-tight text-ink">{t.h}</h2>
         <p className="mt-1 text-ink-500">{t.sub}</p>
 
         <label htmlFor="exp" className="mt-5 block text-sm font-semibold text-ink-700">{t.label}</label>
@@ -171,8 +166,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
         <p className="text-center text-xs text-ink-500">On Google, paste your text and choose your own star rating. You post it yourself. We never post for you.</p>
       </section>
 
-      <footer className="mt-10 flex items-center justify-center gap-2 border-t border-ink-100 pt-5 text-xs text-ink-500"><LogoMark size={18} />Powered by FlowQR · no incentives, no filtering of reviews</footer>
-    </Shell>
+    </LandingFrame>
   );
 }
 

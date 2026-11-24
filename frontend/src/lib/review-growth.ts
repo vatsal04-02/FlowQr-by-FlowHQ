@@ -26,21 +26,22 @@ export interface Copy {
   copiedH: string; copiedSub: string; copyFailedH: string; copyFailedSub: string; copyAgain: string; openAgain: string; copyBtn: string; copied: string; welcomeBack: string;
   refineQ: string; refineYes: string; refineNo: string; followUp: string; followUpBtn: string;
   trust: [string, string, string]; submit: string; submitting: string; submitHint: string; consentLabel: string; submittedH: string; submittedSub: string; submitFailedH: string; submitFailedSub: string; orHandoff: string;
+  reset: string; offline: string; quick: string; liveNote: string; editBtn: string; reviewLang: string; emptyCard: string; poweredBy: string;
   retryMsg: string; rejected: string; tryAgain: string; aiDown: string; aiBusy: string; noOther: string; noMoreRewrites: string; noLink: string;
 }
 export const COPY: Record<Lang, Copy> = {
   en: {
-    h: "Share your experience", sub: "Tap your stars. Edit the suggested review, then copy it to Google.",
+    h: "How was your visit?", sub: "Tap your stars. Edit the suggested review, then copy it to Google.",
     language: "Language", privacy: "We don't ask for your name, phone or email.",
-    rateLabel: "How would you rate your visit?", rateHint: "This sets the tone of your review.",
-    rateWords: ["Poor", "Not good", "Okay", "Good", "Very good"], star: "star", stars: "stars",
+    rateLabel: "Tap your stars", rateHint: "This sets the tone of your review.",
+    rateWords: ["Poor", "Not great", "Okay", "Great", "Excellent"], star: "star", stars: "stars",
     needStars: "Choose your stars so the review reflects how your visit was.", needTopics: "Pick what applies to tailor your review.",
-    topicsLabel: "What stood out? (optional)", topicsHint: "Pick only what truly applies. We tailor the review to it.",
-    editorLabel: "Your review", editorPh: "Write your review here…", tooShort: "Write at least a short sentence to continue.",
+    topicsLabel: "What stood out?", topicsHint: "Tap any",
+    editorLabel: "Your review", editorPh: "Pick your stars and we will write it for you.", tooShort: "Write at least a short sentence to continue.",
     askMore: "Could you add a little more? For example, what you came in for, or one thing you remember about the visit.",
-    badgeRefined: "Written from your answers · edit freely", badgeEdited: "Your review · edited by you", badgeCopied: "Copied · ready to paste",
-    tailoring: "Tailoring your review…", another: "Try another wording", undo: "Undo",
-    cta: "Copy & Continue to Google", ctaCopyOnly: "Copy review", ctaHint: "Your review will be copied. Paste it into Google's review box.",
+    badgeRefined: "Written by AI", badgeEdited: "Edited by you", badgeCopied: "Copied",
+    tailoring: "Tailoring your review…", another: "New version", undo: "Undo",
+    cta: "Copy review and post on Google", ctaCopyOnly: "Copy review", ctaHint: "We copy it for you. Google opens, you paste and tap Post. Nothing is posted without you.",
     confirmNote: "Continuing confirms it is your own experience. You post it yourself.",
     copiedH: "Your review is copied.", copiedSub: "Paste it into Google's review box, then choose your own star rating and post it yourself.",
     copyFailedH: "We couldn't copy it automatically.", copyFailedSub: "Tap Copy review below, then paste it into Google's review box.",
@@ -50,7 +51,8 @@ export const COPY: Record<Lang, Copy> = {
     trust: ["Takes under a minute", "No sign-up or personal details", "You stay in control"], submit: "Submit review", submitting: "Submitting…", submitHint: "Your review is sent to Google as you see it above.",
     consentLabel: "I confirm this reflects my own experience, and I agree to submit exactly this review to Google.", submittedH: "Your review was submitted to Google.", submittedSub: "Thank you. Google may take a little while to show it.",
     submitFailedH: "We couldn't submit it from here.", submitFailedSub: "Your review is safe below. Copy it and post it on Google yourself.", orHandoff: "Prefer to post it yourself? Copy & open Google",
-    retryMsg: "We couldn't write that just now. Please try again, or write it yourself.", tryAgain: "Try again",
+    reset: "Reset to AI version", offline: "No connection. Reconnect to write your review.", quick: "Takes 10 seconds. No typing.", liveNote: "Changes as you tap", editBtn: "Edit", reviewLang: "Review language", emptyCard: "Your review will appear here.", poweredBy: "Powered by",
+    retryMsg: "The AI helper is busy. Try again in a moment, or tap Edit to write your own.", tryAgain: "Try again",
     rejected: "We couldn't put that into words without adding things you didn't say. Please try again, or write it yourself.",
     aiDown: "Our writing helper isn't available right now, so please write your review in your own words below.",
     aiBusy: "Writing help is busy right now, so please write your review in your own words below.",
@@ -59,17 +61,17 @@ export const COPY: Record<Lang, Copy> = {
     noLink: "This business hasn't added its Google review link yet. You can still copy your review and post it later.",
   },
   hi: {
-    h: "अपना अनुभव साझा करें", sub: "स्टार चुनें। सुझाए गए रिव्यू को बदलें, फिर उसे Google पर कॉपी करें।",
+    h: "आपकी विज़िट कैसी रही?", sub: "स्टार चुनें। सुझाए गए रिव्यू को बदलें, फिर उसे Google पर कॉपी करें।",
     language: "भाषा", privacy: "हम आपका नाम, फ़ोन या ईमेल नहीं माँगते।",
-    rateLabel: "आप अपनी विज़िट को कितने स्टार देंगे?", rateHint: "इससे आपके रिव्यू का लहजा तय होता है।",
-    rateWords: ["खराब", "अच्छा नहीं", "ठीक-ठाक", "अच्छा", "बहुत अच्छा"], star: "स्टार", stars: "स्टार",
+    rateLabel: "स्टार चुनें", rateHint: "इससे आपके रिव्यू का लहजा तय होता है।",
+    rateWords: ["खराब", "खास अच्छा नहीं", "ठीक-ठाक", "बहुत अच्छा", "शानदार"], star: "स्टार", stars: "स्टार",
     needStars: "पहले स्टार चुनें ताकि रिव्यू आपकी विज़िट के अनुभव को दर्शाए।", needTopics: "रिव्यू को अपने अनुभव के अनुसार ढालने के लिए जो लागू हो वह चुनें।",
-    topicsLabel: "क्या खास लगा? (वैकल्पिक)", topicsHint: "केवल वही चुनें जो सच में लागू हो। हम रिव्यू को उसी के अनुसार ढालेंगे।",
-    editorLabel: "आपका रिव्यू", editorPh: "अपना रिव्यू यहाँ लिखें…", tooShort: "आगे बढ़ने के लिए कम से कम एक छोटा वाक्य लिखें।",
+    topicsLabel: "क्या खास लगा?", topicsHint: "जो लागू हो चुनें",
+    editorLabel: "आपका रिव्यू", editorPh: "स्टार चुनें, हम आपके लिए रिव्यू लिख देंगे।", tooShort: "आगे बढ़ने के लिए कम से कम एक छोटा वाक्य लिखें।",
     askMore: "क्या आप थोड़ा और बता सकेंगे? जैसे आप किस काम से आए थे, या इस विज़िट की कोई एक बात जो आपको याद रही।",
-    badgeRefined: "आपके जवाबों से लिखा गया · बेझिझक बदलें", badgeEdited: "आपका रिव्यू · आपने बदला", badgeCopied: "कॉपी हो गया · पेस्ट करने के लिए तैयार",
-    tailoring: "आपके जवाबों के अनुसार रिव्यू ढाला जा रहा है…", another: "दूसरा रूप दिखाएँ", undo: "वापस लाएँ",
-    cta: "कॉपी करें और Google पर जाएँ", ctaCopyOnly: "रिव्यू कॉपी करें", ctaHint: "आपका रिव्यू कॉपी हो जाएगा। उसे Google के रिव्यू बॉक्स में पेस्ट करें।",
+    badgeRefined: "AI ने लिखा", badgeEdited: "आपने बदला", badgeCopied: "कॉपी हो गया",
+    tailoring: "आपके जवाबों के अनुसार रिव्यू ढाला जा रहा है…", another: "नया रूप", undo: "वापस लाएँ",
+    cta: "रिव्यू कॉपी करें और Google पर पोस्ट करें", ctaCopyOnly: "रिव्यू कॉपी करें", ctaHint: "आपका रिव्यू कॉपी हो जाएगा। उसे Google के रिव्यू बॉक्स में पेस्ट करें।",
     confirmNote: "आगे बढ़ना मानना है कि यह आपका अपना अनुभव है। पोस्ट आप खुद करते हैं।",
     copiedH: "आपका रिव्यू कॉपी हो गया है।", copiedSub: "Google के रिव्यू बॉक्स में पेस्ट करें, फिर अपनी स्टार रेटिंग खुद चुनकर पोस्ट करें।",
     copyFailedH: "अपने-आप कॉपी नहीं हो सका।", copyFailedSub: "नीचे “रिव्यू कॉपी करें” दबाएँ, फिर Google के रिव्यू बॉक्स में पेस्ट करें।",
@@ -79,6 +81,7 @@ export const COPY: Record<Lang, Copy> = {
     trust: ["एक मिनट से भी कम", "साइन-अप या निजी जानकारी नहीं", "नियंत्रण आपके हाथ में"], submit: "रिव्यू सबमिट करें", submitting: "सबमिट हो रहा है…", submitHint: "आपका रिव्यू वैसा ही Google को भेजा जाएगा जैसा ऊपर दिख रहा है।",
     consentLabel: "मैं पुष्टि करता/करती हूँ कि यह मेरे अपने अनुभव को दर्शाता है, और यही रिव्यू Google को सबमिट करने के लिए सहमत हूँ।", submittedH: "आपका रिव्यू Google को सबमिट हो गया।", submittedSub: "धन्यवाद। Google को इसे दिखाने में थोड़ा समय लग सकता है।",
     submitFailedH: "यहाँ से सबमिट नहीं हो सका।", submitFailedSub: "आपका रिव्यू नीचे सुरक्षित है। उसे कॉपी करके Google पर खुद पोस्ट करें।", orHandoff: "खुद पोस्ट करना चाहते हैं? कॉपी करें और Google खोलें",
+    reset: "AI वाला रूप वापस लाएँ", offline: "इंटरनेट नहीं है। रिव्यू लिखने के लिए दोबारा जुड़ें।", quick: "सिर्फ़ 10 सेकंड। टाइप करने की ज़रूरत नहीं।", liveNote: "टैप करते ही बदलता है", editBtn: "बदलें", reviewLang: "रिव्यू की भाषा", emptyCard: "आपका रिव्यू यहाँ दिखेगा।", poweredBy: "संचालित:",
     retryMsg: "अभी यह नहीं लिखा जा सका। कृपया दोबारा कोशिश करें, या खुद लिखें।", tryAgain: "दोबारा कोशिश करें",
     rejected: "आपके कहे से हटकर कुछ जोड़े बिना इसे नहीं लिखा जा सका। कृपया दोबारा कोशिश करें, या खुद लिखें।",
     aiDown: "लिखने वाला सहायक अभी उपलब्ध नहीं है, इसलिए कृपया नीचे अपने शब्दों में अपना रिव्यू लिखें।",
@@ -164,6 +167,8 @@ export function brandInk(hex: string) {
   return c;
 }
 
+/** A business that never picked its own colour (the stored default blue) gets FlowQR's orange, so the page looks like the FlowQR design; a colour the owner chose is always honoured. */
+export const effectiveBrand = (color: string | null | undefined) => (!color || color.toLowerCase() === DEFAULT_CUSTOMIZATION.brand_color.toLowerCase() ? "#C2410C" : color);
 export function landingStyle(color: string): CSSProperties {
   return { ["--brand" as string]: color, ["--on-brand" as string]: onBrand(color), ["--brand-ink" as string]: brandInk(color), ["--brand-tint" as string]: mix(color, "#FFFFFF", 0.9) };
 }
