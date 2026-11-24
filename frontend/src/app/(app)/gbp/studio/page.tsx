@@ -1,7 +1,7 @@
 "use client";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GbpFrame } from "@/components/gbp/GbpFrame";
 import { PostCalendar } from "@/components/gbp/PostCalendar";
 import { LibraryPanel, OverviewStrip, ReadinessCard, SeoPanel } from "@/components/gbp/StudioParts";
@@ -14,6 +14,7 @@ import { useFetch } from "@/lib/use-api";
 
 function Body({ gid }: { gid: string }) {
   const [tab, setTab] = useState<"campaigns" | "calendar" | "library" | "seo">("campaigns");
+  useEffect(() => { const t = new URLSearchParams(window.location.search).get("tab"); if (t === "calendar" || t === "library" || t === "seo") setTab(t); }, []);
   const ov = useFetch<Overview>("/marketing/overview");
   const list = useFetch<{ campaigns: Campaign[] }>("/marketing/campaigns", { google_location_id: gid });
   return (

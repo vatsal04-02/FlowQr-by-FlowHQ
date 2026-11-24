@@ -128,8 +128,8 @@ export default function CampaignPage() {
         <div className="space-y-4">
           {data.notes.map((n) => <Alert key={n} tone="warning">{n}</Alert>)}
           <p className="text-[13px] text-ink-700">Nothing here is on Google yet. Read each post, change what you like, then approve. Posting regularly keeps your profile fresh; it does not by itself raise your ranking.</p>
-          {isAdmin && waiting.length > 1 && <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-2 p-3"><span className="text-[13px]">{waiting.length} posts are waiting.</span>
-            <Button size="sm" variant="secondary" loading={bulk} onClick={() => void approveAll()}>I have read them: approve all for their suggested dates</Button></div>}
+          {isAdmin && waiting.length > 1 && <div className="flex flex-col gap-2 rounded-xl bg-surface-2 p-3 sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0 text-[13px]">{waiting.length} posts are waiting. Read them first; this approves every one for its suggested date.</span>
+            <Button size="sm" variant="secondary" className="!h-auto min-h-11 shrink-0 !whitespace-normal py-2" loading={bulk} onClick={() => void approveAll()}>Approve all for suggested dates</Button></div>}
           {posts.length === 0 ? <EmptyState title="No posts left in this campaign" /> : <ul className="space-y-3">{posts.map((p) => <PostCard key={p.id} p={p} tz={tz} business={p.location_title ?? "Your business"} onChange={() => void reload()} />)}</ul>}
         </div>)}
     </>

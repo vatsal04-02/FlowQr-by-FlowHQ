@@ -34,7 +34,7 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
     const bar = page.getByRole('navigation', { name: 'Primary' });
     check(`${tag}: bottom bar is visible`, await bar.isVisible());
     const labels = await bar.locator('a, button').allInnerTexts();
-    check(`${tag}: exactly Home, Reviews, GBP, Growth, More`, JSON.stringify(labels.map((t) => t.split(String.fromCharCode(10))[0].trim())) === JSON.stringify(['Home', 'Reviews', 'GBP', 'Growth', 'More']), JSON.stringify(labels));
+    check(`${tag}: exactly Home, Studio, Reviews, Google, More`, JSON.stringify(labels.map((t) => t.split(String.fromCharCode(10))[0].trim())) === JSON.stringify(['Home', 'Studio', 'Reviews', 'Google', 'More']), JSON.stringify(labels));
     const sizes = await bar.locator('a, button').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
     check(`${tag}: every bottom-bar target is at least 44px`, sizes.every(([w, h]) => w >= 44 && h >= 44), JSON.stringify(sizes));
     const gap = await bar.evaluate((n) => Math.round(window.innerHeight - n.getBoundingClientRect().bottom));
@@ -112,8 +112,8 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
     check(`${tag}: only one primary navigation (no second pill nav)`, (await page.getByRole('navigation', { name: 'Main', exact: true }).count()) === 0);
     if (vp.width >= 1100) {
       const names = await aside.locator('nav[aria-label=Pages] > div > ul > li > div > a').allInnerTexts();
-      check(`${tag}: sidebar lists Home, Reviews, GBP, Growth, Locations, AI Assistant, Tasks & Approvals, Activity, Settings, Billing`,
-        JSON.stringify(names.map((t) => t.trim())) === JSON.stringify(['Home', 'Reviews', 'GBP', 'Growth', 'Locations', 'AI Assistant', 'Tasks & Approvals', 'Activity', 'Settings', 'Billing']), JSON.stringify(names));
+      check(`${tag}: sidebar lists Home, Marketing Studio, GBP, Locations, Reviews, Growth, AI Assistant, Tasks & Approvals, Activity, Settings, Billing`,
+        JSON.stringify(names.map((t) => t.trim())) === JSON.stringify(['Home', 'Marketing Studio', 'GBP', 'Locations', 'Reviews', 'Growth', 'AI Assistant', 'Tasks & Approvals', 'Activity', 'Settings', 'Billing']), JSON.stringify(names));
       check(`${tag}: the current page is marked`, (await aside.locator('a[aria-current=page]').first().innerText()).trim() === 'Home');
       await aside.getByRole('button', { name: 'Collapse sidebar' }).click(); await page.waitForTimeout(400);
       check(`${tag}: collapses to a 68px rail`, Math.round((await aside.boundingBox()).width) === 68);

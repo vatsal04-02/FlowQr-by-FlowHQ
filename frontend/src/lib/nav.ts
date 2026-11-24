@@ -1,4 +1,4 @@
-import { CircleHelp } from "lucide-react";
+import { CircleHelp, Sparkles } from "lucide-react";
 import type { ComponentType } from "react";
 import { GbpIcon } from "@/components/icons/Gbp";
 import { ActivityGlyph, BillingGlyph, GrowthGlyph, HomeGlyph, LocationsGlyph, ReviewsGlyph, SettingsGlyph, TasksGlyph, TodayGlyph, WhatsAppGlyph } from "@/components/icons/Nav";
@@ -22,30 +22,40 @@ export type Child = {
   tabs?: Tab[];
   only?: Role[];
 };
-export type Group = "main" | "tools" | "assistant" | "account";
+export type Group = "main" | "marketing" | "business" | "customers" | "assistant" | "account";
 export type Dest = { id: string; href: string; label: string; short?: string; desc: string; icon: NavIcon; group: Group; children?: Child[]; also?: string[]; only?: Role[]; flag?: "whatsapp" };
 /** Server switches that show or hide a destination (me.integrations). A switched-off feature has no menu entry at all. */
 export type NavFlags = { whatsapp?: boolean };
 
-export const GROUP_LABEL: Record<Group, string | null> = { main: null, tools: "Business", assistant: "Assistant", account: "Account" };
+/** The sidebar sections, in order. Home stands alone; the rest read as the owner's own job list: market, run the business, hear from customers, get help, administer. */
+export const GROUPS: Group[] = ["main", "marketing", "business", "customers", "assistant", "account"];
+export const GROUP_LABEL: Record<Group, string | null> = { main: null, marketing: "AI Marketing", business: "Business", customers: "Customers & reviews", assistant: "Assistant", account: "Administration" };
 
 export const DESTS: Dest[] = [
   { id: "home", href: "/overview", label: "Home", desc: "Growth score and this week's moves", icon: HomeGlyph, group: "main" },
-  { id: "reviews", href: "/gbp/reviews", label: "Reviews", desc: "Read, reply, approve", icon: ReviewsGlyph, group: "main", children: [
+  { id: "studio", href: "/gbp/studio", label: "Marketing Studio", short: "Studio", desc: "Campaigns, posts, photos, calendar", icon: Sparkles, group: "marketing", also: ["/gbp/studio/new"], children: [
+    { href: "/gbp/studio", label: "Campaigns", also: ["/gbp/studio/new"] },
+    { href: "/gbp/posts", label: "Posts" },
+    { href: "/gbp/photos", label: "Photos" },
+  ] },
+  { id: "seo", href: "/seo", label: "GBP", short: "Google", desc: "Google Business Profile: how you show up on Google", icon: GbpIcon, group: "business", children: [
+    { href: "/seo", label: "Overview" },
+    { href: "/seo/rankings", label: "Rankings", also: ["/seo/searches", "/seo/competitors"] },
+    { href: "/seo/performance", label: "Performance" },
+    { href: "/seo/profile", label: "Profile", tabs: [
+      { href: "/seo/profile", label: "Checklist" }, { href: "/gbp/info", label: "Info", also: ["/gbp/hours"] },
+    ] },
+  ] },
+  { id: "locations", href: "/gbp/locations", label: "Locations", desc: "Branches and Google connection", icon: LocationsGlyph, group: "business", children: [
+    { href: "/gbp/locations", label: "Locations" },
+    { href: "/overview/locations", label: "Compare" },
+  ] },
+  { id: "reviews", href: "/gbp/reviews", label: "Reviews", desc: "Read, reply, approve", icon: ReviewsGlyph, group: "customers", children: [
     { href: "/gbp/reviews", label: "Inbox" },
     { href: "/reputation/drafts", label: "Drafts" },
     { href: "/reputation/insights", label: "Insights" },
   ] },
-  { id: "seo", href: "/seo", label: "GBP", short: "Google", desc: "Google Business Profile: how you show up on Google", icon: GbpIcon, group: "main", children: [
-    { href: "/seo", label: "Overview" },
-    { href: "/seo/rankings", label: "Rankings", also: ["/seo/searches", "/seo/competitors"] },
-    { href: "/seo/performance", label: "Performance" },
-    { href: "/gbp/studio", label: "Marketing Studio", also: ["/gbp/studio/new"] },
-    { href: "/seo/profile", label: "Profile", tabs: [
-      { href: "/seo/profile", label: "Checklist" }, { href: "/gbp/info", label: "Info", also: ["/gbp/hours"] }, { href: "/gbp/posts", label: "Posts" }, { href: "/gbp/photos", label: "Photos" },
-    ] },
-  ] },
-  { id: "growth", href: "/growth", label: "Growth", desc: "More reviews, every week", icon: GrowthGlyph, group: "main", children: [
+  { id: "growth", href: "/growth", label: "Growth", desc: "More reviews, every week", icon: GrowthGlyph, group: "customers", children: [
     { href: "/growth", label: "Goals", also: ["/growth/funnel"] },
     { href: "/gbp/cards", label: "Cards", tabs: [
       { href: "/gbp/cards", label: "Cards" }, { href: "/gbp/cards/designs", label: "Designs" }, { href: "/reputation/assistant", label: "Customer page", also: ["/reputation/assistant/settings"] },
@@ -55,11 +65,7 @@ export const DESTS: Dest[] = [
     ] },
     { href: "/growth/reports", label: "Reports" },
   ] },
-  { id: "locations", href: "/gbp/locations", label: "Locations", desc: "Branches and Google connection", icon: LocationsGlyph, group: "tools", children: [
-    { href: "/gbp/locations", label: "Locations" },
-    { href: "/overview/locations", label: "Compare" },
-  ] },
-  { id: "whatsapp", href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, group: "tools", flag: "whatsapp", children: [
+  { id: "whatsapp", href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, group: "customers", flag: "whatsapp", children: [
     { href: "/whatsapp", label: "Overview" },
     { href: "/whatsapp/setup", label: "Set up" },
     { href: "/whatsapp/connect", label: "Connect" },
@@ -89,14 +95,15 @@ export const DESTS: Dest[] = [
   { id: "billing", href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, group: "account", only: ["owner", "admin"] },
 ];
 
-/** The four destinations on the phone's bottom bar, in order. The fifth, More, opens the sheet below. */
-export const BOTTOM_IDS = ["home", "reviews", "seo", "growth"] as const;
+/** The four destinations on the phone's bottom bar, in order (Home, the Marketing Studio, Reviews, Google). The fifth, More, opens the sheet below. */
+export const BOTTOM_IDS = ["home", "studio", "reviews", "seo"] as const;
 
 /** Which group tint a More tile's icon wears (the same five as Settings, docs/DESIGN_SETTINGS_MOBILE.md §2). */
 export type MoreTint = "connect" | "business" | "prefs" | "billing" | "security";
 export type MoreItem = { href: string; label: string; desc: string; icon: NavIcon; tint: MoreTint; only?: Role[]; help?: boolean; flag?: "whatsapp" };
 export const MORE_GROUPS: { label: string; items: MoreItem[] }[] = [
   { label: "Customers", items: [
+    { href: "/growth", label: "Growth", desc: "More reviews, every week", icon: GrowthGlyph, tint: "business" },
     { href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, tint: "connect", flag: "whatsapp" },
     { href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: LocationsGlyph, tint: "business" },
   ] },

@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { GROUP_LABEL, locate, type Dest, type Group } from "@/lib/nav";
+import { GROUPS, GROUP_LABEL, locate, type Dest } from "@/lib/nav";
 import { badgeFor, childBadge, type Counts } from "@/lib/use-counts";
 import type { SubscriptionInfo } from "@/lib/types";
 import { Logo } from "../ui/Brand";
@@ -18,7 +18,7 @@ export const SIDEBAR_W = { open: 232, rail: 68 } as const;
 export function Sidebar({ path, dests, collapsed, onToggle, help, counts = null, sub = null }: { path: string; dests: Dest[]; collapsed: boolean; onToggle: () => void; help: ReactNode; counts?: Counts | null; sub?: SubscriptionInfo | null }) {
   const here = locate(path);
   const [shut, setShut] = useState<Record<string, boolean>>({});  // destinations the person folded away by hand
-  const groups: Group[] = ["main", "tools", "assistant", "account"];
+  const groups = GROUPS;
   return (
     <aside aria-label="Main navigation" style={{ width: collapsed ? SIDEBAR_W.rail : SIDEBAR_W.open }}
       className="fq-navy fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-white/5 bg-[#11173F] transition-[width] duration-200 ease-out motion-reduce:transition-none md:flex">

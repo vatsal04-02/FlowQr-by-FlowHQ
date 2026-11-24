@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DoThisWeek, FunnelStrip, Numbers, ScoreCard, WeeklyReviews, type FunnelStep, type GrowthScore } from "@/components/home/v2";
 import { GoogleActions, LatestReviews, RatingMix } from "@/components/home/v3";
+import { MarketingBand } from "@/components/home/Marketing";
 import { GettingStarted } from "@/components/overview/GettingStarted";
 import { Alert } from "@/components/ui/Card";
 import type { Activity, TasksResponse } from "@/lib/agent";
@@ -87,6 +88,7 @@ export default function Home() {
         <Rv d={0} className="lg:order-1 lg:col-span-8"><ScoreCard g={score.data} loading={score.loading && !score.data} days={days} onDays={setDays} /></Rv>
         <Rv d={70} className="lg:order-3 lg:col-span-12"><Numbers o={o} prev={p} weekly={weekly} loading={loading} days={days} /></Rv>
         <Rv d={120} className="lg:order-2 lg:col-span-4"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} g={score.data} /></Rv>
+        <Rv d={140} className="lg:order-4 lg:col-span-12"><MarketingBand /></Rv>
         {/* two columns on a laptop (chart and Google actions | latest reviews and rating mix), balanced so neither card is stretched; on a phone they are simply the same four cards in the same order */}
         <div className="space-y-3 lg:order-4 lg:col-span-7"><Rv d={150}><WeeklyReviews o={o} prev={p} days={days} goal={goal} loading={loading || (prevOv.loading && !p)} /></Rv><Rv d={200}><GoogleActions m={gm.data} loading={gm.loading} error={gm.error} /></Rv></div>
         <div className="space-y-3 lg:order-5 lg:col-span-5"><Rv d={130}><LatestReviews items={latest.data?.items ?? null} total={latest.data?.total ?? 0} loading={latest.loading && !latest.data} /></Rv><Rv d={190}><RatingMix o={o} loading={loading} /></Rv></div>
