@@ -20,6 +20,7 @@ from app.models import Location, RetiredCampaignId, ReviewCampaign, ReviewDraft,
 from app.models.base import utcnow
 from app.schemas.review_growth import ApproveIn, Customization, GenerateIn, HandoffIn, RedirectIn, RefineIn, RegenerateIn, SubmitIn
 from app.services import cards as cards_svc
+from app.services.agent import knowledge as kbs
 from app.services import review_growth as svc
 from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai.base import configured_identity
@@ -163,6 +164,28 @@ def _describing(words: tuple[str, ...], sentiment: str | None) -> str:
     return ""
 
 
+def recent_reviews(db: Session, tenant, campaign, session: ReviewSession, limit: int = 10) -> tuple[str, ...]:
+    """What other customers of this location were recently given, so each new review can be written to read differently (and is rejected if it is too close). Only drafts built from
+    stars and topics are used: a draft that contains someone's own typed words is never sent to the AI as an example for another customer."""
+    camp_ids = select(ReviewCampaign.id).where(ReviewCampaign.tenant_id == tenant.id, ReviewCampaign.location_id == campaign.location_id)
+    rows = db.execute(select(ReviewDraft.generated_content, ReviewSession.customer_input).join(ReviewSession, ReviewSession.id == ReviewDraft.session_id)
+                      .where(ReviewSession.tenant_id == tenant.id, ReviewSession.campaign_id.in_(camp_ids), ReviewDraft.session_id != session.id,
+                             ReviewDraft.generated_content.is_not(None)).order_by(ReviewDraft.updated_at.desc()).limit(limit * 3)).all()
+    out = [text for text, ci in rows if text and not (ci or {}).get("text") and not (ci or {}).get("details")]
+    return tuple(reversed(out[:limit]))
+
+
+def _context_with_voice(db: Session, tenant, bctx) -> str:
+    """The business context for the writer, plus the owner's saved brand tone when there is one (tone only: it adds no facts about the customer's visit)."""
+    block = bctx.prompt_block()
+    try:
+        voice = (kbs.context(db, tenant).get("brand_voice") or "").strip()
+    except Exception:
+        voice = ""
+    voice = " ".join(voice.split())[:120]
+    return block + (f"\nOwner's preferred tone (wording style only, never facts): {voice}." if voice else "")
+
+
 def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, draft: ReviewDraft, *, ip: str, ua: str | None, refine: bool = False) -> dict:
     """Ask the provider for a draft. A failure here never blocks the customer: they can write their own words. `refine`: the customer changed their stars,
     topics or words, so rewrite from the new inputs (no "must differ from the last draft" rule, and it does not use up their Regenerate allowance)."""
@@ -178,6 +201,7 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
                       topic_ok=tuple(w for _, m in meanings if m for w in m.words) if sentiment != "okay" else (),  # a neutral review uses no describing words at all
                       topic_hi=tuple(t.hi for t in chosen))
     previous = () if refine else tuple(p for p in (draft.generated_content,) if p)
+    recent = recent_reviews(db, tenant, campaign, session)
     first = draft.generation_count == 0
 
     provider = None
@@ -203,8 +227,8 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
     try:
         provider = metered(get_provider(), db, tenant.id, "review_generate")
         text = generate_review(provider, inp, language=session.language, style=session.style, business_name=tenant.name,
-                               category=tenant.category, location_name=loc.name, previous=previous,
-                               context_text=bctx.prompt_block(), offered_terms=bctx.offered_terms(), stats=stats)
+                               category=tenant.category, location_name=loc.name, previous=previous, recent=recent,
+                               context_text=_context_with_voice(db, tenant, bctx), offered_terms=bctx.offered_terms(), stats=stats)
     except NeedsMoreDetail:
         log("needs_more")
         svc.record_event(db, campaign, "needs_more", ip=ip, ua=ua, session=session)

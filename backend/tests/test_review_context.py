@@ -18,6 +18,12 @@ from tests.test_review_growth import GOOD, StubLLM, campaign, llm, make_staff, p
 from tests.test_review_verify import route  # noqa: F401  (fixture)
 from tests.test_review_simple import counts
 
+@pytest.fixture(autouse=True)
+def _no_cross_customer_check(monkeypatch):
+    """These tests hand every simulated customer the same scripted text. The "no two customers get the same review" rule has its own tests (tests/test_review_unique.py)."""
+    monkeypatch.setattr("app.api.v1.review_public.recent_reviews", lambda *a, **k: ())
+
+
 
 def biz(category: str, name="Context Biz") -> Session:
     s = make_user()
