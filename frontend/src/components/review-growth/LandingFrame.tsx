@@ -17,17 +17,17 @@ export function LandingFrame({ business, branding, children, preview, note, powe
   return (
     <div style={{ ...landingStyle(effectiveBrand(branding.brand_color)) }} className={`${preview ? "min-h-full" : "min-h-dvh"} bg-[#F5F4F0] sm:py-8`}>
       <Root className="mx-auto flex w-full max-w-[440px] flex-col overflow-hidden sm:min-h-0 sm:rounded-[28px] sm:shadow-[0_30px_60px_-30px_rgba(18,22,63,.55)]" style={{ minHeight: preview ? undefined : "100dvh" }}>
-        <header className="px-5 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))] text-white" style={{ background: "radial-gradient(120% 90% at 100% 0%, rgba(234,88,12,.30), transparent 55%), linear-gradient(160deg, #171A45 0%, #2A2E69 100%)" }}>
+        <header className="px-5 pb-9 pt-[max(1.25rem,env(safe-area-inset-top))] text-white" style={{ background: "radial-gradient(120% 90% at 100% 0%, rgba(234,88,12,.30), transparent 55%), linear-gradient(160deg, #171A45 0%, #2A2E69 100%)" }}>
           <div className="flex items-center gap-3.5">
             {business.logo_url
-              ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={business.logo_url} alt="" className="h-14 w-14 shrink-0 rounded-2xl bg-white object-cover" />
-              : <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white text-[26px] font-extrabold text-[#12163F]">{business.name.charAt(0).toUpperCase()}</span>}
+              ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={business.logo_url} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-cover" />
+              : <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white text-[22px] font-extrabold text-[#12163F]">{business.name.charAt(0).toUpperCase()}</span>}
             <div className="min-w-0">
-              <Title className="truncate text-[20px] font-extrabold leading-tight tracking-tight text-white">{business.name}</Title>
-              {business.location && <p className="truncate text-sm text-[#C9CBE8]">{business.location}</p>}
+              <Title className="truncate text-[17px] font-extrabold leading-tight tracking-tight text-white">{business.name}</Title>
+              {business.location && <p className="truncate text-[13px] text-[#C9CBE8]">{business.location}</p>}
             </div>
           </div>
-          {note && <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-2 text-[13px] font-semibold text-white ring-1 ring-white/10">{note}</p>}
+          {note && <p className="mt-3.5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/10">{note}</p>}
         </header>
         <div className="-mt-6 flex-1 rounded-t-[28px] px-5 pb-8 pt-7 shadow-[0_-12px_30px_-18px_rgba(23,26,69,.55)]" style={sheet}>
           {branding.welcome_message && <p className="mb-5 rounded-2xl bg-[#F6F4EF] px-4 py-3 text-[15px] leading-relaxed text-ink-700">{branding.welcome_message}</p>}

@@ -273,3 +273,5 @@ Prerequisites: owner decisions O2 in [LAUNCH_READINESS_CHECKLIST.md](LAUNCH_READ
 8. Retention: review the report, then set `PRIVACY_RETENTION_ENABLED=true` when the owner approves the periods.
 9. Gemini: set `GEMINI_DATA_TERMS_VERIFIED=true` only after the written evidence exists (O1).
 10. Rollback: redeploy the previous application tag (the schema may stay: the old code ignores the new columns and the new grants are harmless). Downgrading 0039 drops the declarations and any pending self-deletions and removes the audit IP guard; do that only deliberately.
+
+* **Update 2026-11-24 (owner decision):** the customer-page AI notice described above was removed from both customer pages (`ReviewLanding.tsx`, `CardLanding.tsx`). `AiNotice.tsx` and `ai-notice.ts` are kept but unused. AI text is still labelled "Written by AI" / "AI-assisted suggestion", and the privacy policy (`/privacy`) still states that text is sent to the AI provider. A lawyer has not reviewed this change.

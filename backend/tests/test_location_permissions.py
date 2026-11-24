@@ -78,7 +78,7 @@ def test_restricted_staff_lists_only_their_location_everywhere(world):
     assert [l["id"] for l in s.get("/locations").json()] == [w.loc_a]
     assert [r["id"] for r in s.get("/reviews").json()["items"]] == [w.rev_a] and s.get("/reviews").json()["total"] == 1
     assert [c["id"] for c in s.get("/cards").json()] == [w.card_a["id"]]
-    assert [c["id"] for c in s.get("/review-growth/campaigns").json()] == [w.camp_a["id"]]
+    assert [c["id"] for c in s.get("/review-growth/campaigns").json() if c["name"] != "Default review page"] == [w.camp_a["id"]]  # (a scanned plain card also makes its location's default page: see tests/test_default_review_page.py)
     assert [x["id"] for x in s.get(f"/google/connections/{w.conn}/locations").json()] == [w.gloc_a]
     # the owner still sees both
     assert len(w.get("/locations").json()) == 2 and w.get("/reviews").json()["total"] == 2 and len(w.get("/cards").json()) == 2
@@ -126,7 +126,7 @@ def test_analytics_totals_exclude_other_locations(world):
     assert [c["card_code"] for c in mine["cards"]] == [w.card_a["card_code"]] and len(mine["locations"]) == 1 and len(mine["sync"]) == 1
     assert mine["reviews"]["drafts_pending_approval"] == 0 and everything["reviews"]["drafts_pending_approval"] == 1  # the draft is at B
     rg_mine, rg_all = w.staff.get("/review-growth/analytics").json(), w.get("/review-growth/analytics").json()
-    assert rg_all["totals"]["scans"] == 2 and rg_mine["totals"]["scans"] == 1 and [c["id"] for c in rg_mine["campaigns"]] == [w.camp_a["id"]]
+    assert rg_all["totals"]["scans"] == 2 and rg_mine["totals"]["scans"] == 1 and [c["id"] for c in rg_mine["campaigns"] if c["name"] != "Default review page"] == [w.camp_a["id"]]
 
 
 def test_data_without_a_location_is_hidden_from_restricted_staff(world):
