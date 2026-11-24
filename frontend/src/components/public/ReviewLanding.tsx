@@ -34,7 +34,7 @@ const btn = "inline-flex min-h-12 w-full items-center justify-center gap-2 round
 const ring = "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#171A45] focus-visible:ring-0";
 const primary = `${btn} ${ring} bg-[var(--brand)] text-[var(--on-brand)] shadow-panel hover:brightness-95`;
 const secondary = `${btn} ${ring} border border-ink-300 bg-white text-ink hover:bg-ink-50`;
-const headingCls = "text-[1.75rem] font-extrabold leading-[1.15] tracking-[-0.02em] text-ink outline-none focus-visible:ring-0 focus-visible:ring-offset-0";
+const headingCls = "text-[1.5rem] font-extrabold leading-[1.2] tracking-[-0.015em] text-ink outline-none focus-visible:ring-0 focus-visible:ring-offset-0";
 const STORE = (id: string) => `fq-review-${id}`;
 
 const post = <T,>(id: string, path: string, body: unknown) => api<T>(`/public/reviews/${id}${path}`, { method: "POST", body });
@@ -317,7 +317,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const isFlowqrOrange = effectiveBrand(page.branding.brand_color).toLowerCase() === "#c2410c";  // the design's own gradient; a colour the owner chose gets a derived one
   const ctaStyle = { background: isFlowqrOrange ? "linear-gradient(135deg, #D9500F, #B93C08)" : "linear-gradient(135deg, color-mix(in srgb, var(--brand) 92%, #fff), color-mix(in srgb, var(--brand) 80%, #000))" } as const;
   const blocked = rating === null;  // the spec: the button waits for a rating
-  const ctaCls = clsx(btn, ring, "rv-cta group !min-h-[58px] !rounded-2xl !px-4 !text-[16px] !font-extrabold min-[360px]:!text-[17px] text-[var(--on-brand)] active:!scale-[.98] disabled:cursor-not-allowed", blocked ? "rv-cta-off opacity-[.55]" : !ready2go && "opacity-80");
+  const ctaCls = clsx(btn, ring, "rv-cta group !min-h-[52px] !rounded-2xl !px-4 !text-[15px] !font-extrabold text-[var(--on-brand)] active:!scale-[.98] disabled:cursor-not-allowed", blocked ? "rv-cta-off opacity-[.55]" : !ready2go && "opacity-80");
   const hasText = text.trim().length > 0;
   const showNew = !busy && origin !== "none" && !isEdited && hasText;
   const GOLD = "#F5A524";
@@ -325,7 +325,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   return (
     <LandingFrame business={{ name: page.business.name, logo_url: page.business.logo_url, location: place }} branding={page.branding} poweredBy={t.poweredBy}
       note={<><Clock className="h-4 w-4 shrink-0" aria-hidden />{t.quick}</>}>
-      <section lang={lang} className="space-y-5">
+      <section lang={lang} className="space-y-4">
         <div className="fq-rise">
           <h2 className={headingCls}>{t.h}</h2>
         </div>
@@ -364,35 +364,35 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
           <div className="fq-rise" style={{ ["--d" as string]: "50ms" }}>
             <svg width="0" height="0" aria-hidden className="absolute"><defs><linearGradient id="rv-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FFD66B" /><stop offset="1" stopColor="#F59E0B" /></linearGradient></defs></svg>
             <p id="rate-l" className="sr-only">{t.rateLabel}</p>
-            <div ref={starsRef} role="radiogroup" aria-labelledby="rate-l" aria-describedby="rate-h" onKeyDown={onStarKey} className="flex items-center justify-between gap-1">
+            <div ref={starsRef} role="radiogroup" aria-labelledby="rate-l" aria-describedby="rate-h" onKeyDown={onStarKey} className="mx-auto flex max-w-[300px] items-center justify-between gap-1">
               {RATINGS.map((n) => {
                 const on = rating !== null && n <= rating;
                 return (
                   <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`Rate ${n} out of 5, ${t.rateWords[n - 1]}`}
                     tabIndex={rating === n || (rating === null && n === 1) ? 0 : -1} onClick={() => pickRating(n)}
-                    className={clsx("grid h-[60px] w-[60px] shrink-0 place-items-center rounded-2xl transition active:scale-90", ring)}>
-                    <Star key={rating === n ? `p${n}` : n} className={clsx("h-[52px] w-[52px] transition-all duration-200", on && "rv-twinkle", rating === n && "fq-pop")} strokeWidth={1.6} aria-hidden
+                    className={clsx("grid h-[46px] w-[46px] shrink-0 place-items-center rounded-2xl transition active:scale-90", ring)}>
+                    <Star key={rating === n ? `p${n}` : n} className={clsx("h-[38px] w-[38px] transition-all duration-200", on && "rv-twinkle", rating === n && "fq-pop")} strokeWidth={1.6} aria-hidden
                       style={on ? { fill: "url(#rv-gold)", color: "#E08A00", ["--i" as string]: n - 1, filter: "drop-shadow(0 4px 8px rgba(245,165,36,.55))" } : { fill: "#F1EFEA", color: "#C9C6BC" }} />
                   </button>
                 );
               })}
             </div>
-            <p className="mt-1 min-h-7 text-center text-[19px] font-bold text-[#9A3412]" aria-live="polite">{rating ? t.rateWords[rating - 1] : ""}</p>
-            <p id="rate-h" role={needStars ? "alert" : undefined} className={clsx("text-center text-sm", needStars ? "font-medium text-amber-800" : rating === null ? "text-ink-500" : "sr-only")}>{needStars ? t.needStars : rating === null ? t.rateLabel : ""}</p>
+            <p className="mt-0.5 min-h-6 text-center text-[16px] font-bold text-[#9A3412]" aria-live="polite">{rating ? t.rateWords[rating - 1] : ""}</p>
+            <p id="rate-h" role={needStars ? "alert" : undefined} className={clsx("text-center text-[13px]", needStars ? "font-medium text-amber-800" : rating === null ? "text-ink-500" : "sr-only")}>{needStars ? t.needStars : rating === null ? t.rateLabel : ""}</p>
           </div>
 
           {/* ---------------------------------------------- topics: they tailor the review below */}
           {chips.length > 0 && (
             <div className="fq-rise" style={{ ["--d" as string]: "90ms" }}>
-              <div className="flex items-baseline justify-between gap-3"><p id="chips-l" className="text-[16px] font-bold text-ink">{t.topicsLabel}</p><span className="text-[13px] text-ink-500">{t.topicsHint}</span></div>
-              <div role="group" aria-labelledby="chips-l" className="mt-3 flex flex-wrap gap-2.5">
+              <div className="flex items-baseline justify-between gap-3"><p id="chips-l" className="text-[15px] font-bold text-ink">{t.topicsLabel}</p><span className="text-[12.5px] text-ink-500">{t.topicsHint}</span></div>
+              <div role="group" aria-labelledby="chips-l" className="mt-2.5 flex flex-wrap gap-2">
                 {chips.map((s) => {
                   const on = picked.includes(s.id);
                   return (
                     <button key={s.id} type="button" aria-pressed={on} onClick={() => toggle(s.id)}
-                      className={clsx("inline-flex h-[46px] items-center gap-2 rounded-full px-[1.1rem] text-[15px] font-bold transition-[background-color,box-shadow,transform] duration-[120ms] active:scale-[.97]", ring,
+                      className={clsx("inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[14px] font-bold transition-[background-color,box-shadow,transform] duration-[120ms] active:scale-[.97]", ring,
                         on ? "border-[1.5px] border-[#171A45] bg-[#171A45] text-white shadow-[0_8px_16px_-8px_rgba(23,26,69,.7)]" : "border-[1.5px] border-[#CFCDC5] bg-white text-ink hover:bg-[#FAF9F6]")}>
-                      {on ? <Check className="h-[18px] w-[18px]" style={{ color: GOLD }} strokeWidth={3} aria-hidden /> : <Plus className="h-4 w-4 text-[#C2410C]" strokeWidth={2.5} aria-hidden />}{label(s)}
+                      {on ? <Check className="h-4 w-4" style={{ color: GOLD }} strokeWidth={3} aria-hidden /> : <Plus className="h-3.5 w-3.5 text-[#C2410C]" strokeWidth={2.5} aria-hidden />}{label(s)}
                     </button>
                   );
                 })}
@@ -402,20 +402,20 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
 
           {/* ---------------------------------------------- the review card: the suggestion is here before they do anything else */}
           <div className="fq-rise rv-card rounded-[22px] p-[2px]" style={{ ["--d" as string]: "130ms" }}>
-            <div className="rounded-[20px] bg-white p-4">
+            <div className="rounded-[20px] bg-white p-3.5">
               <div className="flex min-h-8 items-center justify-between gap-3">
                 <label htmlFor="review" className="sr-only">{t.editorLabel}</label>
                 {badge ? (
-                  <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[12.5px] font-bold", handoff?.copied ? "bg-emerald-50 text-ok" : "bg-[#FFEFE5] text-[#9A3412]")} data-testid="origin-badge">
+                  <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-bold", handoff?.copied ? "bg-emerald-50 text-ok" : "bg-[#FFEFE5] text-[#9A3412]")} data-testid="origin-badge">
                     <badge.icon className="h-3.5 w-3.5" aria-hidden />{badge.text}
                   </span>
                 ) : <span />}
-                {showNew && <button type="button" onClick={() => void another()} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-1 text-[14px] font-bold text-[#171A45]"><RefreshCw className="h-4 w-4" aria-hidden />{t.another}</button>}
+                {showNew && <button type="button" onClick={() => void another()} className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-bold text-[#171A45]"><RefreshCw className="h-4 w-4" aria-hidden />{t.another}</button>}
               </div>
               <div className="relative mt-2">
                 <textarea id="review" ref={boxRef} rows={3} value={text} maxLength={max} readOnly={busy || sending} aria-busy={busy || undefined} aria-describedby="review-hint" placeholder={t.editorPh}
                   onChange={(e) => { setText(e.target.value); setShort(false); setUndo(null); if (handoff?.copied === false) setHandoff(null); }}
-                  className={clsx("block w-full resize-none overflow-hidden rounded-xl border-0 bg-transparent px-0 py-1 text-[18px] leading-[1.55] text-ink placeholder:text-[15px] placeholder:leading-relaxed placeholder:text-ink-400 focus-visible:bg-[#FAF9F6] focus-visible:px-2 focus-visible:ring-2", ring,
+                  className={clsx("block w-full resize-none overflow-hidden rounded-xl border-0 bg-transparent px-0 py-1 text-[16px] leading-[1.55] text-ink placeholder:text-[14px] placeholder:leading-relaxed placeholder:text-ink-400 focus-visible:bg-[#FAF9F6] focus-visible:px-2 focus-visible:ring-2", ring,
                     busy && "text-transparent", short && "ring-2 ring-amber-500")} />
                 {busy && (
                   <div className="pointer-events-none absolute inset-0 py-2" aria-hidden>
@@ -430,11 +430,11 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
                 {text.length > max * 0.85 && <span className="float-right tabular-nums">{text.length}/{max}</span>}
               </div>
               <div className="mt-1 flex items-center justify-between gap-3 text-sm">
-                <span className="text-[13.5px] text-ink-500">{chips.length > 0 && !isEdited ? t.liveNote : ""}</span>
+                <span className="text-[12.5px] text-ink-500">{chips.length > 0 && !isEdited ? t.liveNote : ""}</span>
                 <div className="flex items-center gap-3">
-                  {!busy && undo && <button type="button" onClick={() => { setText(undo); setUndo(null); setOrigin("none"); }} className="min-h-10 font-bold text-[#171A45] hover:underline">{t.undo}</button>}
-                  {!busy && isEdited && aiText.trim() && !undo && <button type="button" onClick={() => { setText(aiText); setOrigin("refined"); setShort(false); }} className="min-h-10 font-bold text-[#9A3412] hover:underline">{t.reset}</button>}
-                  <button type="button" onClick={() => { boxRef.current?.focus(); const n = boxRef.current?.value.length ?? 0; boxRef.current?.setSelectionRange(n, n); }} className="inline-flex min-h-10 items-center gap-1.5 font-bold text-[#171A45]"><Pencil className="h-4 w-4" aria-hidden />{t.editBtn}</button>
+                  {!busy && undo && <button type="button" onClick={() => { setText(undo); setUndo(null); setOrigin("none"); }} className="min-h-11 text-[13.5px] font-bold text-[#171A45] hover:underline">{t.undo}</button>}
+                  {!busy && isEdited && aiText.trim() && !undo && <button type="button" onClick={() => { setText(aiText); setOrigin("refined"); setShort(false); }} className="min-h-11 text-[13.5px] font-bold text-[#9A3412] hover:underline">{t.reset}</button>}
+                  <button type="button" onClick={() => { boxRef.current?.focus(); const n = boxRef.current?.value.length ?? 0; boxRef.current?.setSelectionRange(n, n); }} className="inline-flex min-h-11 items-center gap-1.5 text-[13.5px] font-bold text-[#171A45]"><Pencil className="h-3.5 w-3.5" aria-hidden />{t.editBtn}</button>
                 </div>
               </div>
 
@@ -462,11 +462,11 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
 
           {/* ---------------------------------------------- language */}
           {page.generator.languages.length > 1 && (
-            <label className="fq-rise flex min-h-[3.4rem] items-center gap-2.5 rounded-2xl border border-[#E4E1D9] bg-white px-3.5 text-[15px]" style={{ ["--d" as string]: "160ms" }}>
-              <Globe className="h-5 w-5 shrink-0 text-ink-500" aria-hidden />
-              <span className="whitespace-nowrap text-[14px] text-ink-500 min-[360px]:text-[15px]">{t.reviewLang}</span>
+            <label className="fq-rise flex min-h-12 items-center gap-2.5 rounded-2xl border border-[#E4E1D9] bg-white px-3.5 text-[14px]" style={{ ["--d" as string]: "160ms" }}>
+              <Globe className="h-4 w-4 shrink-0 text-ink-500" aria-hidden />
+              <span className="whitespace-nowrap text-[13.5px] text-ink-500">{t.reviewLang}</span>
               <span className="relative ml-auto inline-flex items-center">
-                <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t.reviewLang} className={clsx("min-h-11 appearance-none rounded-lg bg-transparent py-1 pl-2 pr-6 text-right text-[15px] font-bold text-ink", ring)}>
+                <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t.reviewLang} className={clsx("min-h-11 appearance-none rounded-lg bg-transparent py-1 pl-2 pr-6 text-right text-[14px] font-bold text-ink", ring)}>
                   {([["en", "English"], ["hi", "हिन्दी"]] as const).filter(([v]) => page.generator.languages.includes(v)).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4 text-ink-700" aria-hidden />
@@ -498,19 +498,19 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
               </>
             ) : reviewUrl ? (
               <a href={reviewUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => { if (blocked) { e.preventDefault(); setNeedStars(true); starsRef.current?.querySelector<HTMLElement>("[tabindex='0']")?.focus(); return; } onCopyContinue(e); }} aria-describedby="cta-hint" aria-disabled={blocked || !ready2go || undefined} data-testid="copy-continue" className={ctaCls} style={ctaStyle}>
-                <Copy className="h-5 w-5 shrink-0" aria-hidden />{t.cta}
+                <Copy className="h-[18px] w-[18px] shrink-0" aria-hidden />{t.cta}
               </a>
             ) : (
               <button type="button" onClick={() => void copyOnly()} aria-describedby="cta-hint" className={ctaCls} style={ctaStyle}>
                 {copiedFlash ? <Check className="h-5 w-5" aria-hidden /> : <Copy className="h-5 w-5" aria-hidden />}{copiedFlash ? t.copied : t.ctaCopyOnly}
               </button>
             )}
-            {!isDirect && <p id="cta-hint" className="mt-2 text-center text-[12.5px] leading-snug text-ink-700">{reviewUrl ? t.ctaHint : t.noLink} <span className="text-ink-500">{t.confirmNote}</span></p>}
+            {!isDirect && <p id="cta-hint" className="mt-2 text-center text-[12px] leading-snug text-ink-700">{reviewUrl ? t.ctaHint : t.noLink} <span className="text-ink-500">{t.confirmNote}</span></p>}
             {reviewUrl && !isDirect && <button type="button" onClick={() => void copyOnly()} data-testid="copy-only" className={clsx("mx-auto mt-0.5 flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-[13px] font-semibold text-ink-700 hover:underline", ring)}>
               {copiedFlash ? <Check className="h-4 w-4 text-ok" aria-hidden /> : null}{copiedFlash ? t.copied : t.copyBtn}</button>}
           </div>
         )}
-        <p className="text-center text-xs text-ink-500">{t.privacy}</p>
+        <p className="text-center text-[11.5px] text-ink-500">{t.privacy}</p>
       </section>
     </LandingFrame>
   );

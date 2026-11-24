@@ -112,7 +112,7 @@ export default function CardLanding({ token, channel }: { token: string; channel
     <LandingFrame business={{ name: biz?.name ?? "", logo_url: biz?.logo_url ?? null, location: [data.location?.name, data.location?.city].filter(Boolean).join(" · ") }}
       branding={{ brand_color: DEFAULT_CUSTOMIZATION.brand_color, background: "plain", welcome_message: null, footer_message: null }} note={<><Clock className="h-4 w-4 shrink-0" aria-hidden />{PLAIN_QUICK[(biz?.language as keyof typeof PLAIN_QUICK) ?? "en"] ?? PLAIN_QUICK.en}</>}>
       <section>
-        <h2 className="text-[1.9rem] font-extrabold leading-[1.15] tracking-tight text-ink">{t.h}</h2>
+        <h2 className="text-[1.5rem] font-extrabold leading-[1.2] tracking-tight text-ink">{t.h}</h2>
         <p className="mt-1 text-ink-500">{t.sub}</p>
 
         <label htmlFor="exp" className="mt-5 block text-sm font-semibold text-ink-700">{t.label}</label>
