@@ -54,7 +54,7 @@ def test_expired_trial_keeps_every_row_and_the_owner_can_still_read_and_download
     assert clinic.get("/auth/me").status_code == 200 and clinic.get("/tenant").status_code == 200
     assert len(clinic.get("/locations").json()) == 1
     assert [c["id"] for c in clinic.get("/cards").json()] == [clinic.card["id"]]
-    assert [c["id"] for c in clinic.get("/review-growth/campaigns").json()] == [clinic.camp["id"]]
+    assert clinic.camp["id"] in [c["id"] for c in clinic.get("/review-growth/campaigns").json()]  # (the customer review page may also have created its default campaign: nothing was deleted)
     assert clinic.get("/reviews").status_code == 200 and clinic.get("/qr/style").status_code == 200
     assert clinic.get("/billing/plans").status_code == 200 and clinic.get("/billing/payments").status_code == 200
     for path in (f"/cards/{clinic.card['id']}/qr", f"/review-growth/campaigns/{clinic.camp['id']}/qr"):

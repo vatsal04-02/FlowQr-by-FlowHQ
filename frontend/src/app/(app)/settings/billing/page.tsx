@@ -131,7 +131,7 @@ export default function SubscriptionPage() {
 
       {s?.promo && <div className="mb-5"><Alert tone="success" title={`Free ${s.promo.plan_name} until ${fmtDate(s.promo.ends_at)}`}>Included with your card purchase. {s.promo.note} Choose a plan whenever you like; you are only charged for a plan you pick yourself.</Alert></div>}
       <Card className="mb-6">
-        {!s ? <Skeleton className="h-32" /> : (
+        {!s ? <Skeleton className="h-[29rem] sm:h-[24rem] lg:h-[14rem]" /> /* the height of the loaded card, so the plans below do not jump when it arrives */ : (
           <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
             <div>
               <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">{s.plan_name ?? "No plan"}</h2><Badge tone={statusTone}>{s.status.replace("_", " ")}</Badge>{s.billing.mode === "test" && <Badge tone="amber">test mode</Badge>}</div>

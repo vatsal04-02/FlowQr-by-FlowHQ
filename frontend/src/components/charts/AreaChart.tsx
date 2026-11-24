@@ -96,7 +96,7 @@ export function AreaChart({ days, names, colors, ariaLabel, unit = "" }: { days:
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-[13px] text-muted">
         <span>{days.length} {days.length === 1 ? "day" : "days"} reported by Google{unit ? ` · ${unit}` : ""}</span>
-        <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
+        <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 max-sm:!min-h-11 font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
       </div>
       {table && (
         <div className="mt-2 max-h-56 overflow-auto"><table className="w-full text-left text-[13px]"><thead><tr className="text-muted"><th className="py-1 font-medium">Day</th>{names.map((n) => <th key={n} className="py-1 text-right font-medium">{n}</th>)}</tr></thead>

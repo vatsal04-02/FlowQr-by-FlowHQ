@@ -5,6 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
+from sqlalchemy.orm import selectinload
 from sqlalchemy import func, select
 
 from app.core.deps import TenantContext, get_tenant_context, require_role
@@ -109,7 +110,7 @@ def list_reviews(
         else:
             q = q.where(Review.google_reply_text.is_(None), latest == ReplyStatus(reply_state))
     total = ctx.db.scalar(select(func.count()).select_from(q.subquery()))
-    rows = ctx.db.scalars(q.order_by(Review.review_created_at.desc()).limit(limit).offset(offset)).unique().all()
+    rows = ctx.db.scalars(q.order_by(Review.review_created_at.desc()).limit(limit).offset(offset).options(selectinload(Review.drafts))).unique().all()  # drafts in ONE extra query, not one per review
     names = _loc_names(ctx)
     return ReviewList(total=total, items=[_review_out(ctx, r, names) for r in rows])
 

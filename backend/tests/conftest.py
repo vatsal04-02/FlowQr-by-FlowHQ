@@ -174,3 +174,12 @@ def owner_exec(sql: str, **params) -> None:
     with eng.begin() as c:
         c.execute(text("SELECT set_config('app.bypass_rls','on',true)"))
         c.execute(text(sql), params)
+
+
+def head_revision() -> str:
+    """The migration head as the scripts define it (tests that check 'the database is at head' use this, so a new migration does not break them)."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    cfg = Config()
+    cfg.set_main_option("script_location", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "alembic"))
+    return ScriptDirectory.from_config(cfg).get_current_head()

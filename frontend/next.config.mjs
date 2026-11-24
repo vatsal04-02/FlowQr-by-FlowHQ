@@ -10,7 +10,29 @@ const securityHeaders = [
   // Safe subset of a CSP (no script-src yet: Next.js inline scripts would need nonces). Blocks plugins, base-tag hijack, framing and off-site form posts.
   { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://*.cashfree.com" },  // Cashfree's hosted subscription checkout posts a form to <sandbox|api>.cashfree.com (and may redirect within it); found in the Cashfree Sandbox, where 'self' alone blocked it
   { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+  // The FULL policy, in REPORT-ONLY mode: the browser checks every page against it and logs what it WOULD have blocked (DevTools console: "[Report Only] ...") but blocks nothing, so it cannot break a page.
+  // It exists to find out, on real traffic, what an enforced policy must allow. script-src still needs 'unsafe-inline' (Next.js hydration scripts) until nonces are added, which is why the enforced header above
+  // stays the safe subset. When the console is clean on the pages that matter (sign-in, home, billing with a test payment, WhatsApp connect), move these directives into the enforced header.
+  { key: "Content-Security-Policy-Report-Only", value: reportOnlyCsp() },
 ];
+
+function reportOnlyCsp() {
+  const api = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+  const self = ["'self'"];
+  return [
+    "default-src 'self'",
+    `script-src ${[...self, "'unsafe-inline'", "https://checkout.razorpay.com", "https://sdk.cashfree.com", "https://*.cashfree.com", "https://connect.facebook.net"].join(" ")}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    `connect-src ${[...self, api, "https://*.cashfree.com", "https://api.razorpay.com", "https://lumberjack.razorpay.com", "https://*.facebook.com"].filter(Boolean).join(" ")}`,
+    "frame-src https://api.razorpay.com https://*.cashfree.com https://*.facebook.com",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "base-uri 'self'", "object-src 'none'", "frame-ancestors 'none'", "form-action 'self' https://*.cashfree.com",
+  ].join("; ");
+}
 
 const nextConfig = {
   reactStrictMode: true,

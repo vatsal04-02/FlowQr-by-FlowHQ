@@ -25,7 +25,7 @@ from app.services.google.provider import GReview, GReviewPage
 from app.services.google.sync import sync_google_location
 from app.services.google.tokens import get_access_token
 from app.services.mailer import OUTBOX
-from tests.conftest import Session, make_business, make_user, owner_exec, owner_query
+from tests.conftest import head_revision, Session, make_business, make_user, owner_exec, owner_query
 from tests.fake_agency_google import AGENCY_ACCESS, AGENCY_REFRESH, CLIENT_ACCESS, CLIENT_REFRESH, GROUP, FakeAgencyClient
 from tests.test_location_permissions import invite
 from tests.test_google_agency import _clean, advance, auths_of, calls, conn_of, gloc_of, mail, seed, untouched  # noqa: F401  (_clean is an autouse fixture)
@@ -649,7 +649,7 @@ def test_the_operator_can_retry_but_gives_no_consent_and_leaves_an_audit_entry(s
 def test_migration_0067_is_additive_and_old_rows_keep_their_meaning():
     cols = {r[0]: r[1] for r in owner_query("SELECT column_name, is_nullable FROM information_schema.columns WHERE table_name = 'google_agency_authorizations'")}
     assert cols["consent_actions"] == "YES" and cols["initial_sync_enqueued_at"] == "YES" and cols["notices_sent"] == "NO"
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()
     assert owner_query("SELECT column_default FROM information_schema.columns WHERE table_name = 'google_agency_authorizations' AND column_name = 'notices_sent'")[0][0].startswith("'{}'")
 
 

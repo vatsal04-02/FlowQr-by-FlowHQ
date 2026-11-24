@@ -99,7 +99,7 @@ export default function GoalsPage() {
               <div className="min-w-0 flex-1 space-y-1 text-[14px]">
                 <p><b className="num text-[20px] font-semibold">{rv?.to_go == null ? "–" : <CountUp value={rv.to_go} />}</b> <span className="text-muted">to go</span></p>
                 <p><b className="num text-[20px] font-semibold">{rv?.days_left ?? "–"}</b> <span className="text-muted">days left</span></p>
-                {isAdmin && <button type="button" onClick={() => { setGoalVal(String(rv?.goal ?? 10)); setGoalOpen(true); }} className="!min-h-0 text-[13px] text-muted underline underline-offset-2">{rv?.goal_set ? "Edit goal" : "Set goal"}</button>}
+                {isAdmin && <button type="button" onClick={() => { setGoalVal(String(rv?.goal ?? 10)); setGoalOpen(true); }} className="!min-h-0 max-sm:!min-h-11 text-[13px] text-muted underline underline-offset-2">{rv?.goal_set ? "Edit goal" : "Set goal"}</button>}
               </div>
               {rv && rv.goal ? <Pace count={rv.count ?? 0} goal={rv.goal} daysLeft={rv.days_left ?? 0} /> : null}
               <div className="w-full sm:w-auto">{pick ? <SendLink url={pick.url} name={tenant?.name ?? pick.name} label="Send review link" variant="brand" size="md" className="w-full sm:w-auto" /> : <LinkButton href="/gbp/campaigns" variant="brand" className="w-full sm:w-auto">Create a campaign</LinkButton>}</div>

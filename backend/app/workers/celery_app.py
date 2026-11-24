@@ -7,6 +7,9 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_default_retry_delay=60,
+    task_soft_time_limit=900,   # a task that runs 15 minutes is stuck (a hung network call): it gets a SoftTimeLimitExceeded it can clean up after...
+    task_time_limit=1200,       # ...and is killed at 20, so one stuck task can never hold a worker slot (concurrency is 2) for ever
+    worker_max_tasks_per_child=200,  # recycle each worker process now and then, so a slow memory leak cannot grow without limit
     timezone="UTC",
     beat_schedule={
         "sync-due-google-locations": {

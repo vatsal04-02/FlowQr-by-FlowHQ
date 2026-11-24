@@ -27,7 +27,7 @@ from app.services import account as account_svc
 from app.services.whatsapp import WaError, addons, connection, consent, gate, rules
 from app.services.whatsapp import webhook as wh
 from app.services.whatsapp.meta import MetaClient, MetaError, redact, set_meta_client
-from tests.conftest import make_business, owner_exec, owner_query
+from tests.conftest import head_revision, make_business, owner_exec, owner_query
 from tests.test_config_guard import good
 
 APP_SECRET = "s3cr3t-app-secret-for-tests-0123456789"
@@ -1061,8 +1061,8 @@ def test_the_migrations_are_two_steps_on_top_of_the_website_builder():
     cfg = Config()
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0067"] and script.get_revision("0067").down_revision == "0066" and script.get_revision("0066").down_revision == "0065" and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0063").down_revision == "0062" and script.get_revision("0062").down_revision == "0061" and script.get_revision("0061").down_revision == "0060" and script.get_revision("0060").down_revision == "0059" and script.get_revision("0059").down_revision == "0058" and script.get_revision("0058").down_revision == "0057" and script.get_revision("0057").down_revision == "0056" and script.get_revision("0056").down_revision == "0055" and script.get_revision("0055").down_revision == "0054" and script.get_revision("0054").down_revision == "0053" and script.get_revision("0053").down_revision == "0052" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert script.get_heads() == [head_revision()] and script.get_revision("0067").down_revision == "0066" and script.get_revision("0066").down_revision == "0065" and script.get_revision("0048").down_revision == "0047" and script.get_revision("0049").down_revision == "0048" and script.get_revision("0063").down_revision == "0062" and script.get_revision("0062").down_revision == "0061" and script.get_revision("0061").down_revision == "0060" and script.get_revision("0060").down_revision == "0059" and script.get_revision("0059").down_revision == "0058" and script.get_revision("0058").down_revision == "0057" and script.get_revision("0057").down_revision == "0056" and script.get_revision("0056").down_revision == "0055" and script.get_revision("0055").down_revision == "0054" and script.get_revision("0054").down_revision == "0053" and script.get_revision("0053").down_revision == "0052" and script.get_revision("0052").down_revision == "0051" and script.get_revision("0051").down_revision == "0050" and script.get_revision("0050").down_revision == "0049"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()
     tables = {r[0] for r in owner_query("SELECT tablename FROM pg_tables WHERE tablename LIKE 'whatsapp_%' OR tablename = 'tenant_addons'")}
     assert tables == {"whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
                       "whatsapp_rates", "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients", "whatsapp_optin_settings", "whatsapp_optin_keywords", "whatsapp_rate_verifications", "whatsapp_festivals", "whatsapp_festival_optins", "whatsapp_links", "whatsapp_link_clicks", "whatsapp_conversation_settings", "whatsapp_conversations", "whatsapp_conversation_messages",

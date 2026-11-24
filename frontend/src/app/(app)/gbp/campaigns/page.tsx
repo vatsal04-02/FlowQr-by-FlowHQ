@@ -85,7 +85,7 @@ export default function CampaignsPage() {
                 </dl>
                 <div className="flex items-center justify-between gap-2 border-t border-ink-100 px-4 py-2 text-xs text-ink-500">
                   <span>Created {timeAgo(c.created_at)}{!c.review_url_ready && <span className="ml-2 font-medium text-amber-800">No Google link</span>}</span>
-                  {isAdmin && c.status !== "archived" && <span className="flex items-center gap-1">{c.status === "active" && <SendLink url={c.url} name={c.name} />}<PosterDownload path={`/review-growth/campaigns/${c.id}/poster`} filename={`flowqr-${c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "campaign"}`} label="Poster" variant="ghost" /><a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`${API_V1}/review-growth/campaigns/${c.id}/qr.png`} download><Download className="h-3.5 w-3.5" aria-hidden />PNG</a></span>}
+                  {isAdmin && c.status !== "archived" && <span className="flex flex-wrap items-center gap-1">{c.status === "active" && <SendLink url={c.url} name={c.name} />}<PosterDownload path={`/review-growth/campaigns/${c.id}/poster`} filename={`flowqr-${c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "campaign"}`} label="Poster" variant="ghost" /><a className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-brand-700 hover:bg-brand-50 sm:min-h-7" href={`${API_V1}/review-growth/campaigns/${c.id}/qr.png`} download><Download className="h-3.5 w-3.5" aria-hidden />PNG</a></span>}
                 </div>
               </li>
             ))}

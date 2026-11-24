@@ -2,7 +2,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from tests.conftest import make_business, owner_exec, owner_query
+from tests.conftest import head_revision, make_business, owner_exec, owner_query
 from tests.test_migration_0037 import alembic
 
 
@@ -61,4 +61,4 @@ def test_existing_authorizations_stay_individual_and_the_downgrade_round_trips()
         assert "agency_account_name" in cols("google_agency_authorizations")  # 0061 is untouched
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()

@@ -2,7 +2,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from tests.conftest import make_business, owner_exec, owner_query
+from tests.conftest import head_revision, make_business, owner_exec, owner_query
 from tests.test_migration_0037 import alembic
 
 
@@ -44,4 +44,4 @@ def test_the_downgrade_removes_the_table_and_the_upgrade_restores_it():
     finally:
         alembic("upgrade", "head")
     assert owner_query("SELECT to_regclass('public.google_agency_tenant_grants')")[0][0] is not None
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()

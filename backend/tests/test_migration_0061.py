@@ -1,5 +1,5 @@
 """Migration 0061 (agency manager account): additive, protected, reversible, and every existing connection stays on its own token."""
-from tests.conftest import make_business, owner_query
+from tests.conftest import head_revision, make_business, owner_query
 from tests.test_migration_0037 import alembic
 
 
@@ -34,4 +34,4 @@ def test_existing_connections_default_to_the_clients_own_token_and_downgrade_rou
         assert not owner_query("SELECT to_regclass('public.google_agency_accounts')")[0][0]
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()

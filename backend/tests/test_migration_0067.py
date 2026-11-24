@@ -7,7 +7,7 @@ from alembic.script import ScriptDirectory
 
 from app.core.db import system_session
 from app.models import GoogleAgencyAuthorization as Auth
-from tests.conftest import make_business, owner_exec, owner_query
+from tests.conftest import head_revision, make_business, owner_exec, owner_query
 from tests.test_migration_0037 import alembic
 
 COLS = ("consent_actions", "notices_sent", "initial_sync_enqueued_at")
@@ -19,10 +19,10 @@ def _cols():
 
 def test_there_is_one_head_and_0067_sits_directly_on_0066_seo_v2():
     sd = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert sd.get_heads() == ["0067"]
+    assert sd.get_heads() == [head_revision()]
     assert sd.get_revision("0067").down_revision == "0066" and sd.get_revision("0066").down_revision == "0065"
     chain = [r.revision for r in sd.walk_revisions()]
-    assert chain[:3] == ["0067", "0066", "0065"] and len(chain) == len(set(chain))  # one linear chain, no revision id used twice
+    assert chain[chain.index("0067"):chain.index("0067") + 3] == ["0067", "0066", "0065"] and len(chain) == len(set(chain))  # one linear chain, no revision id used twice
 
 
 def test_the_three_columns_exist_and_the_only_required_one_has_a_default():
@@ -48,7 +48,7 @@ def test_downgrade_drops_exactly_those_columns_keeps_the_rows_and_the_upgrade_re
         assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0066"
     finally:
         alembic("upgrade", "head")
-    assert all(k in _cols() for k in COLS) and owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert all(k in _cols() for k in COLS) and owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()
     row = owner_query("SELECT consent_actions, notices_sent, initial_sync_enqueued_at FROM google_agency_authorizations WHERE id = :a", a=str(aid))[0]
     assert row[0] is None and row[1] == {} and row[2] is None  # an older row means "recorded under the earlier wording", nothing invented
     with closing(system_session()) as db:  # and the application model reads it

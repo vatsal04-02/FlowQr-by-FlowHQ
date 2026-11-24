@@ -1,4 +1,5 @@
 import { API_V1 } from "./config";
+import { forgetInFlight, shareGet, type Shared } from "./inflight";
 // Thin fetch wrapper. Same-origin (/api is proxied to FastAPI), HTTP-only session cookie, CSRF header from the
 // readable csrf cookie. Google/AI secrets never reach the browser.
 export class ApiError extends Error {
@@ -47,22 +48,25 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
     const t = csrfToken();
     if (t) headers["X-CSRF-Token"] = t;
   }
-  let res: Response;
-  try {
-    res = await fetch(`${API_V1}${path}${qs === "?" ? "" : qs}`, {
-      method, headers, credentials: "include", signal: opts.signal, keepalive: opts.keepalive,
-      body: opts.raw ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
-    });
-  } catch {
-    throw new ApiError(0, "Can't reach FlowQR right now. Check your connection and try again.");
-  }
-  if (res.status === 204) return undefined as T;
-  const text = await res.text();
+  const url = `${API_V1}${path}${qs === "?" ? "" : qs}`;
+  const init: RequestInit = { method, headers, credentials: "include", signal: opts.signal, keepalive: opts.keepalive, body: opts.raw ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined) };
+  const send = async (): Promise<Shared> => {
+    try { const r = await fetch(url, init); return { status: r.status, text: r.status === 204 ? "" : await r.text(), failed: false }; }
+    catch { return { status: 0, text: "", failed: true }; }
+  };
+  // Identical GETs made at the same moment share one request (lib/inflight.ts). Writes drop whatever is in flight before and after, so a refetch is always fresh.
+  const shared = method === "GET" && !opts.signal && !opts.keepalive;
+  if (method !== "GET") forgetInFlight();
+  const got = shared ? await shareGet(url + (opts.headers ? "|" + JSON.stringify(opts.headers) : ""), send) : await send(); // the key carries any caller-set headers, so a request scoped by header is never joined with another's
+  if (method !== "GET") forgetInFlight();
+  if (got.failed) throw new ApiError(0, "Can't reach FlowQR right now. Check your connection and try again.");
+  if (got.status === 204) return undefined as T;
+  const text = got.text;
   let data: unknown = undefined;
   try { data = text ? JSON.parse(text) : undefined; } catch { /* non-JSON */ }
-  if (!res.ok) {
+  if (got.status < 200 || got.status >= 300) {
     const detail = (data as { detail?: unknown } | undefined)?.detail ?? "Something went wrong. Please try again.";
-    throw new ApiError(res.status, detail);
+    throw new ApiError(got.status, detail);
   }
   return data as T;
 }

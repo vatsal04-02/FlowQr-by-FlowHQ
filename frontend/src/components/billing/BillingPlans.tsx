@@ -53,7 +53,7 @@ export function BillingPlans({ plans, terms, months, onMonths, shown, onShown, s
   plans: Plan[]; terms: PrepaidTerms; months: number; onMonths: (m: number) => void; shown: string; onShown: (code: string) => void;
   stateOf: (code: string) => CurrentState; endsOn: string | null; isOwner: boolean; locked: string | null; offers: PrepaidOffer[]; onChoose: (p: Plan, months: number) => void;
 }) {
-  const wide = useMedia("(min-width: 768px)");
+  const wide = useMedia("(min-width: 1100px)");
   const termId = useId(), planId = useId();
   const best = Math.max(0, ...plans.map((p) => termSaving(terms, p.code, months)?.percent ?? 0));
   return (
@@ -66,9 +66,9 @@ export function BillingPlans({ plans, terms, months, onMonths, shown, onShown, s
         {best > 0 ? <>Up to <b className="font-semibold text-m-ink">{best}% less</b> than paying month by month</> : "Pay one month at a time"}
       </p>
 
-      <Choice group={planId} label="Plan" value={shown} onChange={onShown} className="mt-5 md:hidden" options={plans.map((p) => ({ value: p.code, text: NAME[p.code] ?? p.name, hint: p.code === RECOMMENDED ? "Recommended" : undefined }))} />
+      <Choice group={planId} label="Plan" value={shown} onChange={onShown} className="mt-5 min-[1100px]:hidden" options={plans.map((p) => ({ value: p.code, text: NAME[p.code] ?? p.name, hint: p.code === RECOMMENDED ? "Recommended" : undefined }))} />
 
-      <div className="mt-5 grid grid-cols-1 items-start gap-4 md:mt-12 md:grid-cols-3 md:items-stretch">
+      <div className="mt-5 grid grid-cols-1 items-start gap-4 min-[1100px]:mt-12 min-[1100px]:grid-cols-3 min-[1100px]:items-stretch">
         {plans.map((p, i) => {
           const hot = p.code === RECOMMENDED;
           const offer = offers.find((o) => o.plan === p.code && o.months === months);
@@ -84,7 +84,7 @@ export function BillingPlans({ plans, terms, months, onMonths, shown, onShown, s
           if (total === null) return null;
           return (
             <PlanTile key={p.code} code={p.code} name={name} hot={hot} index={i} count={plans.length} wide={wide} badge={badge} paise={total}
-              className={p.code === shown ? "flex" : "hidden md:flex"}
+              className={p.code === shown ? "flex" : "hidden min-[1100px]:flex"}
               suffix={months === 1 ? "/ month" : `for ${monthsLabel(months)}`}
               fine={`${months === 1 ? "one payment, no auto-renewal" : `one payment for ${monthsLabel(months)}, no auto-renewal`} · + GST as applicable`}
               extra={offer ? <p className="mt-2 text-[13px] leading-snug text-m-ink2"><b className="font-semibold">{offer.label}</b> · normally {rupees(offer.list_price_paise)}</p>

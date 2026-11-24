@@ -99,9 +99,9 @@ def _asset_out(a: MarketingAsset, warnings: list[str] | None = None) -> dict:
     return out
 
 
-def _post_out(ctx: TenantContext, p: ScheduledPost, kb: dict) -> dict:
+def _post_out(ctx: TenantContext, p: ScheduledPost, kb: dict, titles: dict | None = None) -> dict:
     from app.api.v1 import posts as posts_api
-    return posts_api._out(ctx, p, kb)
+    return posts_api._out(ctx, p, kb, titles)
 
 
 def _campaign_out(c: MarketingCampaign, counts: dict | None = None) -> dict:
@@ -327,8 +327,10 @@ def _detail(ctx: TenantContext, c: MarketingCampaign, kb: dict | None = None) ->
     kb = kb or kbs.context(ctx.db, ctx.tenant)
     posts = ctx.db.scalars(select(ScheduledPost).where(ScheduledPost.campaign_id == c.id, ScheduledPost.tenant_id == ctx.tenant_id).order_by(func.coalesce(ScheduledPost.scheduled_for, ScheduledPost.suggested_for), ScheduledPost.created_at)).all()
     out = []
+    from app.api.v1 import posts as posts_api
+    titles = posts_api._titles(ctx, posts)
     for p in posts:
-        d = _post_out(ctx, p, kb)
+        d = _post_out(ctx, p, kb, titles)
         d.update({"campaign_id": str(p.campaign_id), "asset_id": str(p.asset_id) if p.asset_id else None, "keywords": p.keywords or [], "suggested_for": p.suggested_for,
                   "history": _history(ctx, p) if p.status in ("published", "failed", "scheduled", "publishing") else []})
         out.append(d)

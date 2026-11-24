@@ -1,5 +1,5 @@
 """Migration 0041 (temporary prepaid price overrides): additive, tenant-isolated, reversible, no existing row touched."""
-from tests.conftest import make_business, owner_query
+from tests.conftest import head_revision, make_business, owner_query
 from tests.test_migration_0037 import alembic
 
 
@@ -26,5 +26,5 @@ def test_downgrade_removes_only_the_new_pieces_and_keeps_every_order():
         assert owner_query("SELECT count(*) FROM prepaid_orders")[0][0] == before
     finally:
         alembic("upgrade", "head")
-    assert exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()
     assert biz.tenant_id

@@ -24,7 +24,7 @@ const PROTECTIONS = [
 
 const ERROR_HELP: Record<string, string> = {
   not_configured: "No API key or model is set on the server.",
-  auth: "The provider rejected the API key. Check OPENROUTER_API_KEY.",
+  auth: "The AI provider could not be reached with the saved credentials. Please tell FlowQR support.",
   forbidden: "The provider refused this model for your account or app (some free models are restricted). Pick another model.",
   credits: "The provider account has no credits for this model.",
   quota_exhausted: "The provider's daily request limit is reached (free accounts get a small daily quota). Add credits or choose another model.",

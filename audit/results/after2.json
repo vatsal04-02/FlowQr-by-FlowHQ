@@ -1,0 +1,146 @@
+{
+ "/auth/me": {
+  "status": 200,
+  "p50_ms": 24.7,
+  "p95_ms": 35.3,
+  "max_ms": 66.2,
+  "queries": 6,
+  "bytes": 975
+ },
+ "/locations": {
+  "status": 200,
+  "p50_ms": 28.8,
+  "p95_ms": 46.6,
+  "max_ms": 76.4,
+  "queries": 8,
+  "bytes": 247
+ },
+ "/google/status": {
+  "status": 200,
+  "p50_ms": 21.2,
+  "p95_ms": 30.0,
+  "max_ms": 32.8,
+  "queries": 9,
+  "bytes": 336
+ },
+ "/reviews": {
+  "status": 200,
+  "p50_ms": 41.2,
+  "p95_ms": 56.6,
+  "max_ms": 64.5,
+  "queries": 11,
+  "bytes": 9938
+ },
+ "/analytics/overview": {
+  "status": 200,
+  "p50_ms": 96.5,
+  "p95_ms": 155.2,
+  "max_ms": 211.4,
+  "queries": 31,
+  "bytes": 6106
+ },
+ "/analytics/growth-score": {
+  "status": 200,
+  "p50_ms": 57.3,
+  "p95_ms": 88.8,
+  "max_ms": 122.4,
+  "queries": 15,
+  "bytes": 1030
+ },
+ "/analytics/google-metrics": {
+  "status": 200,
+  "p50_ms": 66.5,
+  "p95_ms": 105.8,
+  "max_ms": 122.8,
+  "queries": 14,
+  "bytes": 6901
+ },
+ "/posts": {
+  "status": 200,
+  "p50_ms": 58.1,
+  "p95_ms": 71.0,
+  "max_ms": 81.8,
+  "queries": 10,
+  "bytes": 80549
+ },
+ "/posts/calendar": {
+  "status": 200,
+  "p50_ms": 32.4,
+  "p95_ms": 36.7,
+  "max_ms": 37.2,
+  "queries": 8,
+  "bytes": 75
+ },
+ "/marketing/overview": {
+  "status": 200,
+  "p50_ms": 33.0,
+  "p95_ms": 40.2,
+  "max_ms": 45.1,
+  "queries": 9,
+  "bytes": 127
+ },
+ "/marketing/campaigns": {
+  "status": 200,
+  "p50_ms": 37.4,
+  "p95_ms": 49.4,
+  "max_ms": 56.1,
+  "queries": 9,
+  "bytes": 572
+ },
+ "/agent/tasks": {
+  "status": 200,
+  "p50_ms": 60.7,
+  "p95_ms": 83.7,
+  "max_ms": 181.1,
+  "queries": 17,
+  "bytes": 71
+ },
+ "/agent/activity": {
+  "status": 200,
+  "p50_ms": 70.5,
+  "p95_ms": 90.8,
+  "max_ms": 130.8,
+  "queries": 19,
+  "bytes": 7141
+ },
+ "/cards": {
+  "status": 200,
+  "p50_ms": 28.1,
+  "p95_ms": 38.6,
+  "max_ms": 44.1,
+  "queries": 8,
+  "bytes": 2
+ },
+ "/review-growth/campaigns": {
+  "status": 200,
+  "p50_ms": 32.7,
+  "p95_ms": 50.6,
+  "max_ms": 61.4,
+  "queries": 11,
+  "bytes": 886
+ },
+ "/review-growth/analytics": {
+  "status": 200,
+  "p50_ms": 63.0,
+  "p95_ms": 97.5,
+  "max_ms": 127.3,
+  "queries": 17,
+  "bytes": 6042
+ },
+ "/staff": {
+  "status": 200,
+  "p50_ms": 40.8,
+  "p95_ms": 63.7,
+  "max_ms": 73.7,
+  "queries": 10,
+  "bytes": 186
+ },
+ "/seo/overview": {
+  "status": 200,
+  "p50_ms": 42.4,
+  "p95_ms": 51.5,
+  "max_ms": 55.8,
+  "queries": 13,
+  "bytes": 870
+ }
+}

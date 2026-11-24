@@ -161,7 +161,7 @@ def test_days_older_than_the_period_are_not_stored_while_retention_is_on_and_are
 
     seeded(connected, fake)
     gloc = owner_query("SELECT id FROM google_locations WHERE selected ORDER BY id LIMIT 1")[0][0]
-    series = {"CALL_CLICKS": [{"date": str(date.today() - timedelta(days=d)), "value": 2} for d in (3, 29, 31, 200)]}
+    series = {"CALL_CLICKS": [{"date": str(datetime.now(timezone.utc).date() - timedelta(days=d)), "value": 2} for d in (3, 29, 31, 200)]}
     from app.models import GoogleLocation as GL
 
     def record():

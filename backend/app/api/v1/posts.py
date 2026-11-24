@@ -110,10 +110,16 @@ def _post(ctx: TenantContext, pid: uuid.UUID, *, lock: bool = False) -> Schedule
     return p
 
 
-def _out(ctx: TenantContext, p: ScheduledPost, kb: dict | None = None) -> dict:
+def _titles(ctx: TenantContext, posts) -> dict:
+    """Location titles for a page of posts, in ONE query (a list of 100 posts used to run 100 of them)."""
+    ids = {p.google_location_id for p in posts}
+    return {g.id: g.title for g in ctx.db.scalars(select(GoogleLocation).where(GoogleLocation.id.in_(ids)))} if ids else {}
+
+
+def _out(ctx: TenantContext, p: ScheduledPost, kb: dict | None = None, titles: dict | None = None) -> dict:
     kb = kb or kbs.context(ctx.db, ctx.tenant)
-    gl = ctx.db.get(GoogleLocation, p.google_location_id)
-    return {"id": str(p.id), "google_location_id": str(p.google_location_id), "location_title": gl.title if gl else None, "summary": p.summary, "language": p.language,
+    gl = None if titles is not None else ctx.db.get(GoogleLocation, p.google_location_id)
+    return {"id": str(p.id), "google_location_id": str(p.google_location_id), "location_title": titles.get(p.google_location_id) if titles is not None else (gl.title if gl else None), "summary": p.summary, "language": p.language,
             "cta_type": p.cta_type, "cta_url": p.cta_url, "photo_url": p.photo_url, "status": p.status, "scheduled_for": p.scheduled_for, "next_attempt_at": p.next_attempt_at,
             "published_at": p.published_at, "google_post_name": p.google_post_name, "attempts": p.attempts, "failure_reason": p.failure_reason, "generated_by_ai": p.generated_by_ai,
             "approved_at": p.approved_at, "created_at": p.created_at, "violations": svc.validate_content(p, kb) if p.status in ("draft", "awaiting_approval", "failed", "approved") else [],
@@ -143,8 +149,9 @@ def list_posts(status: str | None = None, google_location_id: uuid.UUID | None =
         q = q.where(ScheduledPost.google_location_id == google_location_id)
     kb = kbs.context(ctx.db, ctx.tenant)
     rows = ctx.db.scalars(q).all()
+    titles = _titles(ctx, rows)
     ctx.db.commit()
-    return {"posts": [_out(ctx, p, kb) for p in rows], "timezone": ctx.tenant.timezone}
+    return {"posts": [_out(ctx, p, kb, titles) for p in rows], "timezone": ctx.tenant.timezone}
 
 
 @router.get("/calendar")

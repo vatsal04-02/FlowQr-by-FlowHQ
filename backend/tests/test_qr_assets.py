@@ -303,10 +303,10 @@ def test_inventory_filters_by_location_campaign_date_destination_and_nfc(admin, 
     assert ids(campaign_id=camp["id"]) == {cards[0]["id"]}
     assert ids(has_destination="true") == {cards[0]["id"]} and len(ids(has_destination="false")) == 3
     assert ids(nfc="programmed") == {cards[1]["id"]} and len(ids(nfc="not_programmed")) == 3
-    today = dt.date.today().isoformat()
+    today = dt.datetime.now(dt.timezone.utc).date().isoformat()
     assert len(ids(created_from=today, created_to=today)) == 4
-    assert ids(created_to=(dt.date.today() - dt.timedelta(days=2)).isoformat()) == set()
-    assert ids(created_from=(dt.date.today() + dt.timedelta(days=2)).isoformat()) == set()
+    assert ids(created_to=(dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=2)).isoformat()) == set()
+    assert ids(created_from=(dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=2)).isoformat()) == set()
     assert admin.get("/admin/cards", params={"nfc": "maybe"}).status_code == 422
 
 

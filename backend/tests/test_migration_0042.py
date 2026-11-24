@@ -1,5 +1,5 @@
 """Migration 0042 (card destinations, NFC status, richer scan events): additive, tenant-isolated, reversible, no existing card or event changed."""
-from tests.conftest import make_business, owner_query
+from tests.conftest import head_revision, make_business, owner_query
 from tests.test_migration_0037 import alembic
 
 
@@ -24,6 +24,6 @@ def test_downgrade_keeps_every_card_and_event_and_upgrade_restores_the_pieces():
         assert owner_query("SELECT (SELECT count(*) FROM qr_cards), (SELECT count(*) FROM scan_events), (SELECT md5(string_agg(public_token, ',' ORDER BY public_token)) FROM qr_cards)")[0] == before
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067" and "destination_url" in cols("qr_cards")
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision() and "destination_url" in cols("qr_cards")
     assert owner_query("SELECT count(*) FROM qr_cards WHERE destination_url IS NOT NULL")[0][0] == 0  # nothing existing was given a destination
     assert biz.tenant_id

@@ -4,7 +4,7 @@ import uuid
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from tests.conftest import make_business, owner_exec, owner_query
+from tests.conftest import head_revision, make_business, owner_exec, owner_query
 from tests.test_migration_0037 import alembic
 
 
@@ -51,5 +51,5 @@ def test_the_downgrade_cancels_the_new_statuses_removes_the_columns_and_the_upgr
         assert st == {"d1": "canceled", "d2": "canceled", "d3": "pending_approval"}  # nothing deleted; only the statuses the old schema cannot hold were changed
     finally:
         alembic("upgrade", "head")
-    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()
     assert {"validation_status", "validation"} <= {r[0] for r in owner_query("SELECT column_name FROM information_schema.columns WHERE table_name = 'agent_actions'")}

@@ -59,7 +59,7 @@ export function Bars({ data, goal, goalLabel, height = 168, label, unit = "revie
       <div aria-hidden className="ml-7 mt-1.5 flex justify-around gap-1 overflow-hidden">{data.map((d, i) => <span key={d.key} className="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center text-[12px] text-muted">{i % Math.max(1, Math.ceil(data.length / 5)) ? "" : d.label}</span>)}</div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         {hasPrev ? <p className="flex items-center gap-3 text-[13px] text-muted"><span className="flex items-center gap-1.5"><i aria-hidden className="h-2.5 w-2.5 rounded-[2px] bg-chart" />This period</span><span className="flex items-center gap-1.5">{asLine ? <i aria-hidden className="h-0 w-4 border-t-[1.75px] border-dashed border-ink-500" /> : <i aria-hidden className="h-2.5 w-2.5 rounded-[2px] border border-ink-400" />}{asLine ? "Period before" : "Before"}</span></p> : <span />}
-        <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 text-[13px] font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
+        <button type="button" onClick={() => setTable((t) => !t)} aria-expanded={table} className="!min-h-0 max-sm:!min-h-11 text-[13px] font-medium text-ink-600 underline underline-offset-2">{table ? "Hide table" : "Table"}</button>
       </div>
       {table && (
         <table className="mt-2 w-full text-left text-[13px]"><thead><tr className="text-muted"><th className="py-1 font-medium">Period</th><th className="py-1 text-right font-medium">This</th>{hasPrev && <th className="py-1 text-right font-medium">Before</th>}</tr></thead>

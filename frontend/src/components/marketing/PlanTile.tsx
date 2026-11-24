@@ -65,7 +65,7 @@ export function PlanTile({ code, name, hot, index, count, wide, badge, paise, su
         {points.map((pt, i) => (
           <li key={pt.text} className={clsx("items-start gap-2.5", i >= PHONE_POINTS && !open ? "hidden md:flex" : "flex")}>
             <Check className={clsx("mt-1 h-4 w-4 shrink-0 text-m-accentText", pt.soon && "opacity-40")} strokeWidth={2.25} aria-hidden />
-            <span>{pt.text}{pt.soon && <span className="ml-2 rounded-full bg-m-ink/10 px-2 py-0.5 text-[11px] font-semibold">Coming soon</span>}</span>
+            <span className="min-w-0">{pt.text}{pt.soon && <span className="ml-2 rounded-full bg-m-ink/10 px-2 py-0.5 text-[11px] font-semibold">Coming soon</span>}</span>
           </li>
         ))}
       </ul>

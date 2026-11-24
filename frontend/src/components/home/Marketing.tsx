@@ -27,7 +27,7 @@ export function MarketingBand() {
   const fresh = o.campaigns === 0 && o.generated_posts === 0;
   const stats: [string, number, string][] = [["Campaigns", o.campaigns, ""], ["To approve", o.awaiting_review, o.awaiting_review ? "text-warn" : ""], ["Scheduled", o.scheduled, ""], ["Published", o.published, o.published ? "text-pos" : ""]];
   return (
-    <Panel title="Google marketing" meta={<Link href="/gbp/studio" className="font-medium underline">Open Studio</Link>}>
+    <Panel title="Google marketing" meta={<Link href="/gbp/studio" className="inline-flex min-h-11 items-center font-medium underline sm:min-h-0">Open Studio</Link>}>
       {fresh ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-lg text-[14px] text-ink-700">Describe what you want to promote and FlowQR writes a week of Google posts for you to approve. Nothing goes live until you say so.</p>

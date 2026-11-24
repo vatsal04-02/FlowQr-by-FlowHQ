@@ -129,10 +129,11 @@ def test_heartbeat_is_unknown_not_healthy_when_redis_is_down(monkeypatch):
 def test_failed_jobs_show_until_they_succeed_again(redis):
     ops.record_task("flowqr.publish_due_posts", True)
     assert ops.check_task_failures()[0]["status"] == "ok"
+    time.sleep(0.05)  # Windows' clock ticks every ~15 ms: a failure in the same tick as the success would not count as "after" it
     ops.record_task("flowqr.publish_due_posts", False, "GoogleRateLimited")
     c = ops.check_task_failures()[0]
     assert c["status"] == "warn" and "publish_due_posts" in c["detail"] and "GoogleRateLimited" in c["detail"]
-    time.sleep(0.01)
+    time.sleep(0.05)
     ops.record_task("flowqr.publish_due_posts", True)
     assert ops.check_task_failures()[0]["status"] == "ok"
 

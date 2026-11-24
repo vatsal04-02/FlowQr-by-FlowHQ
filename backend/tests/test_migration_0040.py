@@ -1,7 +1,7 @@
 """Migration 0040 (prepaid orders): additive, tenant-isolated, reversible, and it touches no existing row."""
 import os
 
-from tests.conftest import make_business, owner_query
+from tests.conftest import head_revision, make_business, owner_query
 from tests.test_migration_0037 import alembic
 
 
@@ -29,6 +29,6 @@ def test_downgrade_removes_only_the_new_table_and_upgrade_restores_it_without_to
         assert owner_query("SELECT count(*), md5(string_agg(id::text || plan || status, ',' ORDER BY id::text)) FROM subscriptions")[0] == before
     finally:
         alembic("upgrade", "head")
-    assert table_exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == "0067"
+    assert table_exists() and owner_query("SELECT version_num FROM alembic_version")[0][0] == head_revision()
     assert owner_query("SELECT count(*), md5(string_agg(id::text || plan || status, ',' ORDER BY id::text)) FROM subscriptions")[0] == before
     assert biz.tenant_id
