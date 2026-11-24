@@ -161,11 +161,7 @@ def readiness(google_location_id: uuid.UUID | None = None, ctx: TenantContext = 
          "unknown": "Not checked yet: press Re-check on the Google connection page.", "ok": "Working."}.get(api, "Working."))
     add("location", "A selected business location", bool(gl and gl.selected) if gl else bool(ctx.db.scalar(select(func.count()).select_from(GoogleLocation).where(GoogleLocation.tenant_id == ctx.tenant_id, GoogleLocation.selected.is_(True)))),
         "Selected." , "/gbp/locations")
-    try:
-        get_provider()
-        ai = True
-    except AIUnavailable:
-        ai = False
+    ai = bool(settings.ai_configured)  # configuration only: nothing is sent to the provider
     add("ai", "AI writing is available", ai, "Ready." if ai else "No AI provider is configured on this server.")
     base = settings.api_public_url or ""
     add("photo_url", "A public address for post photos", base.startswith("https://"), "Photos can be attached." if base.startswith("https://") else "Posts can be published without photos only (API_PUBLIC_URL is not an https address).")

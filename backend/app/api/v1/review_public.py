@@ -20,6 +20,7 @@ from app.models import Location, RetiredCampaignId, ReviewCampaign, ReviewDraft,
 from app.models.base import utcnow
 from app.schemas.review_growth import ApproveIn, Customization, GenerateIn, HandoffIn, RedirectIn, RefineIn, RegenerateIn, SubmitIn
 from app.services import cards as cards_svc
+from app.services.agent import knowledge as kbs
 from app.services import review_growth as svc
 from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai.base import configured_identity
@@ -114,7 +115,7 @@ def landing(public_id: str, request: Request, db: Session = Depends(public_db)):
         "location": {"name": loc.name, "city": loc.city, "address": ", ".join(p for p in [loc.address_line, loc.city] if p) or None},
         "branding": {"brand_color": c.brand_color, "background": c.background, "welcome_message": c.welcome_message, "footer_message": c.footer_message},
         "generator": {"styles": c.allowed_styles, "default_style": c.default_style, "default_language": default_lang,
-                      "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": settings.review_max_drafts_per_session,
+                      "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": settings.review_max_ai_writes_per_session,
                       "max_input_chars": settings.public_ai_max_input_chars},
         "ai_available": settings.ai_configured and privacy.blocked_now() is None and not quota_exceeded(db, tenant.id, "review_generate") and ai_health.current() is None,
         "google_ready": bool(url),
@@ -139,6 +140,13 @@ RETRYABLE = {"rate_limited", "timeout", "provider_error", "bad_response", "tls",
 UNAVAILABLE_MESSAGE = "Writing help isn't available right now. You can write your review in your own words."
 
 
+def _require_ai_write(draft: ReviewDraft) -> None:
+    """Every customer visit gets a fixed number of AI-written versions (2 by default), however they ask for them. Checked BEFORE anything is changed or any model is called."""
+    n = settings.review_max_ai_writes_per_session
+    if (draft.ai_writes or 0) >= n:
+        raise HTTPException(status_code=429, detail=f"You've used your {n} AI-written versions. Tap Edit to change the text, or write your own words.")
+
+
 def _draft_payload(session: ReviewSession | None, draft: ReviewDraft | None, *, ai_status: str, message: str | None = None,
                    retryable: bool = False, language: str = "en") -> dict:
     """What the page needs after a generate/regenerate. `ai_status`: ok | manual | needs_more | rejected | unavailable.
@@ -147,7 +155,7 @@ def _draft_payload(session: ReviewSession | None, draft: ReviewDraft | None, *, 
     return {
         "session_id": session.session_identifier if session else None, "draft": draft.generated_content if draft else None,
         "ai_status": ai_status, "message": message, "retryable": retryable,
-        "generation_count": count, "remaining_drafts": max(0, settings.review_max_drafts_per_session - count),
+        "generation_count": count, "remaining_drafts": max(0, min(settings.review_max_drafts_per_session - count, settings.review_max_ai_writes_per_session - ((draft.ai_writes or 0) if draft else 0))),
         "style": session.style if session else None, "language": session.language if session else language, "disclaimer": DISCLAIMER,
     }
 
@@ -161,6 +169,28 @@ def _describing(words: tuple[str, ...], sentiment: str | None) -> str:
     if sentiment == "not_good":
         return f" Only if needed, you may negate one of: {', '.join(words)} (for example 'not explained clearly'). Never use them positively."
     return ""
+
+
+def recent_reviews(db: Session, tenant, campaign, session: ReviewSession, limit: int = 10) -> tuple[str, ...]:
+    """What other customers of this location were recently given, so each new review can be written to read differently (and is rejected if it is too close). Only drafts built from
+    stars and topics are used: a draft that contains someone's own typed words is never sent to the AI as an example for another customer."""
+    camp_ids = select(ReviewCampaign.id).where(ReviewCampaign.tenant_id == tenant.id, ReviewCampaign.location_id == campaign.location_id)
+    rows = db.execute(select(ReviewDraft.generated_content, ReviewSession.customer_input).join(ReviewSession, ReviewSession.id == ReviewDraft.session_id)
+                      .where(ReviewSession.tenant_id == tenant.id, ReviewSession.campaign_id.in_(camp_ids), ReviewDraft.session_id != session.id,
+                             ReviewDraft.generated_content.is_not(None)).order_by(ReviewDraft.updated_at.desc()).limit(limit * 3)).all()
+    out = [text for text, ci in rows if text and not (ci or {}).get("text") and not (ci or {}).get("details")]
+    return tuple(reversed(out[:limit]))
+
+
+def _context_with_voice(db: Session, tenant, bctx) -> str:
+    """The business context for the writer, plus the owner's saved brand tone when there is one (tone only: it adds no facts about the customer's visit)."""
+    block = bctx.prompt_block()
+    try:
+        voice = (kbs.context(db, tenant).get("brand_voice") or "").strip()
+    except Exception:
+        voice = ""
+    voice = " ".join(voice.split())[:120]
+    return block + (f"\nOwner's preferred tone (wording style only, never facts): {voice}." if voice else "")
 
 
 def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, draft: ReviewDraft, *, ip: str, ua: str | None, refine: bool = False) -> dict:
@@ -178,6 +208,7 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
                       topic_ok=tuple(w for _, m in meanings if m for w in m.words) if sentiment != "okay" else (),  # a neutral review uses no describing words at all
                       topic_hi=tuple(t.hi for t in chosen))
     previous = () if refine else tuple(p for p in (draft.generated_content,) if p)
+    recent = recent_reviews(db, tenant, campaign, session)
     first = draft.generation_count == 0
 
     provider = None
@@ -203,8 +234,8 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
     try:
         provider = metered(get_provider(), db, tenant.id, "review_generate")
         text = generate_review(provider, inp, language=session.language, style=session.style, business_name=tenant.name,
-                               category=tenant.category, location_name=loc.name, previous=previous,
-                               context_text=bctx.prompt_block(), offered_terms=bctx.offered_terms(), stats=stats)
+                               category=tenant.category, location_name=loc.name, previous=previous, recent=recent,
+                               context_text=_context_with_voice(db, tenant, bctx), offered_terms=bctx.offered_terms(), stats=stats)
     except NeedsMoreDetail:
         log("needs_more")
         svc.record_event(db, campaign, "needs_more", ip=ip, ua=ua, session=session)
@@ -219,6 +250,7 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
 
     ai_health.clear()
     draft.generated_content, draft.ai_assisted = text, True
+    draft.ai_writes = (draft.ai_writes or 0) + 1  # a version the customer actually received (a failed attempt never gets here)
     log("ok", None, len(text))
     if first or not refine:  # a refinement after the first draft is neither a new draft nor a "Regenerate" in the numbers
         draft.generation_count += 1
@@ -295,6 +327,7 @@ def regenerate(public_id: str, body: RegenerateIn, request: Request, db: Session
     draft = db.scalar(select(ReviewDraft).where(ReviewDraft.session_id == session.id))
     if draft.approved_at:
         raise HTTPException(status_code=409, detail="You've already confirmed your review.")
+    _require_ai_write(draft)
     if draft.generation_count >= settings.review_max_drafts_per_session:
         raise HTTPException(status_code=429, detail=f"You've used all {settings.review_max_drafts_per_session} drafts. Please edit the one you like best.")
     c = Customization.model_validate(campaign.customization or {})
@@ -313,6 +346,7 @@ def refine(public_id: str, body: RefineIn, request: Request, db: Session = Depen
     campaign, tenant, loc = _live(db, public_id)
     session = _session(db, campaign, body.session_id)
     draft = db.scalar(select(ReviewDraft).where(ReviewDraft.session_id == session.id))
+    _require_ai_write(draft)
     ci = dict(session.customer_input or {})
     if int(ci.get("refinements") or 0) >= settings.review_max_refinements:
         raise HTTPException(status_code=429, detail="You've changed your answers a lot. Please edit the text directly, or write your own review.")

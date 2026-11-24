@@ -238,6 +238,7 @@ class Settings(BaseSettings):
     grievance_officer_name: str = ""  # GRIEVANCE_OFFICER_NAME: person or title who answers privacy questions and complaints (DPDP Rules: published contact); empty = pages say "our support team"
     review_session_retention_days: int = 90  # customer answers/drafts are deleted after this; aggregate analytics are kept
     review_max_drafts_per_session: int = 5  # 1 generation + 4 regenerations
+    review_max_ai_writes_per_session: int = 2  # REVIEW_MAX_AI_WRITES_PER_SESSION: the most AI-written versions ONE customer visit can ever get, counting the first write, every "New version" and every rewrite after changing picks
     review_max_refinements: int = 15  # times a customer can change stars/topics and have the draft rewritten in one session (the page does this automatically)
     # Direct submission to Google from inside FlowQR. NOT AVAILABLE: needs Google partner/API approval that is not publicly obtainable (docs/GOOGLE_DIRECT_REVIEWS.md).
     # Even "approved" does nothing until a real, verified implementation is registered in services/review_submit/google_direct.py.

@@ -6,6 +6,12 @@ from tests.conftest import owner_query
 from tests.test_review_growth import StubLLM, campaign, llm, pub  # noqa: F401  (llm = fixture)
 from tests.test_review_context import biz  # noqa: F401
 
+@pytest.fixture(autouse=True)
+def _no_cross_customer_check(monkeypatch):
+    """These tests hand every simulated customer the same scripted text. The "no two customers get the same review" rule has its own tests (tests/test_review_unique.py)."""
+    monkeypatch.setattr("app.api.v1.review_public.recent_reviews", lambda *a, **k: ())
+
+
 
 def go(client, c, **body):
     return pub(client, "POST", c["public_id"], "/generate", json={"language": "en", **body})
