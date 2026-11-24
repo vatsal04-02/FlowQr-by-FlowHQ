@@ -1,6 +1,6 @@
 # Google Marketing Studio: audit, permission report and release notes
 
-Date: 2026-11-24. Base: production commit 8d4bc62 (migration head 0067). Branch `feature/google-marketing-studio`, local only: **not pushed, not deployed**.
+Date: 2026-11-24. Base: production commit 8d4bc62 (migration head 0067). **DEPLOYED 2026-11-24**: backend `prod-5f1d580` (alembic 0068), Vercel `flowqr-kzgu4hheg`; pushed to `feature/google-marketing-studio` and `release/ui-premium` (fast-forward). Rollback: `FLOWQR_TAG=prod-8d4bc62`, restore `deploy/vps/docker-compose.vps.yml.prev`, `up -d --no-deps api worker beat` with both compose files (0068 is additive); frontend previous deploy `flowqr-r5s4ltnmw`. Backups `/opt/flowqr/backups/*pre-gms-20261124113730*`. `API_PUBLIC_URL=https://api.flowqr.site` was set and added to the overlay (this also turns on the one-click Unsubscribe mail header).
 
 ## 1. What already existed (and was reused, not rebuilt)
 
@@ -49,7 +49,7 @@ Today's live check: `google-smoke` against the local dev connection stopped at t
 
 ## 4. Can FlowQR publish Google Business Profile posts right now?
 
-**NO, not proven.** The code path is complete and tested against doubles, and reads against real Google work, but a `localPosts.create` has never run live, and customer tokens expire after 7 days while the consent screen is in Testing. Publishing is also gated by a platform-wide emergency stop that was still **on** in production as of 2026-11-23.
+**NO, not proven.** The code path is complete and tested against doubles, and reads against real Google work, but a `localPosts.create` has never run live, and customer tokens expire after 7 days while the consent screen is in Testing. The platform emergency stop was checked after deploy and is **off** (setting false, no database stop), so nothing but the missing live proof holds publishing back.
 
 ## 5. Tests
 
@@ -61,9 +61,8 @@ Today's live check: `google-smoke` against the local dev connection stopped at t
 ## 6. Manual actions required (yours)
 
 1. Google Cloud Console: set the OAuth consent screen to **In production** and complete verification for the sensitive `business.manage` scope (otherwise every customer reconnects weekly).
-2. Set `API_PUBLIC_URL=https://api.flowqr.site` in `.env` **and** in `deploy/vps/docker-compose.vps.yml` (env vars reach the app only if listed in the overlay).
+2. (Done at deploy.) `API_PUBLIC_URL` is set and in the overlay.
 3. After deploying, publish ONE supervised test post to the FlowHQ-owned profile (`locations/6589197820321114990`), including one with a photo; check it on Google. Until then treat publishing as unproven.
-4. Decide when to lift `AUTONOMY_EMERGENCY_STOP` (it holds all publishing).
 5. Customers must reconnect Google (the paid customer's connection is revoked).
 6. Privacy text: post photos are served from a public URL by design; mention it in the privacy notice (lawyer review pending as for other drafts).
 
