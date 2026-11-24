@@ -12,7 +12,7 @@ interface Landing {
   business: { name: string; category: string | null; logo_url: string | null };
   location: { name: string; city: string | null; address: string | null };
   branding: { brand_color: string; background: Background; welcome_message: string | null; footer_message: string | null };
-  generator: { default_language: Lang; languages: Lang[]; max_input_chars: number };
+  generator: { default_language: Lang; languages: Lang[]; max_input_chars: number; max_drafts?: number };
   suggestions: Topic[];
   ai_available: boolean; google_ready: boolean; review_url: string | null; review_url_kind: string;
   submission?: { mode: "handoff" | "direct" }; // "handoff" today: Google offers no public way to submit a review for a customer
@@ -91,6 +91,8 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const [short, setShort] = useState(false);
   const [ready, setReady] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [left, setLeft] = useState<number | null>(null);  // AI-written versions this visit still has (the server allows 2 in total and says how many are left)
+  const writtenKey = useRef("");                         // the stars/topics/language the current AI text was written from
   useEffect(() => { const on = () => setOffline(false), off = () => setOffline(true); setOffline(!navigator.onLine); window.addEventListener("online", on); window.addEventListener("offline", off); return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); }; }, []);
   const [consent, setConsent] = useState(false);       // direct submission only: explicit consent to submit exactly this text
   const [submitState, setSubmitState] = useState<null | "sending" | "done" | "failed">(null);
@@ -190,6 +192,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
         if (!replaceEdits && textRef.current !== before) { setAsk(true); return; } // they typed while we were writing: never overwrite
         if (mine) setUndo(before); else setUndo(null);
         setText(r.draft); setAiText(r.draft); setOrigin("refined"); setFollowUp(r.follow_up ?? null); setHandoff(null); trackCard("ai_assist");
+        writtenKey.current = `${rating ?? ""}|${[...picked].sort().join(",")}|${lang}`; setLeft(r.remaining_drafts);
       } else if (r.ai_status === "needs_more") setNotice({ tone: "info", text: t.askMore });
       else if (r.ai_status === "rejected") setNotice({ tone: "error", text: t.rejected, retry: () => void refine(false) });
       else if (r.retryable) setNotice({ tone: "error", text: t.retryMsg, retry: () => void refine(false) });
@@ -197,7 +200,8 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
     } catch (e) {
       if (id !== req.current) return;
       const s = e instanceof ApiError ? e.status : 0;
-      if (s === 429 || s === 403) setNotice({ tone: "info", text: t.aiBusy });
+      if (s === 429) { setLeft(0); setNotice({ tone: "info", text: t.usedUp }); }
+      else if (s === 403) setNotice({ tone: "info", text: t.aiBusy });
       else setNotice({ tone: "error", text: t.retryMsg, retry: () => void refine(false) });
     } finally { if (id === req.current) setLoading(null); }
   }, [rating, picked, lang, campaignId, t]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -210,12 +214,12 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
     if (selKey === lastKey.current) return;
     const id = setTimeout(() => {
       lastKey.current = selKey;
-      if (rating !== null && picked.length > 0) {
-        if (edited()) { if (dismissed.current !== selKey) setAsk(true); } else void refine(false);
-      }
-    }, 600);
+      // Only the FIRST write is automatic (after they stop tapping). A customer visit gets 2 AI versions in total, so a change after that waits for them to tap "New version"
+      // instead of quietly using the allowance up one chip at a time.
+      if (rating !== null && picked.length > 0 && !aiRef.current.trim() && !edited() && (left === null || left > 0)) void refine(false);
+    }, 1400);
     return () => clearTimeout(id);
-  }, [selKey, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selKey, ready, left]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------- the one tap
   function onCopyContinue(e: React.MouseEvent<HTMLAnchorElement>) {
@@ -274,14 +278,18 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
     pickRating(n);
     requestAnimationFrame(() => starsRef.current?.querySelectorAll<HTMLElement>("[role=radio]")[n - 1]?.focus());
   }
-  async function another() { // a different wording of the same thing, only offered while the box holds untouched AI text
-    if (!sessionRef.current) return;
+  async function another() { // the second (and last) AI version: from their changed picks if they changed them, otherwise a different wording of the same thing
+    if (!sessionRef.current || (left !== null && left <= 0)) return;
+    if (selKey !== writtenKey.current) { void refine(true); return; }
     setLoading("refine"); setNotice(null);
     try {
       const r = await post<DraftResp>(campaignId, "/regenerate", { session_id: sessionRef.current, language: lang });
-      if (r.ai_status === "ok" && r.draft) { setText(r.draft); setAiText(r.draft); setFollowUp(r.follow_up ?? null); }
+      if (r.ai_status === "ok" && r.draft) { setText(r.draft); setAiText(r.draft); setFollowUp(r.follow_up ?? null); setLeft(r.remaining_drafts); }
       else setNotice({ tone: "info", text: t.noOther });
-    } catch (e) { setNotice({ tone: "info", text: e instanceof ApiError && e.status === 429 ? t.noMoreRewrites : t.retryMsg }); } finally { setLoading(null); }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 429) { setLeft(0); setNotice({ tone: "info", text: t.usedUp }); }
+      else setNotice({ tone: "info", text: t.retryMsg });
+    } finally { setLoading(null); }
   }
 
   if (fail) {
@@ -319,7 +327,9 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const blocked = rating === null;  // the spec: the button waits for a rating
   const ctaCls = clsx(btn, ring, "rv-cta group !min-h-[52px] !rounded-2xl !px-4 !text-[15px] !font-extrabold text-[var(--on-brand)] active:!scale-[.98] disabled:cursor-not-allowed", blocked ? "rv-cta-off opacity-[.55]" : !ready2go && "opacity-80");
   const hasText = text.trim().length > 0;
-  const showNew = !busy && origin !== "none" && !isEdited && hasText;
+  const noneLeft = left !== null && left <= 0;
+  const picksChanged = !!writtenKey.current && selKey !== writtenKey.current;
+  const showNew = !busy && origin !== "none" && !isEdited && hasText && !noneLeft;
   const GOLD = "#F5A524";
 
   return (
@@ -430,7 +440,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
                 {text.length > max * 0.85 && <span className="float-right tabular-nums">{text.length}/{max}</span>}
               </div>
               <div className="mt-1 flex items-center justify-between gap-3 text-sm">
-                <span className="text-[12.5px] text-ink-500">{chips.length > 0 && !isEdited ? t.liveNote : ""}</span>
+                <span className="min-w-0 flex-1 text-[12.5px] leading-snug text-ink-500" aria-live="polite">{noneLeft && origin !== "none" ? t.usedUp : picksChanged && !noneLeft && !isEdited ? t.changed : ""}</span>
                 <div className="flex items-center gap-3">
                   {!busy && undo && <button type="button" onClick={() => { setText(undo); setUndo(null); setOrigin("none"); }} className="min-h-11 text-[13.5px] font-bold text-[#171A45] hover:underline">{t.undo}</button>}
                   {!busy && isEdited && aiText.trim() && !undo && <button type="button" onClick={() => { setText(aiText); setOrigin("refined"); setShort(false); }} className="min-h-11 text-[13.5px] font-bold text-[#9A3412] hover:underline">{t.reset}</button>}

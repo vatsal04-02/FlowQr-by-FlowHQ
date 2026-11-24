@@ -115,7 +115,7 @@ def landing(public_id: str, request: Request, db: Session = Depends(public_db)):
         "location": {"name": loc.name, "city": loc.city, "address": ", ".join(p for p in [loc.address_line, loc.city] if p) or None},
         "branding": {"brand_color": c.brand_color, "background": c.background, "welcome_message": c.welcome_message, "footer_message": c.footer_message},
         "generator": {"styles": c.allowed_styles, "default_style": c.default_style, "default_language": default_lang,
-                      "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": settings.review_max_drafts_per_session,
+                      "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": settings.review_max_ai_writes_per_session,
                       "max_input_chars": settings.public_ai_max_input_chars},
         "ai_available": settings.ai_configured and privacy.blocked_now() is None and not quota_exceeded(db, tenant.id, "review_generate") and ai_health.current() is None,
         "google_ready": bool(url),
@@ -140,6 +140,13 @@ RETRYABLE = {"rate_limited", "timeout", "provider_error", "bad_response", "tls",
 UNAVAILABLE_MESSAGE = "Writing help isn't available right now. You can write your review in your own words."
 
 
+def _require_ai_write(draft: ReviewDraft) -> None:
+    """Every customer visit gets a fixed number of AI-written versions (2 by default), however they ask for them. Checked BEFORE anything is changed or any model is called."""
+    n = settings.review_max_ai_writes_per_session
+    if (draft.ai_writes or 0) >= n:
+        raise HTTPException(status_code=429, detail=f"You've used your {n} AI-written versions. Tap Edit to change the text, or write your own words.")
+
+
 def _draft_payload(session: ReviewSession | None, draft: ReviewDraft | None, *, ai_status: str, message: str | None = None,
                    retryable: bool = False, language: str = "en") -> dict:
     """What the page needs after a generate/regenerate. `ai_status`: ok | manual | needs_more | rejected | unavailable.
@@ -148,7 +155,7 @@ def _draft_payload(session: ReviewSession | None, draft: ReviewDraft | None, *, 
     return {
         "session_id": session.session_identifier if session else None, "draft": draft.generated_content if draft else None,
         "ai_status": ai_status, "message": message, "retryable": retryable,
-        "generation_count": count, "remaining_drafts": max(0, settings.review_max_drafts_per_session - count),
+        "generation_count": count, "remaining_drafts": max(0, min(settings.review_max_drafts_per_session - count, settings.review_max_ai_writes_per_session - ((draft.ai_writes or 0) if draft else 0))),
         "style": session.style if session else None, "language": session.language if session else language, "disclaimer": DISCLAIMER,
     }
 
@@ -243,6 +250,7 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
 
     ai_health.clear()
     draft.generated_content, draft.ai_assisted = text, True
+    draft.ai_writes = (draft.ai_writes or 0) + 1  # a version the customer actually received (a failed attempt never gets here)
     log("ok", None, len(text))
     if first or not refine:  # a refinement after the first draft is neither a new draft nor a "Regenerate" in the numbers
         draft.generation_count += 1
@@ -319,6 +327,7 @@ def regenerate(public_id: str, body: RegenerateIn, request: Request, db: Session
     draft = db.scalar(select(ReviewDraft).where(ReviewDraft.session_id == session.id))
     if draft.approved_at:
         raise HTTPException(status_code=409, detail="You've already confirmed your review.")
+    _require_ai_write(draft)
     if draft.generation_count >= settings.review_max_drafts_per_session:
         raise HTTPException(status_code=429, detail=f"You've used all {settings.review_max_drafts_per_session} drafts. Please edit the one you like best.")
     c = Customization.model_validate(campaign.customization or {})
@@ -337,6 +346,7 @@ def refine(public_id: str, body: RefineIn, request: Request, db: Session = Depen
     campaign, tenant, loc = _live(db, public_id)
     session = _session(db, campaign, body.session_id)
     draft = db.scalar(select(ReviewDraft).where(ReviewDraft.session_id == session.id))
+    _require_ai_write(draft)
     ci = dict(session.customer_input or {})
     if int(ci.get("refinements") or 0) >= settings.review_max_refinements:
         raise HTTPException(status_code=429, detail="You've changed your answers a lot. Please edit the text directly, or write your own review.")

@@ -26,7 +26,7 @@ export interface Copy {
   copiedH: string; copiedSub: string; copyFailedH: string; copyFailedSub: string; copyAgain: string; openAgain: string; copyBtn: string; copied: string; welcomeBack: string;
   refineQ: string; refineYes: string; refineNo: string; followUp: string; followUpBtn: string;
   trust: [string, string, string]; submit: string; submitting: string; submitHint: string; consentLabel: string; submittedH: string; submittedSub: string; submitFailedH: string; submitFailedSub: string; orHandoff: string;
-  reset: string; offline: string; quick: string; liveNote: string; editBtn: string; reviewLang: string; emptyCard: string; poweredBy: string;
+  changed: string; usedUp: string; reset: string; offline: string; quick: string; liveNote: string; editBtn: string; reviewLang: string; emptyCard: string; poweredBy: string;
   retryMsg: string; rejected: string; tryAgain: string; aiDown: string; aiBusy: string; noOther: string; noMoreRewrites: string; noLink: string;
 }
 export const COPY: Record<Lang, Copy> = {
@@ -51,7 +51,7 @@ export const COPY: Record<Lang, Copy> = {
     trust: ["Takes under a minute", "No sign-up or personal details", "You stay in control"], submit: "Submit review", submitting: "Submitting…", submitHint: "Your review is sent to Google as you see it above.",
     consentLabel: "I confirm this reflects my own experience, and I agree to submit exactly this review to Google.", submittedH: "Your review was submitted to Google.", submittedSub: "Thank you. Google may take a little while to show it.",
     submitFailedH: "We couldn't submit it from here.", submitFailedSub: "Your review is safe below. Copy it and post it on Google yourself.", orHandoff: "Prefer to post it yourself? Copy & open Google",
-    reset: "Reset to AI version", offline: "No connection. Reconnect to write your review.", quick: "Takes 10 seconds. No typing.", liveNote: "Changes as you tap", editBtn: "Edit", reviewLang: "Review language", emptyCard: "Your review will appear here.", poweredBy: "Powered by",
+    changed: "You changed your picks. Tap New version to rewrite your review.", usedUp: "You have used both AI versions. Tap Edit to change anything yourself.", reset: "Reset to AI version", offline: "No connection. Reconnect to write your review.", quick: "Takes 10 seconds. No typing.", liveNote: "Changes as you tap", editBtn: "Edit", reviewLang: "Review language", emptyCard: "Your review will appear here.", poweredBy: "Powered by",
     retryMsg: "The AI helper is busy. Try again in a moment, or tap Edit to write your own.", tryAgain: "Try again",
     rejected: "We couldn't put that into words without adding things you didn't say. Please try again, or write it yourself.",
     aiDown: "Our writing helper isn't available right now, so please write your review in your own words below.",
@@ -81,7 +81,7 @@ export const COPY: Record<Lang, Copy> = {
     trust: ["एक मिनट से भी कम", "साइन-अप या निजी जानकारी नहीं", "नियंत्रण आपके हाथ में"], submit: "रिव्यू सबमिट करें", submitting: "सबमिट हो रहा है…", submitHint: "आपका रिव्यू वैसा ही Google को भेजा जाएगा जैसा ऊपर दिख रहा है।",
     consentLabel: "मैं पुष्टि करता/करती हूँ कि यह मेरे अपने अनुभव को दर्शाता है, और यही रिव्यू Google को सबमिट करने के लिए सहमत हूँ।", submittedH: "आपका रिव्यू Google को सबमिट हो गया।", submittedSub: "धन्यवाद। Google को इसे दिखाने में थोड़ा समय लग सकता है।",
     submitFailedH: "यहाँ से सबमिट नहीं हो सका।", submitFailedSub: "आपका रिव्यू नीचे सुरक्षित है। उसे कॉपी करके Google पर खुद पोस्ट करें।", orHandoff: "खुद पोस्ट करना चाहते हैं? कॉपी करें और Google खोलें",
-    reset: "AI वाला रूप वापस लाएँ", offline: "इंटरनेट नहीं है। रिव्यू लिखने के लिए दोबारा जुड़ें।", quick: "सिर्फ़ 10 सेकंड। टाइप करने की ज़रूरत नहीं।", liveNote: "टैप करते ही बदलता है", editBtn: "बदलें", reviewLang: "रिव्यू की भाषा", emptyCard: "आपका रिव्यू यहाँ दिखेगा।", poweredBy: "संचालित:",
+    changed: "आपने चुनाव बदले हैं। रिव्यू दोबारा लिखवाने के लिए नया रूप दबाएँ।", usedUp: "AI के दोनों रूप इस्तेमाल हो चुके हैं। कुछ बदलना हो तो बदलें दबाएँ।", reset: "AI वाला रूप वापस लाएँ", offline: "इंटरनेट नहीं है। रिव्यू लिखने के लिए दोबारा जुड़ें।", quick: "सिर्फ़ 10 सेकंड। टाइप करने की ज़रूरत नहीं।", liveNote: "टैप करते ही बदलता है", editBtn: "बदलें", reviewLang: "रिव्यू की भाषा", emptyCard: "आपका रिव्यू यहाँ दिखेगा।", poweredBy: "संचालित:",
     retryMsg: "अभी यह नहीं लिखा जा सका। कृपया दोबारा कोशिश करें, या खुद लिखें।", tryAgain: "दोबारा कोशिश करें",
     rejected: "आपके कहे से हटकर कुछ जोड़े बिना इसे नहीं लिखा जा सका। कृपया दोबारा कोशिश करें, या खुद लिखें।",
     aiDown: "लिखने वाला सहायक अभी उपलब्ध नहीं है, इसलिए कृपया नीचे अपने शब्दों में अपना रिव्यू लिखें।",
