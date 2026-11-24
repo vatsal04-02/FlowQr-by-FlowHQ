@@ -222,7 +222,7 @@ def test_destination_changes_apply_to_the_same_printed_code_and_need_confirmatio
     r = biz_a.patch(f"/cards/{card['id']}", json={"location_id": second, "confirm": True})
     assert r.status_code == 200 and r.json()["location_id"] == second and r.json()["campaign_id"] is None  # the campaign belonged to the old location
     body = scan(client, card, "qr", UA2)
-    assert body["location"]["name"] == "Aliganj" and body["campaign"] is None and body["review_url"] == "https://g.page/r/NEW/review"  # immediately, no reprint
+    assert body["location"]["name"] == "Aliganj" and body["campaign"] is not None and body["review_url"] == "https://g.page/r/NEW/review"  # immediately, no reprint; a card with no campaign opens its new location's default review page
     assert (r.json()["url"], r.json()["nfc_url"]) == (card["url"], card["nfc_url"])
 
     camp2 = biz_a.post("/review-growth/campaigns", json={"name": "Aliganj desk", "location_id": second}).json()

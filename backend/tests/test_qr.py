@@ -630,11 +630,15 @@ def test_a_destination_that_would_break_the_code_is_refused(biz_a, cards, client
 def test_deactivating_a_location_with_live_codes_needs_explicit_confirmation(biz_a, cards, client):
     c = campaign(biz_a)
     loc = biz_a.location_id
+    # campaigns that would stop: the owner's own, plus the location's automatic default review page, which only exists once a plain card there has been scanned (the first check comes
+    # before any scan; the check's own "_resolves" below is a scan, so every later one counts it)
+    expected_campaigns = 1
     for call in (lambda **kw: biz_a.delete(f"/locations/{loc}", **kw), lambda **kw: biz_a.patch(f"/locations/{loc}", json={"is_active": False}, **kw)):
         r = call()
         assert r.status_code == 409 and r.json()["detail"]["code"] == "codes_would_stop"
-        assert (r.json()["detail"]["cards"], r.json()["detail"]["campaigns"]) == (3, 1) and "3 card(s) and 1 QR campaign(s)" in r.json()["detail"]["message"]
+        assert (r.json()["detail"]["cards"], r.json()["detail"]["campaigns"]) == (3, expected_campaigns) and f"3 card(s) and {expected_campaigns} QR campaign(s)" in r.json()["detail"]["message"]
         assert biz_a.get(f"/locations/{loc}").json()["is_active"] is True and _resolves(client, card=cards[0]) == "ok"  # nothing happened
+        expected_campaigns = 2
     assert biz_a.patch(f"/locations/{loc}", json={"name": "Just a rename"}).status_code == 200  # ordinary edits never ask
     assert biz_a.delete(f"/locations/{loc}", params={"confirm": "true"}).status_code == 204
     assert _resolves(client, card=cards[0]) == "inactive" and _resolves(client, campaign=c) == "inactive"
@@ -644,4 +648,4 @@ def test_deactivating_a_location_with_live_codes_needs_explicit_confirmation(biz
     rate_limit.reset_memory_limits()
     assert _resolves(client, card=cards[0]) == "ok" and _resolves(client, campaign=c) == "ok"
     meta = owner_query("SELECT metadata->'codes_stopped' FROM audit_logs WHERE tenant_id = :t AND action = 'location.deactivate'", t=biz_a.tenant_id)
-    assert meta == [({"cards": 3, "campaigns": 1},)]
+    assert meta == [({"cards": 3, "campaigns": 2},)]

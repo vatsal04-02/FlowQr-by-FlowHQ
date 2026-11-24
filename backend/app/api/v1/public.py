@@ -14,7 +14,10 @@ from app.core.rate_limit import client_ip, hit, limit_by_ip, note_miss
 from app.models import CardStatus, Location, QRCard, ReviewCampaign, ScanEvent, ScanEventType, Tenant
 from app.models.base import utcnow
 from app.schemas.cards import TrackEventIn
+from app.schemas.review_growth import Customization
 from app.services import cards as svc
+from app.services import review_growth as rg_svc
+from app.services.audit import audit
 from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai import health as ai_health
 from app.services.ai.review_assist import improve_review
@@ -49,6 +52,24 @@ def _fallback(state: str, reason: str | None = None) -> dict:
 
 def _channel(value: str | None) -> str | None:
     return value if value in svc.CHANNELS else None
+
+
+DEFAULT_CAMPAIGN_NAME = "Default review page"
+
+
+def _default_campaign(db: Session, card: QRCard, tenant: Tenant, location: Location) -> ReviewCampaign | None:
+    """A live card that no campaign was ever chosen for still gets the one-tap review page (stars, "what stood out", a review written from the picks): the location's default review
+    page, made once and then reused by every such card at that location. A campaign the owner paused or archived is NEVER replaced (the card shows the plain page, as before): that
+    was their choice. Serialised on the location row so two scans at once cannot make two."""
+    db.execute(select(Location.id).where(Location.id == location.id).with_for_update()).first()
+    camp = db.scalar(select(ReviewCampaign).where(ReviewCampaign.tenant_id == tenant.id, ReviewCampaign.location_id == location.id, ReviewCampaign.name == DEFAULT_CAMPAIGN_NAME).order_by(ReviewCampaign.created_at))
+    if camp is None:
+        camp = ReviewCampaign(tenant_id=tenant.id, location_id=location.id, name=DEFAULT_CAMPAIGN_NAME, public_id=rg_svc.issue_public_id(db), status="active",
+                              customization=Customization().model_dump())
+        db.add(camp)
+        db.flush()
+        audit(db, action="review_campaign.default_created", tenant_id=tenant.id, entity_type="review_campaign", entity_id=camp.id, meta={"card": card.card_code})
+    return camp if camp.status == "active" else None
 
 
 @router.get("/{token}", dependencies=[Depends(limit_by_ip("scan", settings.rl_public_scan_per_minute, 60))])
@@ -101,6 +122,11 @@ def resolve_card(token: str, request: Request, channel: str | None = None, ref: 
     # A card bound to a live review campaign opens that campaign's page (the AI review assistant). If the campaign is paused, archived or
     # points at another location, the card falls back to its plain landing page: customers can still leave a review.
     camp = db.get(ReviewCampaign, card.campaign_id) if card.campaign_id else None
+    if card.campaign_id is None:  # never given a campaign: the location's default review page, so every card is the same no-typing flow
+        camp = _default_campaign(db, card, tenant, location)
+        if camp is not None:
+            card.campaign_id = camp.id
+            db.commit()
     campaign = {"id": camp.public_id} if camp and camp.status == "active" and camp.tenant_id == tenant.id and camp.location_id in (None, location.id) else None
     return {
         "state": "ok",
