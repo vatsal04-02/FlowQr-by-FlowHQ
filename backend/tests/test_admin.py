@@ -113,3 +113,11 @@ def test_email_verification_flow():
     assert s.http.post("/api/v1/auth/verify-email", json={"token": tok}).status_code == 400  # single use
     assert s.get("/auth/me").json()["user"]["email_verified_at"]
     assert s.post("/staff/invitations", json={"email": "x1@example.com"}).status_code == 201
+
+
+def test_clients_can_be_found_by_id_name_or_email_and_nothing_else_matches(admin, biz_a, biz_b):
+    found = admin.get("/admin/tenants", params={"search": biz_a.tenant_id}).json()
+    assert found["total"] == 1 and found["items"][0]["id"] == biz_a.tenant_id  # an exact client ID
+    assert admin.get("/admin/tenants", params={"search": "00000000-0000-0000-0000-000000000000"}).json()["total"] == 0
+    assert biz_a.tenant_id in [t["id"] for t in admin.get("/admin/tenants", params={"search": "Alpha"}).json()["items"]]
+    assert biz_a.get("/admin/tenants", params={"search": biz_b.tenant_id}).status_code == 403  # a client can never search the directory

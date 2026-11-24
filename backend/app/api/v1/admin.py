@@ -492,6 +492,10 @@ def list_tenants(ctx: AuthContext = Depends(require_platform_admin), search: str
                  Tenant.id.in_(select(Location.tenant_id).where(Location.city.ilike(f"%{term}%") | Location.name.ilike(f"%{term}%")))]
         if len(digits) >= 4:
             conds.append(func.regexp_replace(func.coalesce(Tenant.phone, ""), "[^0-9]", "", "g").like(f"%{digits}%"))
+        try:
+            conds.append(Tenant.id == uuid.UUID(term))  # search by client ID
+        except ValueError:
+            pass
         q = q.where(or_(*conds))
     if origin:
         q = q.where(Tenant.origin == origin)
