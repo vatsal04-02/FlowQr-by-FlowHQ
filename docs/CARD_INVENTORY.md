@@ -59,6 +59,16 @@ The approved artwork draws the three corner "eyes" with strongly rounded rings a
 
 The reference poster's logo tile sits about 21 px below the centre of its illustrative code. On the generated poster it is centred on the real code, as a QR logo should be.
 
+## 5b. The physical card (CR80, lengthwise)
+
+The NFC/QR card is a standard bank-card blank: CR80 / ISO ID-1, 85.60 x 53.98 mm, printed **portrait** (54 wide, 85.6 tall). The poster is 0.708 wide-to-tall with a side-by-side Tap/Scan layout, so shrinking it onto a 0.631 card would leave a 23 mm code with modules of about 0.4 mm. `backend/app/services/card_cr80.py` therefore re-lays out the same artwork lengthwise: the heading and stars, the white QR frame with its orange brackets, the Tap and Scan marks and the FlowQR footer are cut from the approved template and stacked, and only the QR code is drawn new (31 mm square, modules 0.7 mm or more for a normal card address, error correction Q, H if needed). The two orange corner waves are redrawn in the same colours (they cannot be cut out of the poster without its page edge).
+
+- **Files:** PNG or PDF at 600 dpi, exactly 53.98 x 85.60 mm, or with 3 mm bleed on every side (59.98 x 91.60 mm). Bleed only extends the corner artwork; the trim area is identical. The card's serial is printed small at the bottom right, inside the safe area.
+- **Operator console:** Card inventory, per card ("Card" button: preview, PDF or PNG, bleed) and per batch ("Physical card files": a ZIP of up to 100 files per download).
+- **Verified before it is served:** the same decode rule as the poster (ZXing at full size, shrunk and slightly blurred), plus a refusal when the link is too long for 0.55 mm modules.
+- **Routes:** `GET /admin/cards/{id}/cr80.{png|pdf}?bleed=0|3`, `GET /admin/batches/{id}/cards.zip?fmt=pdf|png&bleed=0|3&offset&limit`. Platform admins only; the same permanent-address rule as every other print file.
+- **Not checked:** a physical print and scan. Ask the printer for one proof of a card, and scan it with an Android and an iPhone, before ordering a batch. Also confirm with the printer whether they want 0 or 3 mm bleed and whether they round the corners themselves.
+
 ## 6. Where things are
 
 | | |

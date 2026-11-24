@@ -15,6 +15,7 @@ platform-admin	GET	/api/v1/admin/autonomy/emergency-stop
 platform-admin	PUT	/api/v1/admin/autonomy/emergency-stop
 platform-admin	GET	/api/v1/admin/batches
 platform-admin	POST	/api/v1/admin/batches
+platform-admin	GET	/api/v1/admin/batches/{batch_id}/cards.zip
 platform-admin	GET	/api/v1/admin/batches/{batch_id}/export.zip
 platform-admin	GET	/api/v1/admin/batches/{batch_id}/inventory.csv
 platform-admin	GET	/api/v1/admin/batches/{batch_id}/posters.pdf
@@ -31,6 +32,7 @@ platform-admin	GET	/api/v1/admin/cards/{card_id}
 platform-admin	GET	/api/v1/admin/cards/{card_id}/analytics
 platform-admin	POST	/api/v1/admin/cards/{card_id}/archive
 platform-admin	POST	/api/v1/admin/cards/{card_id}/assign
+platform-admin	GET	/api/v1/admin/cards/{card_id}/cr80.{fmt}
 platform-admin	GET	/api/v1/admin/cards/{card_id}/destination
 platform-admin	PUT	/api/v1/admin/cards/{card_id}/destination
 platform-admin	POST	/api/v1/admin/cards/{card_id}/destination/check

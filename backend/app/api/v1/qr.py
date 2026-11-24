@@ -18,6 +18,7 @@ from app.core.deps import TenantContext, get_tenant_context, require_role
 from app.core.rate_limit import client_ip, hit
 from app.models import Location, QRCard, QRStyle, ReviewCampaign, Role
 from app.schemas.qr import BulkIn, QRStyleIn, QRStyleOut
+from app.services import card_cr80 as cr80_svc
 from app.services import poster as poster_svc
 from app.services import qr_style as qs
 from app.services.audit import audit
@@ -103,6 +104,30 @@ def poster_response(url: str, fmt: str, filename: str, *, scale: int = 1, size: 
     if problem:
         headers["X-FlowQR-Not-For-Print"] = "public address is not permanent"
     return Response(body, media_type=POSTER_MIME[fmt], headers=headers)
+
+
+CR80_MIME = {"png": "image/png", "pdf": "application/pdf"}
+
+
+def cr80_file(url: str, fmt: str, *, bleed: float = 0.0, serial: str | None = None) -> bytes:
+    """The bank-card-sized (85.6 x 54 mm, portrait) review card with `url` as its QR code. 404 for an unknown format or bleed, 500 if the code could not be proven scannable."""
+    if fmt not in CR80_MIME or bleed not in cr80_svc.BLEEDS:
+        raise HTTPException(status_code=404, detail="Unsupported format or bleed")
+    try:
+        return cr80_svc.card_png(url, bleed_mm=bleed, serial=serial) if fmt == "png" else cr80_svc.card_pdf(url, bleed_mm=bleed, serial=serial)
+    except cr80_svc.CardError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+def cr80_response(url: str, fmt: str, filename: str, *, bleed: float = 0.0, serial: str | None = None) -> Response:
+    """Download of one card file; the same permanent-address rule as the poster."""
+    problem = permanent_url_problem(url)
+    if problem and settings.hardened:
+        raise HTTPException(status_code=409, detail={"code": "print_domain_not_permanent", "message": problem})
+    headers = {"Content-Disposition": f'attachment; filename="{filename}-cr80{"-bleed" if bleed else ""}.{fmt}"', "X-FlowQR-Verified": "decoded", "Cache-Control": "private, no-store"}
+    if problem:
+        headers["X-FlowQR-Not-For-Print"] = "public address is not permanent"
+    return Response(cr80_file(url, fmt, bleed=bleed, serial=serial), media_type=CR80_MIME[fmt], headers=headers)
 
 
 def slug(text: str, fallback: str = "qr") -> str:

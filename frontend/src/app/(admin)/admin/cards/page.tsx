@@ -6,6 +6,7 @@ import { AssignCards } from "@/components/cards/AssignCards";
 import { BusinessPicker } from "@/components/admin/BusinessPicker";
 import { BulkAssignModal } from "@/components/cards/BulkAssignModal";
 import { CardDetail } from "@/components/cards/CardDetail";
+import { CARD_SIZE_NOTE, CardPrintDownload } from "@/components/cards/CardPrintDownload";
 import { PosterDownload } from "@/components/cards/PosterDownload";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader, Skeleton, ErrorState } from "@/components/ui/Card";
@@ -31,6 +32,8 @@ export default function AdminCards() {
   const confirm = useConfirm();
   const toast = useToast();
   const [tab, setTab] = useState<"inventory" | "assign">("inventory");
+  const [cardFmt, setCardFmt] = useState<"pdf" | "png">("pdf");
+  const [cardBleed, setCardBleed] = useState<"0" | "3">("0");
   const [f, setF] = useState({ search: "", status: "", batch_id: "", tenant_id: "", location_id: "", campaign_id: "", created_from: "", created_to: "", has_destination: "", nfc: "" });
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
@@ -110,6 +113,15 @@ export default function AdminCards() {
                     <Button size="sm" variant="ghost" loading={busy === `zip${b.id}`} onClick={() => void getFile(`/admin/batches/${b.id}/export.zip`, `${b.prefix}-codes.zip`, `zip${b.id}`)}>Plain codes (ZIP)</Button>
                     <Button size="sm" variant="ghost" onClick={() => { setF({ ...f, batch_id: b.id }); setPage(0); }}>Show cards</Button>
                   </div>
+                  <div className="flex w-full flex-wrap items-center gap-2 border-t border-ink-100 pt-3" data-testid="card-print-row">
+                    <p className="mr-1 text-sm font-semibold">Physical card files <span className="font-normal text-ink-500">· {CARD_SIZE_NOTE}</span></p>
+                    <Segmented label="Card file type" value={cardFmt} onChange={setCardFmt} options={[["pdf", "PDF"], ["png", "PNG"]] as const} />
+                    <Segmented label="Card bleed" value={cardBleed} onChange={setCardBleed} options={[["0", "Exact size"], ["3", "3 mm bleed"]] as const} />
+                    {Array.from({ length: Math.ceil(b.quantity / 100) }, (_, i) => (
+                      <Button key={i} size="sm" variant="secondary" icon={<Download className="h-4 w-4" />} loading={busy === `cz${b.id}${i}`} aria-label={`Card ${cardFmt.toUpperCase()} files ${i * 100 + 1} to ${Math.min(b.quantity, (i + 1) * 100)}`}
+                        onClick={() => void getFile(`/admin/batches/${b.id}/cards.zip?fmt=${cardFmt}&bleed=${cardBleed}&offset=${i * 100}&limit=100`, `${b.prefix}-cr80-${i * 100 + 1}-${Math.min(b.quantity, (i + 1) * 100)}.zip`, `cz${b.id}${i}`)}>
+                        Cards {i * 100 + 1}–{Math.min(b.quantity, (i + 1) * 100)}</Button>))}
+                  </div>
                 </li>))}</ul>)}
           </Card>
 
@@ -173,6 +185,7 @@ export default function AdminCards() {
                   <td className="px-4 text-[13px] tabular-nums">{c.stats.qr_scan ?? 0} QR · {c.stats.nfc_scan ?? 0} NFC<span className="block text-xs text-ink-500">{c.last_scan_at ? `last ${fmtDate(c.last_scan_at)}` : "never scanned"} · {c.nfc_programmed_at ? "NFC programmed" : "NFC not programmed"}</span></td>
                   <td className="min-w-[200px] px-4 py-2"><div className="flex flex-wrap justify-end gap-1">
                     <Button size="sm" variant="secondary" className="!rounded-full" icon={<QrCode className="h-4 w-4" />} onClick={() => setView(c)}>Details</Button>
+                    {c.status !== "retired" && <CardPrintDownload path={`/admin/cards/${c.id}/cr80`} filename={c.card_code} label="Card" variant="ghost" />}
                     {c.status !== "retired" && <PosterDownload path={`/admin/cards/${c.id}/poster`} filename={c.card_code} label="Poster" variant="ghost" />}
                     {(c.status === "generated" || c.status === "unassigned") && <Button size="sm" variant="secondary" onClick={() => setReserve(c)}>Reserve</Button>}
                     {c.status !== "retired" && c.status !== "archived" && <Button size="sm" variant="secondary" icon={<UserPlus className="h-4 w-4" />} onClick={() => setAssign(c)}>{c.location_id ? "Change" : "Assign"}</Button>}

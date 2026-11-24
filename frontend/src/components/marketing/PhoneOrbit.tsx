@@ -20,7 +20,7 @@ export function PhoneOrbit({ line1, line2Pre, accent, sub, screen, orbit }: { li
   return (
     <section ref={ref} className="relative overflow-hidden pb-6 pt-16 md:pt-32">
       <div className="mkt-wrap text-center">
-        <Rise><h2 className="t-display-xl text-m-ink max-sm:!text-[length:min(34px,9vw)] max-sm:!leading-[1]">{line1}<br />{line2Pre} <span className="text-m-accentText">{accent}</span></h2></Rise>
+        <Rise><h2 className="t-display-xl text-m-ink !text-[length:clamp(30px,5vw,76px)] !leading-[1.02] [text-wrap:balance] max-sm:!text-[length:min(30px,8vw)]">{line1}<br />{line2Pre} <span className="text-m-accentText">{accent}</span></h2></Rise>
         <Rise delay={0.1}><p className="mx-auto mt-5 max-w-[340px] t-small text-m-muted max-sm:!text-[14px] max-sm:!leading-relaxed md:mt-6 md:max-w-none">{sub}</p></Rise>
       </div>
       <div className="relative mx-auto mt-10 h-[600px] max-w-[1080px] md:mt-16">
