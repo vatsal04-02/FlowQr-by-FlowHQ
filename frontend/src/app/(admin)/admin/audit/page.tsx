@@ -22,8 +22,17 @@ export default function AdminAudit() {
       <Card pad={false}>
         <div className="flex flex-wrap items-end justify-between gap-3 p-5 sm:p-6"><CardHeader title="Audit history" subtitle="Append-only" />
           <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); setAction(q); setPage(0); }}><input aria-label="Action prefix" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Action prefix e.g. admin." className="min-h-11 rounded-xl border border-ink-200 px-3 text-sm sm:min-h-10" /><Button type="submit" variant="secondary" size="sm">Filter</Button></form></div>
-        {!audit.data ? <Skeleton className="m-5 h-40" /> : <div className="overflow-x-auto"><table className="dt min-w-[720px]"><thead><tr>{["When", "Action", "Business", "User", "Details"].map((h) => <th key={h} className="px-4 py-2.5">{h}</th>)}</tr></thead>
-          <tbody>{audit.data.map((a) => <tr key={a.id} className="border-b border-ink-100 align-top"><td className="whitespace-nowrap px-4 py-2.5">{fmtDate(a.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td><td className="px-4"><code className="text-xs">{a.action}</code></td><td className="px-4">{a.tenant ?? "–"}</td><td className="px-4 text-ink-500">{a.user ?? "–"}</td><td className="max-w-[260px] truncate px-4 font-mono text-xs text-ink-500" title={JSON.stringify(a.meta)}>{Object.keys(a.meta).length ? JSON.stringify(a.meta) : ""}</td></tr>)}</tbody></table></div>}
+        {!audit.data ? <Skeleton className="m-5 h-40" /> : <>
+          <ul aria-label="Audit history" className="space-y-2 px-3 pb-3 xl:hidden">{audit.data.map((a) => (
+            <li key={a.id} className="rounded-xl border border-ink-100 p-3">
+              <code className="block break-all text-[12px] font-semibold">{a.action}</code>
+              <p className="mt-1 text-[13px] text-ink-700">{[a.tenant, a.user].filter(Boolean).join(" · ") || "System"}</p>
+              <p className="text-xs text-ink-500">{fmtDate(a.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+              {Object.keys(a.meta).length > 0 && <details className="mt-1.5"><summary className="inline-flex min-h-11 cursor-pointer items-center text-[13px] font-medium text-accent-ink">Details</summary><pre className="max-w-full whitespace-pre-wrap break-all rounded-lg bg-surface-2 p-2 text-[11px]">{JSON.stringify(a.meta, null, 1)}</pre></details>}
+            </li>))}
+            {audit.data.length === 0 && <li className="py-4 text-center text-sm text-ink-500">No entries.</li>}</ul>
+          <div className="hidden overflow-x-auto xl:block"><table className="dt min-w-[720px]"><thead><tr>{["When", "Action", "Business", "User", "Details"].map((h) => <th key={h} className="px-4 py-2.5">{h}</th>)}</tr></thead>
+          <tbody>{audit.data.map((a) => <tr key={a.id} className="border-b border-ink-100 align-top"><td className="whitespace-nowrap px-4 py-2.5">{fmtDate(a.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td><td className="px-4"><code className="text-xs">{a.action}</code></td><td className="px-4">{a.tenant ?? "–"}</td><td className="px-4 text-ink-500">{a.user ?? "–"}</td><td className="max-w-[260px] truncate px-4 font-mono text-xs text-ink-500" title={JSON.stringify(a.meta)}>{Object.keys(a.meta).length ? JSON.stringify(a.meta) : ""}</td></tr>)}</tbody></table></div></>}
         <div className="flex justify-between p-4"><Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Newer</Button><Button size="sm" variant="secondary" disabled={(audit.data?.length ?? 0) < PAGE} onClick={() => setPage(page + 1)}>Older</Button></div>
       </Card>
     </>

@@ -33,7 +33,7 @@ function Kpi({ label, value, hint, href, tone }: { label: string; value: ReactNo
       {hint && <span className="mt-0.5 block text-[12px] leading-4 text-ink-500">{hint}</span>}
     </>
   );
-  const cls = "block min-w-0 rounded-xl border border-ink-100 bg-surface px-3 py-2.5 sm:px-4 sm:py-3";
+  const cls = "adm-card-link block min-w-0 rounded-xl border border-ink-100 bg-surface px-3 py-2.5 sm:px-4 sm:py-3";
   return href ? <Link href={href} className={`${cls} hover:bg-surface-2`}>{body}</Link> : <div className={cls}>{body}</div>;
 }
 

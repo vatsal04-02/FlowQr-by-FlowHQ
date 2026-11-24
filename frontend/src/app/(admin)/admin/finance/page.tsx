@@ -88,7 +88,10 @@ export default function AdminFinance() {
               <ul className="divide-y divide-line text-sm">{cost.data.api.by_operation.map((o, i) => <li key={i} className="flex justify-between gap-3 py-2"><span>{o.provider} {o.operation} <span className="text-muted">({o.feature.replace(/_/g, " ")})</span></span><span className="num">{o.units} · {o.unpriced_units ? "unpriced" : `$${o.usd.toFixed(3)}`}{o.refused_units ? ` · ${o.refused_units} refused` : ""}</span></li>)}</ul></Card>
           </div>
           <Card><CardHeader title="By business" subtitle="Highest first. Set a business's own ceilings from its Customers page." />
-            <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead><tr className="text-xs text-muted"><th className="py-1.5">Business</th><th>AI calls</th><th>AI $</th><th>Google units</th><th>Google $</th><th>Total $</th></tr></thead>
+            <ul aria-label="Cost by business" className="space-y-2 sm:hidden">{cost.data.by_business.map((b) => (
+              <li key={b.tenant_id ?? "platform"} className="rounded-xl border border-line p-3"><div className="flex items-baseline justify-between gap-2"><span className="min-w-0 truncate font-medium">{b.name}</span><span className="num shrink-0 font-semibold">${b.total_usd.toFixed(3)}</span></div>
+                <p className="mt-1 text-xs text-muted">AI {b.ai_calls} calls (${b.ai_usd.toFixed(4)}) · Google {b.api_units} units (${b.api_usd.toFixed(3)})</p></li>))}</ul>
+            <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[520px] text-left text-sm"><thead><tr className="text-xs text-muted"><th className="py-1.5">Business</th><th>AI calls</th><th>AI $</th><th>Google units</th><th>Google $</th><th>Total $</th></tr></thead>
               <tbody>{cost.data.by_business.map((b) => <tr key={b.tenant_id ?? "platform"} className="border-t border-line"><td className="py-2">{b.name}</td><td className="num">{b.ai_calls}</td><td className="num">{b.ai_usd.toFixed(4)}</td><td className="num">{b.api_units}</td><td className="num">{b.api_usd.toFixed(3)}</td><td className="num font-medium">{b.total_usd.toFixed(3)}</td></tr>)}</tbody></table></div></Card>
         </div>
       )}

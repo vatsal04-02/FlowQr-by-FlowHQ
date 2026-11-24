@@ -425,3 +425,18 @@ html.fq-app[data-theme="dark"] .set-focus:focus-visible { outline-color: rgb(var
 .fq-confetti i { position: absolute; top: -24px; border-radius: 2px; opacity: 0; animation: fq-fall linear 1 forwards; }
 @keyframes fq-fall { 0% { opacity: 1; translate: 0 -10vh; } 100% { opacity: 0; translate: 24px 110vh; rotate: 540deg; } }
 @media (prefers-reduced-motion: reduce) { .fq-confetti { display: none; } }
+
+/* Operator console motion: the phone drawer slides in over a fading scrim, and a page eases in when you navigate. Everything is off for people who ask for reduced motion. */
+@keyframes adm-slide-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes adm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes adm-rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.adm-drawer { animation: adm-slide-in 220ms cubic-bezier(.22, 1, .36, 1) both; }
+.adm-scrim { animation: adm-fade-in 180ms ease-out both; }
+.adm-page { animation: adm-rise-in 200ms ease-out both; }
+.adm-card-link { transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease; }
+.adm-card-link:active { transform: scale(.985); }
+@media (prefers-reduced-motion: reduce) {
+  .adm-drawer, .adm-scrim, .adm-page { animation: none; }
+  .adm-card-link { transition: none; }
+  .adm-card-link:active { transform: none; }
+}

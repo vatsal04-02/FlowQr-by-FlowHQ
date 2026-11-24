@@ -145,8 +145,8 @@ export default function AdminCards() {
             <EmptyState icon={<FileStack className="h-6 w-6" />} title="No cards found" action={<Button onClick={() => setNewBatch(true)}>Create a batch</Button>}>Generate a batch of unique cards to get started.</EmptyState>
           ) : (
             <>
-            <ul aria-label="Cards" className="space-y-2 md:hidden">{cards.data?.items.map((c) => (
-              <li key={c.id} className="rounded-xl border border-ink-100 bg-surface p-3.5">
+            <ul aria-label="Cards" className="space-y-2 xl:hidden">{cards.data?.items.map((c) => (
+              <li key={c.id} className="adm-card-link rounded-xl border border-ink-100 bg-surface p-3.5">
                 <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="font-semibold">{c.card_code}</p>{c.batch_name && <p className="truncate text-xs text-ink-500">{c.batch_name}</p>}</div><Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge></div>
                 <p className="mt-1.5 truncate text-[13px] text-ink-700">{c.tenant_name ? `${c.tenant_name} · ${c.location_name ?? "no location yet"}` : "In stock"}</p>
                 <p className="mt-1 text-xs text-ink-500">{c.stats.qr_scan ?? 0} scans · {c.stats.nfc_scan ?? 0} taps · {c.last_scan_at ? `last ${fmtDate(c.last_scan_at)}` : "never scanned"}</p>
@@ -157,10 +157,10 @@ export default function AdminCards() {
                   {c.status !== "retired" && c.status !== "archived" && <PosterDownload path={`/admin/cards/${c.id}/poster`} filename={c.card_code} label="Poster" variant="ghost" />}
                 </div>
               </li>))}</ul>
-            <Card pad={false} className="hidden md:block"><div className="overflow-x-auto"><table className="dt min-w-[1100px]">
+            <Card pad={false} className="hidden xl:block"><div className="overflow-x-auto"><table className="dt min-w-[960px]">
               <thead><tr><th className="w-10 px-4 py-2.5"><input type="checkbox" aria-label="Select all cards on this page" checked={!!cards.data && cards.data.items.length > 0 && cards.data.items.filter((c) => c.status !== "retired").every((c) => picked.has(c.id))}
                 onChange={(e) => setPicked(e.target.checked ? new Set((cards.data?.items ?? []).filter((c) => c.status !== "retired").map((c) => c.id)) : new Set())} className="h-4 w-4" /></th>
-                {["Card", "Status", "Business / location", "Campaign / destination", "NFC", "QR scans", "NFC taps", "Last scan", ""].map((h, i) => <th key={i} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
+                {["Card", "Status", "Business / location", "Campaign / destination", "Scans", ""].map((h, i) => <th key={i} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
               <tbody>{cards.data?.items.map((c) => (
                 <tr key={c.id} className="border-b border-ink-100 last:border-0" data-testid="card-row">
                   <td className="px-4"><input type="checkbox" aria-label={`Select ${c.card_code}`} disabled={c.status === "retired"} checked={picked.has(c.id)}
@@ -170,10 +170,8 @@ export default function AdminCards() {
                   <td className="px-4">{c.tenant_name ? <>{c.tenant_name}<span className="block text-xs text-ink-500">{c.location_name ?? "no location yet"}</span></> : <span className="text-ink-400">In stock</span>}</td>
                   <td className="px-4 text-sm">{c.campaign_name ?? (c.tenant_id ? <span className="text-ink-500">Plain page</span> : "")}
                     {c.destination_url && <span className="block max-w-[200px] truncate text-xs text-accent-ink" title={c.destination_url}>→ {c.destination_url.replace(/^https:\/\//, "")}</span>}</td>
-                  <td className="px-4 text-xs text-ink-500">{c.nfc_programmed_at ? "Marked programmed" : "Not programmed"}</td>
-                  <td className="px-4 tabular-nums">{c.stats.qr_scan ?? 0}</td><td className="px-4 tabular-nums">{c.stats.nfc_scan ?? 0}</td>
-                  <td className="whitespace-nowrap px-4 text-xs text-ink-500">{c.last_scan_at ? fmtDate(c.last_scan_at) : "Never"}</td>
-                  <td className="min-w-[250px] px-4 py-2"><div className="flex flex-wrap justify-end gap-1">
+                  <td className="px-4 text-[13px] tabular-nums">{c.stats.qr_scan ?? 0} QR · {c.stats.nfc_scan ?? 0} NFC<span className="block text-xs text-ink-500">{c.last_scan_at ? `last ${fmtDate(c.last_scan_at)}` : "never scanned"} · {c.nfc_programmed_at ? "NFC programmed" : "NFC not programmed"}</span></td>
+                  <td className="min-w-[200px] px-4 py-2"><div className="flex flex-wrap justify-end gap-1">
                     <Button size="sm" variant="secondary" className="!rounded-full" icon={<QrCode className="h-4 w-4" />} onClick={() => setView(c)}>Details</Button>
                     {c.status !== "retired" && <PosterDownload path={`/admin/cards/${c.id}/poster`} filename={c.card_code} label="Poster" variant="ghost" />}
                     {(c.status === "generated" || c.status === "unassigned") && <Button size="sm" variant="secondary" onClick={() => setReserve(c)}>Reserve</Button>}
