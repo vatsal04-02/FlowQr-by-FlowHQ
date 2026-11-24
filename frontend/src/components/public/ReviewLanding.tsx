@@ -3,7 +3,6 @@ import { API_V1 } from "@/lib/config";
 import clsx from "clsx";
 import { Check, ChevronDown, Clock, Copy, ExternalLink, Globe, Loader2, Pencil, PenLine, Plus, QrCode, RefreshCw, Sparkles, Star, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AiNotice } from "@/components/public/AiNotice";
 import { LandingFrame } from "@/components/review-growth/LandingFrame";
 import { api, ApiError } from "@/lib/api";
 import { COPY, effectiveBrand, type Background, type Lang, type Rating, type Topic } from "@/lib/review-growth";
@@ -329,7 +328,6 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
       <section lang={lang} className="space-y-5">
         <div className="fq-rise">
           <h2 className={headingCls}>{t.h}</h2>
-          {page.ai_available && <div className="mt-3 [&_p]:rounded-xl [&_p]:bg-[#F6F4EF] [&_p]:text-[12.5px] [&_p]:leading-snug [&_p]:ring-0"><AiNotice lang={lang} /></div>}{/* shown before anything can be sent for AI help, in the language the customer picked */}
         </div>
 
         {submitState === "done" && (

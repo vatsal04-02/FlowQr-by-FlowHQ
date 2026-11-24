@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { LandingFrame } from "@/components/review-growth/LandingFrame";
 import { DEFAULT_CUSTOMIZATION } from "@/lib/review-growth";
 import { publicButtonClass } from "@/components/ui/Button";
-import { AiNotice } from "@/components/public/AiNotice";
 import ReviewLanding from "@/components/public/ReviewLanding";
 import { api, ApiError, errorMessage } from "@/lib/api";
 
@@ -122,7 +121,6 @@ export default function CardLanding({ token, channel }: { token: string; channel
         <div className="mt-1 flex justify-between text-xs text-ink-500"><span>Be honest. Your words, your review.</span><span>{text.length}/1200</span></div>
 
         {data.ai_available && !aiDown ? (<>
-          <div className="mt-4"><AiNotice lang={lang === "auto" ? (biz?.language ?? "en") : lang} /></div>{/* before the button that sends the text for AI help; Hindi when Hindi is chosen */}
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="sm:w-44">
               <label htmlFor="lang" className="mb-1 block text-xs font-semibold text-ink-500">Language</label>

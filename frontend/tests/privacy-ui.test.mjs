@@ -20,13 +20,13 @@ test("the AI notice follows the selected language: Hindi for Hindi, English for 
   for (const l of ["en", "hinglish", "auto", ""]) assert.deepEqual(aiNoticeFor(l), { text: EN, lang: "en" });
 });
 
-test("the notice is on BOTH customer pages, only where AI help is offered, and is not a pre-ticked consent box", () => {
-  const campaign = src("components/public/ReviewLanding.tsx"), card = src("components/public/CardLanding.tsx"), notice = src("components/public/AiNotice.tsx");
-  assert.match(campaign, /page\.ai_available && <div[^>]*><AiNotice lang=\{lang\} \/>/);
-  assert.match(card, /data\.ai_available && !aiDown \? \(<>\s*<div className="mt-4"><AiNotice lang=/);
-  assert.ok(card.indexOf("<AiNotice") < card.indexOf("Improve my wording"), "the notice comes before the button that sends text for AI help");
-  assert.match(notice, /lang=\{n\.lang\}/, "the notice marks its own language for screen readers");
-  assert.doesNotMatch(notice, /checkbox|defaultChecked|checked/i, "a notice, not a consent box");
+test("the customer pages no longer show the AI notice (owner decision 2026-11-24); AI text is still labelled and the privacy policy still discloses AI processing", () => {
+  const campaign = src("components/public/ReviewLanding.tsx"), card = src("components/public/CardLanding.tsx"), policy = src("app/(marketing)/privacy/page.tsx");
+  assert.doesNotMatch(campaign, /<AiNotice/);
+  assert.doesNotMatch(card, /<AiNotice/);
+  assert.match(campaign, /t\.badgeRefined/, "text the AI wrote still carries its \"Written by AI\" label");
+  assert.match(card, /AI-assisted suggestion/, "a suggestion on the plain page is still labelled as AI-assisted");
+  assert.match(policy, /sent to our AI provider/, "the privacy policy still says AI text goes to the provider");
 });
 
 test("sign-up: the 18+ declaration is unchecked by default, required, English only, and sent to the server", () => {
