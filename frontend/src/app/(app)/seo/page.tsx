@@ -1,8 +1,6 @@
 "use client";
 import { ConnectGoogleEmptyState } from "@/components/settings/parts";
-import Link from "next/link";
-import { Ring } from "@/components/charts/Bars";
-import { Card, Dashes, RankLadder, SeeAll, Title, WhoIsAhead } from "@/components/seo/visuals";
+import { Card, Dashes, RankLadder, SeeAll, Title } from "@/components/seo/visuals";
 import { SourceTag } from "@/components/seo/parts";
 import { GoogleProfileCard } from "@/components/gbp/GoogleProfileCard";
 import { OptimizationCenter } from "@/components/seo/OptimizationCenter";
@@ -10,26 +8,22 @@ import { Alert, Skeleton } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { fmtNum } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
-import type { Competitors, GoogleMetrics, ProfileHealth, SeoOverview } from "@/lib/seo";
+import type { GoogleMetrics, SeoOverview } from "@/lib/seo";
 import { useFetch } from "@/lib/use-api";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const SLOTS: [string, string, string[]][] = [["calls", "Calls", ["CALL_CLICKS"]], ["directions", "Directions", ["BUSINESS_DIRECTION_REQUESTS"]], ["website", "Website", ["WEBSITE_CLICKS"]],
   ["views", "Views", ["BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS"]]];
 
-/** GBP › Overview: the rank ladder first, then what Google reports (or one honest empty card), who is ahead, and what to fix on the profile. */
+/** GBP › Overview: how Google shows you, what needs fixing, then your words on Maps and what Google reports. Who is ahead and the profile checklist live on their own pages. */
 export default function SeoOverviewPage() {
   const { locationId } = useLocationScope();
   const loc = locationId ?? "";
   const to = new Date(), from = new Date(); from.setDate(to.getDate() - 29);
   const ov = useFetch<SeoOverview>("/seo/overview", { location_id: loc });
   const gm = useFetch<GoogleMetrics>("/analytics/google-metrics", { from: isoDay(from), to: isoDay(to), location_id: loc });
-  const comp = useFetch<Competitors>("/seo/competitors", { location_id: loc });
-  const prof = useFetch<ProfileHealth>("/seo/profile-health", { location_id: loc });
   const d = ov.data, g = gm.data;
   const gOk = g?.availability.state === "ok" && !!g.current;
-  const pl = prof.data?.locations.find((l) => l.state === "ok");
-  const missing = (pl?.checks ?? []).filter((c) => c.status !== "ok").slice(0, 3);
 
   return (
     <>
@@ -39,7 +33,7 @@ export default function SeoOverviewPage() {
       <div className="mb-3 lg:mb-4"><GoogleProfileCard /></div>
       <div className="mb-4 lg:mb-5"><OptimizationCenter /></div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <Card label="Your words on Google Maps" className="lg:col-span-7">
+        <Card label="Your words on Google Maps" className="lg:col-span-6">
           <Title right={<SourceTag source="places" />}>Your words on Maps</Title>
           <div className="mt-4">
             {ov.loading && !d ? <Skeleton className="h-40" /> : !d || d.state === "no_location" ? <ConnectGoogleEmptyState compact what="Tracking words needs a connected Google location." />
@@ -48,7 +42,7 @@ export default function SeoOverviewPage() {
           </div>
         </Card>
 
-        <Card label="From Google" className="lg:col-span-5">
+        <Card label="From Google" className="lg:col-span-6">
           <Title right={<SourceTag source="google" />}>From Google</Title>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 max-md:mt-2 max-md:gap-0">
             {SLOTS.map(([k, label, metrics]) => {
@@ -69,24 +63,6 @@ export default function SeoOverviewPage() {
           {gOk && <div className="mt-3"><SeeAll href="/seo/performance">Last 30 days</SeeAll></div>}
         </Card>
 
-        <Card label="Who is ahead of you" className="lg:col-span-7">
-          <Title right={<SourceTag source="places" />}>Who is ahead</Title>
-          <div className="mt-3">{comp.loading && !comp.data ? <Skeleton className="h-32" /> : comp.data?.state === "ok" ? <><WhoIsAhead d={comp.data} limit={3} /><div className="mt-1"><SeeAll href="/seo/competitors" /></div></> : <Empty text="Run a word check to see who is next to you." href="/seo/rankings" cta="Check words" />}</div>
-        </Card>
-
-        <Card label="Profile strength" className="lg:col-span-5">
-          <Title>Profile strength</Title>
-          {prof.loading && !prof.data ? <Skeleton className="mt-3 h-32" /> : !pl ? <div className="mt-3 flex items-center gap-4"><Ring value={null} size={72} stroke={8} label="Profile not shared yet"><span className="text-[13px] text-muted">–</span></Ring><p className="text-[13px] text-muted">Waiting for Google.</p></div> : (
-            <div className="mt-3 flex items-start gap-4">
-              <Ring value={pl.completeness} size={72} stroke={8} label={`Profile ${pl.completeness}% complete`}><b className="num text-[17px] font-semibold">{pl.completeness}%</b></Ring>
-              <ul className="min-w-0 flex-1 divide-y divide-line">
-                {missing.length === 0 ? <li className="py-2 text-[14px]">Complete</li> : missing.map((c) => (
-                  <li key={c.key} className="flex items-center justify-between gap-2 py-1.5 text-[14px]"><span className="min-w-0 truncate">{c.label}</span>{c.link && <Link href={c.link} className="inline-flex min-h-11 shrink-0 items-center text-[13px] font-semibold underline underline-offset-2 md:min-h-8">Fix</Link>}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Card>
       </div>
     </>
   );
