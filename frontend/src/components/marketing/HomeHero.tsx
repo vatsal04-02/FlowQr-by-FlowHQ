@@ -134,7 +134,7 @@ export function HomeHero({ line1, line2, outcome, sub }: { line1: string; line2:
           <div className="min-w-0 flex-[1_1_480px]">
             <p className="hh-in inline-flex min-h-8 items-center gap-2 rounded-full border border-[#0D1230]/[.06] bg-white px-3.5 text-[13px] text-[#4A4F6E] shadow-[0_1px_2px_rgba(13,18,48,.05)]" style={{ "--d": "0s" } as CSSProperties}>
               <span aria-hidden className="hh-pulse h-2 w-2 rounded-full bg-[#F97316]" />
-              <span><b className="font-semibold text-[#0D1230]">Google profile.</b> <b className="font-semibold text-[#0D1230]">Reviews.</b> <b className="font-semibold text-[#0D1230]">WhatsApp.</b></span>
+              <span><b className="font-semibold text-[#0D1230]">Google profile optimisation.</b> <b className="font-semibold text-[#0D1230]">Reviews.</b> <b className="font-semibold text-[#0D1230]">WhatsApp marketing.</b></span>
             </p>
             <h1 aria-label={`${line1} ${line2}`} className="mt-10 font-[family-name:var(--font-tight)] text-[clamp(2rem,3.5vw,3.25rem)] font-medium leading-[1.3] tracking-[-.045em] text-[#0D1230] [text-wrap:balance]">
               <Words text={line1} from={0} />{" "}<span className="text-[#E8590C]"><Words text={line2} from={line1.split(" ").length} /></span>

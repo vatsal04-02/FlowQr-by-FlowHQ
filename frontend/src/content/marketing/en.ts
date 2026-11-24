@@ -16,7 +16,7 @@ export const en = {
       ] as { name: string; job: string; approve: string; cta: string; href: string; tag: string }[],
     },
     team: { title: "Google Profile Agent", sub: "Track where you appear on Google, fix gaps in your profile and reply to every review. The agent does the daily routine, you approve what goes public." },
-    intro: { line1: "Your whole team,", line2Pre: "in one app,", accent: "every day.", sub: "Replies to approve, posts to schedule, follow-ups to send. Your agents keep track and prepare the routine work for you to approve." },
+    intro: { line1: "Your whole marketing team,", line2Pre: "in one app,", accent: "every day.", sub: "Replies to approve, posts to schedule, follow-ups to send. Your agents keep track and prepare the routine work for you to approve." },
     story: {
       title: "Customers look you up before they walk in.",
       lead: "They check Google, read your reviews and message you on WhatsApp.",
@@ -24,7 +24,7 @@ export const en = {
     },
     how: {
       title: "Put your team to work in 3 steps", sub: "No technical knowledge needed. Connect once, then approve what your agents prepare.",
-      steps: [["Connect Google", "Your Google Profile Agent starts from your real profile."], ["Place your QR card", "Keep it at your counter. Customers scan it and reach your Google review page."], ["Approve, and the team works", "Replies and posts wait for your OK. WhatsApp joins when it opens for you."]] as [string, string][],
+      steps: [["Connect Google", "Your Google Profile Agent starts from your real profile."], ["Place your QR card", "Keep it at your counter. Customers scan it and AI drafts their review for them."], ["Let the team work", "Reviews get replies autonomously and your Google profile keeps getting optimised."]] as [string, string][],
     },
     compare: {
       title: "Marketing shouldn't be a full-time job.", sub: "FlowQR's agents vs doing it by hand, or a basic QR code.",
