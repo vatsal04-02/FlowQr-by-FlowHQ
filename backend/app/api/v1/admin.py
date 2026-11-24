@@ -12,7 +12,7 @@ from datetime import date, datetime, time as dtime, timedelta, timezone
 from sqlalchemy import exists, func, or_, select, update
 
 from app.api.v1.cards import card_out, names_for
-from app.api.v1.qr import poster_file, poster_response, require_print_domain
+from app.api.v1.qr import cr80_file, cr80_response, poster_file, poster_response, require_print_domain
 from app.core.deps import AuthContext, require_platform_admin
 from app.core.rate_limit import client_ip, hit
 from app.models import (
@@ -168,6 +168,29 @@ def batch_poster_files(batch_id: uuid.UUID, request: Request, fmt: str = Query("
     ctx.db.commit()
     return Response(buf.getvalue(), media_type="application/zip", headers={
         "Content-Disposition": f'attachment; filename="{batch.prefix}-posters-{offset + 1}-{offset + len(page)}.zip"',
+        "X-FlowQR-Codes": str(len(page)), "X-FlowQR-Total": str(len(cards)), "Cache-Control": "private, no-store"})
+
+
+@router.get("/batches/{batch_id}/cards.zip")
+def batch_card_files(batch_id: uuid.UUID, request: Request, fmt: str = Query("pdf", pattern="^(png|pdf)$"), bleed: float = Query(0.0),
+                     offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100), ctx: AuthContext = Depends(require_platform_admin)):
+    """Print files for the physical card (CR80, 85.6 x 54 mm, portrait), one per card, in pages of up to 100. `bleed` is 0 (trim size) or 3 (mm, for a printer who die-cuts)."""
+    require_print_domain()
+    if bleed not in (0.0, 3.0):
+        raise HTTPException(status_code=422, detail="bleed must be 0 or 3 (mm)")
+    batch, cards = _batch_cards(ctx, batch_id)
+    page = cards[offset:offset + limit]
+    if not page:
+        raise HTTPException(status_code=404, detail="No cards in that range")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for c in page:
+            z.writestr(f"{c.card_code}-cr80.{fmt}", cr80_file(card_qr_url(c), fmt, bleed=bleed, serial=c.card_code))
+    audit(ctx.db, action="admin.batch_card_files", user_id=ctx.user.id, entity_type="batch", entity_id=batch.id,
+          meta={"format": fmt, "bleed_mm": bleed, "offset": offset, "count": len(page)}, ip=client_ip(request))
+    ctx.db.commit()
+    return Response(buf.getvalue(), media_type="application/zip", headers={
+        "Content-Disposition": f'attachment; filename="{batch.prefix}-cr80-{offset + 1}-{offset + len(page)}.zip"',
         "X-FlowQR-Codes": str(len(page)), "X-FlowQR-Total": str(len(cards)), "Cache-Control": "private, no-store"})
 
 
@@ -455,6 +478,13 @@ def admin_card_poster(card_id: uuid.UUID, fmt: str, scale: int = Query(1, ge=1, 
     """The approved FlowQR poster with this card's permanent QR code (PNG, SVG or print-ready PDF)."""
     card = _card_or_404(ctx, card_id)
     return poster_response(card_qr_url(card), fmt, card.card_code, scale=scale, size=size, serial=card.card_code)
+
+
+@router.get("/cards/{card_id}/cr80.{fmt}")
+def admin_card_cr80(card_id: uuid.UUID, fmt: str, bleed: float = Query(0.0), ctx: AuthContext = Depends(require_platform_admin)):
+    """This card's print file for the physical card: CR80 (85.6 x 54 mm), portrait, PNG or PDF at 600 dpi, optionally with 3 mm bleed."""
+    card = _card_or_404(ctx, card_id)
+    return cr80_response(card_qr_url(card), fmt, card.card_code, bleed=bleed, serial=card.card_code)
 
 
 def _tenant_row(db, t: Tenant, sub: Subscription | None, owner_email: str | None) -> dict:
