@@ -97,10 +97,10 @@ export function PosterDownload({ path, filename, label = "Download poster", vari
       <Button size={size === "sm" ? "sm" : undefined} variant={variant} icon={<ImageIcon className="h-4 w-4" />} onClick={() => setOpen(true)}>{label}</Button>
       {open && (
         <Modal open onClose={() => setOpen(false)} title="Download the FlowQR poster"
-          footer={<><Button variant="secondary" onClick={() => setOpen(false)} className="max-sm:order-3 max-sm:flex-1">Close</Button><Button variant="secondary" loading={busy} icon={<Download className="h-4 w-4" />} onClick={() => void download()} className="max-sm:order-2 max-sm:flex-1">Download</Button><Button loading={busy} icon={<Printer className="h-4 w-4" />} onClick={() => void printOrShare()} className="max-sm:order-1 max-sm:w-full">{ready ? (typeof navigator !== "undefined" && navigator.canShare?.({ files: [ready.file] }) ? "Share or print file" : "Open file to print") : "Print or share"}</Button></>}>
+          footer={<><Button variant="secondary" loading={busy} icon={<Download className="h-4 w-4" />} onClick={() => void download()} className="max-sm:order-2 max-sm:flex-1">Download</Button><Button loading={busy} icon={<Printer className="h-4 w-4" />} onClick={() => void printOrShare()} className="max-sm:order-1 max-sm:flex-[1.4]">{ready ? (typeof navigator !== "undefined" && navigator.canShare?.({ files: [ready.file] }) ? "Share or print" : "Open to print") : "Print or share"}</Button><Button variant="ghost" onClick={() => setOpen(false)} className="max-sm:hidden">Close</Button></>}>
           <div className="grid gap-4 sm:grid-cols-[200px_1fr] sm:gap-5">
             <div className="mx-auto w-full max-w-[104px] sm:max-w-none">
-              {preview ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={preview} alt="Preview of the FlowQR review poster with this code" className="w-full rounded-lg border border-ink-100 shadow-sm" data-testid="poster-preview" />
+              {preview ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={preview} alt="Preview of the FlowQR review poster with this code" decoding="async" width={1055} height={1491} className="h-auto w-full rounded-lg border border-ink-100 shadow-sm" data-testid="poster-preview" />
                 : problem ? null : <Skeleton className="aspect-[1055/1491] w-full" />}
             </div>
             <div className="min-w-0 space-y-3">

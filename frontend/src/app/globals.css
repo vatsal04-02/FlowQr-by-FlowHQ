@@ -434,10 +434,10 @@ html.fq-app[data-theme="dark"] .set-focus:focus-visible { outline-color: rgb(var
 .adm-drawer { animation: adm-slide-in 220ms cubic-bezier(.22, 1, .36, 1) both; }
 .adm-scrim { animation: adm-fade-in 180ms ease-out both; }
 .adm-page { animation: adm-rise-in 180ms ease-out; }
-.adm-card-link { transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease; }
-.adm-card-link:active { transform: scale(.985); }
+/* Press feedback by colour only: a transform (even scale) on a card makes it the anchor for any fixed dialog drawn inside it, and the dialog jumps away from the finger. */
+.adm-card-link { transition: background-color 150ms ease, border-color 150ms ease; }
+.adm-card-link:active { background-color: rgba(20, 22, 58, .05); }
 @media (prefers-reduced-motion: reduce) {
   .adm-drawer, .adm-scrim, .adm-page { animation: none; }
   .adm-card-link { transition: none; }
-  .adm-card-link:active { transform: none; }
 }

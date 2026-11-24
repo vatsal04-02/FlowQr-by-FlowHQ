@@ -110,7 +110,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <Logo href="/admin" auto markOnly tagline={false} size={28} label="Platform admin home" />
           </div>
         </header>
-        <main key={path} className="adm-page mx-auto w-full min-w-0 max-w-[1400px] px-4 py-5 pb-24 sm:px-6 md:py-6 md:pb-6">{children}</main>
+        <main className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-5 pb-24 sm:px-6 md:py-6 md:pb-6">{children}</main>
       </div>
 
       <nav aria-label="Admin quick links" className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-100 bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
