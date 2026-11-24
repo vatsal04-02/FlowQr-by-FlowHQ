@@ -6,14 +6,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ADMIN_BOTTOM, ADMIN_GROUPS, ADMIN_ITEMS, adminActive, adminHere } from "@/lib/admin-nav";
 import { useAuth } from "@/lib/auth";
+import { useAdminCounts, type AdminCount } from "@/lib/use-admin-counts";
 import { useAppChrome } from "@/lib/theme";
 import { Logo } from "./ui/Brand";
 import { Alert, Spinner } from "./ui/Card";
 
 const KEY = "flowqr:admin-nav";
 
+/** A count that always says what it is: the number, with a screen-reader sentence, in red for critical and amber for attention. */
+function Count({ c, label, className }: { c: AdminCount; label: string; className?: string }) {
+  if (!c) return null;
+  return <span className={clsx("inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold leading-5 text-white", c.tone === "bad" ? "bg-[#B42318]" : "bg-[#B45309]", className)}><span aria-hidden>{c.n}</span><span className="sr-only">{c.n} {label}</span></span>;
+}
+
 /** The grouped list, used by the desktop sidebar and the phone drawer. A group holding the current page is always open; the rest remember how the operator left them. */
-function NavList({ path, onGo }: { path: string; onGo?: () => void }) {
+function NavList({ path, onGo, counts }: { path: string; onGo?: () => void; counts: { ops: AdminCount; queue: AdminCount } }) {
   const here = adminHere(path);
   const [shut, setShut] = useState<Record<string, boolean>>({ plans: true });  // the WhatsApp rate pages start folded until the operator opens them
   useEffect(() => { try { const v = localStorage.getItem(KEY); if (v) setShut(JSON.parse(v)); } catch { /* private mode */ } }, []);
@@ -37,7 +44,7 @@ function NavList({ path, onGo }: { path: string; onGo?: () => void }) {
                       <Link href={n.href} onClick={onGo} aria-current={on ? "page" : undefined}
                         className={clsx("relative flex min-h-11 items-center gap-3 rounded-[10px] pl-3 pr-2 text-[14px] transition-colors md:min-h-10", on ? "bg-surface-2 font-semibold text-ink" : "font-medium text-ink-700 hover:bg-surface-2 hover:text-ink")}>
                         {on && <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-accent" />}
-                        <n.icon className={clsx("h-[18px] w-[18px] shrink-0", on ? "text-accent-ink" : "text-ink-500")} strokeWidth={1.75} aria-hidden /><span className="min-w-0 truncate">{n.label}</span>
+                        <n.icon className={clsx("h-[18px] w-[18px] shrink-0", on ? "text-accent-ink" : "text-ink-500")} strokeWidth={1.75} aria-hidden /><span className="min-w-0 flex-1 truncate">{n.label}</span>{n.badge && <Count c={counts[n.badge]} label={n.badge === "ops" ? "checks need attention" : "items waiting"} className="mr-1" />}
                       </Link>
                     </li>
                   );
@@ -61,6 +68,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [drawer, setDrawer] = useState(false);
   useAppChrome();
+  const counts = useAdminCounts(!!me?.user.is_platform_admin);
   useEffect(() => { if (!loading && !me) router.replace("/login"); }, [loading, me, router]);
   useEffect(() => { setDrawer(false); }, [path]);
   useEffect(() => {
@@ -76,7 +84,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const brand = (
     <span className="flex items-center gap-2.5">
       <Logo href="/admin" auto tagline={false} size={26} label="Platform admin home" />
-      <span className="text-[13px] font-medium text-muted">Operator</span>
+      <span className="rounded-full bg-navy px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">Admin</span>
     </span>
   );
   const foot = (
@@ -90,7 +98,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-canvas">
       <aside aria-label="Admin navigation" className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-ink-100 bg-surface md:flex">
         <div className="flex h-16 shrink-0 items-center px-4">{brand}</div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3"><NavList path={path} /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3"><NavList path={path} counts={counts} /></div>
         <div className="space-y-0.5 border-t border-ink-100 p-2.5">{foot}</div>
       </aside>
 
@@ -111,7 +119,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             const on = adminActive(path, n.href);
             return (
               <li key={n.href}><Link href={n.href} aria-current={on ? "page" : undefined} className={clsx("flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium", on ? "text-ink" : "text-muted")}>
-                <n.icon className="h-5 w-5" strokeWidth={on ? 2 : 1.75} aria-hidden />{n.label === "Subscriptions & payments" ? "Billing" : n.label === "System health" ? "Health" : n.label}</Link></li>);
+                <span className="relative"><n.icon className="h-5 w-5" strokeWidth={on ? 2 : 1.75} aria-hidden />{n.badge && <Count c={counts[n.badge]} label="need attention" className="absolute -right-3 -top-1.5 !min-w-[16px] !px-1 !text-[10px] !leading-4" />}</span>{n.short ?? n.label}</Link></li>);
           })}
           <li><button type="button" onClick={() => setDrawer(true)} className="flex h-full w-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted"><Menu className="h-5 w-5" strokeWidth={1.75} aria-hidden />Menu</button></li>
         </ul>
@@ -122,7 +130,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <button type="button" aria-label="Close menu" onClick={() => setDrawer(false)} className="absolute inset-0 bg-black/40" />
           <div className="absolute inset-y-0 left-0 flex w-[min(320px,86vw)] flex-col bg-surface shadow-xl">
             <div className="flex h-14 shrink-0 items-center justify-between px-4">{brand}<button type="button" onClick={() => setDrawer(false)} aria-label="Close menu" className="grid h-11 w-11 place-items-center rounded-full hover:bg-surface-2"><X className="h-5 w-5" aria-hidden /></button></div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3"><NavList path={path} onGo={() => setDrawer(false)} /></div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3"><NavList path={path} onGo={() => setDrawer(false)} counts={counts} /></div>
             <div className="space-y-0.5 border-t border-ink-100 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">{foot}</div>
           </div>
         </div>

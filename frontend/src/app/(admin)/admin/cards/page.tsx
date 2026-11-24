@@ -144,7 +144,20 @@ export default function AdminCards() {
           {cards.loading && !cards.data ? <Skeleton className="h-64" /> : cards.data && cards.data.items.length === 0 ? (
             <EmptyState icon={<FileStack className="h-6 w-6" />} title="No cards found" action={<Button onClick={() => setNewBatch(true)}>Create a batch</Button>}>Generate a batch of unique cards to get started.</EmptyState>
           ) : (
-            <Card pad={false}><div className="overflow-x-auto"><table className="dt min-w-[1100px]">
+            <>
+            <ul aria-label="Cards" className="space-y-2 md:hidden">{cards.data?.items.map((c) => (
+              <li key={c.id} className="rounded-xl border border-ink-100 bg-surface p-3.5">
+                <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="font-semibold">{c.card_code}</p>{c.batch_name && <p className="truncate text-xs text-ink-500">{c.batch_name}</p>}</div><Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge></div>
+                <p className="mt-1.5 truncate text-[13px] text-ink-700">{c.tenant_name ? `${c.tenant_name} · ${c.location_name ?? "no location yet"}` : "In stock"}</p>
+                <p className="mt-1 text-xs text-ink-500">{c.stats.qr_scan ?? 0} scans · {c.stats.nfc_scan ?? 0} taps · {c.last_scan_at ? `last ${fmtDate(c.last_scan_at)}` : "never scanned"}</p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  {c.status !== "retired" && c.status !== "archived" && <Button size="sm" className="!min-h-11 !rounded-full" icon={<UserPlus className="h-4 w-4" />} onClick={() => setAssign(c)}>{c.location_id ? "Change" : "Assign"}</Button>}
+                  <Button size="sm" variant="secondary" className="!min-h-11 !rounded-full" icon={<QrCode className="h-4 w-4" />} onClick={() => setView(c)}>Details</Button>
+                  {(c.status === "generated" || c.status === "unassigned") && <Button size="sm" variant="secondary" className="!min-h-11 !rounded-full" onClick={() => setReserve(c)}>Reserve</Button>}
+                  {c.status !== "retired" && c.status !== "archived" && <PosterDownload path={`/admin/cards/${c.id}/poster`} filename={c.card_code} label="Poster" variant="ghost" />}
+                </div>
+              </li>))}</ul>
+            <Card pad={false} className="hidden md:block"><div className="overflow-x-auto"><table className="dt min-w-[1100px]">
               <thead><tr><th className="w-10 px-4 py-2.5"><input type="checkbox" aria-label="Select all cards on this page" checked={!!cards.data && cards.data.items.length > 0 && cards.data.items.filter((c) => c.status !== "retired").every((c) => picked.has(c.id))}
                 onChange={(e) => setPicked(e.target.checked ? new Set((cards.data?.items ?? []).filter((c) => c.status !== "retired").map((c) => c.id)) : new Set())} className="h-4 w-4" /></th>
                 {["Card", "Status", "Business / location", "Campaign / destination", "NFC", "QR scans", "NFC taps", "Last scan", ""].map((h, i) => <th key={i} className="px-4 py-2.5 font-semibold">{h}</th>)}</tr></thead>
@@ -173,6 +186,7 @@ export default function AdminCards() {
                   </div></td>
                 </tr>))}</tbody>
             </table></div></Card>
+            </>
           )}
           {cards.data && cards.data.total > PAGE && (
             <div className="mt-4 flex items-center justify-between"><Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button>

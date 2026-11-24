@@ -66,6 +66,11 @@ export default function AdminHome() {
   const open = attention.filter((a) => a.n > 0);
   return (
     <>
+      {ops.data?.status === "critical" && (
+        <Link href="/admin/ops" className="mb-4 flex min-h-11 items-center gap-3 rounded-xl border border-[#F4C7C1] bg-[#FDEAE8] px-4 py-3 text-[14px] text-[#A4200F]">
+          <AlertTriangle aria-hidden className="h-5 w-5 shrink-0" /><span className="min-w-0 flex-1"><b className="font-semibold">{ops.data.counts.critical} critical item{ops.data.counts.critical === 1 ? "" : "s"} on System health.</b> Open it to see what to do.</span><span className="shrink-0 font-semibold underline">Open</span>
+        </Link>
+      )}
       <PageHeader eyebrow="Platform" title="Operator overview" subtitle="Clients, revenue and what needs you, across all of FlowQR." />
       {!s ? <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" /></div> : (
         <div className="space-y-4">
