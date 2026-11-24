@@ -37,7 +37,7 @@ async function signedIn(browser, email, name) {
     expect(!/AIza[0-9A-Za-z_-]{10}|rzp_(live|test)_[A-Za-z0-9]{6}|sk-[A-Za-z0-9]{10}|ingest\.sentry\.io|BEGIN [A-Z ]*PRIVATE/.test(t), 'a secret-looking value is on the page');
   });
   await step('ops: it is in the admin navigation and loads on a phone-width screen without sideways scroll', async () => {
-    await page.getByRole('link', { name: 'Operations' }).first().waitFor();
+    await page.getByRole('link', { name: 'System health' }).first().waitFor();
     await page.setViewportSize({ width: 390, height: 800 });
     await page.goto('/admin/ops');
     await page.getByRole('list', { name: 'Platform checks' }).waitFor({ timeout: 20000 });

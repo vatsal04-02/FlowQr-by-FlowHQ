@@ -36,12 +36,12 @@ export default function AdminOps() {
               {sorted.map((c) => { const I = ICON[c.status]; return (
                 <li key={c.id} className="flex flex-wrap items-start gap-x-4 gap-y-1 p-4 sm:px-6">
                   <I className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-[10rem] flex-1 basis-[10rem]">
                     <p className="font-semibold">{c.label}</p>
-                    <p className="text-sm text-muted">{c.detail}</p>
-                    {c.action && <p className="mt-1 text-sm"><span className="font-semibold">Do this:</span> {c.action}</p>}
+                    <p className="break-words text-sm text-muted [overflow-wrap:anywhere]">{c.detail}</p>
+                    {c.action && <p className="mt-1 break-words text-sm [overflow-wrap:anywhere]"><span className="font-semibold">Do this:</span> {c.action}</p>}
                   </div>
-                  <Badge tone={TONE[c.status]}>{WORD[c.status]}</Badge>
+                  <span className="ml-9 sm:ml-0"><Badge tone={TONE[c.status]}>{WORD[c.status]}</Badge></span>
                 </li>); })}
             </ul>
           </Card>
