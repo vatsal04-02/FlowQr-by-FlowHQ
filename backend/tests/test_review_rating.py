@@ -45,6 +45,7 @@ DRAFTS = {
     3: "The treatment and the appointments were okay.", 4: "I was happy with the treatment and the appointments.",
     5: "I was happy with the treatment and the appointments.",
 }
+FIVE_AGAIN = "I liked the treatment and the appointments."  # a second 5-star customer gets a different review (the same text is never written twice for one business)
 
 
 @pytest.mark.parametrize("rating,sentiment,tone", [(1, "not_good", "1 star"), (2, "not_good", "2 stars"), (3, "okay", "neutral or mixed"), (4, "good", "positive"), (5, "good", "very positive")])
@@ -107,8 +108,10 @@ def test_every_rating_reaches_the_google_link(client, llm, rating):
 def test_rating_distribution_in_analytics_is_labelled_and_separate(client, llm):
     b = physio()
     c = campaign(b)
+    seen: set[str] = set()
     for r in (1, 5, 5, 3):
-        llm.texts = [DRAFTS[r]]
+        llm.texts = [FIVE_AGAIN if DRAFTS[r] in seen else "The appointments and the treatment were okay." if r == 3 else DRAFTS[r]]  # a different review for every customer
+        seen.add(llm.texts[0])
         assert go(client, c, suggestions=["treatment", "appointment"], rating=r).json()["ai_status"] == "ok"
     go(client, c, mode="manual", text="written myself")  # no rating
     a = b.get("/review-growth/analytics").json()["ratings"]

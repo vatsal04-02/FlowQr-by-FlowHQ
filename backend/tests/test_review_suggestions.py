@@ -6,7 +6,7 @@ import pytest
 
 from app.core.config import settings
 from app.services.ai.review_generate import (CROSS_REVIEW_SIMILARITY, SAME_VISIT_SIMILARITY, STRUCTURE_HINTS, STYLE_GUIDE, VARIATION_HINTS, VARIATION_POSITIVE, sameness)
-from tests.conftest import owner_query
+from tests.conftest import owner_exec, owner_query
 from tests.test_review_growth import campaign, llm, pub  # noqa: F401
 
 # Genuinely different English reviews of the same visit (staff, rated 5). Each uses only the describing words the Staff keyword allows, and none opens like another.
@@ -39,6 +39,12 @@ def two_per_round(monkeypatch):
     monkeypatch.setattr(settings, "review_suggestions_per_round", 2)  # production default (the older suite runs with 1)
     monkeypatch.setattr(settings, "review_hinglish_chance", 0.0)  # tests that want Hinglish switch it on
     monkeypatch.setattr(settings, "review_max_ai_writes_per_session", 2)
+
+
+def hinglish_in(monkeypatch, slot):
+    """Make Hinglish certain and pin which suggestion of the round it is (0 = first, 1 = second)."""
+    monkeypatch.setattr(settings, "review_hinglish_chance", 1.0)
+    monkeypatch.setattr("app.api.v1.review_public._hinglish_slot", lambda n: slot)
 
 
 def script(monkeypatch, texts, verdict="OK"):
@@ -122,8 +128,8 @@ def test_asking_for_more_than_two_still_shows_two(biz_a, client, llm, monkeypatc
 
 
 # ================================================================================================================ Hinglish
-def test_the_second_suggestion_can_be_hinglish_and_is_fact_checked_by_the_ai_even_when_that_check_is_off(biz_a, client, monkeypatch):
-    monkeypatch.setattr(settings, "review_hinglish_chance", 1.0)
+def test_a_suggestion_can_be_hinglish_and_is_fact_checked_by_the_ai_even_when_that_check_is_off(biz_a, client, monkeypatch):
+    hinglish_in(monkeypatch, 1)
     monkeypatch.setattr(settings, "review_verify_with_ai", False)  # the English suggestion is not fact-checked by the model here...
     p = script(monkeypatch, [A, H1])
     r = gen(client, campaign(biz_a)).json()
@@ -133,7 +139,7 @@ def test_the_second_suggestion_can_be_hinglish_and_is_fact_checked_by_the_ai_eve
 
 
 def test_hinglish_that_the_fact_check_does_not_support_is_dropped(biz_a, client, monkeypatch):
-    monkeypatch.setattr(settings, "review_hinglish_chance", 1.0)
+    hinglish_in(monkeypatch, 1)
     script(monkeypatch, [A, H1], verdict="UNSUPPORTED: staff ne unhe chai pilayi")
     r = gen(client, campaign(biz_a)).json()
     assert r["ai_status"] == "ok" and r["suggestions"] == [A]  # the customer just sees the English one
@@ -141,13 +147,13 @@ def test_hinglish_that_the_fact_check_does_not_support_is_dropped(biz_a, client,
 
 @pytest.mark.parametrize("bad", ["स्टाफ़ बहुत अच्छा था और विनम्र भी।", "The staff were friendly and polite to me.", "Staff ne mujhse 20 minute baat ki aur wo bahut friendly the."])
 def test_hinglish_must_really_be_hinglish_without_devanagari_or_invented_numbers(biz_a, client, monkeypatch, bad):
-    monkeypatch.setattr(settings, "review_hinglish_chance", 1.0)
+    hinglish_in(monkeypatch, 1)
     script(monkeypatch, [A, bad])
     assert gen(client, campaign(biz_a)).json()["suggestions"] == [A]
 
 
 def test_hinglish_is_never_offered_when_the_business_does_not_offer_hindi(biz_a, client, monkeypatch):
-    monkeypatch.setattr(settings, "review_hinglish_chance", 1.0)
+    hinglish_in(monkeypatch, 1)
     assert biz_a.put("/review-growth/context", json={"languages": ["en"]}).status_code == 200
     p = script(monkeypatch, [A, H1, B])
     r = gen(client, campaign(biz_a)).json()
@@ -160,12 +166,32 @@ def test_with_hinglish_switched_off_both_suggestions_are_in_the_customers_langua
     assert r["suggestion_languages"] == ["en", "en"] and p.checks == 0
 
 
-def test_hinglish_appears_only_sometimes(biz_a, client, monkeypatch):
+def test_hinglish_appears_only_sometimes_in_either_place_and_never_in_every_suggestion(biz_a, client, monkeypatch):
     monkeypatch.setattr(settings, "review_hinglish_chance", 0.4)
     from app.api.v1.review_public import round_languages
-    kinds = [round_languages("en", ("en", "hi"), 2)[1] for _ in range(400)]
-    share = kinds.count("hinglish") / 400
-    assert 0.25 < share < 0.55 and round_languages("en", ("en", "hi"), 2)[0] == "en"  # the first suggestion is always in the customer's own language
+    rounds = [round_languages("en", ("en", "hi"), 2) for _ in range(600)]
+    with_hinglish = [r for r in rounds if "hinglish" in r]
+    assert 0.3 < len(with_hinglish) / 600 < 0.5  # sometimes, not always
+    assert any(r[0] == "hinglish" for r in with_hinglish) and any(r[1] == "hinglish" for r in with_hinglish)  # the first suggestion too, not only the second
+    assert all(r.count("hinglish") == 1 for r in with_hinglish)  # a round never turns out all Hinglish
+    assert all(r == ["en", "en"] for r in rounds if "hinglish" not in r)
+
+
+def test_the_first_suggestion_can_be_the_hinglish_one(biz_a, client, monkeypatch):
+    hinglish_in(monkeypatch, 0)
+    monkeypatch.setattr(settings, "review_verify_with_ai", False)
+    p = script(monkeypatch, [H1, A])
+    r = gen(client, campaign(biz_a)).json()
+    assert r["suggestions"] == [H1, A] and r["suggestion_languages"] == ["hinglish", "en"] and r["draft"] == H1  # the box starts with the Hinglish one
+    assert p.checks == 1 and "Hinglish" in p.calls[0] and "Hinglish" not in p.calls[1]
+
+
+def test_a_hinglish_first_suggestion_that_fails_its_checks_is_replaced_by_one_in_the_customers_language_never_by_an_error(biz_a, client, monkeypatch):
+    hinglish_in(monkeypatch, 0)
+    monkeypatch.setattr(settings, "review_verify_with_ai", False)
+    script(monkeypatch, [H1, H1, A, B], verdict="UNSUPPORTED: staff ne unhe chai pilayi")  # both Hinglish attempts fail the fact-check; the English ones are not fact-checked here
+    r = gen(client, campaign(biz_a)).json()
+    assert r["ai_status"] == "ok" and r["suggestions"] == [A, B] and r["suggestion_languages"] == ["en", "en"]
 
 
 # ================================================================================================================ real uniqueness
@@ -256,3 +282,57 @@ def test_when_services_are_recorded_every_suggestion_is_written_with_that_knowle
     gen(client, c, topic)
     assert all("Back pain rehabilitation" in u and "An exercise-based rehabilitation clinic." in u for _, u in llm.calls)  # both get the business's own context
     assert all("never evidence of what this customer received" in u for _, u in llm.calls)  # and are told it is background, not what the customer experienced
+
+
+# ================================================================================================================ no review is ever the same as one the business already has
+def test_an_identical_or_near_identical_review_is_never_accepted_not_even_on_the_last_attempt(biz_a, client, llm, monkeypatch):
+    c = campaign(biz_a)
+    topic = topic_of(client, c)
+    llm.texts = [A, B]
+    first = gen(client, c, topic).json()
+    assert first["suggestions"] == [A, B]
+    # a different customer: every attempt comes back as A, or as A with one word changed. Opening-word and phrase overlap may soften on the last attempt, but being THE SAME review never does.
+    for repeat in ("The staff were friendly and polite.", "The staff were friendly and polite!", "the staff were friendly and polite"):
+        llm.texts = [repeat]
+        r = gen(client, c, topic).json()
+        assert r["ai_status"] == "rejected" and r["draft"] is None, repeat
+
+
+def test_a_text_a_customer_actually_posted_is_also_never_repeated(biz_a, client, llm):
+    c = campaign(biz_a)
+    topic = topic_of(client, c)
+    llm.texts = [A, B]
+    sid = gen(client, c, topic).json()["session_id"]
+    owner_exec("UPDATE review_drafts SET suggestions = NULL, generated_content = NULL, final_content = :t WHERE session_id = (SELECT id FROM review_sessions WHERE session_identifier = :s)", t=C, s=sid)
+    llm.texts = [C]  # the posted text comes back word for word for the next customer
+    assert gen(client, c, topic).json()["ai_status"] == "rejected"
+    llm.texts = [D, E]
+    assert gen(client, c, topic).json()["suggestions"][0] == D  # a genuinely different one is fine
+
+
+def test_the_duplicate_check_looks_far_beyond_the_last_dozen_reviews_and_never_sends_those_texts_to_the_ai(biz_a, client, llm):
+    from app.api.v1.review_public import avoid_texts, recent_reviews
+    from app.core.db import SessionLocal, set_rls_context
+    from app.models import ReviewCampaign, ReviewSession, Tenant
+    c = campaign(biz_a)
+    topic = topic_of(client, c)
+    llm.texts = [A, B]
+    first = gen(client, c, topic).json()
+    for i in range(15):  # fifteen later customers (inserted directly): the first customer's texts are now far outside the "last 12"
+        owner_exec("WITH s AS (INSERT INTO review_sessions (id, tenant_id, campaign_id, session_identifier, language, style, customer_input, created_at) "
+                   "SELECT gen_random_uuid(), tenant_id, id, :i, 'en', 'natural', '{}'::jsonb, now() FROM review_campaigns WHERE public_id = :p RETURNING id, tenant_id) "
+                   "INSERT INTO review_drafts (id, tenant_id, session_id, generated_content, generation_count, ai_assisted, created_at, updated_at) "
+                   "SELECT gen_random_uuid(), tenant_id, id, :t, 1, true, now() + make_interval(secs => :n), now() + make_interval(secs => :n) FROM s",
+                   i=f"filler-session-{i:03d}-abcdefgh", p=c["public_id"], t=f"Filler review number {i} about nothing in particular.", n=i + 1)
+    db = SessionLocal()
+    set_rls_context(db, bypass=True)
+    try:
+        camp = db.query(ReviewCampaign).filter(ReviewCampaign.public_id == c["public_id"]).one()
+        tenant = db.get(Tenant, camp.tenant_id)
+        me = ReviewSession(tenant_id=tenant.id, campaign_id=camp.id, session_identifier="me-" + "x" * 20, language="en", style="natural", customer_input={})
+        pool, shown_to_ai = avoid_texts(db, tenant, camp, me), recent_reviews(db, tenant, camp, me)
+    finally:
+        db.close()
+    assert A in pool and B in pool  # the duplicate check still knows them
+    assert A not in shown_to_ai and len(shown_to_ai) <= 12  # while the AI is only shown the latest few examples
+    assert first["suggestions"] == [A, B]

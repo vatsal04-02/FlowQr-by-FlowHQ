@@ -23,6 +23,7 @@ os.environ["AI_REVIEW_RISK_CHECK"] = "false"  # tests use scripted stub models w
 os.environ["REVIEW_VERIFY_WITH_AI"] = "false"  # tests use scripted stub models; the fact-check pass has its own dedicated tests
 os.environ["CARD_PRICE_PAISE"] = "24900"  # TEST ONLY price
 os.environ["PLATFORM_ADMIN_EMAILS"] = "root@flowhq-admin.example.com"
+os.environ["REVIEW_HINGLISH_CHANCE"] = "0"  # production sometimes writes a Hinglish suggestion; the older suite scripts English drafts, tests/test_review_suggestions.py switches it on
 os.environ["REVIEW_SUGGESTIONS_PER_ROUND"] = "1"  # production shows 2-3 suggestions per round; the older suite scripts ONE draft per call, tests/test_review_suggestions.py sets 3
 os.environ["REVIEW_MAX_AI_WRITES_PER_SESSION"] = "50"  # production allows 2 AI-written versions per customer visit; older tests drive many, tests/test_review_cap.py sets it back to 2
 

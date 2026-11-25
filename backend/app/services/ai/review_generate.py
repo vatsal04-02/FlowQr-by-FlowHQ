@@ -37,6 +37,7 @@ LANGUAGE_RULE = {
 }
 # Different openings per request so drafts don't converge on one template. They steer structure, never add facts.
 CROSS_REVIEW_SIMILARITY = 0.62  # a draft this close to another customer's review (difflib ratio) is rewritten
+NEAR_DUPLICATE = 0.85  # against EVERYTHING the business has had written or posted: this close is the same review, whatever the wording tweaks
 SAME_VISIT_SIMILARITY = 0.75  # ...and the suggestions shown to ONE customer must differ at least this much (looser than across customers: one visit has one set of facts, so rewordings share many words)
 VARIATION_HINTS = (  # direction-neutral shapes: they work for a 1-star and a 5-star review alike
     "Start with the first topic as the subject of the sentence.", "Start with 'As for the ...' and the first topic.", "Start with the LAST listed topic instead of the first.",
@@ -431,7 +432,7 @@ def sameness(a: str, b: str, ratio_limit: float, phrases: bool = True) -> str | 
 
 def validate_draft(text: str, inp: ReviewInput, *, language: str, style: str, business_name: str,
                    location_terms: str = "", previous: tuple[str, ...] = (), category: str | None = None,
-                   offered_terms: tuple[str, ...] = (), recent: tuple[str, ...] = ()) -> None:
+                   offered_terms: tuple[str, ...] = (), recent: tuple[str, ...] = (), avoid: tuple[str, ...] = ()) -> None:
     """Raise ReviewDraftRejected unless `text` stays inside what the customer actually said."""
     given = inp.text()
     given_l = given.lower()
@@ -570,6 +571,15 @@ def validate_draft(text: str, inp: ReviewInput, *, language: str, style: str, bu
     for p in previous:
         if (why := sameness(text, p, SAME_VISIT_SIMILARITY, phrases=False)):
             raise ReviewTooSimilarError(f"too similar to the previous draft ({why})", soft=False)
+    # No review is ever the SAME as one the business already has: checked locally (nothing is sent to the AI) against every suggestion shown and every text posted at this location, however old.
+    # Unlike the stricter checks below this is never relaxed, not even on the last attempt.
+    mine = " ".join(_TOKEN.findall(text.lower()))
+    for a in avoid:
+        if mine == " ".join(_TOKEN.findall(a.lower())):
+            raise ReviewTooSimilarError("identical to a review already written for this business", soft=False)
+        if difflib.SequenceMatcher(None, text.lower(), a.lower()).ratio() > NEAR_DUPLICATE:
+            raise ReviewTooSimilarError("almost identical to a review already written for this business", soft=False)
+    # The stricter, relaxable checks come AFTER the hard ones, so softening on a last attempt can never let a duplicate through.
     for r in recent:
         if (why := sameness(text, r, CROSS_REVIEW_SIMILARITY)):
             raise ReviewTooSimilarError(f"too similar to another review already written for this business ({why})", soft=True)
@@ -642,7 +652,8 @@ def _retry_hint(exc: ReviewDraftRejected, hint: str) -> str:
 def generate_review(provider: LLMProvider, inp: ReviewInput, *, language: str, style: str, business_name: str,
                     category: str | None = None, location_name: str | None = None,
                     previous: tuple[str, ...] = (), verify: bool | None = None, context_text: str = "",
-                    offered_terms: tuple[str, ...] = (), stats: dict | None = None, recent: tuple[str, ...] = (), shape: int | None = None, allow_similar: bool = False) -> str:
+                    offered_terms: tuple[str, ...] = (), stats: dict | None = None, recent: tuple[str, ...] = (), shape: int | None = None, allow_similar: bool = False,
+                    avoid: tuple[str, ...] = ()) -> str:
     """One draft grounded in `inp`: generate, run the deterministic checks, then (if enabled) an AI fact-check. A failed check
     triggers one retry that tells the model what was wrong; a second failure raises ReviewDraftRejected."""
     if language not in WRITING_LANGUAGES or style not in STYLES:
@@ -669,7 +680,7 @@ def generate_review(provider: LLMProvider, inp: ReviewInput, *, language: str, s
         if re.match(r"^\W*NEEDS[_ ]?MORE\b", text, re.I):  # the model judged the input too thin (_clean_output strips the underscore)
             raise NeedsMoreDetail()
         vkw = dict(language=language, style=style, business_name=business_name, location_terms=location_terms, previous=previous,
-                   category=category, offered_terms=offered_terms, recent=recent)
+                   category=category, offered_terms=offered_terms, recent=recent, avoid=avoid)
         try:
             validate_draft(text, inp, **vkw)
         except ReviewTooSimilarError as exc:

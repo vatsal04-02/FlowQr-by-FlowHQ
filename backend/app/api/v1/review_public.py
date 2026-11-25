@@ -174,6 +174,22 @@ def _describing(words: tuple[str, ...], sentiment: str | None) -> str:
     return ""
 
 
+def avoid_texts(db: Session, tenant, campaign, session: ReviewSession, limit: int = 300) -> tuple[str, ...]:
+    """Everything this location has already been given or has posted: every suggestion shown and every confirmed text, newest first. Used ONLY for local duplicate checks and never sent to the AI,
+    so unlike recent_reviews it may include texts that contain a customer's own words."""
+    camp_ids = select(ReviewCampaign.id).where(ReviewCampaign.tenant_id == tenant.id, ReviewCampaign.location_id == campaign.location_id)
+    rows = db.execute(select(ReviewDraft.generated_content, ReviewDraft.suggestions, ReviewDraft.final_content).join(ReviewSession, ReviewSession.id == ReviewDraft.session_id)
+                      .where(ReviewSession.tenant_id == tenant.id, ReviewSession.campaign_id.in_(camp_ids), ReviewDraft.session_id != session.id)
+                      .order_by(ReviewDraft.updated_at.desc()).limit(limit)).all()
+    out: dict[str, None] = {}
+    for generated, shown, final in rows:
+        for item in (*(shown or []), generated, final):
+            body = item.get("text") if isinstance(item, dict) else item
+            if isinstance(body, str) and body.strip():
+                out[body] = None
+    return tuple(out)
+
+
 def recent_reviews(db: Session, tenant, campaign, session: ReviewSession, limit: int = 12) -> tuple[str, ...]:
     """What other customers of this location were recently given, so each new review can be written to read differently (and is rejected if it is too close). Only drafts built from
     stars and topics are used: a draft that contains someone's own typed words is never sent to the AI as an example for another customer."""
@@ -222,12 +238,17 @@ def suggestions_of(draft: ReviewDraft | None) -> list[str]:
 _STYLE_ORDER = ("natural", "short", "warm", "professional", "detailed")  # most different from each other first
 
 
+def _hinglish_slot(n: int) -> int:
+    """Which suggestion of a round is the Hinglish one (a function of its own so tests can pin it)."""
+    return random.randrange(n)
+
+
 def round_languages(base: str, offered, n: int) -> list[str]:
-    """The language of each suggestion in a round. The first is always the customer's language. The second is sometimes Hinglish (Hindi in English letters), with the chance set by
-    REVIEW_HINGLISH_CHANCE, and only when the business offers Hindi at all."""
-    out = [base]
-    if n > 1:
-        out.append("hinglish" if "hi" in offered and random.random() < settings.review_hinglish_chance else base)
+    """The language of each suggestion in a round. Some rounds (REVIEW_HINGLISH_CHANCE, and only when the business offers Hindi at all) include one Hinglish suggestion (Hindi in English
+    letters), in the first or the second place at random; the others are in the customer's own language, so a round never turns out all Hinglish."""
+    out = [base] * n
+    if "hi" in offered and random.random() < settings.review_hinglish_chance:
+        out[_hinglish_slot(n)] = "hinglish"
     return out
 
 
@@ -282,12 +303,22 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
         langs = round_languages(session.language, bctx.languages, n)
         start = random.randrange(1000)  # consecutive "shape" numbers from a random start: no two suggestions in a round are told to open or build sentences the same way
         common = dict(language=session.language, business_name=tenant.name, category=tenant.category, location_name=loc.name, recent=recent,
-                      context_text=_context_with_voice(db, tenant, bctx), offered_terms=bctx.offered_terms())
-        text = generate_review(provider, inp, style=styles[0], previous=previous, stats=stats, shape=start if n > 1 else None, allow_similar=True, **common)
+                      avoid=avoid_texts(db, tenant, campaign, session), context_text=_context_with_voice(db, tenant, bctx), offered_terms=bctx.offered_terms())
+
+        def write(i: int, prior: tuple[str, ...], **kw) -> str:
+            return generate_review(provider, inp, style=styles[i], previous=prior, shape=start + i if n > 1 else None, **{**common, "language": langs[i]}, **kw)
+
+        try:
+            text = write(0, previous, stats=stats, allow_similar=True)
+        except ReviewDraftRejected:
+            if langs[0] != "hinglish":
+                raise
+            langs[0] = session.language  # a Hinglish first suggestion that cannot be written faithfully is replaced by one in the customer's own language, never by an error
+            text = write(0, previous, stats=stats, allow_similar=True)
         shown = [{"text": text, "lang": langs[0]}]
         for i in range(1, n):  # the extra suggestion is a bonus: if it cannot be written faithfully AND differently the customer simply sees one, never an error
             try:
-                extra = generate_review(provider, inp, style=styles[i], previous=(*previous, *(e["text"] for e in shown)), stats={}, shape=start + i, **{**common, "language": langs[i]})
+                extra = write(i, (*previous, *(e["text"] for e in shown)), stats={})
             except (NeedsMoreDetail, ReviewDraftRejected):
                 continue
             except AIUnavailable:

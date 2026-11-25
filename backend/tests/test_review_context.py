@@ -478,8 +478,9 @@ def test_calls_retries_rejections_tokens_and_cost_are_measured(biz_a, client, ro
     # request 1: write (rule-rejected: invented quality) -> write ok -> fact-check OK   => 3 calls, 2 attempts, 1 rule rejection
     # request 2: write ok -> fact-check rejects -> write ok -> fact-check OK            => 4 calls, 2 attempts, 1 fact-check rejection
     good = "I was happy with the staff."
+    second = "I appreciated the staff."  # the second customer's first write: a different review from the first customer's (the same text is never written twice for one business)
     route([cost_reply("The staff were kind and knowledgeable.", prompt=300, completion=10, cost=0.0001), cost_reply(good, prompt=300, completion=10, cost=0.0001),
-           cost_reply(good, prompt=300, completion=10, cost=0.0001), cost_reply("I was happy with the staff and said so.", prompt=300, completion=12, cost=0.0001)],
+           cost_reply(second, prompt=300, completion=10, cost=0.0001), cost_reply("I was happy with the staff and said so.", prompt=300, completion=12, cost=0.0001)],
           [cost_reply("OK", prompt=200, completion=2, cost=0.00005), cost_reply("UNSUPPORTED: said so", prompt=200, completion=4, cost=0.00005), cost_reply("OK", prompt=200, completion=2, cost=0.00005)])
     c = campaign(biz_a)
     assert go(client, c, suggestions=["staff"], sentiment="good").json()["ai_status"] == "ok"
@@ -524,7 +525,7 @@ def test_google_clicks_are_never_called_published_reviews(biz_a, client, llm):
 def test_no_sentiment_gating_every_feeling_reaches_the_same_google_link(biz_a, client, llm):
     c = campaign(biz_a)
     out = []
-    for feeling, draft in (("good", "I was happy with the staff."), ("okay", "The staff were okay."), ("not_good", "I wasn't happy with the staff.")):
+    for feeling, draft in (("good", "I was happy with the staff."), ("okay", "The staff were okay."), ("not_good", "I didn't find the staff good.")):
         llm.texts = [draft]
         d = go(client, c, suggestions=["staff"], sentiment=feeling).json()
         a = pub(client, "POST", c["public_id"], "/approve", json={"session_id": d["session_id"], "final_text": draft}).json()

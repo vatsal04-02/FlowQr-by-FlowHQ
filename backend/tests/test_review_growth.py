@@ -503,8 +503,10 @@ def test_approve_then_continue_to_google_and_tracking(biz_a, client, llm):
 def test_the_flow_is_identical_for_every_rating_no_filtering(biz_a, client, llm):
     c = campaign(biz_a)
     outcomes = []
+    # neutral wording, valid whatever the rating, and a different text for every customer (the same review is never written twice for one business)
+    neutral = ["The doctor listened carefully.", "I noticed how carefully the doctor listened.", "Carefully, the doctor listened.", "Listening carefully is what the doctor did.", "I saw that the doctor listened carefully."]
     for rating in (1, 2, 3, 4, 5):
-        llm.texts = ["The doctor listened carefully."]  # neutral wording: valid whatever the rating
+        llm.texts = [neutral[rating - 1]]
         d = generate(client, c, rating=rating, appreciated="the doctor listened carefully").json()
         a = pub(client, "POST", c["public_id"], "/approve", json={"session_id": d["session_id"], "final_text": "My honest experience at this clinic."}).json()
         r = pub(client, "POST", c["public_id"], "/redirect", json={"session_id": d["session_id"]})
@@ -583,9 +585,9 @@ def test_analytics_funnel_numbers_and_honest_labels(biz_a, client, llm):
     pub(client, "GET", other["public_id"])
     sessions = []
     for i in range(3):
-        llm.texts = [GOOD[0]]
+        llm.texts = [GOOD[i]]  # a different review for each customer
         sessions.append(generate(client, c, rating=5).json()["session_id"])
-    llm.texts = [GOOD[1]]
+    llm.texts = ["I went for back pain physiotherapy, and the reception staff were friendly as well as the doctor listening carefully."]
     assert pub(client, "POST", c["public_id"], "/regenerate", json={"session_id": sessions[0]}).json()["ai_status"] == "ok"
     llm.texts = ["I had 7 sessions and was cured."]
     assert generate(client, c).json()["ai_status"] == "rejected"  # one failed generation
