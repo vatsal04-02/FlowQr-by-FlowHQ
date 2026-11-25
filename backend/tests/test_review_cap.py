@@ -70,3 +70,64 @@ def test_a_failed_write_does_not_use_up_the_allowance(biz_a, client, monkeypatch
     sid = down["session_id"]
     ok = pub(client, "POST", c["public_id"], "/regenerate", json={"session_id": sid}).json()
     assert ok["ai_status"] == "ok" and ok["remaining_drafts"] == 1
+
+
+# ---------------------------------------------------------------------------------------------------------------- a named business can be given more, for testing
+TEN = [  # ten genuinely different reviews, so the app's own "no repeats" rule is not what stops the test
+    "I came in for back pain physiotherapy and the doctor listened carefully to me. The reception staff were friendly as well.",
+    "Friendly reception, and a doctor who really listened. I went for back pain physiotherapy.",
+    "Visited with a stiff back; physiotherapy helped and the doctor took time to hear me out. Welcoming front desk too.",
+    "Warm welcome at reception, a patient doctor, and real relief from my back pain after physiotherapy sessions here.",
+    "My back pain was explained clearly by a doctor who listened. The physiotherapy plan made sense and the staff were kind.",
+    "Kind people at the desk, careful listening from the doctor, and useful physiotherapy for my aching back.",
+    "Booked physiotherapy for back trouble. Reception was courteous and the doctor never rushed me, which I appreciated.",
+    "A calm clinic where the doctor heard my whole story about back pain before starting physiotherapy. Staff were pleasant.",
+    "Good physiotherapy for my back; the doctor paid attention, and the girls at reception were lovely and helpful.",
+    "Back pain finally eased. The doctor listened without hurry, physiotherapy was well explained, reception was friendly.",
+]
+
+
+def test_a_business_named_in_the_override_setting_gets_more_versions_and_others_do_not(biz_a, biz_b, client, monkeypatch):
+    monkeypatch.setattr(settings, "gemini_api_key", "test-key")
+    monkeypatch.setattr(settings, "gemini_data_terms_verified", True)
+    seq = {"i": 0}
+
+    class Ten:
+        name, model, usage = "ten", "m", None
+
+        def generate(self, *a, **k):
+            seq["i"] += 1
+            return TEN[(seq["i"] - 1) % len(TEN)]
+
+    monkeypatch.setattr("app.api.v1.review_public.get_provider", lambda: Ten())
+    monkeypatch.setattr("app.services.ai.review_generate.validate_draft", lambda *a, **k: None)  # this test is about the COUNT; the faithfulness checks have their own tests and would reject invented wording
+    ca, cb = campaign(biz_a), campaign(biz_b)
+    monkeypatch.setattr(settings, "review_ai_writes_overrides", f"{biz_a.tenant_id}:10")
+    page = pub(client, "GET", ca["public_id"]).json()
+    assert page["generator"]["max_drafts"] == 10  # the page is told this business's allowance
+    assert pub(client, "GET", cb["public_id"]).json()["generator"]["max_drafts"] == 2  # another business is untouched
+    first = generate(client, ca).json()
+    assert first["ai_status"] == "ok" and first["remaining_drafts"] == 9
+    sid = first["session_id"]
+    left = 9
+    for _ in range(9):  # drafts 2..10 (the old 5-draft limit does not stop a business with the allowance)
+        r = pub(client, "POST", ca["public_id"], "/regenerate", json={"session_id": sid}).json()
+        assert r["ai_status"] == "ok", (seq["i"], r.get("message"))
+        left -= 1
+        assert r["remaining_drafts"] == left
+    assert pub(client, "POST", ca["public_id"], "/regenerate", json={"session_id": sid}).status_code == 429  # the 11th is refused
+    seq["i"] = 0
+    other = generate(client, cb).json()
+    assert other["ai_status"] == "ok" and other["remaining_drafts"] == 1  # the other business still gets 2 in total
+
+
+def test_bad_override_entries_are_ignored_and_the_ceiling_holds(monkeypatch):
+    import uuid
+
+    from app.services.review_limits import MAX_OVERRIDE, ai_write_limit, draft_limit
+    t = uuid.uuid4()
+    monkeypatch.setattr(settings, "review_ai_writes_overrides", f"nonsense, {t}:abc, {t}:0, {t}:{MAX_OVERRIDE + 1}, not-a-uuid:5")
+    assert ai_write_limit(t) == 2 and draft_limit(t) == 5  # nothing valid: the defaults
+    monkeypatch.setattr(settings, "review_ai_writes_overrides", f"{t}:{MAX_OVERRIDE}")
+    assert ai_write_limit(t) == MAX_OVERRIDE and draft_limit(t) == MAX_OVERRIDE
+    assert ai_write_limit(None) == 2 and ai_write_limit("garbage") == 2

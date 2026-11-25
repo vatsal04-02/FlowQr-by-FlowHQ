@@ -22,6 +22,7 @@ from app.schemas.review_growth import (
     AITestIn, ContextIn, CampaignCreateIn, CampaignOut, CampaignPatchIn, CampaignStats, Customization, DeactivateCodeIn, OldCode, ReviewUrlIn,
 )
 from app.services import entitlements as ent
+from app.services.review_limits import ai_write_limit, draft_limit
 from app.services import review_growth as svc
 from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai.base import configured_identity
@@ -354,7 +355,7 @@ def review_growth_settings(ctx: TenantContext = Depends(get_tenant_context)):
         "ai": {"configured": settings.ai_configured, "review_data_blocked": privacy.blocked_now(), "provider": settings.ai_provider if settings.ai_configured else None,
                "model": configured_identity()[1] if settings.ai_configured else None, "degraded": ai_health.current(),
                "used_this_month": usage_this_month(ctx.db, ctx.tenant_id), "monthly_limit": e.monthly_ai_generations},
-        "limits": {"max_drafts_per_customer": min(settings.review_max_drafts_per_session, settings.review_max_ai_writes_per_session), "max_campaigns": MAX_CAMPAIGNS},
+        "limits": {"max_drafts_per_customer": min(draft_limit(ctx.tenant_id), ai_write_limit(ctx.tenant_id)), "max_campaigns": MAX_CAMPAIGNS},
         "retention_days": settings.review_session_retention_days,
         "google_connected": connected > 0,
         "locations": [{"id": str(l.id), "name": l.name, "review_url": l.review_url, "review_url_source": l.review_url_source if l.review_url else None,
