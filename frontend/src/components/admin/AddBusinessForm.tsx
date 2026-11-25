@@ -23,7 +23,7 @@ const METHODS: [string, string][] = [["in_person", "In person, at the shop"], ["
  * then fails (for example claims are switched off) the business still exists and the screen says so.
  */
 export function AddBusinessForm({ onCreated, onCancel, compact = false }: { onCreated: (b: CreatedBusiness) => void; onCancel?: () => void; compact?: boolean }) {
-  const [f, setF] = useState({ name: "", category: "", contact_name: "", phone: "", email: "", address: "", city: "", location_name: "", review_url: "", website: "" });
+  const [f, setF] = useState({ name: "", category: "", contact_name: "", phone: "", email: "", address: "", city: "", location_name: "", review_url: "", website: "", services: "" });
   const [invite, setInvite] = useState(false);
   const [delivery, setDelivery] = useState<"email" | "link">("link");
   const [done, setDone] = useState<{ b: CreatedBusiness; claim: ClaimOut | null; error: string | null } | null>(null);
@@ -45,7 +45,7 @@ export function AddBusinessForm({ onCreated, onCancel, compact = false }: { onCr
     setBusy(true); setErr(null);
     const body = {
       name: f.name.trim(), category: clean(f.category), contact_name: clean(f.contact_name), phone: f.phone.trim(), email: clean(f.email), address: clean(f.address), city: f.city.trim(),
-      location_name: clean(f.location_name), review_url: clean(f.review_url), website: clean(f.website),
+      location_name: clean(f.location_name), review_url: clean(f.review_url), website: clean(f.website), services: f.services.split("\n").map((s) => s.trim()).filter(Boolean),
       agreement: agree ? { method, note: clean(agreeNote), confirm: true } : null, duplicate_reason: matches ? reason.trim() : null,
     };
     try {
@@ -97,6 +97,8 @@ export function AddBusinessForm({ onCreated, onCancel, compact = false }: { onCr
         <Input label="City" required value={f.city} onChange={set("city")} placeholder="e.g. Kanpur" />
       </div>
       <Input label="Business email (optional)" type="email" value={f.email} onChange={set("email")} hint="Also the address the owner invitation goes to, and the one they sign in with." />
+      <Textarea label="What they offer (optional, one per line)" rows={3} value={f.services} onChange={set("services")} placeholder={"Watch repair\nBattery change\nStrap replacement"}
+        hint="These become the keywords customers pick on this business's review page. Leave empty to use the standard keywords for its type." />
       <Input label="Google review link" value={f.review_url} onChange={set("review_url")} placeholder="https://g.page/r/…/review" hint="Opens when a customer taps Continue to Google. You can add it later, but cards need it to work." />
       {!compact && (
         <>

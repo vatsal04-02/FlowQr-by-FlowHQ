@@ -160,7 +160,7 @@ class GenerateIn(BaseModel):
     @field_validator("suggestions")
     @classmethod
     def _ids(cls, v):
-        if any(not re.fullmatch(r"[a-z_]{2,40}", s) for s in v):
+        if any(not re.fullmatch(r"[a-z0-9_]{2,40}", s) for s in v):
             raise ValueError("Unknown topic.")
         return v
 
@@ -184,6 +184,7 @@ class ContextIn(BaseModel):
     description: str | None = Field(default=None, max_length=600)
     services: list[str] = Field(default_factory=list, max_length=30)
     disabled_suggestions: list[str] = Field(default_factory=list, max_length=30)
+    chips_from_services: bool = True  # the review page's keywords come from the services list (when there is one); False keeps the category's standard keywords
     languages: list[Language] = Field(default_factory=lambda: ["en", "hi"], min_length=1, max_length=2)
 
     @field_validator("category_key")
@@ -209,7 +210,7 @@ class ContextIn(BaseModel):
     @field_validator("disabled_suggestions")
     @classmethod
     def _dis(cls, v):
-        return sorted({s for s in v if re.fullmatch(r"[a-z_]{2,40}", s)})
+        return sorted({s for s in v if re.fullmatch(r"[a-z0-9_]{2,40}", s)})
 
     @field_validator("languages")
     @classmethod
@@ -278,7 +279,7 @@ class HandoffIn(BaseModel):
     @field_validator("suggestions")
     @classmethod
     def _ids(cls, v):
-        if any(not re.fullmatch(r"[a-z_]{2,40}", s) for s in v):
+        if any(not re.fullmatch(r"[a-z0-9_]{2,40}", s) for s in v):
             raise ValueError("Unknown topic.")
         return v
 
@@ -305,7 +306,7 @@ class SubmitIn(BaseModel):
     @field_validator("suggestions")
     @classmethod
     def _ids(cls, v):
-        if any(not re.fullmatch(r"[a-z_]{2,40}", s) for s in v):
+        if any(not re.fullmatch(r"[a-z0-9_]{2,40}", s) for s in v):
             raise ValueError("Unknown topic.")
         return v
 
@@ -329,7 +330,7 @@ class RefineIn(BaseModel):
     @field_validator("suggestions")
     @classmethod
     def _ids(cls, v):
-        if any(not re.fullmatch(r"[a-z_]{2,40}", s) for s in v):
+        if any(not re.fullmatch(r"[a-z0-9_]{2,40}", s) for s in v):
             raise ValueError("Unknown topic.")
         return v
 

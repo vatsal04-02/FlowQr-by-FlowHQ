@@ -134,6 +134,7 @@ export interface Topic { id: string; en: string; hi: string }
 export interface ContextResp {
   tenant_category: string | null; detected_category: string; category_key: string; category_override: string | null; categories: { key: string; label: string }[];
   description: string; services: string[]; languages: Lang[]; suggestions: (Topic & { enabled: boolean })[]; limits: { description: number; services: number }; notes: string[];
+  chips_from_services?: boolean; chips_source?: "services" | "category"; max_service_chips?: number;
 }
 export type Rating = 1 | 2 | 3 | 4 | 5;
 /** The 1-5 stars customers chose on the FlowQr page. NOT the Google rating. */

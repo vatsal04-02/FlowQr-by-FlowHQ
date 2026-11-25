@@ -22,6 +22,7 @@ export function BusinessContext({ canEdit }: { canEdit: boolean }) {
   const [services, setServices] = useState("");            // one per line
   const [languages, setLanguages] = useState<Lang[]>(["en", "hi"]);
   const [off, setOff] = useState<string[]>([]);            // disabled suggestion ids
+  const [fromServices, setFromServices] = useState(true);   // the keywords come from the services list below (when there is one)
   const [dirty, setDirty] = useState(false);
   const seq = useRef(0);
 
@@ -29,7 +30,7 @@ export function BusinessContext({ canEdit }: { canEdit: boolean }) {
     setCtx(c);
     if (keepEdits) return;
     setCategory(c.category_override ?? ""); setDescription(c.description); setServices(c.services.join("\n"));
-    setLanguages(c.languages); setOff(c.suggestions.filter((s) => !s.enabled).map((s) => s.id)); setDirty(false);
+    setLanguages(c.languages); setOff(c.suggestions.filter((s) => !s.enabled).map((s) => s.id)); setFromServices(c.chips_from_services ?? true); setDirty(false);
   }
   useEffect(() => { api<ContextResp>("/review-growth/context").then((c) => apply(c)).catch((e) => setErr(errorMessage(e))); }, []);
 
@@ -50,7 +51,7 @@ export function BusinessContext({ canEdit }: { canEdit: boolean }) {
   async function save() {
     setSaving(true); setErr(null);
     try {
-      const c = await api<ContextResp>("/review-growth/context", { method: "PUT", body: { category_key: category || null, description: description.trim() || null, services: list, disabled_suggestions: off, languages } });
+      const c = await api<ContextResp>("/review-growth/context", { method: "PUT", body: { category_key: category || null, description: description.trim() || null, services: list, disabled_suggestions: off, languages, chips_from_services: fromServices } });
       apply(c); toast("Business context saved.");
     } catch (e) { setErr(errorMessage(e)); } finally { setSaving(false); }
   }
@@ -75,11 +76,13 @@ export function BusinessContext({ canEdit }: { canEdit: boolean }) {
 
         <Textarea label="Services or products (one per line, optional)" rows={4} value={services} placeholder={"Back pain rehabilitation\nSports injury rehabilitation"}
           onChange={(e) => { setServices(e.target.value); setDirty(true); }} className="!min-h-[104px]"
-          hint={`${list.length}/${ctx.limits.services} listed. Tells the AI what you offer. A customer's draft only mentions one if they brought it up.`} />
+          hint={`${list.length}/${ctx.limits.services} listed. Tells the AI what you offer, and the first ${ctx.max_service_chips ?? 6} become keywords on your review page. A customer's draft only mentions one if they pick it or bring it up.`} />
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm"><input type="checkbox" className={`${checkbox} mt-0.5`} checked={fromServices} onChange={(e) => { setFromServices(e.target.checked); setDirty(true); }} />
+          <span>Show my services as the keywords on the review page<span className="block text-xs text-ink-500">Turn this off to keep the standard keywords for your business type. Keywords update after you save.</span></span></label>
 
         <div>
           <p id="bc-topics" className="mb-0.5 text-[13px] font-medium text-ink-700">Topics customers can choose ({enabledCount} of {ctx.suggestions.length} shown)</p>
-          <p className="mb-2 text-sm text-ink-500">Customers pick what applies and say if it was good, okay or not good. Topics are never claims about your business.</p>
+          <p className="mb-2 text-sm text-ink-500">Customers pick what applies and say if it was good, okay or not good. Topics are never claims about your business.{ctx.chips_source === "services" ? " These come from your services list; Staff and Value for money are always added." : ""}</p>
           <ul className="grid gap-1.5 sm:grid-cols-2">
             {ctx.suggestions.map((s) => (
               <li key={s.id}>

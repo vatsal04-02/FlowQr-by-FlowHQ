@@ -1,7 +1,7 @@
 """Business context + experience-topic suggestions for Review Growth.
 
-Everything here is DETERMINISTIC: the topic chips a customer sees come from this catalog (matched to the business's category), never
-from a model call on page load. AI is only used later, when the customer asks for a draft.
+Everything here is DETERMINISTIC: the topic chips a customer sees come from the business's OWN list of services/products when it has one
+(plus Staff and Value for money), otherwise from this catalog (matched to the business's category), never from a model call on page load. AI is only used later, when the customer asks for a draft.
 
 Two ideas keep this honest:
   * A chip is a TOPIC ("Staff", "Cleanliness"), not a claim. Picking it tells us the customer wants to comment on that topic; the
@@ -9,6 +9,7 @@ Two ideas keep this honest:
   * Business context (category, services, description) says what the business OFFERS. It is never evidence of what a particular
     customer received, so the generator is told so, and drafts that mention an offered service the customer didn't mention are rejected.
 """
+import hashlib
 import re
 from dataclasses import dataclass
 
@@ -17,6 +18,7 @@ from app.services.ai.review_generate import clean_field
 LANGUAGES = ("en", "hi")
 MAX_SERVICES = 12
 MAX_DESCRIPTION = 300
+MAX_SERVICE_CHIPS = 6  # the first six services become chips; with Staff and Value for money that is eight, as many as a phone shows comfortably
 
 
 @dataclass(frozen=True)
@@ -153,6 +155,34 @@ VOICE = {
 }
 
 
+SERVICE_PREFIX = "svc_"
+
+
+def service_topic(name: str) -> Topic:
+    """A chip made from one of the business's own services or products. The id comes from the name, so renaming or reordering the list never changes another chip's id (stored picks and statistics stay valid).
+    Customers see the owner's own words; there is no Hindi translation, so Hindi shows the same text."""
+    return Topic(SERVICE_PREFIX + hashlib.sha1(name.strip().lower().encode("utf-8")).hexdigest()[:10], name, name, (f"the {name.lower()}",))
+
+
+def all_topics(rc: dict | None, category_key: str) -> tuple[Topic, ...]:
+    """EVERY chip this business has before the owner switches any off: its own services (first MAX_SERVICE_CHIPS) + Staff + Value for money, or the category's list when it has no services
+    (or the owner turned `chips_from_services` off)."""
+    rc = rc or {}
+    services = [s for s in (rc.get("services") or []) if isinstance(s, str) and s.strip()]
+    if services and rc.get("chips_from_services", True):
+        own = tuple(dict.fromkeys(service_topic(s) for s in services[:MAX_SERVICE_CHIPS]))
+        return own + (STAFF, PRICE)
+    return topics_for(category_key)
+
+
+def meaning_of(topic: Topic) -> Meaning | None:
+    """What a chip is about: the catalog's wording, or for a service chip a plain line that names it. It says what the customer chose to comment on, never what happened."""
+    m = MEANING.get(topic.id)
+    if m is None and topic.id.startswith(SERVICE_PREFIX):
+        return Meaning(f"the {topic.en.lower()} the customer chose to comment on", (), f"What did you like about the {topic.en.lower()}?", f"{topic.en} में आपको क्या अच्छा लगा?")
+    return m
+
+
 def follow_up_for(topic_ids: list[str], rating: int | None, language: str, typed: str) -> str | None:
     """ONE short, optional question, only when the customer gave us very little: a single topic and no words of their own. Never asked when
     the picks and words are already enough, and never required (the draft has already been written)."""
@@ -229,6 +259,7 @@ class BusinessContext:
     services: tuple[str, ...]
     languages: tuple[str, ...]
     topics: tuple[Topic, ...]  # the ENABLED topics
+    every_topic: tuple[Topic, ...] = ()  # all of this business's topics, enabled or not (an earlier pick must still be understood after the owner switches a chip off)
 
     def prompt_block(self) -> str:
         """Context for the writer. Labelled as what the business OFFERS, explicitly not what this customer received."""
@@ -256,11 +287,12 @@ def merged_context(tenant, location=None) -> BusinessContext:
     key = resolve_category(tenant.category, rc.get("category_key"))
     disabled = set(rc.get("disabled_suggestions") or [])
     languages = tuple(l for l in (rc.get("languages") or LANGUAGES) if l in LANGUAGES) or LANGUAGES
+    every = all_topics(rc, key)
     place = None
     if location is not None:
         place = ", ".join(p for p in (location.name, location.city) if p) or None
     return BusinessContext(
         business_name=tenant.name, category_key=key, category_label=CATALOG[key]["label"], location=place,
         description=clean_field(rc.get("description"), MAX_DESCRIPTION), services=tuple(clean_field(s, 60) for s in (rc.get("services") or [])),
-        languages=languages, topics=tuple(t for t in topics_for(key) if t.id not in disabled),
+        languages=languages, topics=tuple(t for t in every if t.id not in disabled), every_topic=every,
     )

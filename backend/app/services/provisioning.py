@@ -128,6 +128,17 @@ def find_duplicates(db: Session, *, name: str, city: str | None, phone: str | No
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------- create
+def review_keywords(t: Tenant) -> dict:
+    """The services a business lists and the keywords its review page will show because of them (what the customer sees, before the owner switches any off)."""
+    from app.services.review_suggestions import all_topics, resolve_category
+
+    rc = t.review_context or {}
+    chips = all_topics(rc, resolve_category(t.category, rc.get("category_key")))
+    disabled = set(rc.get("disabled_suggestions") or [])
+    return {"services": list(rc.get("services") or []), "review_keywords": [{"id": c.id, "label": c.en, "enabled": c.id not in disabled} for c in chips],
+            "review_keywords_source": "services" if chips and chips[0].id.startswith("svc_") else "category"}
+
+
 def grant_managed_access(db: Session, tenant: Tenant, *, by: uuid.UUID | None) -> Subscription:
     plan = db.get(BillingPlan, MANAGED_PLAN)
     if plan is None:
@@ -158,7 +169,8 @@ def create_business(db: Session, *, admin: User, data: dict, ip: str | None = No
     if dups and not reason:
         raise ProvisionError(409, "duplicates_found", "A similar business already exists. Check the matches, then create anyway with a reason if this is really a different business.", matches=dups)
     t = Tenant(slug=slugify(data["name"]), name=data["name"], category=data.get("category"), contact_name=data.get("contact_name"), phone=data.get("phone"), email=data.get("email"),
-               address=data.get("address"), website=data.get("website"), origin="admin", created_by=admin.id, updated_by=admin.id, onboarding_completed=True)
+               address=data.get("address"), website=data.get("website"), origin="admin", created_by=admin.id, updated_by=admin.id, onboarding_completed=True,
+               review_context={"services": list(data.get("services") or [])} if data.get("services") else None)
     db.add(t)
     db.flush()
     loc = Location(tenant_id=t.id, name=data.get("location_name") or data["name"], address_line=data.get("address"), city=data.get("city"), phone=data.get("phone"), review_url=data.get("review_url"),

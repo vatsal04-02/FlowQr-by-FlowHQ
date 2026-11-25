@@ -25,7 +25,7 @@ from app.services.agent import knowledge as kbs
 from app.services import review_growth as svc
 from app.services.ai import AIUnavailable, get_provider, privacy
 from app.services.ai.base import configured_identity
-from app.services.review_suggestions import MEANING, SENTIMENTS, follow_up_for, merged_context, topics_for
+from app.services.review_suggestions import SENTIMENTS, follow_up_for, meaning_of, merged_context
 from app.services.ai import health as ai_health
 from app.services.ai.review_generate import (
     CLARIFY, RATING_SENTIMENT, NeedsMoreDetail, ReviewDraftRejected, ReviewInput, clean_field, generate_review, is_too_vague,
@@ -201,9 +201,9 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
     started = time.monotonic()
     ci = session.customer_input or {}
     bctx = merged_context(tenant, loc)
-    chosen = [t for t in topics_for(bctx.category_key) if t.id in (ci.get("suggestions") or [])]  # looked up in the full category list: stays valid if the owner later disables a chip
+    chosen = [t for t in bctx.every_topic if t.id in (ci.get("suggestions") or [])]  # looked up in the full category list: stays valid if the owner later disables a chip
     sentiment = RATING_SENTIMENT.get(session.rating) or ci.get("sentiment")  # the rating is stored on the session, so regenerating keeps it
-    meanings = [(t, MEANING.get(t.id)) for t in chosen]
+    meanings = [(t, meaning_of(t)) for t in chosen]
     inp = ReviewInput(**{k: ci.get(k, "") for k in ("service", "appreciated", "details")}, note=ci.get("text", ""), rating=session.rating,
                       topics=tuple(t.en for t in chosen), topic_alts=tuple(a for t in chosen for a in t.alts), sentiment=sentiment,
                       topic_notes=tuple(f"{t.en}: {m.about}." + _describing(m.words, sentiment) for t, m in meanings if m),

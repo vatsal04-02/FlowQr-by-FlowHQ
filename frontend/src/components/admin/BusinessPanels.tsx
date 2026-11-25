@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 
-export interface BusinessInfo { id: string; name: string; category: string | null; contact_name: string | null; phone: string | null; email: string | null; address: string | null; website: string | null; origin?: string; created_by?: string | null; updated_by?: string | null; updated_at?: string | null; is_active: boolean; managed_access?: string }
+export interface BusinessInfo { services?: string[]; review_keywords?: { id: string; label: string; enabled: boolean }[]; review_keywords_source?: "services" | "category"; id: string; name: string; category: string | null; contact_name: string | null; phone: string | null; email: string | null; address: string | null; website: string | null; origin?: string; created_by?: string | null; updated_by?: string | null; updated_at?: string | null; is_active: boolean; managed_access?: string }
 export interface LocationInfo { id: string; name: string; city: string | null; address_line?: string | null; phone?: string | null; review_url?: string | null; is_active: boolean; has_review_link: boolean }
 export interface AgreementInfo { id: string; recorded_at: string; recorded_by: string | null; terms_version: string; method: string; note: string | null; statement: string }
 export interface ClaimInfo { enabled: boolean; has_owner: boolean; invitations: { id: string; email: string; expires_at: string; state: string; allowlist: { ok: boolean; reason: string | null; message: string } }[] }
@@ -50,6 +50,28 @@ export function BusinessDetailsCard({ b, reload }: { b: BusinessInfo; reload: ()
           <div className="grid gap-4 sm:grid-cols-2"><Input label="Category" value={f.category} onChange={set("category")} /><Input label="Contact person" value={f.contact_name} onChange={set("contact_name")} /></div>
           <div className="grid gap-4 sm:grid-cols-2"><Input label="Phone" inputMode="tel" value={f.phone} onChange={set("phone")} /><Input label="Email" type="email" value={f.email} onChange={set("email")} /></div>
           <Input label="Website" value={f.website} onChange={set("website")} placeholder="https://" /><Input label="Address" value={f.address} onChange={set("address")} />
+        </div>
+      </Modal>
+    </Card>
+  );
+}
+
+/** What the business offers, as staff recorded it. It is what the keywords on the business's review page are made from (the first six, plus Staff and Value for money). */
+export function KeywordsCard({ b, reload }: { b: BusinessInfo; reload: () => Promise<unknown> | void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const { busy, err, run, setErr } = useSaver(reload);
+  const own = b.review_keywords_source === "services";
+  const list = text.split("\n").map((s) => s.trim()).filter(Boolean);
+  return (
+    <Card><CardHeader title="Review page keywords" action={<Button size="sm" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => { setText((b.services ?? []).join("\n")); setErr(null); setOpen(true); }}>{own ? "Edit services" : "Add services"}</Button>} />
+      <p className="mb-3 text-sm text-ink-500">{own ? "Customers see these keywords on this business's review page. They come from what the business offers." : "No services recorded, so customers see the standard keywords for the business type. Add what the business offers to make them its own."}</p>
+      <div className="flex flex-wrap gap-2">{(b.review_keywords ?? []).map((k) => <Badge key={k.id} tone={k.enabled ? "blue" : "gray"}>{k.label}{k.enabled ? "" : " · off"}</Badge>)}</div>
+      <Modal open={open} onClose={() => setOpen(false)} title="What does this business offer?" footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button loading={busy} onClick={() => void run(() => api(`/admin/tenants/${b.id}`, { method: "PATCH", body: { services: list } }), "Keywords updated.").then((ok) => ok && setOpen(false))}>Save</Button></>}>
+        <div className="space-y-3">{err && <Alert tone="error">{err}</Alert>}
+          <Textarea label="Services or products, one per line" rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder={"Watch repair\nBattery change\nStrap replacement"}
+            hint={`${list.length} listed. The first 6 become the keywords on the review page. Plain words only: no "best", prices, guarantees or links.`} />
         </div>
       </Modal>
     </Card>

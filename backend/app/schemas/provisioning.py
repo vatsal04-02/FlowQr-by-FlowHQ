@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.schemas.common import normalize_phone, validate_google_review_url
 from app.services import registration
+from app.services.review_suggestions import clean_services
 
 
 def _clean(v: str | None) -> str | None:
@@ -60,6 +61,7 @@ class AdminBusinessIn(BaseModel):
     location_name: str | None = Field(default=None, max_length=200)
     review_url: str | None = Field(default=None, max_length=1000)
     website: str | None = Field(default=None, max_length=300)
+    services: list[str] = Field(default_factory=list, max_length=30)  # what the business offers: becomes the keywords on its review page
     agreement: AgreementIn | None = None
     duplicate_reason: str | None = Field(default=None, max_length=300)
 
@@ -67,6 +69,11 @@ class AdminBusinessIn(BaseModel):
     @classmethod
     def _trim(cls, v):
         return _clean(v)
+
+    @field_validator("services")
+    @classmethod
+    def _services(cls, v):
+        return clean_services(v)  # plain words only: no claims, prices or links (the same rule as the owner's own services list)
 
     @field_validator("phone")
     @classmethod
@@ -141,11 +148,17 @@ class BusinessPatchIn(BaseModel):
     email: str | None = Field(default=None, max_length=254)
     address: str | None = Field(default=None, max_length=300)
     website: str | None = Field(default=None, max_length=300)
+    services: list[str] | None = Field(default=None, max_length=30)
 
     @field_validator("name", "category", "contact_name", "address")
     @classmethod
     def _trim(cls, v):
         return _clean(v)
+
+    @field_validator("services")
+    @classmethod
+    def _services(cls, v):
+        return clean_services(v) if v is not None else None
 
     @field_validator("phone")
     @classmethod
