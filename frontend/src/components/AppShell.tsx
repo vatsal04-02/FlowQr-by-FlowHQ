@@ -8,7 +8,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LocationScopeProvider, useLocationScope } from "@/lib/location-scope";
-import { locate, navFor } from "@/lib/nav";
+import { locate, navFor, requiredFeature } from "@/lib/nav";
+import { usePlanFeatures } from "@/lib/plan-features";
+import { PlanLocked } from "./PlanLocked";
 import { useCounts } from "@/lib/use-counts";
 import { useAppChrome } from "@/lib/theme";
 import type { SubscriptionInfo } from "@/lib/types";
@@ -89,7 +91,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const deletion = useFetch<{ requested: boolean; scheduled_for: string | null }>(role === "owner" ? "/account/deletion" : null).data;
   const legal = useFetch<{ support_email: string | null }>("/legal/info").data;
   const waOn = !!me?.integrations.whatsapp_enabled;
-  const dests = useMemo(() => navFor(role, { whatsapp: waOn }), [role, waOn]);
+  const features = usePlanFeatures(tenant?.id, sub.data?.limits?.features);   // what the plan includes: only those pages are listed
+  const dests = useMemo(() => navFor(role, { whatsapp: waOn }, features), [role, waOn, features]);
   const counts = useCounts(tenant && tenant.onboarding_completed ? tenant.id : undefined);
   const google = useGoogleHeader(!!tenant && !!tenant.onboarding_completed);
   // the connected Google Business Profile's profile (logo) photo, from the last refresh; null (initials) until the profile has one
@@ -123,6 +126,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const s = sub.data;
   // Each page eases in when you move between pages. Keyed by the page (not the full path), so choosing another review or tab on the same page does not remount its list.
   const at = locate(path);
+  const needed = requiredFeature(path);
+  const locked = !!needed && !!features && !features.has(needed);   // a link to a page the plan does not include
   const routeKey = at ? `${at.dest.id}:${at.child?.href ?? ""}` : path;
   const notices = useMemo<Notice[]>(() => {
     const out: Notice[] = [];
@@ -243,11 +248,11 @@ function AppShellInner({ children }: { children: ReactNode }) {
           <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">{!notices.length && <TrialPill s={s ?? null} path={path} className="min-[1280px]:hidden" />}<LocationPicker className="md:hidden" /></div>
           {/* with the sidebar open the pages of this destination are listed there, so the tab strip is only needed on a phone or when the sidebar is a rail */}
           <SubNav path={path} dests={dests} hidePrimaryOnWide={!collapsed} />
-          <div key={routeKey} className="fq-page">{children}</div>
+          <div key={routeKey} className="fq-page">{locked ? <PlanLocked title={at ? (at.child && at.child.href !== at.dest.href ? at.child.label : at.dest.label) : "This page"} feature={needed!} planName={s?.plan_name ?? null} role={role} /> : children}</div>
         </main>
       </div>
       <BottomNav path={path} dests={dests} moreOpen={more} onMore={setMore} />
-      <MoreSheet open={more} onClose={() => setMore(false)} role={role} whatsapp={waOn} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
+      <MoreSheet open={more} onClose={() => setMore(false)} role={role} whatsapp={waOn} features={features} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
       <CommandPalette open={palette} onClose={() => setPalette(false)} dests={dests} />
       <Shortcuts dests={dests} onSearch={() => setPalette(true)} helpOpen={keys} onHelp={() => setKeys(true)} onHelpClose={() => setKeys(false)} />
     </div>
