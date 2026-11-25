@@ -20,6 +20,7 @@ from app.models import Location, RetiredCampaignId, ReviewCampaign, ReviewDraft,
 from app.models.base import utcnow
 from app.schemas.review_growth import ApproveIn, Customization, GenerateIn, HandoffIn, RedirectIn, RefineIn, RegenerateIn, SubmitIn
 from app.services import cards as cards_svc
+from app.services.review_limits import ai_write_limit, draft_limit
 from app.services.agent import knowledge as kbs
 from app.services import review_growth as svc
 from app.services.ai import AIUnavailable, get_provider, privacy
@@ -115,7 +116,7 @@ def landing(public_id: str, request: Request, db: Session = Depends(public_db)):
         "location": {"name": loc.name, "city": loc.city, "address": ", ".join(p for p in [loc.address_line, loc.city] if p) or None},
         "branding": {"brand_color": c.brand_color, "background": c.background, "welcome_message": c.welcome_message, "footer_message": c.footer_message},
         "generator": {"styles": c.allowed_styles, "default_style": c.default_style, "default_language": default_lang,
-                      "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": settings.review_max_ai_writes_per_session,
+                      "languages": list(bctx.languages), "show_rating": c.show_rating, "max_drafts": ai_write_limit(tenant.id),
                       "max_input_chars": settings.public_ai_max_input_chars},
         "ai_available": settings.ai_configured and privacy.blocked_now() is None and not quota_exceeded(db, tenant.id, "review_generate") and ai_health.current() is None,
         "google_ready": bool(url),
@@ -142,7 +143,7 @@ UNAVAILABLE_MESSAGE = "Writing help isn't available right now. You can write you
 
 def _require_ai_write(draft: ReviewDraft) -> None:
     """Every customer visit gets a fixed number of AI-written versions (2 by default), however they ask for them. Checked BEFORE anything is changed or any model is called."""
-    n = settings.review_max_ai_writes_per_session
+    n = ai_write_limit(draft.tenant_id)
     if (draft.ai_writes or 0) >= n:
         raise HTTPException(status_code=429, detail=f"You've used your {n} AI-written versions. Tap Edit to change the text, or write your own words.")
 
@@ -152,10 +153,11 @@ def _draft_payload(session: ReviewSession | None, draft: ReviewDraft | None, *, 
     """What the page needs after a generate/regenerate. `ai_status`: ok | manual | needs_more | rejected | unavailable.
     `retryable` tells the page whether offering "Try again" makes sense; it never carries provider detail."""
     count = draft.generation_count if draft else 0
+    tid = draft.tenant_id if draft else (session.tenant_id if session else None)
     return {
         "session_id": session.session_identifier if session else None, "draft": draft.generated_content if draft else None,
         "ai_status": ai_status, "message": message, "retryable": retryable,
-        "generation_count": count, "remaining_drafts": max(0, min(settings.review_max_drafts_per_session - count, settings.review_max_ai_writes_per_session - ((draft.ai_writes or 0) if draft else 0))),
+        "generation_count": count, "remaining_drafts": max(0, min(draft_limit(tid) - count, ai_write_limit(tid) - ((draft.ai_writes or 0) if draft else 0))),
         "style": session.style if session else None, "language": session.language if session else language, "disclaimer": DISCLAIMER,
     }
 
@@ -328,8 +330,8 @@ def regenerate(public_id: str, body: RegenerateIn, request: Request, db: Session
     if draft.approved_at:
         raise HTTPException(status_code=409, detail="You've already confirmed your review.")
     _require_ai_write(draft)
-    if draft.generation_count >= settings.review_max_drafts_per_session:
-        raise HTTPException(status_code=429, detail=f"You've used all {settings.review_max_drafts_per_session} drafts. Please edit the one you like best.")
+    if draft.generation_count >= draft_limit(draft.tenant_id):
+        raise HTTPException(status_code=429, detail=f"You've used all {draft_limit(draft.tenant_id)} drafts. Please edit the one you like best.")
     c = Customization.model_validate(campaign.customization or {})
     if body.style and body.style in c.allowed_styles:
         session.style = body.style
