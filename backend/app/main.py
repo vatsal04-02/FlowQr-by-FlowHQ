@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from app.api.v1 import (
     leads, webhooks, whatsapp, whatsapp_webhook, admin_whatsapp, whatsapp_integrations, integrations_api, marketing, marketing_public,
-    account, admin, admin_businesses, admin_data_requests, admin_sites, site_public, agent, links, autonomy_actions, analytics, auth_google, billing, gbp, google_agency, agency_ops, posts, reports, workspace, auth, cards, go, google, locations, public, qr, review_growth, review_public, reviews, tenants, notifications, photos, request_templates, admin_users, rank, rank_grid, ops, places, seo, seo_v2, operator, website
+    account, admin, admin_businesses, admin_data_requests, admin_sites, site_public, agent, links, autonomy_actions, analytics, auth_google, billing, gbp, google_agency, agency_ops, posts, reports, workspace, auth, cards, go, google, locations, public, qr, review_growth, review_public, reviews, tenants, notifications, photos, request_templates, admin_users, rank, rank_grid, ops, places, seo, seo_v2, operator, website, public_site
 )
 from app.core.config import assert_production_safe, settings
 from app.core.db import engine
@@ -93,5 +93,5 @@ def ready():
 
 
 API = "/api/v1"
-for module in (ops, leads, notifications, photos, rank, rank_grid, request_templates, admin_users, account, agent, autonomy_actions, posts, reports, workspace, auth, auth_google, tenants, locations, cards, qr, agency_ops, admin, admin_businesses, admin_data_requests, admin_sites, site_public, public, go, links, review_public, review_growth, google, google_agency, reviews, analytics, billing, gbp, places, seo, seo_v2, operator, website, webhooks, whatsapp, whatsapp_webhook, admin_whatsapp, whatsapp_integrations, integrations_api, marketing, marketing_public):
+for module in (ops, leads, notifications, photos, rank, rank_grid, request_templates, admin_users, account, agent, autonomy_actions, posts, reports, workspace, auth, auth_google, tenants, locations, cards, qr, agency_ops, admin, admin_businesses, admin_data_requests, admin_sites, site_public, public, go, links, review_public, review_growth, google, google_agency, reviews, analytics, billing, gbp, places, seo, seo_v2, operator, website, public_site, webhooks, whatsapp, whatsapp_webhook, admin_whatsapp, whatsapp_integrations, integrations_api, marketing, marketing_public):
     app.include_router(module.router, prefix=API)

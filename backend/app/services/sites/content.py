@@ -21,7 +21,7 @@ from app.services.sites.rules import clean_https_url
 _INVISIBLE = dict.fromkeys(list(range(0, 9)) + [11, 12] + list(range(14, 32)) + [127] + list(range(0x200B, 0x2010)) + list(range(0x202A, 0x202F)) + list(range(0x2060, 0x2070)) + [0xFEFF], None)
 _HHMM = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 _SECTION_ID = re.compile(r"^[a-z][a-z0-9]{1,11}$")
-ONLY_ONCE = ("hero", "contact", "disclaimer", "hours", "location")
+ONLY_ONCE = ("hero", "contact", "disclaimer", "hours", "location", "reviews")
 
 
 class Errors(list):
@@ -253,7 +253,7 @@ def _empty(typ: str, data: dict) -> str | None:
     spec = {f["key"]: f for f in C.SECTION_TYPES[typ]["fields"]}
     if typ == "hero":
         return None if data.get("heading") else "add a heading"
-    if typ in ("hours", "location", "contact", "cta_band"):
+    if typ in ("hours", "location", "contact", "cta_band", "reviews"):
         return None if data.get("heading") else "add a heading"
     if typ == "about":
         return None if data.get("body") else "write the text"

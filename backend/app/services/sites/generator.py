@@ -16,21 +16,26 @@ import logging
 import re
 import uuid
 from datetime import timedelta
+from urllib.parse import quote, urlsplit
+
+import httpx
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import GbpSnapshot, GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, Site, SiteDomain, SiteGenerationJob, Tenant
+from app.models import GbpSnapshot, GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, Site, SiteAsset, SiteDomain, SiteGenerationJob, Tenant, User
 from app.models.base import utcnow
 from app.services.agent import knowledge as kbs
 from app.services.agent import snapshots as snap_svc
+from app.services import google as g
 from app.services.agent.safety import check_text
 from app.services.ai.base import AIUnavailable, get_provider
 from app.services.ai.structured import generate_json
 from app.services.ai_usage import metered
 from app.services.audit import audit
+from app.services.google.tokens import get_access_token
 from app.services.sites import catalog as C
 from app.services.sites import content as CT
 from app.services.sites import service as sites
@@ -46,7 +51,7 @@ STEPS = [  # (key, stage, label, what the owner is told while it runs)
     ("design", "GENERATING_DESIGN", "Selecting a suitable design", "Choosing a layout and colour for your business."),
     ("content", "GENERATING_CONTENT", "Generating website content", "Writing your headline, introduction and service descriptions."),
     ("sections", "BUILDING_PAGES", "Building website sections", "Placing each section on your website."),
-    ("images", "BUILDING_PAGES", "Adding available business images", "Adding photos you have uploaded."),
+    ("images", "BUILDING_PAGES", "Adding available business images", "Adding your own photos from your Google profile and your uploads."),
     ("mobile", "OPTIMISING", "Optimising for mobile", "Checking the page on a phone-sized screen."),
     ("seo", "OPTIMISING", "Checking local SEO information", "Writing your search title and description for your area."),
     ("validate", "VALIDATING", "Final website validation", "Checking nothing is missing or invented."),
@@ -58,6 +63,79 @@ _DAY = {d.upper(): d for d in C.DAYS}
 
 AI_WORDS = {"credits": "The AI service has no credit left.", "auth": "The AI service rejected FlowQR's key.", "not_configured": "No AI service is configured.", "timeout": "The AI service did not answer in time.",
             "rate_limited": "The AI service is busy. Try again in a minute.", "quota_exhausted": "The AI service's daily limit was reached."}
+
+
+PHOTO_HOSTS = (".googleusercontent.com", ".ggpht.com")  # Google's image hosts: a photo link from anywhere else is never fetched
+PHOTO_ORDER = ["COVER", "EXTERIOR", "INTERIOR", "AT_WORK", "TEAMS", "PRODUCT", "FOOD_AND_DRINK", "MENU", "COMMON_AREA", "ADDITIONAL"]
+MAX_PHOTOS, MAX_PHOTO_BYTES = 8, 8 * 1024 * 1024
+
+
+def fetch_photo(url: str) -> bytes | None:
+    """The bytes of one Google-hosted photo, or None. https only, Google's image hosts only, no redirects, size-capped."""
+    parts = urlsplit(url or "")
+    if parts.scheme != "https" or not (parts.hostname or "").endswith(PHOTO_HOSTS):
+        return None
+    try:
+        with httpx.stream("GET", url, timeout=15, follow_redirects=False) as r:
+            if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/"):
+                return None
+            raw = bytearray()
+            for chunk in r.iter_bytes():
+                raw += chunk
+                if len(raw) > MAX_PHOTO_BYTES:
+                    return None
+        return bytes(raw)
+    except httpx.HTTPError:
+        return None
+
+
+def import_google_photos(db: Session, tenant: Tenant, site: Site, gloc: GoogleLocation, user) -> tuple[int, str | None]:
+    """(copied, logo asset id). The business's OWN photos from its Google profile (Google's owner media list; customer photos are a separate list that is never read). The builder's media
+    rules re-encode them and strip metadata. Any photo that cannot be fetched or accepted is skipped."""
+    provider = g.get_google_provider()
+    conn = db.get(GoogleConnection, gloc.connection_id)
+    try:
+        media = provider.list_media(get_access_token(db, conn, provider, gloc=gloc), gloc.google_account_name, gloc.google_location_name)
+    except g.GoogleError:
+        return 0, None
+    rank = {c: i for i, c in enumerate(PHOTO_ORDER)}
+    wanted = sorted((m for m in media if m.get("category") != "PROFILE"), key=lambda m: rank.get(m.get("category"), len(rank)) if m.get("category") != "LOGO" else -1)
+    copied, logo = 0, None
+    for m in wanted:
+        if copied >= MAX_PHOTOS:
+            break
+        raw = fetch_photo(m.get("google_url") or m.get("url") or "")
+        if not raw:
+            continue
+        is_logo = m.get("category") == "LOGO"
+        try:
+            asset, _ = sites.upload_asset(db, admin=user, site=site, raw=raw, kind="logo" if is_logo else "photo", alt_text=f"{'Logo' if is_logo else 'Photo'} of {tenant.name}")
+        except sites.SiteError:
+            continue
+        db.flush()
+        if is_logo:
+            logo = logo or str(asset.id)
+        else:
+            copied += 1
+    db.commit()
+    return copied, logo
+
+
+def place_photos(content: dict, template: str, photo_ids: list[str]) -> None:
+    """First photo is the main image, one illustrates the About section, the rest make the gallery."""
+    if not photo_ids:
+        return
+    hero = _section(content, "hero")
+    if not hero["data"].get("image"):
+        hero["data"]["image"] = photo_ids[0]
+    rest = [p for p in photo_ids if p != hero["data"]["image"]]
+    about = _section(content, "about")
+    if rest and about is not None and about["enabled"] and not about["data"].get("image"):
+        about["data"]["image"] = rest.pop(0)
+    if rest and (gal := _ensure_section(content, template, "gallery", "Gallery", before="contact")) is not None:
+        have = {i.get("asset") for i in gal["data"]["images"]}
+        gal["data"]["images"] += [{"asset": p, "caption": ""} for p in rest if p not in have]
+        gal["enabled"] = bool(gal["data"]["images"])
 
 
 class GenerationError(Exception):
@@ -161,8 +239,8 @@ def collect_facts(db: Session, tenant: Tenant, gloc: GoogleLocation | None) -> d
     kb = kbs.context(db, tenant)
     loc = db.scalar(select(Location).where(Location.tenant_id == tenant.id, Location.is_active.is_(True)).order_by(Location.created_at).limit(1))
     snap = db.scalar(select(GbpSnapshot).where(GbpSnapshot.google_location_id == gloc.id)) if gloc else None
-    g = (snap.info or {}) if snap else {}
-    names = [s if isinstance(s, str) else (s.get("name") or "") for s in (kb.get("services") or [])] + [s for s in (g.get("services") or []) if isinstance(s, str) and ":" not in s]
+    info = (snap.info or {}) if snap else {}
+    names = [s if isinstance(s, str) else (s.get("name") or "") for s in (kb.get("services") or [])] + [s for s in (info.get("services") or []) if isinstance(s, str) and ":" not in s]
     services, seen = [], set()
     for n in names:
         n = " ".join(str(n).split())[:80]
@@ -171,9 +249,12 @@ def collect_facts(db: Session, tenant: Tenant, gloc: GoogleLocation | None) -> d
             services.append(n)
     facts = dict(sites._business_facts(db, tenant))
     facts.update({
-        "category": tenant.category or (g.get("primary_category") or {}).get("name"), "google_category": (g.get("primary_category") or {}).get("name"),
-        "phone": facts.get("phone") or g.get("phone"), "description": (kb.get("description") or g.get("description") or "").strip()[:900], "services": services[:12],
-        "hours": _hours(g.get("hours")), "website": tenant.website, "google_connected": gloc is not None, "city": facts.get("city") or (loc.city if loc else None),
+        "category": tenant.category or (info.get("primary_category") or {}).get("name"), "google_category": (info.get("primary_category") or {}).get("name"),
+        "phone": facts.get("phone") or info.get("phone"), "description": (kb.get("description") or info.get("description") or "").strip()[:900], "services": services[:12],
+        "hours": _hours(info.get("hours")), "website": tenant.website, "google_connected": gloc is not None, "city": facts.get("city") or (loc.city if loc else None),
+        "address": facts.get("address") or (gloc.address if gloc else None), "review_url": facts.get("review_url") or (gloc.review_url if gloc else None),
+        "maps_url": f"https://www.google.com/maps/search/?api=1&query={quote(gloc.title or tenant.name)}&query_place_id={gloc.place_id}" if gloc and gloc.place_id else None,
+        "categories": [c.get("name") for c in [info.get("primary_category"), *(info.get("additional_categories") or [])] if isinstance(c, dict) and c.get("name")][:6],
     })
     return facts
 
@@ -250,7 +331,7 @@ def _ensure_section(content: dict, template: str, typ: str, heading: str, after:
 def _create_site(db: Session, tenant: Tenant, job: SiteGenerationJob, template: str, facts: dict) -> Site:
     site = sites.get_by_tenant(db, tenant.id)
     base = C.default_content(template, facts)
-    base["business"]["maps_url"] = ""
+    base["business"]["maps_url"] = facts.get("maps_url") or ""
     if facts.get("hours"):
         base["business"]["hours"] = facts["hours"]
     for s in base["sections"]:
@@ -336,7 +417,7 @@ def run(db: Session, job_id: uuid.UUID, *, provider=None) -> str:
         content = json.loads(json.dumps(site.draft_content))
         about = _ensure_section(content, template, "about", "About us")
         if about is not None and (facts["description"] or facts["services"]):
-            about["data"].update({"heading": use(copy.about_heading, f"About {facts['name']}", 90), "body": about_text})
+            about["data"].update({"heading": use(copy.about_heading, f"About {facts['name']}", 90), "body": about_text, "highlights": [c[:60] for c in facts.get("categories") or []]})
             about["enabled"] = True
             _save(db, site, content)
         typ = SERVICE_SECTION.get(template)
@@ -363,6 +444,9 @@ def run(db: Session, job_id: uuid.UUID, *, provider=None) -> str:
         if facts.get("address") and (l := _ensure_section(content, template, "location", "Find us", before="contact")) is not None:
             l["data"]["heading"] = l["data"].get("heading") or "Find us"
             l["enabled"] = True
+        if sites.live_reviews(db, tenant.id) and (rv := _ensure_section(content, template, "reviews", "What our customers say", before="contact")) is not None:
+            rv["data"]["heading"] = rv["data"].get("heading") or "What our customers say"
+            rv["enabled"] = True
         if (d := _section(content, "disclaimer")) is not None:
             d["enabled"] = True
         contact = _ensure_section(content, template, "contact", "Contact us", after="about")
@@ -374,12 +458,19 @@ def run(db: Session, job_id: uuid.UUID, *, provider=None) -> str:
         _set(db, job, step, "done", ", ".join(on) + ".")
 
         step = "images"; _set(db, job, step, "running")
-        n = len(sites.asset_ids(db, site))
-        if n:
-            _set(db, job, step, "done", f"{n} uploaded image(s) available.")
+        user = db.get(User, job.created_by) if job.created_by else None
+        copied, logo = import_google_photos(db, tenant, site, gloc, user) if gloc is not None and user is not None else (0, None)
+        ids = [str(i) for i in db.scalars(select(SiteAsset.id).where(SiteAsset.site_id == site.id, SiteAsset.kind != "logo").order_by(SiteAsset.sort_order, SiteAsset.created_at))]
+        if ids or logo:
+            content = json.loads(json.dumps(site.draft_content))
+            if logo:
+                content["business"]["logo"] = logo
+            place_photos(content, template, ids)
+            _save(db, site, content)
+            _set(db, job, step, "done", (f"{copied} photo(s) copied from your Google profile." if copied else f"{len(ids)} uploaded photo(s) placed.") + (" Logo added." if logo else ""))
         else:
-            _set(db, job, step, "skipped", "No photos uploaded yet. Add them on the preview screen.")
-            notes.append("Add photos of your business: none have been uploaded yet.")
+            _set(db, job, step, "skipped", "No photos on your Google profile or uploads yet. Add them on the preview screen.")
+            notes.append("Add photos of your business: none were found on your Google profile.")
         step = "mobile"; _set(db, job, step, "running")
         html = sites.preview_html(db, site)
         if 'name="viewport"' not in html:

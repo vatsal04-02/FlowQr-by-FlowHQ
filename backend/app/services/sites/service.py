@@ -24,11 +24,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.rate_limit import hit
-from app.models import Location, Site, SiteAsset, SiteDomain, SiteEnquiry, SiteRevision, SiteSlugQuarantine, Tenant
+from app.models import GoogleConnection, GoogleConnectionStatus, GoogleLocation, Location, Review, Site, SiteAsset, SiteDomain, SiteEnquiry, SiteRevision, SiteSlugQuarantine, Tenant
 from app.models.base import utcnow
 from app.schemas.common import normalize_phone
 from app.services import registration
 from app.services.audit import audit
+from app.services.auto_reply import clean_first_name
 from app.services.sites import catalog as C
 from app.services.sites import content as CT
 from app.services.sites import hosting, media, render, rules
@@ -59,6 +60,31 @@ def require_drafting() -> None:
     """Creating and editing a draft: allowed when websites are on, or when only the AI builder is on (nothing public can happen: publishing keeps `require_enabled`)."""
     if not (settings.sites_enabled or settings.sites_ai_builder_enabled):
         raise SiteError(409, "sites_disabled", "Websites are switched off on this server.")
+
+
+def public_base(site: Site) -> str:
+    return f"/site/{site.site_slug}" if settings.sites_provider == "app" else ""
+
+
+def public_url(site: Site) -> str:
+    if settings.sites_provider == "app":
+        return f"{settings.frontend_url.rstrip('/')}/site/{site.site_slug}/"
+    return f"https://{host_of(site)}/"
+
+
+def live_reviews(db: Session, tenant_id: uuid.UUID, limit: int = 6) -> dict | None:
+    """The business's Google reviews as FlowQR holds them now (Google's retention rules apply to the source table; nothing is copied into the website). Every star level, newest first,
+    first name only. None when Google is not connected or there is no review."""
+    gl = db.scalar(select(GoogleLocation).join(GoogleConnection, GoogleConnection.id == GoogleLocation.connection_id).where(
+        GoogleLocation.tenant_id == tenant_id, GoogleLocation.selected.is_(True), GoogleConnection.status == GoogleConnectionStatus.active).limit(1))
+    if gl is None:
+        return None
+    total, average = db.execute(select(func.count(), func.avg(Review.rating)).where(Review.tenant_id == tenant_id, Review.google_location_id == gl.id)).one()
+    if not total:
+        return None
+    rows = db.scalars(select(Review).where(Review.tenant_id == tenant_id, Review.google_location_id == gl.id).order_by(Review.review_created_at.desc()).limit(limit))
+    items = [{"rating": r.rating, "name": clean_first_name(r.reviewer_name) or "A Google user", "text": (" ".join((r.text or "").split()))[:400], "date": r.review_created_at.strftime("%b %Y")} for r in rows]
+    return {"average": float(average), "total": int(total), "items": items}
 
 
 def public_config() -> dict:
@@ -336,7 +362,7 @@ def delete_asset(db: Session, *, admin, site: Site, asset_id: uuid.UUID, ip: str
 def preview_html(db: Session, site: Site) -> str:
     clean, errs = CT.validate_content(site.draft_content, site.template_key, asset_ids(db, site))
     assets = _assets(db, site, CT.referenced_assets(clean), True)
-    files = render.build_site(clean, site.template_key, host=host_of(site), assets=assets, retention_days=settings.sites_enquiry_retention_days, preview=True)
+    files = render.build_site(clean, site.template_key, host=host_of(site), assets=assets, retention_days=settings.sites_enquiry_retention_days, preview=True, reviews=live_reviews(db, site.tenant_id))
     return files["index.html"].decode()
 
 
@@ -707,7 +733,7 @@ def export_files(db: Session, tenant_id: uuid.UUID) -> list[tuple[str, bytes]]:
 def serialize(db: Session, site: Site, *, full: bool = True) -> dict:
     tenant = db.get(Tenant, site.tenant_id)
     host = host_of(site)
-    out = {"id": site.id, "tenant_id": site.tenant_id, "site_slug": site.site_slug, "hostname": host, "url": f"https://{host}/", "template_key": site.template_key,
+    out = {"id": site.id, "tenant_id": site.tenant_id, "site_slug": site.site_slug, "hostname": host, "url": public_url(site), "template_key": site.template_key,
            "template_version": site.template_version, "status": site.status, "draft_version": site.draft_version, "live_version": site.live_version, "published_at": site.published_at,
            "publish_state": site.publish_state, "publish_error": site.publish_error, "publish_attempted_at": site.publish_attempted_at,
            "commercial": {"status": site.commercial_status, "reason": site.commercial_reason, "billing_period": site.billing_period, "paid_until": site.paid_until, "grace_until": site.grace_until,

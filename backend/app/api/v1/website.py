@@ -6,14 +6,19 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.deps import TenantContext, ensure_verified, get_tenant_context, require_role
 from app.core.rate_limit import client_ip, hit
-from app.models import Role, Site, SiteGenerationJob
+from app.models import Role, Site, SiteAsset, SiteGenerationJob
+from app.services import entitlements as ent
+from app.services.agent import autonomy_policy as pol
+from app.services.agent import executor
 from app.services.agent import knowledge as kbs
+from app.services.agent import snapshots as snap_svc
 from app.services.ai.base import AIUnavailable, get_provider
 from app.services.ai.structured import generate_json
 from app.services.ai_usage import metered
@@ -63,7 +68,7 @@ def _job(j: SiteGenerationJob | None) -> dict | None:
 def _publish_state(ctx: TenantContext, site: Site | None) -> dict:
     if site is None:
         return {"available": False, "reason": "Create your website first.", "url": None}
-    url = f"https://{svc.host_of(site)}"
+    url = svc.public_url(site)
     if site.status == "published":
         return {"available": False, "reason": "Your website is published.", "url": url}
     if not settings.sites_enabled:
@@ -79,7 +84,8 @@ def _state(ctx: TenantContext) -> dict:
     out = None
     if site is not None:
         out = {"status": site.status, "template": site.template_key, "template_label": C.TEMPLATES[site.template_key]["label"], "accent": (site.draft_content.get("theme") or {}).get("accent"),
-               "version": site.draft_version, "address": svc.host_of(site),
+               "version": site.draft_version, "address": svc.public_url(site).replace("https://", ""),
+               "photos": [{"id": str(x.id), "kind": x.kind, "alt": x.alt_text} for x in ctx.db.scalars(select(SiteAsset).where(SiteAsset.site_id == site.id).order_by(SiteAsset.sort_order, SiteAsset.created_at))],
                "sections": [{"id": s["id"], "type": s["type"], "label": C.SECTION_TYPES[s["type"]]["label"], "enabled": s["enabled"], "data": s["data"]} for s in site.draft_content.get("sections", [])]}
     return {"enabled": True, "business": {"name": ctx.tenant.name, "category": ctx.tenant.category}, "interest": ctx.tenant.website_interest, "website_url": ctx.tenant.website,
             "google": {"connected": gloc is not None, "title": gloc.title if gloc else None}, "job": _job(job), "site": out, "publish": _publish_state(ctx, site),
@@ -293,6 +299,56 @@ async def photo(request: Request, alt: str = Query(min_length=3, max_length=200)
     return _save(ctx, request, site, c)
 
 
+@router.get("/photo/{asset_id}")
+def photo_file(asset_id: uuid.UUID, ctx: TenantContext = Depends(get_tenant_context)):
+    _on()
+    a = _call(lambda: svc.get_asset(ctx.db, _site(ctx), asset_id))
+    return Response(bytes(a.data), media_type=a.content_type, headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+
+@router.delete("/photo/{asset_id}")
+def photo_remove(asset_id: uuid.UUID, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
+    """Remove one photo from the draft (the published copy, if any, changes at the next publish)."""
+    _on()
+    site = _owned(ctx)
+    _call(lambda: svc.delete_asset(ctx.db, admin=ctx.user, site=site, asset_id=asset_id, ip=client_ip(request)))
+    ctx.db.commit()
+    return _state(ctx)
+
+
+def _prepare_google_link(ctx: TenantContext, site: Site) -> dict:
+    """Propose adding the published website to the Google profile. A proposal only: Google is written when a person approves it on Pending changes, like every profile change."""
+    gl = gen._google(ctx.db, ctx.tenant_id)
+    if gl is None:
+        return {"action_id": None, "message": "Connect Google first, then add your website to your profile."}
+    snap = snap_svc.refresh(ctx.db, gl)
+    url = svc.public_url(site)
+    if snap.info is None:
+        return {"action_id": None, "message": "Google did not return your profile just now. Try again."}
+    if (snap.info.get("website") or "").rstrip("/") == url.rstrip("/"):
+        return {"action_id": None, "message": "Your Google profile already links to this website."}
+    try:
+        a = executor.propose(ctx.db, ctx.tenant, gl, "contact_update", field_key="website", proposed=url, source={"kind": "owner_input", "user_id": str(ctx.user.id), "refs": ["website"]},
+                             trigger="website_published", problem="Your website is live but your Google profile does not link to it.",
+                             reason="Customers who find you on Google can open your website.", proposed_by="user", user_id=ctx.user.id, force_owner=True)
+    except (pol.PolicyError, executor.ActionError) as exc:
+        return {"action_id": None, "message": str(exc)}
+    ctx.db.commit()
+    if a.status == "blocked":
+        return {"action_id": None, "message": a.last_error or "That change is not allowed right now."}
+    return {"action_id": str(a.id), "message": "Ready: approve it under Pending changes to add your website to Google."}
+
+
+@router.post("/google-link")
+def google_link(ctx: TenantContext = Depends(require_role(Role.owner))):
+    _on()
+    ent.require_feature(ctx.db, ctx.tenant_id, "autonomy")
+    site = _site(ctx)
+    if site.status != "published":
+        raise HTTPException(status_code=409, detail="Publish your website first.")
+    return _prepare_google_link(ctx, site)
+
+
 @router.post("/publish")
 def publish(request: Request, ctx: TenantContext = Depends(require_role(Role.owner))):
     """The OWNER approves publishing. If hosting is not ready the approval is recorded for FlowQR and nothing goes public."""
@@ -302,7 +358,8 @@ def publish(request: Request, ctx: TenantContext = Depends(require_role(Role.own
     if state["available"]:
         _call(lambda: svc.publish(ctx.db, admin=ctx.user, site=site, note="Approved by the owner", ip=client_ip(request)))
         ctx.db.commit()
-        return {"published": True, "message": "Your website is published.", "state": _state(ctx)}
+        link = _prepare_google_link(ctx, site)
+        return {"published": True, "message": "Your website is published. " + (link["message"] if link["action_id"] else ""), "google_action_id": link["action_id"], "state": _state(ctx)}
     audit(ctx.db, action="site.publish_requested", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="site", entity_id=site.id, ip=client_ip(request), meta={"draft_version": site.draft_version})
     ctx.db.commit()
     return {"published": False, "message": "Your approval is recorded. Nothing is public yet: " + (state["reason"] or "hosting is not ready."), "state": _state(ctx)}

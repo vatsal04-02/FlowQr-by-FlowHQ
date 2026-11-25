@@ -1,7 +1,7 @@
 """The stylesheet of a published site. One file per site (shared base + the template's own layout rules), served with a content-hashed name so it can be cached for a year.
 
-Design: Swiss-minimal. System fonts only (nothing is downloaded), large tight headings, a strict column grid, hairline rules, one accent colour from a whitelist, motion only where it helps
-(a focus ring, a pressed button). No gradients, no shadows, no decorative shapes. There is no inline style anywhere in the pages (the Content-Security-Policy forbids it), so every
+Design: calm and premium. System fonts only (nothing is downloaded), large tight headings, generous space, rounded media and cards with soft shadows, alternating quiet backgrounds, one accent
+colour from a whitelist, motion only where it helps (a focus ring, a pressed button, a card lift that respects reduced motion). No gradients and no decorative shapes. There is no inline style anywhere in the pages (the Content-Security-Policy forbids it), so every
 variation, including the accent, is a class defined here."""
 from app.services.sites.catalog import ACCENTS
 
@@ -100,8 +100,49 @@ form.enq input,form.enq textarea{font:inherit;padding:.75rem;border:1px solid va
 form.enq .chk{display:flex;gap:.6rem;align-items:flex-start;font-weight:400}
 form.enq .chk input{width:auto;margin-top:.3rem}
 .small{font-size:.85rem;color:var(--mute)}
+/* premium layer */
+body{font-size:1.05rem}
+h1{font-weight:800;letter-spacing:-.035em}
+h2{letter-spacing:-.03em}
+.wrap{--maxw:75rem}
+.btn{border-radius:999px;padding:.8rem 1.6rem;box-shadow:0 6px 18px -8px rgba(0,0,0,.35)}
+.btn.alt{box-shadow:none;border-color:var(--rule);color:var(--ink)}
+.btn.alt:hover{border-color:var(--a)}
+.top{background:rgba(255,255,255,.94);border-bottom-color:#ececec}
+.top .wrap{min-height:4.5rem}
+.brand{font-size:1.2rem}
+section.s{border-top:0;padding:clamp(3.5rem,9vw,7rem) 0}
+section.s:nth-of-type(even),section.s.tint{background:var(--soft)}
+.sh h2{max-width:22ch}
+.eyebrow{display:inline-block;border:1px solid var(--rule);border-radius:999px;padding:.35rem .9rem;letter-spacing:.12em}
+.hero img.hi,.gal img,.card img,.team img,.cols img{border-radius:18px;box-shadow:0 24px 48px -28px rgba(0,0,0,.45)}
+.grid .card,.svc .card{border:1px solid #e9e9e6;border-radius:18px;background:#fff;padding:1.5rem;box-shadow:0 1px 2px rgba(0,0,0,.04),0 18px 40px -32px rgba(0,0,0,.5);transition:transform .18s ease,box-shadow .18s ease}
+.grid .card:hover{transform:translateY(-3px);box-shadow:0 26px 50px -30px rgba(0,0,0,.45)}
+.card h3{font-size:1.2rem}
+.card::before{content:"";display:block;width:2.25rem;height:3px;border-radius:3px;background:var(--a);margin-bottom:1rem}
+.hl li,.chips li{border:1px solid var(--rule);border-radius:999px;background:#fff}
+.gal{gap:1rem}
+.gal figure:first-child{grid-column:span 2}
+.gal figure:first-child img{aspect-ratio:16/10}
+.rsum{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;margin:0 0 2rem;color:var(--mute)}
+.rsum strong{font-size:2.6rem;line-height:1;color:var(--ink);letter-spacing:-.03em}
+.stars{color:#f5a623;letter-spacing:.08em;font-size:1.05rem}
+.revs{list-style:none;margin:0 0 1.25rem;padding:0;display:grid;gap:1.25rem;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr))}
+.rev{background:#fff;border:1px solid #e9e9e6;border-radius:18px;padding:1.5rem;box-shadow:0 18px 40px -32px rgba(0,0,0,.5)}
+.rev p{margin:.75rem 0 0}
+.rev .who{font-weight:700;margin-top:1rem}
+.rev .who span{font-weight:400;color:var(--mute)}
+form.enq{background:#fff;border:1px solid #e9e9e6;border-radius:22px;padding:clamp(1.25rem,3vw,2rem);box-shadow:0 30px 60px -40px rgba(0,0,0,.5)}
+form.enq input,form.enq textarea{border:1px solid var(--rule);border-radius:12px}
+.appt{border:1px solid #e9e9e6;border-radius:22px;background:#fff;box-shadow:0 30px 60px -40px rgba(0,0,0,.5)}
+.band{border-radius:28px;margin:0 var(--pad) 3rem}
+.foot{background:#0f1115;color:#b9bcc3;border-top:0;padding-top:3.5rem}
+.foot strong{color:#fff}
+.foot a{color:#e9eaee}
+.sticky{box-shadow:0 -10px 30px -18px rgba(0,0,0,.35)}
+@media (max-width:42rem){.gal figure:first-child{grid-column:auto}.band{margin:0 .75rem 2rem}}
 @media (max-width:42rem){.sticky{display:flex}.nav{display:none}.top .btn{display:none}}
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn,.grid .card{transition:none}.grid .card:hover{transform:none}}
 """
 
 # Each template has its own hero and rhythm. The page structure differs too (render.py builds different sections in a different order); this is the layout that goes with it.

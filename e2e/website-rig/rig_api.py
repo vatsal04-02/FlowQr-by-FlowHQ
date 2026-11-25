@@ -11,7 +11,8 @@ os.environ.setdefault("APP_ENV", "test")
 os.environ["TOKEN_ENCRYPTION_KEY"] = "Zm9yLXRlc3RzLW9ubHktMzItYnl0ZS1rZXktMTIzNDU="
 os.environ["REDIS_URL"] = "redis://127.0.0.1:1/0"
 os.environ.update({"SITES_AI_BUILDER_ENABLED": "true", "RATE_LIMIT_ENABLED": "false", "FRONTEND_URL": "http://localhost:3012", "PUBLIC_CARD_BASE_URL": "http://localhost:3012",
-                   "AI_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "rig-key", "OPENROUTER_MODEL": "rig/model"})
+                   "AI_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "rig-key", "OPENROUTER_MODEL": "rig/model",
+                   "SITES_ENABLED": "true", "SITES_PROVIDER": "app", "GOOGLE_CLIENT_ID": "rig-client", "GOOGLE_CLIENT_SECRET": "rig-secret", "GOOGLE_REDIRECT_URI": "http://localhost:3012/api/v1/google/callback"})
 
 from fastapi import APIRouter  # noqa: E402
 from sqlalchemy import text  # noqa: E402
@@ -65,6 +66,34 @@ def run_in_thread(job_id):
 
 
 gen.enqueue = run_in_thread
+
+# Google double with the business's own photos (drawn here, never downloaded from anywhere)
+import io  # noqa: E402
+
+from PIL import Image, ImageDraw  # noqa: E402
+
+from app.services import google as g  # noqa: E402
+from tests.test_gbp import FakeGbpProvider  # noqa: E402
+
+G = FakeGbpProvider()
+G.details.update({"services": ["Dry needling"], "hours": [{"day": d, "open": "09:00", "close": "19:00"} for d in ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY")],
+                  "primary_category": {"id": "categories/gcid:physiotherapist", "name": "Physiotherapist"}})
+G.media = [{"name": f"m{i}", "category": c, "google_url": f"https://lh3.googleusercontent.com/{i}"} for i, c in enumerate(["COVER", "EXTERIOR", "INTERIOR", "AT_WORK", "TEAMS"])]
+g.get_google_provider = lambda: G
+
+
+def photo(url):
+    i = int(url.rsplit("/", 1)[1])
+    im = Image.new("RGB", (1400, 940), [(23, 94, 89), (181, 120, 80), (70, 96, 140), (120, 140, 100), (140, 90, 120)][i % 5])
+    d = ImageDraw.Draw(im)
+    for k in range(7):
+        d.rectangle([80 + k * 180, 260 + (k % 3) * 90, 200 + k * 180, 900], fill=(235, 232, 225))
+    out = io.BytesIO()
+    im.save(out, "PNG")
+    return out.getvalue()
+
+
+gen.fetch_photo = photo
 
 rig = APIRouter(prefix="/rig")
 

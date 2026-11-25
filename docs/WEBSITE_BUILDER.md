@@ -191,3 +191,18 @@ A business that answers "No, I don't have a website" gets a **draft in this buil
 **Not built:** multi-page sites (the builder renders one page plus privacy); custom domains; a reviews section; import of Google photos (FlowQR deliberately stores no Google photo links); typography choices (fixed per template); administrator notification of a publish request beyond the audit record.
 
 **Tested:** `backend/tests/test_website_generation.py` (14), `frontend/tests/website.test.mjs`, `e2e/website-onboarding.js` (26 checks at 1440, 320, 360, 375, 390, 414 px). The AI and Google are test doubles in all of them: no real model output and no real Google data has been tested.
+
+## FlowQR hosting (`SITES_PROVIDER=app`), Google photos, live reviews and the profile link (2026-11-25)
+
+Owner decisions: host on flowqr.site (no Cloudflare), show all recent reviews unfiltered, copy the business's own Google photos, and keep per-business activation before anything publishes.
+
+* **Address:** `https://flowqr.site/site/<slug>/`. A Vercel rewrite sends it to `GET /api/v1/public-site/<slug>`, which renders the **published snapshot** on request. Nothing is uploaded anywhere.
+* **Isolation:** these pages share the app's site, so every answer carries the no-script policy **plus `sandbox`** without `allow-same-origin` or `allow-scripts`: the page runs in an opaque origin and cannot use FlowQR's cookies or API. The renderer escapes every value as before. Moving to a separate domain later is still the stronger option.
+* **Visible only when:** hosting on, status published, commercial status complimentary or paid, business active. Otherwise one identical 404.
+* **Reviews:** read from `reviews` at view time (never copied into the website), newest first, every star level, first name only, average and count. Google retention redaction applies to the source, so redacted text disappears from the page too. Owner can switch the section off.
+* **Photos:** the business's own Google media (owner list, not customer photos), fetched only over https from `*.googleusercontent.com` / `*.ggpht.com` without redirects, re-encoded with metadata removed. Owner can remove any before publishing. Copied photos are not deleted automatically if Google is later disconnected.
+* **Google profile link:** publishing proposes a website change (`contact_update`); Google is written only when a person approves it on Pending changes.
+* **Enquiries:** `POST /api/v1/public-site/<slug>/_enquiry`, same checks and limits as before. No email notification (inbox in the admin console).
+* **Switch on:** `SITES_ENABLED=true`, `SITES_PROVIDER=app` (both in the compose overlay), `FRONTEND_URL` https. Switch off: `SITES_ENABLED=false` (every site answers 404; drafts remain).
+* **Activate a business:** Admin, Businesses, the business, Website: set hosting to complimentary or paid. Then the owner (or you) publishes.
+* **Tests:** `tests/test_website_hosting_app.py` (14), `e2e/website-hosting.js` (20 real-browser checks, desktop and 360 px). Google and the AI are doubles.

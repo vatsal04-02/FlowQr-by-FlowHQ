@@ -339,6 +339,9 @@ role-admin	POST	/api/v1/posts/{post_id}/cancel
 role-admin	POST	/api/v1/posts/{post_id}/reject
 role-admin	POST	/api/v1/posts/{post_id}/retry
 member	POST	/api/v1/posts/{post_id}/submit
+public-bypass-db	GET	/api/v1/public-site/{slug}
+public-bypass-db	POST	/api/v1/public-site/{slug}/_enquiry
+public-bypass-db	GET	/api/v1/public-site/{slug}/{path:path}
 public-bypass-db	GET	/api/v1/public/c/{token}
 public-bypass-db	POST	/api/v1/public/c/{token}/assist
 public-bypass-db	POST	/api/v1/public/c/{token}/event
@@ -424,7 +427,10 @@ member	GET	/api/v1/website
 role-admin	POST	/api/v1/website/ask
 role-admin	POST	/api/v1/website/design
 role-admin	POST	/api/v1/website/generate
+role-owner	POST	/api/v1/website/google-link
 role-admin	POST	/api/v1/website/photo
+role-admin	DELETE	/api/v1/website/photo/{asset_id}
+member	GET	/api/v1/website/photo/{asset_id}
 member	GET	/api/v1/website/preview
 role-owner	POST	/api/v1/website/publish
 role-admin	PUT	/api/v1/website/sections/{section_id}

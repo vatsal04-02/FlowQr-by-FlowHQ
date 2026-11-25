@@ -634,7 +634,10 @@ def config_problems(s: Settings) -> list[str]:
             p.append("WHATSAPP_SEND_WINDOW_START must be before WHATSAPP_SEND_WINDOW_END, both between 0 and 24")
         if not s.whatsapp_graph_base_url.startswith("https://"):
             p.append("WHATSAPP_GRAPH_BASE_URL must be https")
-    if s.sites_enabled:
+    if s.sites_enabled and s.sites_provider == "app":  # FlowQR serves the sites itself, sandboxed, under the app's own https address
+        if not (s.frontend_url or "").startswith("https://"):
+            p.append("FRONTEND_URL must be https when websites are hosted by FlowQR (SITES_PROVIDER=app)")
+    elif s.sites_enabled:
         base = (s.sites_base_domain or "").strip().lower().lstrip(".")
         if not base or "." not in base or base.endswith(".localhost"):
             p.append("SITES_BASE_DOMAIN must be a real domain when SITES_ENABLED is true")

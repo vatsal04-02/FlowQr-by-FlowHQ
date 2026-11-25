@@ -99,6 +99,7 @@ def test_every_route_is_classified_and_nothing_mutating_is_public_by_accident():
         "/api/v1/billing/razorpay/webhook",
         "/api/v1/webhooks/cashfree",  # reviewed: signature over the raw body, 5-minute window, stored before processing, treated as a hint (tests/test_cashfree_billing.py)
         "/api/v1/integrations/v1/customers", "/api/v1/integrations/v1/visits", "/api/v1/integrations/v1/enquiries", "/api/v1/integrations/v1/bookings",  # reviewed: authenticated by a hashed, scoped, revocable, rate-limited API key (no cookie, so no CSRF); Pro only; every POST idempotent; never creates consent without an explicit agreement and a note of how (tests/test_whatsapp_integrations.py)
+        "/api/v1/public-site/{slug}/_enquiry",  # reviewed: a visitor's enquiry form on a website FlowQR hosts. No cookie read or set; only a published, activated site; consent box, honeypot, 5 per visitor per hour and 100 per site per day; 8 KB cap (tests/test_website_hosting_app.py)
         "/api/v1/webhooks/cashfree-pg",  # reviewed: 404 unless prepaid checkout is on; signature over the raw body, 5-minute window, stored before processing, the order looked up by OUR id and the truth re-read from Cashfree (tests/test_prepaid_checkout.py)
     }
     stray = [(m, p) for p, m, lvl in route_table()

@@ -4,7 +4,8 @@ export interface Step { key: string; label: string; detail: string; status: Step
 export interface Job { id: string; status: "queued" | "running" | "completed" | "failed"; stage: string; steps: Step[]; notes: string[]; error: string | null; trigger: string }
 export interface Field { key: string; label: string; kind: string; max?: number; max_items?: number; fields?: Field[] }
 export interface SiteSection { id: string; type: string; label: string; enabled: boolean; data: Record<string, unknown> }
-export interface SiteInfo { status: string; template: string; template_label: string; accent: string; version: number; address: string; sections: SiteSection[] }
+export interface SitePhoto { id: string; kind: string; alt: string }
+export interface SiteInfo { status: string; template: string; template_label: string; accent: string; version: number; address: string; sections: SiteSection[]; photos?: SitePhoto[] }
 export interface WebsiteState {
   enabled: boolean; business?: { name: string; category: string | null }; interest?: string | null; website_url?: string | null; google?: { connected: boolean; title: string | null };
   job?: Job | null; site?: SiteInfo | null; publish?: { available: boolean; reason: string | null; url: string | null }; templates?: { key: string; label: string }[]; accents?: Record<string, string>; section_types?: Record<string, Field[]>;

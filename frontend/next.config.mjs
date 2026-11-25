@@ -42,7 +42,10 @@ const nextConfig = {
   // (SameSite=Lax) and no CORS is needed. Secrets never reach the browser.
   // With NEXT_PUBLIC_API_URL set (production on Vercel) the browser talks to the API host directly and nothing is proxied; without it (development, the Docker demo) /api is proxied here.
   async rewrites() {
-    return process.env.NEXT_PUBLIC_API_URL ? [] : [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }];
+    // Business websites hosted by FlowQR (SITES_PROVIDER=app): served by the API, sandboxed by its Content-Security-Policy.
+    const siteApi = process.env.NEXT_PUBLIC_API_URL || BACKEND_URL;
+    const sites = [{ source: "/site/:slug", destination: `${siteApi}/api/v1/public-site/:slug` }, { source: "/site/:slug/:path*", destination: `${siteApi}/api/v1/public-site/:slug/:path*` }];
+    return [...sites, ...(process.env.NEXT_PUBLIC_API_URL ? [] : [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }])];
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

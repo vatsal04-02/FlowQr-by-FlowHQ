@@ -1,11 +1,14 @@
 "use client";
 import clsx from "clsx";
 import { Check, CircleDashed, ExternalLink, Loader2, Minus, Monitor, Smartphone, Sparkles, Tablet, TriangleAlert, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Alert, Badge, Skeleton } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Form";
 import { api, errorMessage } from "@/lib/api";
+import { API_V1 } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
 import type { Location } from "@/lib/types";
 import { editableFields, emptyItem, phaseOf, previewKey, progress, STEP_WORD, type Device, type Field, type SiteSection, type WebsiteState } from "@/lib/website";
@@ -162,6 +165,13 @@ function Review({ state, setState, onRebuild, rebuilding }: { state: WebsiteStat
   const [msg, setMsg] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const site = state.site!;
+  const router = useRouter();
+  const [googleLink, setGoogleLink] = useState<string | null>(null);
+  const removePhoto = (id: string) => run(`photo-${id}`, () => api<WebsiteState>(`/website/photo/${id}`, { method: "DELETE" }), setState);
+  const linkGoogle = () => run("google", () => api<{ action_id: string | null; message: string }>("/website/google-link", { method: "POST" }), (r) => {
+    setMsg({ tone: r.action_id ? "success" : "info", text: r.message });
+    if (r.action_id) router.push(`/ai/changes?focus=action:${r.action_id}`);
+  });
 
   async function run<T>(key: string, fn: () => Promise<T>, then: (r: T) => void) {
     setBusy(key); setMsg(null);
@@ -172,7 +182,7 @@ function Review({ state, setState, onRebuild, rebuilding }: { state: WebsiteStat
     setMsg({ tone: r.done.length ? "success" : "info", text: [...r.done, ...r.refused, r.cannot].filter(Boolean).join(" ") || "Nothing needed changing." });
   });
   const design = (body: { template?: string; accent?: string }) => run("design", () => api<WebsiteState>("/website/design", { method: "POST", body }), setState);
-  const publish = () => run("publish", () => api<{ published: boolean; message: string; state: WebsiteState }>("/website/publish", { method: "POST" }), (r) => { setState(r.state); setMsg({ tone: r.published ? "success" : "info", text: r.message }); });
+  const publish = () => run("publish", () => api<{ published: boolean; message: string; google_action_id?: string | null; state: WebsiteState }>("/website/publish", { method: "POST" }), (r) => { setState(r.state); setGoogleLink(r.google_action_id ?? null); setMsg({ tone: r.published ? "success" : "info", text: r.message }); });
   async function photo(file: File) {
     await run("photo", () => api<WebsiteState>("/website/photo", { method: "POST", raw: file, params: { alt: `Photo of ${state.business?.name ?? "the business"}` } }), setState);
   }
@@ -214,6 +224,12 @@ function Review({ state, setState, onRebuild, rebuilding }: { state: WebsiteStat
           <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Colour">{Object.entries(state.accents ?? {}).map(([k, hex]) => <button key={k} role="radio" aria-checked={site.accent === k} aria-label={k} disabled={!isAdmin || !!busy} onClick={() => void design({ accent: k })} className={clsx("h-9 w-9 rounded-full ring-2 ring-offset-2", site.accent === k ? "ring-ink" : "ring-transparent")} style={{ background: hex }} />)}</div>
           <label className="mt-3 block text-[13px]"><span className="text-muted">Add a photo of your business (JPEG, PNG or WebP)</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" disabled={!isAdmin || !!busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void photo(f); e.target.value = ""; }} className="mt-1 block w-full min-h-11 text-[13px]" /></label>
+          {(site.photos?.length ?? 0) > 0 && <ul className="mt-2 grid grid-cols-3 gap-2" aria-label="Photos on your website">{site.photos!.map((p) => (
+            <li key={p.id} className="space-y-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`${API_V1}/website/photo/${p.id}`} alt={p.alt} className="aspect-square w-full rounded-lg object-cover" />
+              <button type="button" disabled={!isAdmin || !!busy} onClick={() => void removePhoto(p.id)} className="min-h-9 w-full text-[12.5px] font-semibold text-neg">Remove</button>
+            </li>))}</ul>}
         </section>
 
         <section className="rounded-[18px] bg-surface p-4 shadow-card">
@@ -235,6 +251,11 @@ function Review({ state, setState, onRebuild, rebuilding }: { state: WebsiteStat
               : <Button size="sm" loading={busy === "publish"} disabled={role !== "owner"} onClick={() => void publish()}>{state.publish?.available ? "Publish website" : "Approve for publishing"}</Button>}
             {site.status === "draft" && <Button size="sm" variant="secondary" loading={rebuilding} disabled={!isAdmin} onClick={onRebuild}>Build again from my latest details</Button>}
           </div>
+          {site.status === "published" && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" loading={busy === "google"} disabled={role !== "owner"} onClick={() => void linkGoogle()}>Add website to my Google profile</Button>
+              {googleLink && <Link href={`/ai/changes?focus=action:${googleLink}`} className="inline-flex min-h-9 items-center text-[13px] font-semibold text-accent-ink hover:underline">Approve the Google change</Link>}
+            </div>)}
           {role !== "owner" && <p className="mt-1 text-[12.5px] text-muted">Only the owner can approve publishing.</p>}
         </section>
       </div>
