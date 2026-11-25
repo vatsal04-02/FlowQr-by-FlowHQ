@@ -22,7 +22,8 @@ def test_a_trial_may_write_reviews_and_build_a_website_but_not_reply_post_or_run
     biz = make_business("Trial Scope Cafe")
     for kind in ("review_generate", "review_assist", "review_risk", "site_draft", "agent_draft"):
         call(biz.tenant_id, kind)
-    for kind in ("reply_draft", "post_draft", "post_ideas", "campaign", "whatsapp_assistant"):
+    call(biz.tenant_id, "whatsapp_assistant")  # the WhatsApp add-on has its own quotas, not the trial rules
+    for kind in ("reply_draft", "post_draft", "post_ideas", "campaign"):
         with pytest.raises(au.BudgetExceeded) as e:
             call(biz.tenant_id, kind)
         assert e.value.scope == "trial", kind

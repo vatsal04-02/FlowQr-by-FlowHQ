@@ -98,6 +98,8 @@ def trial_gate(tenant_id: uuid.UUID | None, kind: str) -> None:
         sub = db.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id))
         if sub is None or sub.status != "trialing" or sub.plan != "trial":
             return
+        if kind.startswith("whatsapp"):
+            return  # the WhatsApp add-on has its own entitlement and quotas (services/whatsapp); the trial rules here are about the plan's AI
         if kind == "reply_draft" and settings.trial_review_replies > 0:
             return  # counted against the trial's reply allowance by the plan quota
         if kind not in TRIAL_KINDS:
