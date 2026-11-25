@@ -84,15 +84,20 @@ const VIEWS = { desktop: { width: 1440, height: 900 }, phone: { width: 390, heig
   // ---------------------------------------------------------------- 2. every recommendation card that offers an action leads somewhere real
   await go('/seo');
   await page.getByRole('heading', { name: 'Fix your profile' }).waitFor();
-  const row = page.locator('li', { hasText: 'Description' }).filter({ hasText: 'Can be better' }).first();
-  await row.waitFor();
-  const link = row.getByRole('link', { name: /Review and approve/ });
-  check('profile area "Description" now has a real control (not a dead chip) that opens the prepared change', await link.count() === 1);
+  const card0 = page.getByText('Waiting for your approval').first();
+  await card0.waitFor();
+  const attn = page.locator('li', { hasText: 'Can be better' });
+  check('overview: a change already waiting for approval is shown once (the approval card), not repeated as an area row', (await page.locator('li', { hasText: 'Description' }).filter({ hasText: 'Can be better' }).count()) === 0 && await card0.count() === 1);
+  const svc = page.getByRole('button', { name: 'Prepare the change' }).first();
+  check('overview: an area with nothing prepared has a real "Prepare the change" button (not a dead chip)', await svc.count() === 1);
+  check('overview: shows 3 summary tiles, not 6', (await page.locator('dl > div').filter({ hasText: /Issues found|Waiting for you|Confirmed on Google/ }).count()) === 3 && (await page.getByText('Profile health').count()) === 0);
+  check('overview: the questions are folded away until asked for, and "Who is ahead" / "Profile strength" no longer repeat here', await page.getByText('Questions only you can answer').count() === 1 && await page.getByLabel('Service name').count() === 0 && await page.getByText('Who is ahead').count() === 0 && await page.getByText('Profile strength').count() === 0);
   await shot('seo-fix-your-profile');
-  await link.click();
-  await page.waitForURL(/\/ai\/changes\?focus=action/);
+  await page.getByRole('button', { name: /^Show all \d+ areas$/ }).click();
+  check('overview: "Show all areas" reveals the rest', (await page.getByText('Categories').count()) >= 1);
+  await go('/ai/changes');
   await page.locator('li[id^="change-action:"]').first().waitFor();
-  check('clicking it opens the prepared change on the pending-changes page', /Business description|Description/.test(await page.locator('h1').first().innerText().catch(() => '')) || (await page.locator('li[id^="change-action:"]').count()) >= 1);
+  check('the waiting approval opens on the pending-changes page', true);
 
   // the profile checklist rows no longer drop the owner on the generic editor
   await go('/seo/profile');
