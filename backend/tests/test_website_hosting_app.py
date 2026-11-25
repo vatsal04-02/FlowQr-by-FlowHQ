@@ -159,3 +159,14 @@ def test_the_production_guard_accepts_flowqr_hosting_only_with_an_https_app_addr
     assert ok == []
     assert any("FRONTEND_URL must be https" in p for p in config_problems(Settings(**base, frontend_url="http://flowqr.site")))
     assert "sandbox" in hosting.APP_CSP and "allow-same-origin" not in hosting.APP_CSP
+
+
+def test_the_admin_screens_show_the_address_a_person_can_actually_open(monkeypatch):
+    from app.services.sites import service as svc
+
+    monkeypatch.setattr(settings, "sites_provider", "app")
+    monkeypatch.setattr(settings, "frontend_url", "https://www.flowqr.site")
+    assert svc.display_address("gomti-physio") == "www.flowqr.site/site/gomti-physio"
+    assert svc.public_config()["address_template"] == "www.flowqr.site/site/{slug}"
+    monkeypatch.setattr(settings, "sites_provider", "local")
+    assert svc.display_address("gomti-physio").startswith("gomti-physio.")

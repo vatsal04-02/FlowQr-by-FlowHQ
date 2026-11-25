@@ -249,7 +249,7 @@ function Review({ state, setState, onRebuild, rebuilding }: { state: WebsiteStat
           <div className="mt-2 flex flex-wrap gap-2">
             {site.status === "published" && state.publish?.url ? <a href={state.publish.url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-accent-ink">Open my website<ExternalLink className="h-4 w-4" aria-hidden /></a>
               : <Button size="sm" loading={busy === "publish"} disabled={role !== "owner"} onClick={() => void publish()}>{state.publish?.available ? "Publish website" : "Approve for publishing"}</Button>}
-            {site.status === "draft" && <Button size="sm" variant="secondary" loading={rebuilding} disabled={!isAdmin} onClick={onRebuild}>Build again from my latest details</Button>}
+            {(site.status === "draft" || site.status === "unpublished") && <Button size="sm" variant="secondary" loading={rebuilding} disabled={!isAdmin} onClick={onRebuild}>Build again from my latest details</Button>}
           </div>
           {site.status === "published" && (
             <div className="mt-2 flex flex-wrap items-center gap-2">

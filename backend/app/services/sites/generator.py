@@ -200,6 +200,11 @@ def _fail(db: Session, job: SiteGenerationJob, message: str) -> None:
     db.commit()
 
 
+def built_here(db: Session, site: Site) -> bool:
+    """True for a website this builder wrote, never one an administrator made by hand."""
+    return db.scalar(select(SiteGenerationJob.id).where(SiteGenerationJob.tenant_id == site.tenant_id, SiteGenerationJob.site_id == site.id).limit(1)) is not None
+
+
 def start(db: Session, tenant: Tenant, *, user_id: uuid.UUID | None, trigger: str) -> tuple[SiteGenerationJob, bool]:
     """(job, created). Never a second active job, and never a new one over a website that already has finished content."""
     current = latest_job(db, tenant.id)
@@ -208,7 +213,8 @@ def start(db: Session, tenant: Tenant, *, user_id: uuid.UUID | None, trigger: st
     if current is not None and current.status == "completed" and sites.get_by_tenant(db, tenant.id) is not None:
         return current, False
     existing = sites.get_by_tenant(db, tenant.id)
-    if existing is not None and (current is None or existing.commercial_status != "not_activated" or existing.status != "draft"):
+    # Only a draft this builder wrote may be written again (never one an administrator built by hand). Recording the hosting status does not change that.
+    if existing is not None and (existing.status not in ("draft", "unpublished") or not built_here(db, existing)):
         raise sites.SiteError(409, "already_exists", "This business already has a website.")
     job = SiteGenerationJob(tenant_id=tenant.id, site_id=existing.id if existing else None, trigger=trigger, created_by=user_id, steps=new_steps(), notes=[], status="queued", stage="INITIALIZING")
     db.add(job)

@@ -8,6 +8,7 @@ from datetime import timedelta
 
 import pytest
 
+from app.api.v1 import website as website_api
 from app.core.config import settings
 from app.core.db import SessionLocal, set_rls_context
 from app.models.base import utcnow
@@ -132,6 +133,60 @@ def test_asking_twice_or_refreshing_never_makes_a_second_job_or_site(biz, on):
     assert work(a["job"]["id"])[0] == "skipped"  # a duplicate delivery does nothing
     t = uuid.UUID(biz.tenant_id)
     assert owner_query("SELECT count(*) FROM sites WHERE tenant_id = :t", t=t)[0][0] == 1 and owner_query("SELECT count(*) FROM site_generation_jobs WHERE tenant_id = :t", t=t)[0][0] == 1
+
+
+def test_an_activated_draft_can_be_built_again_and_stays_activated(biz, on):
+    assert built(biz)[0] == "completed"
+    t = uuid.UUID(biz.tenant_id)
+    owner_exec("UPDATE sites SET commercial_status = 'complimentary', commercial_reason = 'our own website' WHERE tenant_id = :t", t=t)
+    r = biz.post("/website/generate", json={"rebuild": True})
+    assert r.status_code == 200 and r.json()["created"] is True
+    assert work(r.json()["job"]["id"])[0] == "completed"
+    assert owner_query("SELECT commercial_status, status FROM sites WHERE tenant_id = :t", t=t)[0] == ("complimentary", "draft")
+    assert owner_query("SELECT count(*) FROM sites WHERE tenant_id = :t", t=t)[0][0] == 1
+
+
+def test_a_refused_rebuild_leaves_the_finished_build_as_it_was(biz, on, monkeypatch):
+    assert built(biz)[0] == "completed"
+    monkeypatch.setattr(website_api, "hit", lambda *a, **k: False)  # the daily limit
+    assert biz.post("/website/generate", json={"rebuild": True}).status_code == 429
+    state = biz.get("/website").json()
+    assert state["job"]["status"] == "completed" and not state["job"]["error"]
+
+
+def test_a_website_an_administrator_built_is_never_overwritten(biz, on):
+    assert built(biz)[0] == "completed"
+    t = uuid.UUID(biz.tenant_id)
+    owner_exec("DELETE FROM site_generation_jobs WHERE tenant_id = :t", t=t)  # a website with no build behind it
+    owner_exec("UPDATE sites SET commercial_status = 'complimentary' WHERE tenant_id = :t", t=t)
+    assert biz.post("/website/generate", json={"rebuild": True}).status_code == 409
+
+
+def test_changing_the_layout_never_switches_on_an_empty_section_or_loses_a_filled_one(biz, on):
+    status, state, _ = built(biz)
+    assert status == "completed"
+    owner_exec("UPDATE sites SET commercial_status = 'complimentary' WHERE tenant_id = :t", t=uuid.UUID(biz.tenant_id))
+    before = {s["type"] for s in state["site"]["sections"] if s["enabled"]}
+    for template in ("home_services", "clinic", "home_services"):
+        r = biz.post("/website/design", json={"template": template})
+        assert r.status_code == 200, r.text
+        after = {s["type"] for s in r.json()["site"]["sections"] if s["enabled"]}
+        assert after - before <= {"disclaimer"}, (template, after - before)
+        assert {"hero", "services", "contact"} <= after
+        assert "add at least" not in (r.json()["publish"]["reason"] or "")
+
+
+def test_a_website_taken_offline_can_be_built_again_but_a_live_one_cannot(biz, on):
+    assert built(biz)[0] == "completed"
+    t = uuid.UUID(biz.tenant_id)
+    owner_exec("UPDATE sites SET commercial_status = 'complimentary', status = 'published' WHERE tenant_id = :t", t=t)
+    assert biz.post("/website/generate", json={"rebuild": True}).status_code == 409
+    assert biz.get("/website").json()["job"]["status"] == "completed"
+    owner_exec("UPDATE sites SET status = 'unpublished' WHERE tenant_id = :t", t=t)
+    r = biz.post("/website/generate", json={"rebuild": True})
+    assert r.status_code == 200, r.text
+    assert work(r.json()["job"]["id"])[0] == "completed"
+    assert owner_query("SELECT status, commercial_status FROM sites WHERE tenant_id = :t", t=t)[0] == ("unpublished", "complimentary")
 
 
 def test_a_job_whose_worker_died_is_reported_as_stopped_not_left_spinning(biz, on):

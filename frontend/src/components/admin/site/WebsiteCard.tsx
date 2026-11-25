@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { api, errorMessage } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { COMMERCIAL_LABEL, COMMERCIAL_TONE, STATUS_LABEL, STATUS_TONE, type Catalogue, type SiteConfig, type SiteInfo } from "@/lib/sites";
+import { COMMERCIAL_LABEL, COMMERCIAL_TONE, STATUS_LABEL, STATUS_TONE, addressFor, type Catalogue, type SiteConfig, type SiteInfo } from "@/lib/sites";
 
 interface Summary { enabled: boolean; website_interest?: "has_site" | "wants_site" | "not_now" | null; website_url?: string | null; suggested_template: string; suggested_slug: string | null; site: SiteInfo | null }
 
@@ -78,7 +78,7 @@ export function WebsiteCard({ tenantId }: { tenantId: string }) {
             {(cat.data?.templates ?? []).map((t) => <option key={t.key} value={t.key}>{t.label}{t.key === s?.suggested_template ? " (suggested)" : ""}</option>)}
           </Select>
           <Input label="Site name" value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} error={check && !check.available ? check.problem ?? "Not available" : undefined}
-                 hint={check?.available ? `Available: ${f.slug}.${cfg.data?.base_domain ?? ""}` : `The website will be at ${f.slug || "name"}.${cfg.data?.base_domain ?? ""}`} />
+                 hint={check?.available ? `Available: ${addressFor(cfg.data, f.slug)}` : `The website will be at ${addressFor(cfg.data, f.slug || "name")}`} />
           <fieldset className="space-y-3 rounded-2xl border border-line p-4">
             <legend className="px-1 text-sm font-semibold">Hosting</legend>
             <p className="text-sm text-muted">Hosting is never free by default. Record how this website is paid for (reference price: ₹{cfg.data?.pricing.monthly_inr ?? 199} a month, or ₹{cfg.data?.pricing.annual_inr ?? 1999} a year, no setup fee). Nothing is billed from here.</p>

@@ -46,7 +46,7 @@ def _site(ctx: TenantContext) -> Site:
 def _owned(ctx: TenantContext) -> Site:
     """Editing applies to the draft the owner generated. A website FlowQR's team built or published is changed by that team."""
     site = _site(ctx)
-    if site.commercial_status != "not_activated" and site.status != "draft":
+    if site.commercial_status != "not_activated" and not (site.status == "draft" or (site.status == "unpublished" and gen.built_here(ctx.db, site))):
         raise HTTPException(status_code=409, detail="Your website is already published. Ask FlowQR to make changes.")
     return site
 
@@ -111,16 +111,16 @@ def generate(body: GenerateIn, request: Request, ctx: TenantContext = Depends(re
     if ctx.tenant.website_interest == "has_site":
         raise HTTPException(status_code=409, detail="You told us you already have a website. Change that answer in your business details first.")
     current = gen.latest_job(ctx.db, ctx.tenant_id)
-    if body.rebuild and current is not None and current.status == "completed":
-        site = _owned(ctx)
-        if site.status != "draft":
-            raise HTTPException(status_code=409, detail="Only a draft can be built again.")
+    rebuilding = body.rebuild and current is not None and current.status == "completed"
+    if rebuilding and _owned(ctx).status not in ("draft", "unpublished"):
+        raise HTTPException(status_code=409, detail="Take the website offline before building it again.")
+    if current is None or current.status == "failed" or rebuilding:  # every refusal comes before the finished build is touched
+        if not hit(f"site-gen:{ctx.tenant_id}", 3, 86400):
+            raise HTTPException(status_code=429, detail="A website can be built a few times a day. Edit the current one, or try again tomorrow.")
+    if rebuilding:
         current.status = "failed"  # superseded by the new build
         current.error = "Replaced by a new build."
         ctx.db.commit()
-    if current is None or current.status == "failed":
-        if not hit(f"site-gen:{ctx.tenant_id}", 3, 86400):
-            raise HTTPException(status_code=429, detail="A website can be built a few times a day. Edit the current one, or try again tomorrow.")
     job, created = _call(lambda: gen.start(ctx.db, ctx.tenant, user_id=ctx.user.id, trigger="owner"))
     if created:
         gen.enqueue(job.id)
@@ -156,7 +156,7 @@ def design(body: DesignIn, request: Request, ctx: TenantContext = Depends(requir
     _on()
     site = _owned(ctx)
     if body.template and body.template != site.template_key:
-        _call(lambda: svc.change_template(ctx.db, admin=ctx.user, site=site, template_key=body.template, ip=client_ip(request)))
+        _call(lambda: svc.change_template(ctx.db, admin=ctx.user, site=site, template_key=body.template, keep_hidden=True, ip=client_ip(request)))
         ctx.db.commit()
     if body.accent:
         if body.accent not in C.ACCENTS:

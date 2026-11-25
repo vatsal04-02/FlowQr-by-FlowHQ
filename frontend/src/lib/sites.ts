@@ -32,13 +32,18 @@ export interface SiteInfo {
   revisions: { revision: number; hosting_version: number; created_at: string; note: string | null }[];
   draft_content?: SiteContent; readiness?: Blocker[]; edits_this_month?: number;
 }
-export interface SiteConfig { enabled: boolean; base_domain: string; provider: string; grace_days: number; enquiry_retention_days: number; pricing: { monthly_inr: number; annual_inr: number; setup_inr: number; edits_included_per_month: number; note: string } }
+export interface SiteConfig { enabled: boolean; base_domain: string; address_template?: string; provider: string; grace_days: number; enquiry_retention_days: number; pricing: { monthly_inr: number; annual_inr: number; setup_inr: number; edits_included_per_month: number; note: string } }
 export interface EnquiryInfo { id: string; name: string; phone: string | null; email: string | null; message: string; status: "new" | "contacted" | "resolved" | "spam"; received_at: string; consent_at: string }
 
 export const STATUS_LABEL: Record<string, string> = { draft: "Draft", published: "Live", unpublished: "Offline", suspended: "Suspended" };
 export const STATUS_TONE: Record<string, "gray" | "green" | "amber" | "red"> = { draft: "gray", published: "green", unpublished: "amber", suspended: "red" };
-export const COMMERCIAL_LABEL: Record<string, string> = { complimentary: "Complimentary", paid_offline: "Paid (recorded offline)", expired: "Expired", suspended: "Suspended" };
-export const COMMERCIAL_TONE: Record<string, "gray" | "green" | "amber" | "red"> = { complimentary: "gray", paid_offline: "green", expired: "amber", suspended: "red" };
+export const COMMERCIAL_LABEL: Record<string, string> = { complimentary: "Complimentary", paid_offline: "Paid (recorded offline)", expired: "Expired", suspended: "Suspended", not_activated: "Not activated" };
+/** The address a website with this name has: a path under FlowQR hosting, a subdomain otherwise. */
+export const addressFor = (cfg: { address_template?: string; base_domain?: string } | null | undefined, slug: string): string => (cfg?.address_template ? cfg.address_template.replace("{slug}", slug) : `${slug}.${cfg?.base_domain ?? ""}`);
+export const COMMERCIAL_TONE: Record<string, "gray" | "green" | "amber" | "red"> = { complimentary: "gray", paid_offline: "green", expired: "amber", suspended: "red", not_activated: "amber" };
+// "not_activated" is where an owner-generated draft starts: it can be shown, but an administrator cannot choose it.
+export const SETTABLE_COMMERCIAL = ["complimentary", "paid_offline", "expired", "suspended"];
+export const commercialChoice = (status: string): string => (SETTABLE_COMMERCIAL.includes(status) ? status : "complimentary");
 export const CTA_LABEL: Record<string, string> = { call: "Call", whatsapp: "WhatsApp", enquiry: "Enquiry form", directions: "Directions", order: "Order or booking link" };
 export const ONLY_ONCE = ["hero", "contact", "disclaimer", "hours", "location"];
 

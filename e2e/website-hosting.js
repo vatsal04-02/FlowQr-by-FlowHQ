@@ -48,7 +48,27 @@ const sql = (q, p) => fetch(RIG + '/rig/sql', { method: 'POST', headers: { 'cont
   await page.getByRole('heading', { name: 'Your website is ready for review.' }).waitFor({ timeout: 90000 });
   await page.getByRole('list', { name: 'Photos on your website' }).waitFor();
   check('the owner sees the photos copied from Google and can remove them', await page.getByRole('list', { name: 'Photos on your website' }).locator('li').count() === 5);
-  await sql("UPDATE sites SET commercial_status = 'complimentary', commercial_reason = 'rig activation' WHERE tenant_id = :t", { t: t.id });
+  // activation the way a platform administrator really does it, in the admin screens (a database shortcut here once hid that the form could not record it)
+  const adminEmail = `admin-${rnd}@flowqr.example`;
+  const adm = await browser.newContext({ baseURL: BASE, viewport: { width: 1440, height: 900 } });
+  await adm.request.post('/api/v1/auth/register', { data: { email: adminEmail, password: PW, age_confirmed: true, full_name: 'Rig Admin' } });
+  await sql('UPDATE users SET email_verified_at = now(), is_platform_admin = true WHERE email = :e', { e: adminEmail });
+  await adm.request.post('/api/v1/auth/login', { data: { email: adminEmail, password: PW } });
+  const a = await adm.newPage();
+  a.on('pageerror', (e) => errors.push('admin: ' + e.message));
+  await a.goto(`/admin/customers/${t.id}/website`);
+  await a.getByRole('radio', { name: 'Settings' }).click({ timeout: 60000 });
+  const select = a.getByLabel('Set status to');
+  await select.waitFor();
+  check('admin: the draft reads "Not activated" and the form starts on a status that can be recorded', await a.getByText('Not activated', { exact: true }).count() >= 1 && await select.inputValue() === 'complimentary', await select.inputValue());
+  check('admin: "Not activated" is not offered as a choice', !(await select.locator('option').allInnerTexts()).includes('Not activated'));
+  await a.getByLabel('Reason (required, kept in the audit log)').fill('FlowQR own website');
+  await a.screenshot({ path: `${SHOTS}/admin-activate.png`, fullPage: true });
+  await a.getByRole('button', { name: 'Record status' }).click();
+  await a.getByText('Hosting status recorded.').first().waitFor({ timeout: 30000 });
+  const com = (await sql('SELECT commercial_status FROM sites WHERE tenant_id = :t', { t: t.id })).rows[0][0];
+  check('admin: recording it activates hosting', com === 'complimentary', com);
+  await adm.close();
   await page.reload();
   await page.getByRole('button', { name: 'Publish website' }).click({ timeout: 30000 });
   await page.getByText('Your website is published.', { exact: false }).first().waitFor({ timeout: 30000 });
