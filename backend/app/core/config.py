@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     sites_local_dir: str = "/tmp/flowqr-sites"  # nosec B108 - development/test default of the LOCAL provider only: config_problems requires SITES_PROVIDER=cloudflare in production. # SITES_LOCAL_DIR: where the local provider writes
     sites_service_token: str = ""  # SITES_SERVICE_TOKEN: shared secret between the hosting Worker and the enquiry endpoint (at least 32 characters)
     sites_accept_shared_cookie_scope: bool = False  # SITES_ACCEPT_SHARED_COOKIE_SCOPE: see check_production
+    sites_ai_builder_enabled: bool = False  # SITES_AI_BUILDER_ENABLED: owners may generate, preview and edit an AI website draft (onboarding). Publishing still needs SITES_ENABLED, working hosting and a recorded commercial status
     sites_grace_days: int = 14  # SITES_GRACE_DAYS: how long an expired site stays up before it is suspended (its content is never deleted by a lapse)
     sites_enquiry_retention_days: int = 180  # SITES_ENQUIRY_RETENTION_DAYS: enquiries older than this are deleted
     sites_enquiry_notifier: str = "none"  # SITES_ENQUIRY_NOTIFIER: none | smtp. "smtp" is NOT recommended on the shared Gmail account (quota, deliverability): review first

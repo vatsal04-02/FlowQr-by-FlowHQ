@@ -26,7 +26,7 @@ from app.models.agent import (  # noqa: F401,E402
 )
 from app.models.autonomy import AgentAction, AgentActionApproval, AgentInterventionEvent, AgentRankFollowup, ConsentGrant, PlatformControl  # noqa: F401,E402
 
-from app.models.sites import Site, SiteAsset, SiteDomain, SiteEnquiry, SiteRevision, SiteSlugQuarantine  # noqa: F401,E402
+from app.models.sites import Site, SiteAsset, SiteDomain, SiteGenerationJob, SiteEnquiry, SiteRevision, SiteSlugQuarantine  # noqa: F401,E402
 from app.models.whatsapp import TenantAddon, WhatsAppConnection, WhatsAppConsent, WhatsAppContact, WhatsAppMessage, WhatsAppSuppression, WhatsAppTemplate, WhatsAppWebhookEvent  # noqa: F401,E402
 from app.models.whatsapp import WhatsAppAutomation, WhatsAppAutomationRun, WhatsAppCampaign, WhatsAppCampaignRecipient, WhatsAppRate, WhatsAppRateVerification, WhatsAppFestival, WhatsAppFestivalOptin, WhatsAppLink, WhatsAppLinkClick, WhatsAppConversation, WhatsAppConversationMessage, WhatsAppConversationSettings, WhatsAppAiQuota, WhatsAppAiSettings, WhatsAppKnowledgeItem, WhatsAppAiRun, WhatsAppUnansweredQuestion, WhatsAppBookingSettings, WhatsAppBookingService, WhatsAppBookingHours, WhatsAppBookingClosed, WhatsAppBooking, WhatsAppApiKey, WhatsAppApiRequest, WhatsAppWebhookEndpoint, WhatsAppWebhookDelivery, WhatsAppEntryWindow, WhatsAppEntryWindowCheck  # noqa: F401,E402
 from app.models.whatsapp import WhatsAppOptinKeyword, WhatsAppOptinSettings  # noqa: F401,E402

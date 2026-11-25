@@ -23,6 +23,7 @@ from app.services import google as g
 from app.services import entitlements as ent
 from app.services.audit import audit
 from app.services.google.queue import enqueue_sync
+from app.services.sites import generator as site_gen
 from app.services.google.provider import has_business_scope
 from app.services.google.tokens import get_access_token, note_api_access, note_not_approved, store_tokens
 
@@ -79,8 +80,8 @@ def connect(response: Response, return_to: str | None = None, ctx: TenantContext
     state = sign_state(f"{nonce}|{ctx.tenant_id}|{ctx.user.id}")
     provider = g.get_google_provider()
     response.set_cookie(STATE_COOKIE, nonce, max_age=600, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
-    if return_to == "journey" and settings.google_agency_self_service_enabled:  # a fixed allow-list: the value is never used as an address
-        response.set_cookie(RETURN_COOKIE, "journey", max_age=600, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
+    if (return_to == "journey" and settings.google_agency_self_service_enabled) or (return_to == "website" and settings.sites_ai_builder_enabled):  # a fixed allow-list: the value is never used as an address
+        response.set_cookie(RETURN_COOKIE, return_to, max_age=600, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
     audit(ctx.db, action="google.connect_started", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=ctx.tenant_id)
     ctx.db.commit()  # so the onboarding journey can say "Google sign-in started" until the callback arrives
     return {"auth_url": provider.build_auth_url(state)}
@@ -92,7 +93,8 @@ def callback(request: Request, code: str | None = None, state: str | None = None
              oauth_return: str | None = Cookie(default=None, alias=RETURN_COOKIE),
              session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
              db: Session = Depends(get_db)):
-    landing = "/gbp/connect" if oauth_return == "journey" and settings.google_agency_self_service_enabled else "/gbp/locations"
+    landing = ("/gbp/connect" if oauth_return == "journey" and settings.google_agency_self_service_enabled
+               else "/onboarding/website" if oauth_return == "website" and settings.sites_ai_builder_enabled else "/gbp/locations")
 
     def fail(reason: str):
         r = _frontend(landing, error=reason)
@@ -275,6 +277,12 @@ def select_locations(connection_id: uuid.UUID, body: SelectionIn, request: Reque
           entity_type="google_connection", entity_id=conn.id, meta={"count": len(changed)}, ip=client_ip(request))
     ctx.db.commit()
     enqueue_sync(ctx.db, [c.id for c in changed if c.selected])
+    if any(c.selected for c in changed):
+        try:  # a business that said it has no website gets one built once its Google profile is connected; never twice, and never a reason for this save to fail
+            site_gen.maybe_autostart(ctx.db, ctx.tenant, ctx.user.id)
+        except Exception:  # noqa: BLE001
+            log.warning("website autostart failed", exc_info=True)
+            ctx.db.rollback()
     return ctx.db.scalars(select(GoogleLocation).where(GoogleLocation.connection_id == conn.id).order_by(GoogleLocation.title)).all()
 
 

@@ -61,7 +61,7 @@ _ALSO_EXPORTED = ("agent_runs", "agent_settings", "agent_task_events", "agent_ta
                   # and the administrator-handled export / deletion requests for a business that has no owner login (a person's own requests about their business are their data too)
                   "data_requests", "data_request_events",
                   # the website builder: the business's own website content, hostnames, image metadata, enquiries and publish history (image FILES are added to the ZIP by build_export)
-                  "sites", "site_domains", "site_assets", "site_enquiries", "site_revisions",
+                  "sites", "site_domains", "site_assets", "site_enquiries", "site_revisions", "site_generation_jobs",
                   # WhatsApp automation: the connection (never its token), the people, their consents, opt-out hashes, templates, delivery records, the sanitised webhook log and the add-on
                   "whatsapp_connections", "whatsapp_contacts", "whatsapp_consents", "whatsapp_suppressions", "whatsapp_templates", "whatsapp_messages", "whatsapp_webhook_events", "tenant_addons",
                   "whatsapp_automations", "whatsapp_automation_runs", "whatsapp_campaigns", "whatsapp_campaign_recipients",

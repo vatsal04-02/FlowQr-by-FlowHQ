@@ -420,6 +420,14 @@ public	POST	/api/v1/webhooks/cashfree
 public	POST	/api/v1/webhooks/cashfree-pg
 public	GET	/api/v1/webhooks/whatsapp
 public-bypass-db	POST	/api/v1/webhooks/whatsapp
+member	GET	/api/v1/website
+role-admin	POST	/api/v1/website/ask
+role-admin	POST	/api/v1/website/design
+role-admin	POST	/api/v1/website/generate
+role-admin	POST	/api/v1/website/photo
+member	GET	/api/v1/website/preview
+role-owner	POST	/api/v1/website/publish
+role-admin	PUT	/api/v1/website/sections/{section_id}
 member	GET	/api/v1/whatsapp/ai/knowledge
 role-admin	POST	/api/v1/whatsapp/ai/knowledge
 role-admin	POST	/api/v1/whatsapp/ai/knowledge/import

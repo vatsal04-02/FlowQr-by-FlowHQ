@@ -55,6 +55,12 @@ def require_enabled() -> None:
         raise SiteError(409, "sites_disabled", "Websites are switched off on this server.")
 
 
+def require_drafting() -> None:
+    """Creating and editing a draft: allowed when websites are on, or when only the AI builder is on (nothing public can happen: publishing keeps `require_enabled`)."""
+    if not (settings.sites_enabled or settings.sites_ai_builder_enabled):
+        raise SiteError(409, "sites_disabled", "Websites are switched off on this server.")
+
+
 def public_config() -> dict:
     return {"enabled": settings.sites_enabled, "base_domain": settings.sites_base_domain, "provider": settings.sites_provider, "grace_days": settings.sites_grace_days,
             "enquiry_retention_days": settings.sites_enquiry_retention_days, "pricing": PRICING_REFERENCE}
@@ -209,7 +215,7 @@ def _quarantine_clear(db: Session, slug: str, tenant_id: uuid.UUID) -> None:
 
 def save_content(db: Session, *, admin, site: Site, content: dict, base_version: int, ip: str | None = None) -> Site:
     """Save the draft. `base_version` is the draft_version the editor started from: a stale editor (another administrator saved meanwhile) gets 409 instead of overwriting."""
-    require_enabled()
+    require_drafting()
     if base_version != site.draft_version:
         raise SiteError(409, "version_conflict", "Someone else changed this website since you opened it. Reload to see their changes.", current_version=site.draft_version)
     clean, errs = CT.validate_content(content, site.template_key, asset_ids(db, site))
@@ -222,7 +228,7 @@ def save_content(db: Session, *, admin, site: Site, content: dict, base_version:
 
 def change_template(db: Session, *, admin, site: Site, template_key: str, ip: str | None = None) -> Site:
     """Switch the template of a DRAFT: the business details, button, search text and image library stay; sections of the same type keep their text; the rest start from the new template."""
-    require_enabled()
+    require_drafting()
     if template_key not in C.TEMPLATES:
         raise SiteError(422, "bad_template", "Unknown template.")
     if site.status == "published":
@@ -269,7 +275,7 @@ def change_slug(db: Session, *, admin, site: Site, new_slug: str, ip: str | None
 # ------------------------------------------------------------------------------------------------------------------ images
 def upload_asset(db: Session, *, admin, site: Site, raw: bytes, kind: str, alt_text: str, ip: str | None = None) -> tuple[SiteAsset, bool]:
     """(asset, created). The same picture uploaded twice returns the existing one."""
-    require_enabled()
+    require_drafting()
     try:
         p = media.process_image(raw, kind)
     except media.MediaError as exc:
@@ -336,7 +342,9 @@ def preview_html(db: Session, site: Site) -> str:
 
 def commercial_blockers(site: Site, tenant: Tenant) -> list[dict]:
     out = []
-    if site.commercial_status not in ("complimentary", "paid_offline"):
+    if site.commercial_status == "not_activated":
+        out.append({"path": "commercial", "message": "Website hosting is not activated for this business yet. Ask FlowQR to activate it, then publish."})
+    elif site.commercial_status not in ("complimentary", "paid_offline"):
         out.append({"path": "commercial", "message": "Hosting is " + site.commercial_status.replace("_", " ") + ". Record it as complimentary or paid before publishing."})
     if site.status == "suspended":
         out.append({"path": "status", "message": "This website is suspended. Resume it first."})
