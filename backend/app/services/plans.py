@@ -36,9 +36,9 @@ UNAPPROVED_LIMITS = {
 }
 
 PLANS: dict[str, dict] = {
-    "starter": {"name": "Launch", "price_paise": 49900, "max_locations": 1, "max_staff": 3, "review_generations": 200, "review_replies": 200, "features": list(CORE), "sort_order": 1},
-    "growth": {"name": "Growth", "price_paise": 79900, "max_locations": 1, "max_staff": 10, "review_generations": 400, "review_replies": 400, "features": list(CORE + GROWTH_ADD), "sort_order": 2},
-    "pro": {"name": "Scale", "price_paise": 149900, "max_locations": 10, "max_staff": 50, "review_generations": 800, "review_replies": 800, "features": list(ALL_FEATURES), "sort_order": 3},
+    "starter": {"name": "Launch", "price_paise": 49900, "max_locations": 1, "max_staff": 3, "review_generations": 150, "review_replies": 150, "features": list(CORE), "sort_order": 1},
+    "growth": {"name": "Growth", "price_paise": 79900, "max_locations": 1, "max_staff": 10, "review_generations": 300, "review_replies": 300, "features": list(CORE + GROWTH_ADD), "sort_order": 2},
+    "pro": {"name": "Scale", "price_paise": 149900, "max_locations": 10, "max_staff": 50, "review_generations": 500, "review_replies": 500, "features": list(ALL_FEATURES), "sort_order": 3},
 }
 
 # --------------------------------------------------------------------------------------------------------------------------------------------- prepaid terms

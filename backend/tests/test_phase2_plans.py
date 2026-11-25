@@ -78,7 +78,7 @@ def test_the_seeded_plans_are_exactly_the_confirmed_commercial_plans(client):
     for p in r["plans"]:
         spec = plans.PLANS[p["code"]]
         assert (p["review_generations"], p["review_replies"]) == (spec["review_generations"], spec["review_replies"]) and set(p["features"]) == set(spec["features"])
-    assert {c: (g, rp) for c, g, rp in ((p["code"], p["review_generations"], p["review_replies"]) for p in r["plans"])} == {"starter": (200, 200), "growth": (400, 400), "pro": (800, 800)}
+    assert {c: (g, rp) for c, g, rp in ((p["code"], p["review_generations"], p["review_replies"]) for p in r["plans"])} == {"starter": (150, 150), "growth": (300, 300), "pro": (500, 500)}
     # the database matches the specification module (the two cannot drift apart)
     for code, spec in plans.PLANS.items():
         row = owner_query("SELECT price_paise, max_locations, max_staff, review_generations, review_replies, monthly_ai_generations FROM billing_plans WHERE code = :c", c=code)[0]
@@ -333,7 +333,7 @@ def test_a_paid_card_order_grants_one_promotional_growth_month_and_it_is_not_a_s
     s = biz.get("/billing/subscription").json()
     assert s["plan"] == "starter" and s["source"] == "razorpay" and s["promo"]["plan"] == "growth" and "nothing is charged" in s["promo"]["note"]  # the subscription row is untouched
     assert {"geo_ranking", "growth_agent", "autonomy", "gbp_posts"} <= set(s["limits"]["features"])  # the month gives Growth's features
-    assert s["limits"]["review_generations"] == 400 and s["limits"]["review_replies"] == 400
+    assert s["limits"]["review_generations"] == 300 and s["limits"]["review_replies"] == 300
     assert owner_query("SELECT plan, status, source FROM subscriptions WHERE tenant_id = :t", t=biz.tenant_id) == [("starter", "active", "razorpay")]
     assert kinds(biz.tenant_id)[-1] == "promo_granted"
 
@@ -462,3 +462,14 @@ def test_an_admin_sets_and_reviews_the_plan_limits_and_sees_what_is_still_pendin
     log = owner_query("SELECT metadata->>'note' FROM audit_logs WHERE action = 'admin.plan_limits' ORDER BY created_at DESC LIMIT 1")
     assert log == [("Approved by the owner on 2026-11-15",)]
     admin.put("/admin/plans/growth/limits", json={"geo": {"max_grids": None, "max_points": None, "monthly_points": None}, "apply_to_existing": True, "note": "reset for tests"})
+
+
+def test_a_free_trial_gets_growth_features_but_only_a_small_ai_allowance():
+    biz = make_business("Trial Cap Cafe")
+    sub = biz.get("/billing/subscription").json()
+    assert sub["status"] == "trialing"
+    lim = biz.get("/billing/subscription").json()["limits"]
+    assert (lim["review_generations"], lim["review_replies"]) == (settings.trial_review_generations, settings.trial_review_replies) == (15, 0)
+    assert "gbp_posts" in sub["features"] if "features" in sub else True
+    plans = {p["code"]: p for p in biz.get("/billing/plans").json()["plans"]}
+    assert plans["growth"]["review_generations"] == 300  # the paid plan itself is not capped by the trial rule

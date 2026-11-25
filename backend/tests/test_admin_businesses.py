@@ -71,15 +71,15 @@ def test_a_business_is_created_without_any_user_membership_session_or_password(a
     assert owner_query("SELECT count(*) FROM invitations WHERE tenant_id = :t", t=b["id"])[0][0] == 0
 
 
-def test_the_new_business_has_launch_managed_access_with_no_trial_no_billing_and_the_200_200_limits(admin):
+def test_the_new_business_has_launch_managed_access_with_no_trial_no_billing_and_the_150_150_limits(admin):
     b = create(admin)
     s = sub_of(b["id"])
     assert (s["plan"], s["status"], s["source"]) == ("starter", "manual", "manual")
     assert s["provider"] is None and s["razorpay_subscription_id"] is None and s["cashfree_subscription_id"] is None  # no provider: nothing can ever bill it
     assert s["trial_ends_at"] is None and s["trial_started_at"] is None and s["current_period_end"] is None  # no trial clock, no renewal date
-    assert (s["review_generations"], s["review_replies"]) == (200, 200)
+    assert (s["review_generations"], s["review_replies"]) == (150, 150)
     e = entitlements(b["id"])
-    assert e.active and e.status == "manual" and e.plan == "starter" and (e.review_generations, e.review_replies) == (200, 200)
+    assert e.active and e.status == "manual" and e.plan == "starter" and (e.review_generations, e.review_replies) == (150, 150)
     assert "keyword_tracking" not in e.features and "growth_agent" not in e.features  # Launch, not Growth
     assert owner_query("SELECT count(*) FROM payments WHERE tenant_id = :t", t=b["id"])[0][0] == 0
     assert "managed_access_granted" in [r[0] for r in owner_query("SELECT kind FROM subscription_events WHERE tenant_id = :t", t=b["id"])]
@@ -91,15 +91,15 @@ def test_the_monthly_ai_limits_are_enforced_per_business_and_usage_and_cost_are_
     with SessionLocal() as db:
         set_rls_context(db, bypass=True)
         assert quota_exceeded(db, uuid.UUID(b["id"]), "review_assist") is False
-        for _ in range(200):
+        for _ in range(150):
             log_generation(db, tenant_id=uuid.UUID(b["id"]), kind="review_assist", provider="x", model="m", language="en", input_chars=10, output_chars=10, status="ok", started=time.monotonic(),
                            usage={"prompt_tokens": 10, "completion_tokens": 5, "calls": 1, "cost": 0.001, "model": "m"})
         db.commit()
-        assert quota_exceeded(db, uuid.UUID(b["id"]), "review_assist") is True  # the 200 writings are used up
+        assert quota_exceeded(db, uuid.UUID(b["id"]), "review_assist") is True  # the 150 writings are used up
         assert quota_exceeded(db, uuid.UUID(b["id"]), "reply_draft") is False  # replies are a separate allowance
         assert quota_exceeded(db, uuid.UUID(other["id"]), "review_assist") is False  # and another business is unaffected
     u = admin.get(f"/admin/tenants/{b['id']}").json()["ai_usage"]
-    assert u["review_writings"] == {"used": 200, "limit": 200} and u["replies"] == {"used": 0, "limit": 200} and u["generations_logged"] == 200 and u["cost_usd"] > 0.19 and u["active"] is True
+    assert u["review_writings"] == {"used": 150, "limit": 150} and u["replies"] == {"used": 0, "limit": 150} and u["generations_logged"] == 150 and u["cost_usd"] > 0.14 and u["active"] is True
 
 
 def test_revoking_managed_access_stops_the_ai_features_but_not_the_cards_and_restore_brings_it_back(admin, client):

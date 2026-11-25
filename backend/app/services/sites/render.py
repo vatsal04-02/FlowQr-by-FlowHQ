@@ -19,7 +19,7 @@ from app.services.sites.htmlkit import Raw, el, json_ld, raw_style
 from app.services.sites.rules import digits, tel_href, whatsapp_href
 
 POWERED_BY = "https://www.flowqr.site"
-NAV_LABEL = {"about": "About", "services": "Services", "price_menu": "Prices", "menu": "Menu", "credentials": "Credentials", "conditions": "Conditions", "process": "Process", "faqs": "Questions",
+NAV_LABEL = {"reviews": "Reviews", "about": "About", "services": "Services", "price_menu": "Prices", "menu": "Menu", "credentials": "Credentials", "conditions": "Conditions", "process": "Process", "faqs": "Questions",
              "gallery": "Gallery", "team": "Team", "offers": "Offers", "products": "Products", "featured": "Featured", "areas": "Areas", "trust": "Why us", "practice": "Practice", "hours": "Hours",
              "location": "Location", "contact": "Contact"}
 SCHEMA_TYPE = {"clinic": "MedicalBusiness", "salon": "BeautySalon", "restaurant": "Restaurant", "retail": "Store", "home_services": "LocalBusiness", "professional": "ProfessionalService"}
@@ -45,15 +45,18 @@ class Asset:
 
 
 class Ctx:
-    def __init__(self, content: dict, template_key: str, host: str, assets: dict[str, Asset], preview: bool, retention_days: int):
+    def __init__(self, content: dict, template_key: str, host: str, assets: dict[str, Asset], preview: bool, retention_days: int, base: str = "", origin: str | None = None, reviews: dict | None = None):
         self.c, self.t, self.host, self.assets, self.preview, self.retention = content, template_key, host, assets, preview, retention_days
+        self.base, self.origin, self.reviews = base.rstrip("/"), "https://" + (origin or host).split("://")[-1].rstrip("/"), reviews  # `base` is the path the site is served under ("" = its own host)
         self.b = content["business"]
         self.secs = [s for s in content["sections"] if s["enabled"]]
         self.has_enquiry = any(s["type"] == "contact" and s["data"].get("show_enquiry") for s in self.secs)
 
     # ---- links built from validated values only
     def href(self, path: str) -> str:
-        return "#" if self.preview else path
+        if self.preview:
+            return "#"
+        return self.base + path if path.startswith("/") else path
 
     def maps_href(self) -> str | None:
         if self.b.get("maps_url"):
@@ -82,7 +85,7 @@ class Ctx:
         a = self.assets.get(aid or "")
         if not a:
             return None
-        src = ("data:image/webp;base64," + base64.b64encode(a.data or b"").decode()) if self.preview else a.path
+        src = ("data:image/webp;base64," + base64.b64encode(a.data or b"").decode()) if self.preview else self.base + a.path
         return el("img", {"src": src, "width": a.width, "height": a.height, "alt": a.alt, "class": cls, "loading": None if eager else "lazy", "decoding": "async", "fetchpriority": "high" if eager else None})
 
 
@@ -205,12 +208,31 @@ def contact_block(ctx: Ctx, sec: dict) -> Raw:
     return section(sid, el("div", {"class": "cols"}, el("div", None, left), form), "s")
 
 
+def stars(n: float) -> Raw:
+    full = max(0, min(5, int(round(n))))
+    return el("span", {"class": "stars", "role": "img", "aria-label": f"{n} out of 5 stars" if n != int(n) else f"{int(n)} out of 5 stars"}, "\u2605" * full + "\u2606" * (5 - full))
+
+
+def reviews_block(ctx: Ctx, sec: dict) -> Raw | None:
+    """Google reviews, read when the page is shown (never copied into the website): every star level, newest first. Nothing is shown when there are none."""
+    rv, d, sid = ctx.reviews, sec["data"], sec["id"]
+    if not rv or not rv.get("total"):
+        return None
+    summary = el("p", {"class": "rsum"}, el("strong", None, f"{rv['average']:.1f}"), stars(rv["average"]), el("span", None, f"{rv['total']} Google review{'s' if rv['total'] != 1 else ''}"))
+    cards = [el("li", {"class": "rev"}, stars(i["rating"]), el("p", None, i["text"]) if i.get("text") else None, el("p", {"class": "who"}, i["name"], el("span", None, f" \u00b7 {i['date']}"))) for i in rv["items"]]
+    link = ctx.b.get("maps_url") or ctx.maps_href()
+    return section(sid, [head(ctx, sid, d["heading"]), summary, el("ul", {"class": "revs"}, cards), el("p", {"class": "small"}, "Reviews from Google, newest first. " + (d.get("note") or "")),
+                         el("div", {"class": "btns"}, el("a", {"class": "btn alt", "href": ctx.href(link), "rel": "noopener noreferrer"}, "See all reviews on Google")) if link else None], "s tint")
+
+
 def render_section(ctx: Ctx, sec: dict) -> Raw | None:
     typ, d, sid = sec["type"], sec["data"], sec["id"]
     if typ == "hero":
         return None
     if typ == "contact":
         return contact_block(ctx, sec)
+    if typ == "reviews":
+        return reviews_block(ctx, sec)
     H = head(ctx, sid, d.get("heading", ""), d.get("intro"))
     if typ == "about":
         return section(sid, el("div", {"class": "cols"}, el("div", None, head(ctx, sid, d["heading"]), paragraphs(d["body"]),
@@ -279,7 +301,7 @@ def render_section(ctx: Ctx, sec: dict) -> Raw | None:
 # ------------------------------------------------------------------------------------------------------------------ page shell
 def schema_org(ctx: Ctx) -> dict:
     b, c = ctx.b, ctx.c
-    o: dict = {"@context": "https://schema.org", "@type": SCHEMA_TYPE[ctx.t], "name": b["name"], "url": f"https://{ctx.host}/"}
+    o: dict = {"@context": "https://schema.org", "@type": SCHEMA_TYPE[ctx.t], "name": b["name"], "url": f"{ctx.origin}{ctx.base}/"}
     if b.get("phone"):
         o["telephone"] = b["phone"]
     if b.get("email"):
@@ -288,7 +310,7 @@ def schema_org(ctx: Ctx) -> dict:
         o["address"] = {"@type": "PostalAddress", **({"streetAddress": b["address"]} if b.get("address") else {}), **({"addressLocality": b["city"]} if b.get("city") else {}), "addressCountry": "IN"}
     img = ctx.assets.get(c["seo"].get("og_image") or "") or ctx.assets.get(b.get("logo") or "")
     if img:
-        o["image"] = f"https://{ctx.host}{img.path}"
+        o["image"] = f"{ctx.origin}{ctx.base}{img.path}"
     spec = [{"@type": "OpeningHoursSpecification", "dayOfWeek": h["day"], "opens": h["open"], "closes": h["close"]} for h in b["hours"] if not h["closed"] and h["open"] and h["close"]]
     if spec:
         o["openingHoursSpecification"] = spec
@@ -302,7 +324,7 @@ def schema_org(ctx: Ctx) -> dict:
 
 def page(ctx: Ctx, *, title: str, description: str, path: str, body, index: bool = True, ld: bool = False, css_href: str = "", inline_css: str = "") -> str:
     accent = C.ACCENTS[ctx.c["theme"]["accent"]]
-    url = f"https://{ctx.host}{path}"
+    url = f"{ctx.origin}{ctx.base}{path}"
     robots = "index,follow" if (index and not ctx.preview) else "noindex,nofollow"
     og_img = ctx.assets.get(ctx.c["seo"].get("og_image") or "") or ctx.assets.get(ctx.b.get("logo") or "")
     metas = [el("meta", {"charset": "utf-8"}), el("meta", {"name": "viewport", "content": "width=device-width, initial-scale=1"}), el("title", None, title),
@@ -311,11 +333,11 @@ def page(ctx: Ctx, *, title: str, description: str, path: str, body, index: bool
         metas += [el("link", {"rel": "canonical", "href": url}), el("meta", {"property": "og:type", "content": "website"}), el("meta", {"property": "og:title", "content": title}),
                   el("meta", {"property": "og:description", "content": description}), el("meta", {"property": "og:url", "content": url}), el("meta", {"property": "og:locale", "content": "en_IN"}),
                   el("meta", {"property": "og:site_name", "content": ctx.b["name"]}),
-                  el("meta", {"property": "og:image", "content": f"https://{ctx.host}{og_img.path}"}) if og_img else None,
+                  el("meta", {"property": "og:image", "content": f"{ctx.origin}{ctx.base}{og_img.path}"}) if og_img else None,
                   el("meta", {"name": "twitter:card", "content": "summary_large_image" if og_img else "summary"})]
     metas.append(raw_style(inline_css) if ctx.preview else el("link", {"rel": "stylesheet", "href": css_href}))
     if not ctx.preview:
-        metas.append(el("link", {"rel": "icon", "type": "image/svg+xml", "href": "/favicon.svg"}))
+        metas.append(el("link", {"rel": "icon", "type": "image/svg+xml", "href": ctx.base + "/favicon.svg"}))
     if ld and not ctx.preview:
         metas.append(json_ld(schema_org(ctx)))
     banner = el("div", {"class": "pv", "role": "note"}, "Preview. This page is not published.") if ctx.preview else None
@@ -365,28 +387,29 @@ def message_body(ctx: Ctx, heading: str, text_: str) -> Raw:
 
 
 # ------------------------------------------------------------------------------------------------------------------ the build
-def build_site(content: dict, template_key: str, *, host: str, assets: dict[str, Asset], retention_days: int = 180, preview: bool = False) -> dict[str, bytes]:
+def build_site(content: dict, template_key: str, *, host: str, assets: dict[str, Asset], retention_days: int = 180, preview: bool = False, base: str = "", origin: str | None = None,
+               reviews: dict | None = None) -> dict[str, bytes]:
     """Static files for one site: {path: bytes}. `content` must already have passed validate_content. In preview mode the result is a single self-contained, noindex page."""
-    ctx = Ctx(content, template_key, host, assets, preview, retention_days)
+    ctx = Ctx(content, template_key, host, assets, preview, retention_days, base, origin, reviews)
     css = stylesheet(template_key)
     css_name = f"style.{hashlib.sha256(css.encode()).hexdigest()[:10]}.css"
     b, seo = ctx.b, content["seo"]
     hero_sec = next((s for s in ctx.secs if s["type"] == "hero"), None)
     main = [hero(ctx, hero_sec) if hero_sec else None] + [render_section(ctx, s) for s in ctx.secs if s["type"] != "hero"]
     title, desc = seo["title"] or b["name"], seo["description"] or b["name"]
-    index = page(ctx, title=title, description=desc, path="/", body=shell(ctx, main), ld=True, css_href=f"/{css_name}", inline_css=css)
+    index = page(ctx, title=title, description=desc, path="/", body=shell(ctx, main), ld=True, css_href=f"{ctx.base}/{css_name}", inline_css=css)
     if preview:
         return {"index.html": index.encode()}
     files: dict[str, str | bytes] = {"index.html": index, f"{css_name}": css}
-    files["privacy/index.html"] = page(ctx, title=f"Privacy notice | {b['name']}", description=f"How {b['name']} handles enquiries sent through this website.", path="/privacy/", body=privacy_body(ctx), css_href=f"/{css_name}")
-    files["thanks/index.html"] = page(ctx, title=f"Thank you | {b['name']}", description="Your enquiry was sent.", path="/thanks/", index=False, css_href=f"/{css_name}",
+    files["privacy/index.html"] = page(ctx, title=f"Privacy notice | {b['name']}", description=f"How {b['name']} handles enquiries sent through this website.", path="/privacy/", body=privacy_body(ctx), css_href=f"{ctx.base}/{css_name}")
+    files["thanks/index.html"] = page(ctx, title=f"Thank you | {b['name']}", description="Your enquiry was sent.", path="/thanks/", index=False, css_href=f"{ctx.base}/{css_name}",
                                       body=message_body(ctx, "Thank you", f"Your enquiry was sent to {b['name']}. They will contact you using the details you gave."))
-    files["problem/index.html"] = page(ctx, title=f"Enquiry not sent | {b['name']}", description="Your enquiry could not be sent.", path="/problem/", index=False, css_href=f"/{css_name}",
+    files["problem/index.html"] = page(ctx, title=f"Enquiry not sent | {b['name']}", description="Your enquiry could not be sent.", path="/problem/", index=False, css_href=f"{ctx.base}/{css_name}",
                                        body=message_body(ctx, "We could not send your enquiry", "Please check that you ticked the box, gave a phone number or email, and try again, or call the business."))
     files["favicon.svg"] = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="{C.ACCENTS[content["theme"]["accent"]]}"/></svg>'  # a plain square in the accent colour: no text, nothing from the business
-    files["robots.txt"] = f"User-agent: *\nAllow: /\nDisallow: /thanks/\nDisallow: /problem/\nSitemap: https://{host}/sitemap.xml\n"
+    files["robots.txt"] = f"User-agent: *\nAllow: /\nDisallow: /thanks/\nDisallow: /problem/\nSitemap: {ctx.origin}{ctx.base}/sitemap.xml\n"
     files["sitemap.xml"] = ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-                            f"<url><loc>https://{host}/</loc></url>\n<url><loc>https://{host}/privacy/</loc></url>\n</urlset>\n")
+                            f"<url><loc>{ctx.origin}{ctx.base}/</loc></url>\n<url><loc>{ctx.origin}{ctx.base}/privacy/</loc></url>\n</urlset>\n")
     for aid in sorted(_used_assets(content), key=lambda x: assets[x].sha256 if x in assets else x):
         a = assets.get(aid)
         if a and a.data is not None:

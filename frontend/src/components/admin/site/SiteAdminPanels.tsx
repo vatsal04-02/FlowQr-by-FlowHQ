@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { api, apiFile, errorMessage } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import { useFetch } from "@/lib/use-api";
-import { COMMERCIAL_LABEL, COMMERCIAL_TONE, DEVICES, daysUntil, fitScale, type Catalogue, type Device, type EnquiryInfo, type SiteConfig, type SiteInfo } from "@/lib/sites";
+import { COMMERCIAL_LABEL, COMMERCIAL_TONE, DEVICES, SETTABLE_COMMERCIAL, addressFor, commercialChoice, daysUntil, fitScale, type Catalogue, type Device, type EnquiryInfo, type SiteConfig, type SiteInfo } from "@/lib/sites";
 
 type Reload = () => Promise<unknown> | void;
 const stamp = (v: string | null | undefined) => (v ? fmtDate(v, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–");
@@ -66,7 +66,7 @@ export function PreviewPane({ siteId, version, dirty }: { siteId: string; versio
 export function SettingsPanel({ site, cat, cfg, reload, dirty }: { site: SiteInfo; cat: Catalogue; cfg: SiteConfig; reload: Reload; dirty: boolean }) {
   const { busy, err, act, setErr } = useAct(reload);
   const [slug, setSlug] = useState(site.site_slug), [tpl, setTpl] = useState(site.template_key);
-  const [status, setStatus] = useState(site.commercial.status), [reason, setReason] = useState(""), [period, setPeriod] = useState(site.commercial.billing_period ?? "monthly"), [until, setUntil] = useState(site.commercial.paid_until ?? "");
+  const [status, setStatus] = useState(commercialChoice(site.commercial.status)), [reason, setReason] = useState(""), [period, setPeriod] = useState(site.commercial.billing_period ?? "monthly"), [until, setUntil] = useState(site.commercial.paid_until ?? "");
   const [suspendWhy, setSuspendWhy] = useState("");
   const live = site.status === "published", c = site.commercial;
   const grace = daysUntil(c.grace_until);
@@ -74,7 +74,7 @@ export function SettingsPanel({ site, cat, cfg, reload, dirty }: { site: SiteInf
     <div className="space-y-5">
       {err && <Alert tone="error">{err}</Alert>}
       <Card><CardHeader title="Address" />
-        <p className="mb-3 text-sm text-muted">Businesses are served at <b>{site.site_slug}.{cfg.base_domain}</b>. Custom domains are planned for a later phase.</p>
+        <p className="mb-3 text-sm text-muted">This website is served at <b>{addressFor(cfg, site.site_slug)}</b>. Custom domains are planned for a later phase.</p>
         <div className="flex flex-wrap items-end gap-3">
           <Input label="Site name" wrapperClassName="min-w-[14rem] flex-1" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} disabled={live} hint={live ? "Unpublish the website before changing its address." : "3 to 40 letters, numbers and hyphens. The old name is held for 90 days."} />
           <Button variant="secondary" loading={busy === "slug"} disabled={live || slug === site.site_slug} onClick={() => void act("slug", () => api(`/admin/sites/${site.id}/slug`, { method: "POST", body: { site_slug: slug } }), "Address changed.")}>Change address</Button>
@@ -102,7 +102,7 @@ export function SettingsPanel({ site, cat, cfg, reload, dirty }: { site: SiteInf
         {c.status === "expired" && <div className="mb-4"><Alert tone="warning">Hosting has expired. The website stays up until the grace period ends, then it is suspended. Nothing is deleted.</Alert></div>}
         <Alert tone="info" title="Recorded by hand">Nothing is billed from here. Reference price: ₹{cfg.pricing.monthly_inr} a month or ₹{cfg.pricing.annual_inr} a year, no setup fee, {cfg.pricing.edits_included_per_month} small edits a month included. Website hosting is separate from Launch, Growth and Scale.</Alert>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Select label="Set status to" value={status} onChange={(e) => setStatus(e.target.value)}>{Object.entries(COMMERCIAL_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select>
+          <Select label="Set status to" value={status} onChange={(e) => setStatus(e.target.value)}>{SETTABLE_COMMERCIAL.map((k) => <option key={k} value={k}>{COMMERCIAL_LABEL[k]}</option>)}</Select>
           {status === "paid_offline" ? (
             <><Select label="Billing" value={period} onChange={(e) => setPeriod(e.target.value)}><option value="monthly">Monthly</option><option value="annual">Annual</option></Select>
               <Input label="Paid until" type="date" value={until} onChange={(e) => setUntil(e.target.value)} /></>

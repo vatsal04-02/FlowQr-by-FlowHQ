@@ -4,7 +4,7 @@ Design rules (each tested in tests/test_admin_businesses.py):
   * A business is a `tenants` row. It never needed a user: owners are `memberships`, and an admin-created business simply has none (origin = 'admin'). No user, no password, no dummy login is created.
   * Cards, scans, NFC taps and the review page work from the tenant and its location alone; nothing here makes them depend on an account.
   * "Managed access": the business gets the Launch plan through a manual subscription (status `manual`, no trial clock, no billing provider, no payment). Launch's limits are the ones enforced everywhere
-    (200 AI review writings and 200 AI replies a month, 1 team seat). An administrator can revoke it (the AI features stop; cards and the plain review page keep working) and restore it.
+    (150 AI review writings and 150 AI replies a month, 1 team seat). An administrator can revoke it (the AI features stop; cards and the plain review page keep working) and restore it.
   * Every create, edit, agreement and claim is audited with the administrator's id. Tenant isolation is untouched: all of this runs behind the platform-admin check, which sets the RLS bypass
     for admin work only.
   * An offline agreement is recorded as what it is: an administrator's statement. It is never shown as the shopkeeper's own acceptance of the terms or a confirmation that they are 18 or older.
@@ -335,7 +335,7 @@ def ai_usage(db: Session, tenant_id: uuid.UUID) -> dict:
 def managed_usage(db: Session) -> dict:
     """This month's AI use and estimated cost across the businesses FlowQR staff set up (origin 'admin').
 
-    Consumption is counted from the same successful-generation log the 200 + 200 plan limits are enforced against. Cost comes from the per-call ledger (the table the platform's AI budgets read, which
+    Consumption is counted from the same successful-generation log the plan limits are enforced against. Cost comes from the per-call ledger (the table the platform's AI budgets read, which
     outlives deleted businesses): each call carries the cost the provider reported or the cost estimated from the configured prices at the time. A call with no cost is NEVER priced by guessing:
     when AI_PRICE_IN_PER_MTOK / AI_PRICE_OUT_PER_MTOK are set, its recorded tokens are priced at those figures and shown separately as `repriced_usd`; when they are not set, or the call recorded
     no tokens, it is counted in `unpriced_calls` and contributes nothing. `price_configured` says which case applies."""

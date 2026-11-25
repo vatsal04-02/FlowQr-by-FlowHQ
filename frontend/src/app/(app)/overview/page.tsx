@@ -1,4 +1,5 @@
 "use client";
+import { WebsiteBanner } from "@/components/website/WebsiteBanner";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DoThisWeek, FunnelStrip, Numbers, ScoreCard, WeeklyReviews, type FunnelStep, type GrowthScore } from "@/components/home/v2";
 import { GoogleActions, LatestReviews, RatingMix } from "@/components/home/v3";
@@ -78,6 +79,7 @@ export default function Home() {
 
   return (
     <>
+      <WebsiteBanner />
       <div className="mb-4 sm:mb-5">
         <h1 className="text-[30px] font-bold leading-[36px] tracking-[-.015em] text-ink sm:text-[32px] sm:leading-10 lg:text-[34px]"><span className="sr-only">Home. </span>{greeting.title}</h1>
         <p className="mt-1 min-h-[22px] text-[15px] leading-[22px] text-muted sm:text-base">{greeting.date}{greeting.date && tenant?.name ? " · " : ""}{tenant?.name}</p>

@@ -7,6 +7,7 @@ import { useState } from "react";
 import { WaitingCard } from "@/components/autonomy/Actions";
 import { Card, Title } from "@/components/seo/visuals";
 import { Button } from "@/components/ui/Button";
+import { Accordion } from "@/components/ui/Accordion";
 import { Alert, Badge, Skeleton } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Form";
 import { useToast } from "@/components/ui/Toast";
@@ -15,7 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { STATUS_WORDS } from "@/lib/autonomy";
 import { fmtNum, timeAgo } from "@/lib/format";
 import { useLocationScope } from "@/lib/location-scope";
-import { areaStep, type AreaStep, type PrepareResponse } from "@/lib/operator";
+import { AREA_FOR_FIELD, areaStep, type AreaStep, type PrepareResponse } from "@/lib/operator";
 import type { AreaState, V2Action, V2Area, V2Location, V2Overview } from "@/lib/seo-v2";
 import { useFetch } from "@/lib/use-api";
 
@@ -44,10 +45,8 @@ export function OptimizationCenter() {
   if (ov.error) return <Alert tone="error">{ov.error}</Alert>;
   if (!d || d.locations.length === 0) return null;
   const t = d.totals;
-  const tiles: [string, number, string][] = [
-    ["Issues found", t.issues_detected, "on your profile"], ["Fixes ready", t.optimizations_available, "drafted for you"], ["Waiting for you", t.pending_approvals, "to approve"],
-    ["Confirmed on Google", t.verified_last_90_days, "last 90 days"], ["Failed or blocked", t.failed + t.blocked, "need a look"],
-  ];
+  const tiles: [string, number, string][] = [["Issues found", t.issues_detected, "on your profile"], ["Waiting for you", t.pending_approvals, "to approve"], ["Confirmed on Google", t.verified_last_90_days, "last 90 days"]];
+  const closed = d.locations.some((l) => !l.gate.allowed);
   return (
     <section aria-label="Fix your profile" className="space-y-3 lg:space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -57,51 +56,62 @@ export function OptimizationCenter() {
         </div>
         {isAdmin && <Button size="sm" variant="secondary" onClick={() => void scan()} loading={scanning}>Look for improvements</Button>}
       </div>
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <dl className="grid grid-cols-3 gap-2">
         {tiles.map(([label, n, hint]) => (
           <div key={label} className="rounded-tile bg-surface p-3 shadow-card">
             <dt className="text-[13px] text-muted">{label}</dt><dd className="num text-[22px] font-semibold leading-7">{fmtNum(n)}</dd><dd className="text-[12px] text-muted">{hint}</dd>
           </div>
         ))}
-        <div className="col-span-2 rounded-tile bg-surface p-3 shadow-card sm:col-span-1">
-          <dt className="text-[13px] text-muted">Profile health</dt>
-          <dd className="num text-[22px] font-semibold leading-7">{d.health?.score ?? "–"}</dd>
-          <dd className="text-[12px] text-muted">{d.health?.score == null ? "Not enough Google data yet" : "from real data only"}</dd>
-        </div>
       </dl>
-      {d.locations.some((l) => !l.gate.allowed) && <Alert tone="info" title="FlowQR shows you these fixes; it does not make them yet">{d.gate_note}</Alert>}
+      {closed && <p className="text-[13px] text-muted">Some fixes are shown to you but not made by FlowQr yet, because Google&rsquo;s rules on automated changes are still being confirmed.</p>}
       {d.locations.map((l) => <LocationBlock key={l.google_location_id} l={l} multi={d.locations.length > 1} canDecide={isAdmin} isOwner={role === "owner"} reload={() => void ov.reload()} />)}
     </section>
   );
 }
 
 function LocationBlock({ l, multi, canDecide, isOwner, reload }: { l: V2Location; multi: boolean; canDecide: boolean; isOwner: boolean; reload: () => void }) {
+  const [inputsOpen, setInputsOpen] = useState(false);
   if (!l.profile_read) return <Alert tone="warning" title={l.title ?? "Google profile"}>{l.note ?? "FlowQR has not read this Google profile yet."}</Alert>;
   const a = l.actions;
+  const history = [...a.failed, ...a.blocked, ...a.in_progress, ...a.verified];
+  const needsLook = a.failed.length + a.blocked.length;
   return (
     <div className="space-y-3 lg:space-y-4">
       {multi && <h3 className="text-[15px] font-semibold">{l.title}</h3>}
-      {l.google_changed && l.google_changed.length > 0 && <Alert tone="warning" title="Google changed some details itself">Google shows a different value for: {l.google_changed.join(", ")}. FlowQR will not suggest changes over these and never undoes Google's edits. Review them in Google Business Profile.</Alert>}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
-        <Card label="Profile areas" className="lg:col-span-7"><Title>Your profile, area by area</Title><AreaList areas={l.areas} gid={l.google_location_id} actions={[...a.pending, ...a.recommended, ...a.in_progress]} canDecide={canDecide} /></Card>
-        <div className="space-y-3 lg:col-span-5 lg:space-y-4">
-          <div id="owner-inputs" className="scroll-mt-24"><Card label="Your answers needed"><Title>Tell us what we cannot know</Title><OwnerInputs l={l} canDecide={canDecide} reload={reload} /></Card></div>
-          {l.performance && <Card label="Google performance"><Title>Customer actions</Title><Performance p={l.performance} /></Card>}
-        </div>
-      </div>
+      {l.google_changed && l.google_changed.length > 0 && <Alert tone="warning" title="Google changed some details itself">Google shows a different value for: {l.google_changed.join(", ")}. FlowQR will not suggest changes over these and never undoes Google&rsquo;s edits.</Alert>}
       {a.pending.length > 0 && <Card label="Waiting for you"><Title>Waiting for your approval</Title><ul className="mt-3 space-y-3">{a.pending.map((x) => <WaitingCard key={x.id} a={x} canDecide={canDecide} isOwner={isOwner} onChanged={reload} />)}</ul></Card>}
-      {a.recommended.length > 0 && <Card label="Recommended"><Title>Recommended changes</Title><p className="mt-1 text-[13px] text-muted">These are drafted and checked against your own facts. You can make them in Google Business Profile, or dismiss them.</p><ul className="mt-3 space-y-3">{a.recommended.map((x) => <Recommended key={x.id} a={x} canDecide={canDecide} reload={reload} />)}</ul></Card>}
-      {(a.failed.length > 0 || a.blocked.length > 0) && <Card label="Failed or blocked"><Title>Failed or blocked</Title><ul className="mt-3 divide-y divide-line">{[...a.failed, ...a.blocked].map((x) => <Outcome key={x.id} a={x} />)}</ul></Card>}
-      {(a.verified.length > 0 || a.in_progress.length > 0) && <Card label="Recent changes"><Title>Recent changes</Title><ul className="mt-3 divide-y divide-line">{[...a.in_progress, ...a.verified].map((x) => <Outcome key={x.id} a={x} />)}</ul></Card>}
-      {l.opportunities.length > 0 && <Card label="Search ideas"><Title>Searches worth tracking</Title><Opportunities l={l} canDecide={canDecide} reload={reload} /></Card>}
+      <Card label="Profile areas"><Title>What needs attention</Title><AreaList areas={l.areas} gid={l.google_location_id} actions={[...a.pending, ...a.recommended, ...a.in_progress]} canDecide={canDecide} onInputs={() => setInputsOpen(true)} /></Card>
+      <div id="owner-inputs" className="scroll-mt-24">
+        <Card label="Your answers needed">
+          <button type="button" aria-expanded={inputsOpen} onClick={() => setInputsOpen((o) => !o)} className="flex min-h-11 w-full items-center justify-between gap-3 text-left">
+            <span><span className="block text-[16px] font-semibold">Questions only you can answer</span><span className="block text-[13px] text-muted">Holiday hours, services, attributes. FlowQR never guesses these.</span></span>
+            <span aria-hidden className="text-[13px] font-semibold text-accent-ink">{inputsOpen ? "Hide" : "Show"}</span>
+          </button>
+          {inputsOpen && <OwnerInputs l={l} canDecide={canDecide} reload={reload} />}
+        </Card>
+      </div>
+      {a.recommended.length > 0 && <Card label="Recommended"><Title>Recommended changes</Title><p className="mt-1 text-[13px] text-muted">Drafted and checked against your own facts. Open one to see the exact change.</p><ul className="mt-3 space-y-3">{a.recommended.map((x) => <Recommended key={x.id} a={x} canDecide={canDecide} reload={reload} />)}</ul></Card>}
+      {history.length > 0 && (
+        <Card label="History">
+          <Accordion summary={`History: ${needsLook ? `${needsLook} need a look, ` : ""}${a.verified.length} confirmed on Google`}>
+            <ul className="mt-2 divide-y divide-line">{history.slice(0, 8).map((x) => <Outcome key={x.id} a={x} />)}</ul>
+          </Accordion>
+        </Card>)}
     </div>
   );
 }
 
-function AreaList({ areas, gid, actions, canDecide }: { areas: V2Area[]; gid: string; actions: V2Action[]; canDecide: boolean }) {
+function AreaList({ areas, gid, actions, canDecide, onInputs }: { areas: V2Area[]; gid: string; actions: V2Action[]; canDecide: boolean; onInputs: () => void }) {
+  const [all, setAll] = useState(false);
+  // An area whose change is already waiting for approval is shown once, in the approval card above, not a second time here.
+  const waiting = new Set(actions.filter((a) => a.status === "pending_approval").map((a) => AREA_FOR_FIELD[a.field ?? ""]));
+  const attention = areas.filter((x) => (x.state === "missing" || x.state === "improve") && !waiting.has(x.key));
+  const shown = all ? areas : attention;
   return (
+    <>
+    {attention.length === 0 && !all && <p className="mt-3 text-[14px] text-muted">Nothing needs attention right now.</p>}
     <ul className="mt-3 divide-y divide-line">
-      {areas.map((x) => {
+      {shown.map((x) => {
         const step = areaStep(x, actions);
         return (
           <li key={x.key} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2.5">
@@ -109,17 +119,19 @@ function AreaList({ areas, gid, actions, canDecide }: { areas: V2Area[]; gid: st
               <div className="flex flex-wrap items-center gap-2"><span className="text-[14px] font-semibold">{x.label}</span><Badge tone={STATE_TONE[x.state]}>{STATE_WORDS[x.state]}</Badge></div>
               <p className="mt-0.5 text-[13px] text-ink-700">{x.summary}</p>
               {x.note && <p className="mt-0.5 text-[12px] text-muted">{x.note}</p>}
-              {x.fix && step?.kind !== "info" && <p className="mt-0.5 text-[12px] text-muted">{x.fix.label}</p>}
+              {x.fix && ["recommended_only", "unavailable_via_api", "edit_in_google"].includes(x.fix.mode) && step?.kind !== "info" && <p className="mt-0.5 text-[12px] text-muted">{x.fix.label}</p>}
             </div>
-            {step && <AreaAction step={step} gid={gid} canDecide={canDecide} />}
+            {step && <AreaAction step={step} gid={gid} canDecide={canDecide} onInputs={onInputs} />}
           </li>);
       })}
     </ul>
+    {areas.length > attention.length && <button type="button" onClick={() => setAll((v) => !v)} className="mt-2 inline-flex min-h-9 items-center text-[13px] font-semibold text-accent-ink hover:underline">{all ? "Show only what needs attention" : `Show all ${areas.length} areas`}</button>}
+    </>
   );
 }
 
 /** What an area's button really does: open the prepared change, have the AI prepare it and then open it, jump to the questions only the owner can answer, or say in words why FlowQr cannot. */
-function AreaAction({ step, gid, canDecide }: { step: AreaStep; gid: string; canDecide: boolean }) {
+function AreaAction({ step, gid, canDecide, onInputs }: { step: AreaStep; gid: string; canDecide: boolean; onInputs: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -127,7 +139,7 @@ function AreaAction({ step, gid, canDecide }: { step: AreaStep; gid: string; can
   const cls = "inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface-2 px-3 text-[13px] font-semibold text-accent-ink ring-1 ring-inset ring-line hover:bg-accent-tint";
   if (step.kind === "info") return <p className="max-w-xs text-[12px] text-muted">{step.text}{step.href && <> <a href={step.href} target="_blank" rel="noreferrer" className="font-semibold text-accent-ink hover:underline">{step.linkLabel}</a></>}</p>;
   if (step.kind === "open") return <Link href={step.href} className={cls}>{step.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>;
-  if (step.kind === "inputs") return <a href="#owner-inputs" className={cls}>{step.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></a>;
+  if (step.kind === "inputs") return <button type="button" className={cls} onClick={() => { onInputs(); setTimeout(() => document.getElementById("owner-inputs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}>{step.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></button>;
   async function prepare() {
     setBusy(true); setNote(null);
     try {
@@ -184,8 +196,8 @@ function Outcome({ a }: { a: V2Action }) {
       <Icon className={clsx("mt-0.5 h-4 w-4 shrink-0", a.status === "executed" ? "text-pos" : a.status === "failed" ? "text-neg" : "text-muted")} aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-[14px] font-medium">{a.label}: {w.label}</p>
-        {a.diff.added.length > 0 && <p className="text-[13px] text-ink-700">Added: {a.diff.added.slice(0, 3).join(", ")}{a.diff.added.length > 3 ? "…" : ""}</p>}
-        {a.last_error && <p className="text-[13px] text-neg">{a.last_error}</p>}
+        {a.diff.added.length > 0 && <p className="line-clamp-2 text-[13px] text-ink-700">Added: {a.diff.added.slice(0, 3).join(", ")}{a.diff.added.length > 3 ? "…" : ""}</p>}
+        {a.last_error && <p className="line-clamp-2 text-[13px] text-neg">{a.last_error}</p>}
         {a.executed_note && <p className="text-[12px] text-muted">{a.executed_note}</p>}
         <p className="text-[12px] text-muted">{timeAgo(a.verified_at ?? a.executed_at ?? a.created_at)}</p>
       </div>

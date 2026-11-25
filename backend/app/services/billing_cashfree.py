@@ -314,6 +314,7 @@ def _start_trial_if_authorized(db: Session, sub: Subscription, remote: cf.Subscr
     if entitlement is not None:
         svc.apply_plan(sub, entitlement)
         sub.plan, sub.trial_entitlement = "trial", entitlement.code
+        svc.cap_trial_allowance(sub)
     sub.status, sub.source = "trialing", "trial"
     sub.trial_started_at = now
     sub.trial_ends_at = min(now + timedelta(days=settings.trial_days), first)

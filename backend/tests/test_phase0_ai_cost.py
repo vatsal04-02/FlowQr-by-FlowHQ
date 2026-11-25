@@ -57,7 +57,9 @@ def priced(monkeypatch, inp=1.0, out=4.0):
 
 
 def tenant():
-    return uuid.UUID(make_business(f"Cost Biz {uuid.uuid4().hex[:6]}").tenant_id)
+    t = uuid.UUID(make_business(f"Cost Biz {uuid.uuid4().hex[:6]}").tenant_id)
+    owner_exec("UPDATE subscriptions SET status = 'active', plan = 'growth', review_generations = 300, review_replies = 300 WHERE tenant_id = :t", t=t)  # these tests are about budgets, not the free-trial rules (tests/test_trial_caps.py)
+    return t
 
 
 def rows(tid=None, status=None):
@@ -313,6 +315,7 @@ def test_no_limits_configured_means_calls_are_only_recorded(monkeypatch):
 
 def test_the_reply_draft_endpoint_records_tokens_and_says_so_when_the_budget_stops_it(connected, fake, monkeypatch):  # noqa: F811
     priced(monkeypatch)
+    owner_exec("UPDATE subscriptions SET status = 'active', plan = 'growth', review_generations = 300, review_replies = 300 WHERE tenant_id = :t", t=connected.tenant_id)  # a paid business (a free trial has no AI replies)
     stub = UsageStub(tokens=(1000, 200))
     monkeypatch.setattr("app.api.v1.reviews.get_provider", lambda: stub)
     fake.reviews = [greview(1, 5, "The staff were kind and the clinic was clean.")]

@@ -171,3 +171,38 @@ See the test run recorded in the final report. Files: `backend/tests/test_sites_
 - No shopkeeper self-service editing; no analytics; no blog; no payments; no forms other than the one enquiry form.
 - Enquiry notifications are off by default (inbox only).
 - Google Business Profile is not written to by this feature.
+
+## AI generation from onboarding (migration 0070, `SITES_AI_BUILDER_ENABLED`, default off)
+
+A business that answers "No, I don't have a website" gets a **draft in this builder**: same `sites` row, templates, section catalogue, validator, renderer and publish path. There is no second builder or page format.
+
+**Flow.** Onboarding: after the plan step, `/onboarding/website` (Google cannot be connected earlier: connecting needs an active plan). After onboarding: `/website`, with a line on Home. Connecting Google starts the build once, by itself, for a business that said it has no website.
+
+**Job.** `site_generation_jobs` (forced RLS, one queued or running job per business), run by the Celery task `flowqr.build_website`. Twelve steps, each committed when it really finishes (`waiting | running | done | skipped | failed`); the screen polls every 1.5 s and the preview is fetched again only when more work is done. A job with no update for 6 minutes is reported as stopped. Two AI calls (plan, then copy) through the metered provider, so the platform spend cap applies.
+
+**Truth rules** (code, `services/sites/generator.py`): services only from the Business Brain or Google; prices, offers, team, qualifications, testimonials, FAQs, menus and galleries are never generated; claim words (best, awards, years, guarantees, prices) and business-rule breaks are replaced with plain wording and the owner is told.
+
+**Owner actions** (`/api/v1/website/*`): preview (private, noindex, no-store), edit one section, AI edit limited to five operations (optionally to one section), change layout or colour, add a photo, build again (draft only), approve publishing.
+
+**Publishing is not opened by this.** An owner draft has `commercial_status = not_activated`. Publishing needs `SITES_ENABLED`, working hosting, and an administrator recording the hosting add-on as complimentary or paid. Until then the owner's approval is only recorded (audit `site.publish_requested`).
+
+**To switch on:** apply 0070, set `SITES_AI_BUILDER_ENABLED=true` (listed in `docker-compose.yml` and the VPS overlay), restart api, worker and beat. Rollback: set it false; downgrade 0070 only if the image is rolled back (it turns `not_activated` into `expired`).
+
+**Not built:** multi-page sites (the builder renders one page plus privacy); custom domains; a reviews section; import of Google photos (FlowQR deliberately stores no Google photo links); typography choices (fixed per template); administrator notification of a publish request beyond the audit record.
+
+**Tested:** `backend/tests/test_website_generation.py` (14), `frontend/tests/website.test.mjs`, `e2e/website-onboarding.js` (26 checks at 1440, 320, 360, 375, 390, 414 px). The AI and Google are test doubles in all of them: no real model output and no real Google data has been tested.
+
+## FlowQR hosting (`SITES_PROVIDER=app`), Google photos, live reviews and the profile link (2026-11-25)
+
+Owner decisions: host on flowqr.site (no Cloudflare), show all recent reviews unfiltered, copy the business's own Google photos, and keep per-business activation before anything publishes.
+
+* **Address:** `https://flowqr.site/site/<slug>/`. A Vercel rewrite sends it to `GET /api/v1/public-site/<slug>`, which renders the **published snapshot** on request. Nothing is uploaded anywhere.
+* **Isolation:** these pages share the app's site, so every answer carries the no-script policy **plus `sandbox`** without `allow-same-origin` or `allow-scripts`: the page runs in an opaque origin and cannot use FlowQR's cookies or API. The renderer escapes every value as before. Moving to a separate domain later is still the stronger option.
+* **Visible only when:** hosting on, status published, commercial status complimentary or paid, business active. Otherwise one identical 404.
+* **Reviews:** read from `reviews` at view time (never copied into the website), newest first, every star level, first name only, average and count. Google retention redaction applies to the source, so redacted text disappears from the page too. Owner can switch the section off.
+* **Photos:** the business's own Google media (owner list, not customer photos), fetched only over https from `*.googleusercontent.com` / `*.ggpht.com` without redirects, re-encoded with metadata removed. Owner can remove any before publishing. Copied photos are not deleted automatically if Google is later disconnected.
+* **Google profile link:** publishing proposes a website change (`contact_update`); Google is written only when a person approves it on Pending changes.
+* **Enquiries:** `POST /api/v1/public-site/<slug>/_enquiry`, same checks and limits as before. No email notification (inbox in the admin console).
+* **Switch on:** `SITES_ENABLED=true`, `SITES_PROVIDER=app` (both in the compose overlay), `FRONTEND_URL` https. Switch off: `SITES_ENABLED=false` (every site answers 404; drafts remain).
+* **Activate a business:** Admin, Businesses, the business, Website: set hosting to complimentary or paid. Then the owner (or you) publishes.
+* **Tests:** `tests/test_website_hosting_app.py` (14), `e2e/website-hosting.js` (20 real-browser checks, desktop and 360 px). Google and the AI are doubles.

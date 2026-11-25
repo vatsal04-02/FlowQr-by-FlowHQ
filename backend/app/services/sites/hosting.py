@@ -97,6 +97,35 @@ class HostingProvider(ABC):
         """host -> {site_id, version, status}, or None."""
 
 
+# ------------------------------------------------------------------------------------------------------------------ FlowQR-hosted (https://<app>/site/<slug>/)
+class AppProvider(HostingProvider):
+    """The published snapshot lives in the database (`sites.published_content`); api/v1/public_site.py renders it when a visitor asks. There is nothing to upload or point.
+    Because these pages share the app's site, every response is sandboxed into its own opaque origin (APP_CSP) on top of shipping no JavaScript."""
+
+    name = "app"
+
+    def publish_site(self, site_id, host, files, version):
+        return PublishResult(version=version, files=len(files), bytes=sum(len(v) for v in files.values()))
+
+    def set_status(self, site_id, host, version, status):
+        return None
+
+    def unpublish_site(self, site_id, host):
+        return None
+
+    def delete_site(self, site_id, hosts):
+        return None
+
+    def get_publish_status(self, site_id, host):
+        return None
+
+    def resolve_site_hostname(self, host):
+        return None
+
+
+APP_CSP = CSP + "; sandbox allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+
+
 # ------------------------------------------------------------------------------------------------------------------ local (development and tests)
 class LocalDirectoryProvider(HostingProvider):
     name = "local"
@@ -336,6 +365,8 @@ def set_provider(p: HostingProvider | None) -> None:
 def get_hosting_provider() -> HostingProvider:
     if _override is not None:
         return _override
+    if settings.sites_provider == "app":
+        return AppProvider()
     if settings.sites_provider == "cloudflare":
         return CloudflareProvider(account_id=settings.cloudflare_account_id, api_token=settings.cloudflare_api_token, kv_namespace_id=settings.cloudflare_kv_namespace_id,
                                   bucket=settings.r2_bucket, access_key_id=settings.r2_access_key_id, secret_access_key=settings.r2_secret_access_key, zone_id=settings.cloudflare_zone_id)

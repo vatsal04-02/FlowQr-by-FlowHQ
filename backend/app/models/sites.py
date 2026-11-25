@@ -14,7 +14,8 @@ from app.core.db import Base
 from app.models.base import IdMixin, TimestampMixin
 
 SITE_STATUSES = ("draft", "published", "unpublished", "suspended")
-COMMERCIAL_STATUSES = ("complimentary", "paid_offline", "expired", "suspended")
+COMMERCIAL_STATUSES = ("complimentary", "paid_offline", "expired", "suspended", "not_activated")  # not_activated: an owner generated the draft; it can never be published until an administrator records hosting
+GENERATION_STATUSES = ("queued", "running", "completed", "failed")
 PUBLISH_STATES = ("idle", "publishing", "failed")
 DOMAIN_TYPES = ("hosted", "custom")
 DOMAIN_STATUSES = ("active", "pending", "verified", "failed", "removed")
@@ -150,3 +151,26 @@ class SiteSlugQuarantine(IdMixin, Base):
     released_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     release_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     reason: Mapped[str] = mapped_column(String(40))
+
+
+class SiteGenerationJob(IdMixin, TimestampMixin, Base):
+    """One AI website generation: what has really happened, step by step. At most one queued or running job per business (partial unique index)."""
+
+    __tablename__ = "site_generation_jobs"
+    __table_args__ = (
+        CheckConstraint(_in("status", GENERATION_STATUSES), name="ck_site_generation_status"),
+        Index("ix_site_generation_tenant", "tenant_id", "created_at"),
+        Index("uq_site_generation_active", "tenant_id", unique=True, postgresql_where=text("status in ('queued', 'running')")),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"))
+    site_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sites.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(10), default="queued", server_default="queued")
+    stage: Mapped[str] = mapped_column(String(32), default="INITIALIZING", server_default="INITIALIZING")
+    steps: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    notes: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    error: Mapped[str | None] = mapped_column(String(300))
+    trigger: Mapped[str] = mapped_column(String(16))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

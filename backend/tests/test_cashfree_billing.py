@@ -320,7 +320,7 @@ def test_a_verified_successful_charge_activates_the_chosen_plan_exactly_once(cfr
     assert events_of(biz).count("activated") == 1 and events_of(biz).count("renewed") == 0
     assert [p for p in payments_of(biz) if p[0] == "subscription"] == [("subscription", "captured", 79900, "CHARGE", "chg_first")]
     api = biz.get("/billing/subscription").json()
-    assert api["plan_name"] == "Growth" and api["active"] is True and api["billing_state"] == "active" and api["limits"]["review_generations"] == 400
+    assert api["plan_name"] == "Growth" and api["active"] is True and api["billing_state"] == "active" and api["limits"]["review_generations"] == 300
 
 
 def test_the_next_months_charge_renews_and_moves_the_period(cfree):

@@ -360,3 +360,35 @@ def test_the_frontend_handles_every_refusal_the_backend_can_give():
     assert "/auth/registration" in register_page and "closed" in register_page and "allowlist" in register_page  # the page reads the mode and says so
     assert "email_not_verified" in onboarding and "resend-verification" in onboarding  # an unverified person is told to verify, with a way to ask again
     assert "registration_restricted" in onboarding or "403" in onboarding or "errorMessage" in onboarding  # a refused business is shown the backend's message, not a blank form
+
+
+def test_public_sign_up_on_a_real_server_still_needs_a_verified_email_before_a_business(monkeypatch):
+    mode(monkeypatch, "open")
+    email = fresh()
+    c, r = attempt(email)
+    assert r.status_code == 201
+    headers = {"X-CSRF-Token": r.json()["csrf_token"]}
+    monkeypatch.setattr(settings, "app_env", "production")
+    business = {"name": "Verified First", "category": "Cafe", "language": "en", "phone": "9876543210"}
+    refused = c.post("/api/v1/tenants", json=business, headers=headers)
+    assert refused.status_code == 403 and refused.json()["detail"]["code"] == "email_not_verified", refused.text
+    assert owner_query("SELECT count(*) FROM tenants WHERE name = 'Verified First'")[0][0] == 0
+    owner_exec("UPDATE users SET email_verified_at = now() WHERE email = :e", e=email)
+    assert c.post("/api/v1/tenants", json=business, headers=headers).status_code == 201
+
+
+def test_one_network_address_can_only_create_a_few_accounts_an_hour(monkeypatch):
+    from app.core import rate_limit
+
+    mode(monkeypatch, "open")
+    seen: dict = {}
+
+    def counting(key, limit, window):
+        seen[key] = seen.get(key, 0) + 1
+        return seen[key] <= limit
+
+    monkeypatch.setattr(rate_limit, "hit", counting)
+    codes = [attempt(fresh())[1].status_code for _ in range(settings.rl_register_per_hour + 1)]
+    assert codes[-1] == 429 and codes[:3] == [201, 201, 201], codes
+    assert any(k.startswith("register-hour:") for k in seen)
+

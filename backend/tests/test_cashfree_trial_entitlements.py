@@ -27,8 +27,8 @@ def stored(biz):
 
 
 def growth_limits():
-    return {"locations": GROWTH["max_locations"], "ai_generations": GROWTH["monthly_ai_generations"], "review_generations": GROWTH["review_generations"],
-            "review_replies": GROWTH["review_replies"], "staff": GROWTH["max_staff"], "features": sorted(GROWTH["features"])}
+    return {"locations": GROWTH["max_locations"], "ai_generations": settings.trial_review_generations + settings.trial_review_replies, "review_generations": settings.trial_review_generations,
+            "review_replies": settings.trial_review_replies, "staff": GROWTH["max_staff"], "features": sorted(GROWTH["features"])}
 
 
 def test_scale_has_capabilities_growth_lacks_so_the_tests_below_mean_something():
@@ -43,7 +43,7 @@ def test_every_selected_plan_gets_the_complete_growth_trial_and_the_selection_is
     s = stored(biz)
     assert (s["trial_entitlement"], s["plan"], s["status"]) == ("growth", "trial", "trialing")
     assert s["pending_plan"] == code  # the selected paid plan is NOT overwritten by assigning Growth's entitlements
-    assert (s["max_locations"], s["max_staff"], s["review_generations"], s["review_replies"]) == (GROWTH["max_locations"], GROWTH["max_staff"], GROWTH["review_generations"], GROWTH["review_replies"])
+    assert (s["max_locations"], s["max_staff"], s["review_generations"], s["review_replies"]) == (GROWTH["max_locations"], GROWTH["max_staff"], settings.trial_review_generations, settings.trial_review_replies)  # Growth's features, a small trial allowance
     assert sorted(s["features"]) == sorted(GROWTH["features"])
     assert abs((s["trial_ends_at"] - s["trial_started_at"]).total_seconds() / 86400 - settings.trial_days) < 0.01  # 7 days for every plan
     api = info(biz)

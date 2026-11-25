@@ -16,7 +16,8 @@ Properties (each is a test in tests/test_registration_gate.py):
     is; that account is unverified and cannot create a business, connect Google or touch billing until its mailbox is verified.)
   * every attempt is audited (`registration.allowed` / `registration.rejected`); a rejected address is recorded only as a short hash and its domain, never in full
   * administrator rights still need a VERIFIED address (api/v1/auth.py); being on a list grants none
-  * outside `open` mode, creating a business needs a listed AND verified address (a stranger who registers an approved address first cannot spend the trial on it)"""
+  * outside `open` mode, creating a business needs a listed AND verified address (a stranger who registers an approved address first cannot spend the trial on it); in `open` mode on
+    staging or production it needs a verified address (otherwise scripts could mint trial businesses and spend the shared AI allowance)"""
 from __future__ import annotations
 
 # The age declaration shown at sign-up (docs/PRIVACY_COMPLIANCE_AUDIT.md, A). The VERSION is stored with each declaration so that a later change of wording is traceable. The wording itself
@@ -119,7 +120,12 @@ def gate_new_account(db: Session, request: Request, email: str | None, via: str)
 
 def assert_can_create_business(db: Session, request: Request, user) -> None:
     """Call before creating a business. `open`: as before. Otherwise the signed-in user must be a platform admin, or be listed (never in `closed`) AND have a verified address."""
-    if mode() == "open" or user.is_platform_admin:
+    if user.is_platform_admin:
+        return
+    if mode() == "open":
+        # public sign-up on a real server: a business (and with it a trial, public pages and an AI allowance) only for a proven mailbox
+        if settings.hardened and not user.email_verified_at:
+            raise HTTPException(status_code=403, detail={"code": UNVERIFIED_CODE, "message": UNVERIFIED_MESSAGE})
         return
     if mode() == "closed" or not permits(db, user.email):
         _refuse(db, request, user.email, "business")

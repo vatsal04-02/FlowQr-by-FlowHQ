@@ -783,3 +783,15 @@ def check_ranks():
     finally:
         db.close()
     return done
+
+
+@celery_app.task(name="flowqr.build_website")
+def build_website(job_id: str):
+    """One AI website generation (services/sites/generator.py). A job is claimed once; a second delivery does nothing."""
+    from app.services.sites import generator
+
+    db = system_session()
+    try:
+        return {"status": generator.run(db, uuid.UUID(job_id))}
+    finally:
+        db.close()

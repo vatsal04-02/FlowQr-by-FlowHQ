@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     sites_local_dir: str = "/tmp/flowqr-sites"  # nosec B108 - development/test default of the LOCAL provider only: config_problems requires SITES_PROVIDER=cloudflare in production. # SITES_LOCAL_DIR: where the local provider writes
     sites_service_token: str = ""  # SITES_SERVICE_TOKEN: shared secret between the hosting Worker and the enquiry endpoint (at least 32 characters)
     sites_accept_shared_cookie_scope: bool = False  # SITES_ACCEPT_SHARED_COOKIE_SCOPE: see check_production
+    sites_builds_per_business: int = 2  # SITES_BUILDS_PER_BUSINESS: AI website builds a business may use: the first one and one more (owner decision 2026-11-25: 1 + 1). Editing is unlimited.
+    sites_ai_builder_enabled: bool = False  # SITES_AI_BUILDER_ENABLED: owners may generate, preview and edit an AI website draft (onboarding). Publishing still needs SITES_ENABLED, working hosting and a recorded commercial status
     sites_grace_days: int = 14  # SITES_GRACE_DAYS: how long an expired site stays up before it is suspended (its content is never deleted by a lapse)
     sites_enquiry_retention_days: int = 180  # SITES_ENQUIRY_RETENTION_DAYS: enquiries older than this are deleted
     sites_enquiry_notifier: str = "none"  # SITES_ENQUIRY_NOTIFIER: none | smtp. "smtp" is NOT recommended on the shared Gmail account (quota, deliverability): review first
@@ -250,6 +252,7 @@ class Settings(BaseSettings):
     # Rate limits (requests per window)
     rate_limit_enabled: bool = True
     rl_auth_per_minute: int = 10
+    rl_register_per_hour: int = 10  # new accounts from one network address; every one also sends a verification email from the shared mailbox
     rl_public_scan_per_minute: int = 60
     rl_link_per_ip_per_minute: int = 60  # tracked-link redirects: per visitor (the address is hashed, never stored) and per link
     rl_link_per_token_per_minute: int = 30
@@ -268,6 +271,9 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
     razorpay_webhook_secret: str = ""
+    trial_review_generations: int = 15  # TRIAL_REVIEW_GENERATIONS: review writings a free trial may use a month (owner decision 2026-11-25: 10-15)
+    trial_review_replies: int = 0  # TRIAL_REVIEW_REPLIES: AI replies during a trial (owner decision 2026-11-25: review generation only, so none)
+    trial_seo_tips: int = 5  # TRIAL_SEO_TIPS: SEO / growth tips (AI drafts of the 'agent_draft' kind) a free trial may use a month; website building is not counted
     trial_days: int = 7
     trial_plan: str = "growth"  # trial grants this plan's limits/features
 
@@ -633,7 +639,10 @@ def config_problems(s: Settings) -> list[str]:
             p.append("WHATSAPP_SEND_WINDOW_START must be before WHATSAPP_SEND_WINDOW_END, both between 0 and 24")
         if not s.whatsapp_graph_base_url.startswith("https://"):
             p.append("WHATSAPP_GRAPH_BASE_URL must be https")
-    if s.sites_enabled:
+    if s.sites_enabled and s.sites_provider == "app":  # FlowQR serves the sites itself, sandboxed, under the app's own https address
+        if not (s.frontend_url or "").startswith("https://"):
+            p.append("FRONTEND_URL must be https when websites are hosted by FlowQR (SITES_PROVIDER=app)")
+    elif s.sites_enabled:
         base = (s.sites_base_domain or "").strip().lower().lstrip(".")
         if not base or "." not in base or base.endswith(".localhost"):
             p.append("SITES_BASE_DOMAIN must be a real domain when SITES_ENABLED is true")

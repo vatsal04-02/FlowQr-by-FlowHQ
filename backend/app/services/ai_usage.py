@@ -81,7 +81,34 @@ def log_generation(db: Session, *, tenant_id, kind, provider, model, language, i
 # =============================================================================================================================================
 
 # Customer-facing review writing and the review-risk safety check keep working until the platform HARD limit; everything else is nonessential.
-ESSENTIAL_KINDS = frozenset({"review_generate", "review_assist", "review_risk"})
+ESSENTIAL_KINDS = frozenset({"review_generate", "review_assist", "review_risk", "site_draft"})  # site_draft: building a website is free and is not held by the per-business dollar budget
+
+# A FREE TRIAL (owner decision 2026-11-25) may write reviews, get a few SEO tips and build a website, nothing else. Everything below is enforced here, in the one place every model call passes.
+TRIAL_KINDS = frozenset({"review_generate", "review_assist", "review_risk", "review_test", "agent_draft", "site_draft"})
+TRIAL_SEO_KINDS = frozenset({"agent_draft"})  # SEO and growth tips: the profile and SEO engines, the growth agent, the operator's prepared changes
+
+
+def trial_gate(tenant_id: uuid.UUID | None, kind: str) -> None:
+    """Raise BudgetExceeded('trial') when a business that is on its FREE TRIAL asks for something the trial does not include or has used its few SEO tips.
+    Paid, prepaid, managed and expired businesses are not affected here (their own allowances and the active check apply)."""
+    if tenant_id is None:
+        return
+    db = _own_session()
+    try:
+        sub = db.scalar(select(Subscription).where(Subscription.tenant_id == tenant_id))
+        if sub is None or sub.status != "trialing" or sub.plan != "trial":
+            return
+        if kind == "reply_draft" and settings.trial_review_replies > 0:
+            return  # counted against the trial's reply allowance by the plan quota
+        if kind not in TRIAL_KINDS:
+            raise BudgetExceeded("trial", "This is part of the paid plans. Your free trial includes review writing, a few SEO tips and your website. Choose a plan to use everything.")
+        if kind in TRIAL_SEO_KINDS:
+            used = db.scalar(select(func.count()).select_from(AICallLedger).where(
+                AICallLedger.tenant_id == tenant_id, AICallLedger.created_at >= month_start(), AICallLedger.status == "ok", AICallLedger.kind.in_(TRIAL_SEO_KINDS))) or 0
+            if used >= settings.trial_seo_tips:
+                raise BudgetExceeded("trial", f"Your free trial includes {settings.trial_seo_tips} SEO tips and they are used. Choose a plan to get more.")
+    finally:
+        db.close()
 
 
 class BudgetExceeded(AIUnavailable):
@@ -153,6 +180,7 @@ def _usd(n) -> str:
 
 def check_budget(*, tenant_id: uuid.UUID | None, kind: str, est_input_tokens: int, max_output_tokens: int, tenant_budget_usd: Decimal | float | None = None) -> None:
     """Raise BudgetExceeded when this call may not be made. See the module comment for the rules. Called before every model call."""
+    trial_gate(tenant_id, kind)
     hard_usd, hard_tok = settings.ai_platform_hard_limit_usd, settings.ai_platform_monthly_token_limit
     t_usd = float(tenant_budget_usd) if tenant_budget_usd is not None else settings.ai_tenant_monthly_budget_usd
     t_tok = settings.ai_tenant_monthly_token_budget

@@ -465,7 +465,7 @@ def test_managed_usage_counts_only_admin_managed_businesses_and_real_usage(admin
     ids = {r["id"] for r in d["businesses"]}
     assert a["id"] in ids and b["id"] in ids and own.tenant_id not in ids
     ra = row_of(d, a["id"])
-    assert ra["review_writings"] == {"used": 3, "limit": 200} and ra["replies"] == {"used": 2, "limit": 200}
+    assert ra["review_writings"] == {"used": 3, "limit": 150} and ra["replies"] == {"used": 2, "limit": 150}
     t = d["totals"]
     assert t["businesses"] >= 2 and t["review_writings_used"] >= 4 and t["replies_used"] >= 2 and t["review_writings_allowed"] >= 400 and t["replies_allowed"] >= 400
 
@@ -511,7 +511,7 @@ def test_a_call_with_no_tokens_and_no_cost_stays_unpriced_even_when_prices_are_c
 
 def test_usage_view_reflects_revoked_access_suspension_and_near_limit(admin):
     a, b = biz(admin), biz(admin)
-    use_ai(a["id"], "review_assist", 170)  # 85% of 200
+    use_ai(a["id"], "review_assist", 128)  # 85% of 150 (rounded)
     admin.post(f"/admin/tenants/{b['id']}/managed-access", json={"action": "revoke", "note": "client stopped using it"})
     d = admin.get("/admin/managed-usage").json()
     assert row_of(d, a["id"])["percent_of_allowance"] == 85 and d["totals"]["near_limit"] >= 1

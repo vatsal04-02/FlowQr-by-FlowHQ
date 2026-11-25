@@ -3,6 +3,15 @@ import { LEGACY_ROUTES } from "./src/lib/legacy-routes.mjs";
 /** @type {import('next').NextConfig} */
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
+// The same policy as backend/app/services/sites/hosting.py APP_CSP (tests/site-headers.test.mjs fails if they differ): no scripts, and an opaque origin that cannot use the app's cookies or API.
+const SITE_CSP = "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self'; font-src 'none'; connect-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; sandbox allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation";
+const SITE_HEADERS = [
+  { key: "Content-Security-Policy", value: SITE_CSP },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+];
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -42,10 +51,15 @@ const nextConfig = {
   // (SameSite=Lax) and no CORS is needed. Secrets never reach the browser.
   // With NEXT_PUBLIC_API_URL set (production on Vercel) the browser talks to the API host directly and nothing is proxied; without it (development, the Docker demo) /api is proxied here.
   async rewrites() {
-    return process.env.NEXT_PUBLIC_API_URL ? [] : [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }];
+    // Business websites hosted by FlowQR (SITES_PROVIDER=app): served by the API, sandboxed by its Content-Security-Policy.
+    const siteApi = process.env.NEXT_PUBLIC_API_URL || BACKEND_URL;
+    const sites = [{ source: "/site/:slug", destination: `${siteApi}/api/v1/public-site/:slug` }, { source: "/site/:slug/:path*", destination: `${siteApi}/api/v1/public-site/:slug/:path*` }];
+    return [...sites, ...(process.env.NEXT_PUBLIC_API_URL ? [] : [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }])];
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    // Business websites (/site/...) are other people's pages on the app's own address. They must keep their sandbox policy: a rule here REPLACES the header the API sends (found on Vercel),
+    // so the app's rule leaves them out and they get exactly the policy the API serves them with.
+    return [{ source: "/((?!site/).*)", headers: securityHeaders }, { source: "/site/:path*", headers: SITE_HEADERS }];
   },
   // PRD §8: the pre-redesign URLs move permanently (308) to the four sections; Next keeps the query string.
   async redirects() {
