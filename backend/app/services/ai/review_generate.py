@@ -19,6 +19,7 @@ from app.services.ai.privacy import ensure_review_data_allowed, redact
 
 STYLES = ("natural", "short", "detailed", "professional", "warm")
 LANGUAGES = ("en", "hi")
+WRITING_LANGUAGES = (*LANGUAGES, "hinglish")  # Hinglish = Hindi written in the English alphabet, mixed with English words the way people text in India
 
 STYLE_GUIDE = {
     "natural": "Natural and conversational, like someone telling a friend about their visit. The length is set by the detail level below.",
@@ -29,12 +30,14 @@ STYLE_GUIDE = {
 }
 MAX_CHARS = {"short": 260, "natural": 800, "warm": 800, "professional": 850, "detailed": 1100}
 LANGUAGE_RULE = {
+    "hinglish": "Write in natural Hinglish: Hindi written in the English (Roman) alphabet, mixed with the everyday English words people really use, the way a customer in India texts a friend (for example 'staff bahut friendly tha'). No Devanagari script. Keep it simple and conversational, not a word-for-word translation, and add NO fact that is not in the customer's answers.",
     "en": "Write in natural, conversational English, the way a real customer would type a review. Avoid stiff review-template phrasing.",
     "hi": "Write in natural, idiomatic Hindi (Devanagari) as a native speaker would write a review, not a word-for-word translation of English. Prefer everyday Hindi where it exists "
           "(समझाना, इंतज़ार, सफ़ाई, खाना, अच्छा लगा); common loanwords people really use (स्टाफ़, क्लिनिक, अपॉइंटमेंट) are fine. Keep any names and numbers exactly as given.",
 }
 # Different openings per request so drafts don't converge on one template. They steer structure, never add facts.
-CROSS_REVIEW_SIMILARITY = 0.72  # a draft this close to another customer's review (difflib ratio) is rewritten
+CROSS_REVIEW_SIMILARITY = 0.62  # a draft this close to another customer's review (difflib ratio) is rewritten
+SAME_VISIT_SIMILARITY = 0.75  # ...and the suggestions shown to ONE customer must differ at least this much (looser than across customers: one visit has one set of facts, so rewordings share many words)
 VARIATION_HINTS = (  # direction-neutral shapes: they work for a 1-star and a 5-star review alike
     "Start with the first topic as the subject of the sentence.", "Start with 'As for the ...' and the first topic.", "Start with the LAST listed topic instead of the first.",
     "Start with a 'both ... and ...' sentence that pairs two topics.", "Start with the specific detail they typed, if there is one; otherwise with the first topic.",
@@ -96,6 +99,15 @@ class ReviewDraftRejected(AIUnavailable):
         self.reason = reason
         self.text = text  # the rejected output, for the admin test endpoint only (never sent to customers)
         self.detail = detail  # specifics (e.g. the unsupported statements): fed back to the model and shown to admins, never logged
+
+
+class ReviewTooSimilarError(ReviewDraftRejected):
+    """The draft is faithful but reads too much like another review. `soft` (it resembles ANOTHER customer's review) may be relaxed on the last attempt for the FIRST suggestion; a repeat of the
+    SAME customer's own draft never is, and faithfulness never is."""
+
+    def __init__(self, reason: str, soft: bool):
+        super().__init__(reason)
+        self.soft = soft
 
 
 def clean_field(value: str | None, limit: int) -> str:
@@ -275,6 +287,8 @@ def _prompt(inp: ReviewInput, *, language: str, style: str, business_name: str, 
          + (SENTIMENT_RULE[inp.sentiment] if inp.sentiment in SENTIMENT_RULE else "")
          if inp.rating else SENTIMENT_RULE.get(inp.sentiment, SENTIMENT_RULE[None])),
         *_shape_hints(inp, shape),
+        "Make it specific to THIS business: where it reads naturally, refer to what the customer picked in the business's own terms from the context above (its services, its name once at most) instead of generic praise. "
+        "Never say anything about the business that the context does not say, and never add a fact about this visit.",
     ]
     if inp.topic_alts:
         lines.append("Natural ways to refer to the chosen topics (vary between them; they add no facts): " + "; ".join(inp.topic_alts))
@@ -284,7 +298,7 @@ def _prompt(inp: ReviewInput, *, language: str, style: str, business_name: str, 
         lines += [f"<earlier_draft>{p}</earlier_draft>" for p in previous[-3:]]
     if recent:
         lines += ["", "Reviews already written for this business by OTHER customers. This review must read as its own: open differently, use different sentence shapes and do not reuse their phrases. They are not facts about this customer:"]
-        lines += [f"<other_review>{r[:240]}</other_review>" for r in recent[-6:]]
+        lines += [f"<other_review>{r[:240]}</other_review>" for r in recent[-8:]]
     if retry_reason:
         lines += ["", f"Your previous attempt was rejected: {retry_reason}. Rewrite it using only the customer's own facts."]
     return "\n".join(lines)
@@ -397,6 +411,24 @@ _GENERIC_OPEN = re.compile(r"^\W*(?:i (?:had|have had) an? (?:really |very |trul
                            r"it was an? (?:good|great|nice|wonderful|pleasant|amazing) (?:experience|visit)|(?:good|great|nice|wonderful|excellent|amazing) (?:experience|service)\b|my experience (?:was|has been)|overall\b)", re.I)
 
 
+_TOKEN = re.compile(r"[a-z0-9\u0900-\u097f']+")
+
+
+def sameness(a: str, b: str, ratio_limit: float, phrases: bool = True) -> str | None:
+    """Why two reviews read as the same one, or None. Three deterministic tests, each catching what the others miss: the same first three words, any five words in a row used by both,
+    and the overall likeness of the two texts. `phrases=False` skips the five-word test: two drafts of ONE customer's visit legitimately repeat the facts that customer gave."""
+    wa, wb = _TOKEN.findall(a.lower()), _TOKEN.findall(b.lower())
+    if len(wa) >= 3 and len(wb) >= 3 and wa[:3] == wb[:3]:
+        return "same opening words"
+    if phrases and len(wa) >= 5 and len(wb) >= 5:
+        grams = {tuple(wb[i:i + 5]) for i in range(len(wb) - 4)}
+        if any(tuple(wa[i:i + 5]) in grams for i in range(len(wa) - 4)):
+            return "reuses a five-word phrase"
+    if difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio() > ratio_limit:
+        return "almost the same text"
+    return None
+
+
 def validate_draft(text: str, inp: ReviewInput, *, language: str, style: str, business_name: str,
                    location_terms: str = "", previous: tuple[str, ...] = (), category: str | None = None,
                    offered_terms: tuple[str, ...] = (), recent: tuple[str, ...] = ()) -> None:
@@ -424,6 +456,11 @@ def validate_draft(text: str, inp: ReviewInput, *, language: str, style: str, bu
         raise ReviewDraftRejected("not written in Devanagari Hindi")
     if language == "en" and dev:
         raise ReviewDraftRejected("contains Hindi script in an English review")
+    if language == "hinglish":
+        if dev:
+            raise ReviewDraftRejected("uses Devanagari script in a Hinglish review")
+        if not re.search(_ROMAN_HINDI, text, re.I):
+            raise ReviewDraftRejected("is not written in Hinglish (no Hindi words in English letters)")
 
     # Numbers must come from the customer
     allowed = {n.replace(",", "") for n in _NUM.findall(given.translate(_DEV_DIGITS))}
@@ -528,14 +565,14 @@ def validate_draft(text: str, inp: ReviewInput, *, language: str, style: str, bu
             if len(re.findall(rf"\b{adj}\b", text, re.I)) > 2 and inp.sentiment != "not_good":
                 raise ReviewDraftRejected(f"repeats the adjective '{adj}'")
 
-    # Regeneration must actually read differently
+    # Regeneration and the other suggestions in a round must actually read differently, and every customer's review must read as its own: two people who tap the same stars and
+    # topics must not end up posting the same paragraph. Checked last, so when it fires every faithfulness rule above has already passed.
     for p in previous:
-        if difflib.SequenceMatcher(None, text.lower(), p.lower()).ratio() > 0.85:
-            raise ReviewDraftRejected("too similar to the previous draft")
-    # Every customer's review must read as its own: two people who tap the same stars and topics must not end up posting the same paragraph
+        if (why := sameness(text, p, SAME_VISIT_SIMILARITY, phrases=False)):
+            raise ReviewTooSimilarError(f"too similar to the previous draft ({why})", soft=False)
     for r in recent:
-        if difflib.SequenceMatcher(None, text.lower(), r.lower()).ratio() > CROSS_REVIEW_SIMILARITY:
-            raise ReviewDraftRejected("too similar to another review already written for this business")
+        if (why := sameness(text, r, CROSS_REVIEW_SIMILARITY)):
+            raise ReviewTooSimilarError(f"too similar to another review already written for this business ({why})", soft=True)
 
 
 VERIFY_SYSTEM = """You are a strict fact-checker for a customer's review of a local business.
@@ -605,24 +642,25 @@ def _retry_hint(exc: ReviewDraftRejected, hint: str) -> str:
 def generate_review(provider: LLMProvider, inp: ReviewInput, *, language: str, style: str, business_name: str,
                     category: str | None = None, location_name: str | None = None,
                     previous: tuple[str, ...] = (), verify: bool | None = None, context_text: str = "",
-                    offered_terms: tuple[str, ...] = (), stats: dict | None = None, recent: tuple[str, ...] = (), shape: int | None = None) -> str:
+                    offered_terms: tuple[str, ...] = (), stats: dict | None = None, recent: tuple[str, ...] = (), shape: int | None = None, allow_similar: bool = False) -> str:
     """One draft grounded in `inp`: generate, run the deterministic checks, then (if enabled) an AI fact-check. A failed check
     triggers one retry that tells the model what was wrong; a second failure raises ReviewDraftRejected."""
-    if language not in LANGUAGES or style not in STYLES:
+    if language not in WRITING_LANGUAGES or style not in STYLES:
         raise ValueError("unsupported language or style")
     stats = stats if stats is not None else {}
     stats.update(attempts=0, rejects_rules=0, rejects_factcheck=0)  # filled in as we go, so callers can log cost/quality even when we raise
     if not inp.topics and is_too_vague(inp.text()):  # decided locally: no provider call, nothing guessed (a picked topic is something to write about)
         raise NeedsMoreDetail()
     ensure_review_data_allowed(provider)  # fails safe before the customer's words are put in a prompt
-    fact_check = settings.review_verify_with_ai if verify is None else verify
+    fact_check = (settings.review_verify_with_ai if verify is None else verify) or language == "hinglish"  # the English-only rules cannot police Hinglish, so the AI fact-check always does
     location_terms = f"{location_name or ''} {category or ''}"
     reason: str | None = None
     hint: str | None = None
     detail: str | None = None
     text = ""
     thin: str | None = None  # a draft that passed every check but is shorter than the level of detail suggests
-    for _ in range(max(1, settings.review_max_attempts)):
+    attempts = max(1, settings.review_max_attempts)
+    for attempt in range(attempts):
         stats["attempts"] += 1
         raw = provider.generate(SYSTEM, _prompt(inp, language=language, style=style, business_name=business_name, category=category,
                                                 location_name=location_name, previous=previous, retry_reason=hint, context_text=context_text, recent=recent, shape=shape),
@@ -634,6 +672,12 @@ def generate_review(provider: LLMProvider, inp: ReviewInput, *, language: str, s
                    category=category, offered_terms=offered_terms, recent=recent)
         try:
             validate_draft(text, inp, **vkw)
+        except ReviewTooSimilarError as exc:
+            if not (allow_similar and exc.soft and attempt == attempts - 1):
+                stats["rejects_rules"] += 1
+                reason, hint, detail = exc.reason, f"{exc.reason}. Open with different words and build the sentences differently.", None
+                continue
+            stats["similar_accepted"] = 1  # every faithfulness rule passed; the last attempt is kept rather than showing the customer nothing
         except ReviewDraftRejected as exc:
             fixed = _trim_unsupported(text, inp, **vkw) if language == "en" and _TRIMMABLE.search(exc.reason) else None
             if fixed is None:

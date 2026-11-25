@@ -5,7 +5,7 @@ import { Check, ChevronDown, Clock, Copy, ExternalLink, Globe, Loader2, Pencil, 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LandingFrame } from "@/components/review-growth/LandingFrame";
 import { api, ApiError } from "@/lib/api";
-import { COPY, effectiveBrand, optionsOf, type Background, type Lang, type Rating, type Topic } from "@/lib/review-growth";
+import { COPY, effectiveBrand, optionsOf, type Option, type Background, type Lang, type Rating, type Topic } from "@/lib/review-growth";
 
 interface Landing {
   state: "ok";
@@ -21,7 +21,7 @@ interface Landing {
 interface DraftResp {
   session_id: string | null; draft: string | null; ai_status: "ok" | "manual" | "needs_more" | "rejected" | "unavailable"; ask?: "detail";
   retryable: boolean; generation_count: number; remaining_drafts: number; follow_up?: string | null;
-  suggestions?: string[]; // the 2-3 different suggestions of this round (the first is also `draft`)
+  suggestions?: string[]; suggestion_languages?: string[]; // the 1-2 different suggestions of this round (the first is also `draft`) and the language of each
 }
 /** Where the text in the box came from: a neutral AI opener, a rewrite from the customer's stars/topics, or the customer's own typing. */
 type Origin = "none" | "refined";
@@ -78,7 +78,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const [rating, setRating] = useState<Rating | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [text, setText] = useState("");
-  const [options, setOptions] = useState<string[]>([]);  // the suggestions of the latest AI round the customer can start from
+  const [options, setOptions] = useState<Option[]>([]);  // the suggestions of the latest AI round the customer can start from
   const [aiText, setAiText] = useState("");          // the last text the AI wrote into the box: anything else in there is the customer's own
   const [origin, setOrigin] = useState<Origin>("none");
   const [loading, setLoading] = useState<null | "refine">(null);
@@ -436,12 +436,13 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
                 <div className="mt-2.5" role="radiogroup" aria-label={t.pickTitle} data-testid="options">
                   <p className="text-[12.5px] font-bold text-ink-500">{t.pickTitle}</p>
                   <div className="mt-1.5 grid gap-2">
-                    {options.map((o, i) => {
+                    {options.map((opt, i) => {
+                      const o = opt.text;
                       const on = o.trim() === aiText.trim();
                       return (
                         <button key={i} type="button" role="radio" aria-checked={on} onClick={() => choose(o)} data-testid="option"
                           className={clsx("min-h-11 w-full rounded-xl border px-3 py-2.5 text-left transition active:translate-y-px", ring, on ? "border-[color:var(--brand)] bg-[#FFF7F1] ring-1 ring-[color:var(--brand)]" : "border-ink-200 bg-white hover:bg-ink-50")}>
-                          <span className="mb-0.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wide text-ink-500">{on && <Check className="h-3.5 w-3.5" aria-hidden />}{t.optionN} {i + 1}</span>
+                          <span className="mb-0.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wide text-ink-500">{on && <Check className="h-3.5 w-3.5" aria-hidden />}{t.optionN} {i + 1}{opt.lang === "hinglish" && <span className="rounded-full bg-[#FFEFE5] px-2 py-0.5 text-[10.5px] normal-case tracking-normal text-[#9A3412]">{t.hinglishTag}</span>}</span>
                           <span className="line-clamp-3 text-[14.5px] leading-[1.45] text-ink">{o}</span>
                         </button>
                       );

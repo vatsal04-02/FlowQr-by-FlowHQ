@@ -21,7 +21,7 @@ export interface Copy {
   rateLabel: string; rateHint: string; rateWords: [string, string, string, string, string]; star: string; stars: string; needStars: string; needTopics: string;
   topicsLabel: string; topicsHint: string;
   editorLabel: string; editorPh: string; tooShort: string; askMore: string;
-  badgeRefined: string; badgeEdited: string; badgeCopied: string; tailoring: string; another: string; undo: string; pickTitle: string; optionN: string; pickHint: string;
+  badgeRefined: string; badgeEdited: string; badgeCopied: string; tailoring: string; another: string; undo: string; pickTitle: string; optionN: string; pickHint: string; hinglishTag: string;
   cta: string; ctaCopyOnly: string; ctaHint: string; confirmNote: string;
   copiedH: string; copiedSub: string; copyFailedH: string; copyFailedSub: string; copyAgain: string; openAgain: string; copyBtn: string; copied: string; welcomeBack: string;
   refineQ: string; refineYes: string; refineNo: string; followUp: string; followUpBtn: string;
@@ -41,7 +41,7 @@ export const COPY: Record<Lang, Copy> = {
     askMore: "Could you add a little more? For example, what you came in for, or one thing you remember about the visit.",
     badgeRefined: "Written by AI", badgeEdited: "Edited by you", badgeCopied: "Copied",
     tailoring: "Tailoring your review…", another: "New version", undo: "Undo",
-    pickTitle: "Choose a starting point", optionN: "Option", pickHint: "These are only suggestions. Tap the one closest to your visit, then change anything so it says what really happened.",
+    pickTitle: "Choose a starting point", optionN: "Option", hinglishTag: "Hinglish", pickHint: "These are only suggestions. Tap the one closest to your visit, then change anything so it says what really happened.",
     cta: "Copy review and post on Google", ctaCopyOnly: "Copy review", ctaHint: "We copy it for you. Google opens, you paste and tap Post. Nothing is posted without you.",
     confirmNote: "Continuing confirms it is your own experience. You post it yourself.",
     copiedH: "Your review is copied.", copiedSub: "Paste it into Google's review box, then choose your own star rating and post it yourself.",
@@ -72,7 +72,7 @@ export const COPY: Record<Lang, Copy> = {
     askMore: "क्या आप थोड़ा और बता सकेंगे? जैसे आप किस काम से आए थे, या इस विज़िट की कोई एक बात जो आपको याद रही।",
     badgeRefined: "AI ने लिखा", badgeEdited: "आपने बदला", badgeCopied: "कॉपी हो गया",
     tailoring: "आपके जवाबों के अनुसार रिव्यू ढाला जा रहा है…", another: "नया रूप", undo: "वापस लाएँ",
-    pickTitle: "शुरुआत के लिए एक चुनें", optionN: "विकल्प", pickHint: "ये सिर्फ़ सुझाव हैं। अपनी विज़िट के सबसे करीब वाला चुनें, फिर उसे बदलकर वही लिखें जो सच में हुआ।",
+    pickTitle: "शुरुआत के लिए एक चुनें", optionN: "विकल्प", hinglishTag: "Hinglish", pickHint: "ये सिर्फ़ सुझाव हैं। अपनी विज़िट के सबसे करीब वाला चुनें, फिर उसे बदलकर वही लिखें जो सच में हुआ।",
     cta: "रिव्यू कॉपी करें और Google पर पोस्ट करें", ctaCopyOnly: "रिव्यू कॉपी करें", ctaHint: "आपका रिव्यू कॉपी हो जाएगा। उसे Google के रिव्यू बॉक्स में पेस्ट करें।",
     confirmNote: "आगे बढ़ना मानना है कि यह आपका अपना अनुभव है। पोस्ट आप खुद करते हैं।",
     copiedH: "आपका रिव्यू कॉपी हो गया है।", copiedSub: "Google के रिव्यू बॉक्स में पेस्ट करें, फिर अपनी स्टार रेटिंग खुद चुनकर पोस्ट करें।",
@@ -185,6 +185,14 @@ export function backgroundStyle(bg: Background, color: string): CSSProperties {
   }
 }
 
-/** The suggestions of one AI round, without blanks or repeats and at most three (an older server sends only `draft`). The first is the one the box starts with. */
-export const optionsOf = (r: { draft: string | null; suggestions?: string[] }): string[] =>
-  [...new Set([...(r.suggestions ?? []), ...(r.draft ? [r.draft] : [])].map((x) => x.trim()).filter(Boolean))].slice(0, 3);
+/** One suggestion of an AI round: its text and the language it is written in ("hinglish" = Hindi in English letters). */
+export interface Option { text: string; lang: string }
+
+/** The suggestions of one AI round, without blanks or repeats and at most two (an older server sends only `draft`). The first is the one the box starts with. */
+export function optionsOf(r: { draft: string | null; suggestions?: string[]; suggestion_languages?: string[] }): Option[] {
+  const out: Option[] = [];
+  const add = (text: string | null | undefined, lang: string) => { const t = (text ?? "").trim(); if (t && !out.some((o) => o.text === t)) out.push({ text: t, lang }); };
+  (r.suggestions ?? []).forEach((t, i) => add(t, r.suggestion_languages?.[i] ?? ""));
+  add(r.draft, "");
+  return out.slice(0, 2);
+}

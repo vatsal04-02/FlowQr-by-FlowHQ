@@ -158,7 +158,7 @@ def _draft_payload(session: ReviewSession | None, draft: ReviewDraft | None, *, 
     return {
         "session_id": session.session_identifier if session else None, "draft": draft.generated_content if draft else None,
         "ai_status": ai_status, "message": message, "retryable": retryable,
-        "suggestions": suggestions_of(draft), "generation_count": count, "remaining_drafts": max(0, min(draft_limit(tid) - count, ai_write_limit(tid) - ((draft.ai_writes or 0) if draft else 0))),
+        "suggestions": suggestions_of(draft), "suggestion_languages": [e["lang"] or (session.language if session else language) for e in _entries(draft)], "generation_count": count, "remaining_drafts": max(0, min(draft_limit(tid) - count, ai_write_limit(tid) - ((draft.ai_writes or 0) if draft else 0))),
         "style": session.style if session else None, "language": session.language if session else language, "disclaimer": DISCLAIMER,
     }
 
@@ -174,7 +174,7 @@ def _describing(words: tuple[str, ...], sentiment: str | None) -> str:
     return ""
 
 
-def recent_reviews(db: Session, tenant, campaign, session: ReviewSession, limit: int = 10) -> tuple[str, ...]:
+def recent_reviews(db: Session, tenant, campaign, session: ReviewSession, limit: int = 12) -> tuple[str, ...]:
     """What other customers of this location were recently given, so each new review can be written to read differently (and is rejected if it is too close). Only drafts built from
     stars and topics are used: a draft that contains someone's own typed words is never sent to the AI as an example for another customer."""
     camp_ids = select(ReviewCampaign.id).where(ReviewCampaign.tenant_id == tenant.id, ReviewCampaign.location_id == campaign.location_id)
@@ -184,7 +184,10 @@ def recent_reviews(db: Session, tenant, campaign, session: ReviewSession, limit:
     out: list[str] = []
     for text, ci, shown in rows:  # every suggestion a customer was shown counts, not just the first, so a business's reviews stay different from each other
         if text and not (ci or {}).get("text") and not (ci or {}).get("details"):
-            out.extend(s for s in (shown or [text]) if isinstance(s, str) and s)
+            for item in (shown or [text]):
+                body = item.get("text") if isinstance(item, dict) else item
+                if isinstance(body, str) and body:
+                    out.append(body)
     return tuple(reversed(out[:limit]))
 
 
@@ -199,15 +202,33 @@ def _context_with_voice(db: Session, tenant, bctx) -> str:
     return block + (f"\nOwner's preferred tone (wording style only, never facts): {voice}." if voice else "")
 
 
-def suggestions_of(draft: ReviewDraft | None) -> list[str]:
-    """The suggestions the customer is choosing between: the latest round's list, or the single draft of an older visit."""
+def _entries(draft: ReviewDraft | None) -> list[dict]:
+    """The latest round as [{"text", "lang"}]: lang is "en", "hi" or "hinglish". An older visit has only generated_content."""
     if draft is None:
         return []
-    shown = [s for s in (draft.suggestions or []) if isinstance(s, str) and s.strip()]
-    return shown or ([draft.generated_content] if draft.generated_content else [])
+    out = []
+    for s in draft.suggestions or []:
+        e = s if isinstance(s, dict) else {"text": s, "lang": None}
+        if isinstance(e.get("text"), str) and e["text"].strip():
+            out.append({"text": e["text"], "lang": e.get("lang")})
+    return out or ([{"text": draft.generated_content, "lang": None}] if draft.generated_content else [])
+
+
+def suggestions_of(draft: ReviewDraft | None) -> list[str]:
+    """The suggestions the customer is choosing between: the latest round's list, or the single draft of an older visit."""
+    return [e["text"] for e in _entries(draft)]
 
 
 _STYLE_ORDER = ("natural", "short", "warm", "professional", "detailed")  # most different from each other first
+
+
+def round_languages(base: str, offered, n: int) -> list[str]:
+    """The language of each suggestion in a round. The first is always the customer's language. The second is sometimes Hinglish (Hindi in English letters), with the chance set by
+    REVIEW_HINGLISH_CHANCE, and only when the business offers Hindi at all."""
+    out = [base]
+    if n > 1:
+        out.append("hinglish" if "hi" in offered and random.random() < settings.review_hinglish_chance else base)
+    return out
 
 
 def round_styles(base: str, allowed: list[str], n: int) -> list[str]:
@@ -256,22 +277,23 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
         return fail("error", UNAVAILABLE_MESSAGE, "unavailable", f"paused: {paused['code']}", False)
     try:
         provider = metered(get_provider(), db, tenant.id, "review_generate")
-        n = max(1, min(3, settings.review_suggestions_per_round))
+        n = max(1, min(2, settings.review_suggestions_per_round))
         styles = round_styles(session.style, list(Customization.model_validate(campaign.customization or {}).allowed_styles), n)
+        langs = round_languages(session.language, bctx.languages, n)
         start = random.randrange(1000)  # consecutive "shape" numbers from a random start: no two suggestions in a round are told to open or build sentences the same way
         common = dict(language=session.language, business_name=tenant.name, category=tenant.category, location_name=loc.name, recent=recent,
                       context_text=_context_with_voice(db, tenant, bctx), offered_terms=bctx.offered_terms())
-        text = generate_review(provider, inp, style=styles[0], previous=previous, stats=stats, shape=start if n > 1 else None, **common)
-        shown = [text]
-        for i in range(1, n):  # the extra suggestions are bonuses: if one cannot be written faithfully the customer simply sees fewer, never an error
+        text = generate_review(provider, inp, style=styles[0], previous=previous, stats=stats, shape=start if n > 1 else None, allow_similar=True, **common)
+        shown = [{"text": text, "lang": langs[0]}]
+        for i in range(1, n):  # the extra suggestion is a bonus: if it cannot be written faithfully AND differently the customer simply sees one, never an error
             try:
-                extra = generate_review(provider, inp, style=styles[i], previous=(*previous, *shown), stats={}, shape=start + i, **common)
+                extra = generate_review(provider, inp, style=styles[i], previous=(*previous, *(e["text"] for e in shown)), stats={}, shape=start + i, **{**common, "language": langs[i]})
             except (NeedsMoreDetail, ReviewDraftRejected):
                 continue
             except AIUnavailable:
                 break
-            if extra not in shown:
-                shown.append(extra)
+            if extra not in [e["text"] for e in shown]:
+                shown.append({"text": extra, "lang": langs[i]})
     except NeedsMoreDetail:
         log("needs_more")
         svc.record_event(db, campaign, "needs_more", ip=ip, ua=ua, session=session)
@@ -285,7 +307,7 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
         return fail("error", UNAVAILABLE_MESSAGE, "unavailable", f"{exc.code}: {exc}", exc.code in RETRYABLE)
 
     ai_health.clear()
-    draft.generated_content, draft.ai_assisted, draft.suggestions = text, True, shown
+    draft.generated_content, draft.ai_assisted, draft.suggestions = text, True, shown  # [{"text", "lang"}] per suggestion of this round
     draft.ai_writes = (draft.ai_writes or 0) + 1  # a version the customer actually received (a failed attempt never gets here)
     log("ok", None, len(text))
     if first or not refine:  # a refinement after the first draft is neither a new draft nor a "Regenerate" in the numbers
