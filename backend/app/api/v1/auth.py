@@ -81,7 +81,8 @@ def send_verification(db: Session, user: User) -> bool:
     return send_email(user.email, "Verify your FlowQR email", f"Welcome to FlowQR! Confirm your email address:\n{link}\n\nIf you didn't create an account, ignore this message.")
 
 
-@router.post("/register", response_model=MeOut, status_code=201, dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60))])
+@router.post("/register", response_model=MeOut, status_code=201,
+             dependencies=[Depends(limit_by_ip("auth", settings.rl_auth_per_minute, 60)), Depends(limit_by_ip("register-hour", settings.rl_register_per_hour, 3600))])
 def register(body: RegisterIn, request: Request, response: Response, db: Session = Depends(get_db)):
     email = body.email.lower()
     registration.gate_new_account(db, request, email, "password")  # FIRST: a refused address never learns whether it is listed or already registered

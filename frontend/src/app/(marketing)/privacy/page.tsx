@@ -18,7 +18,7 @@ export default function Privacy() {
           <li><b>Google Business Profile data, only if you connect it:</b> your accounts and the locations you select, their reviews (reviewer name, rating, text, replies), profile details, posts, photos and performance statistics. We access only the locations you choose.</li>
           <li><b>QR and NFC scans:</b> time, the card or campaign, and a daily-rotating hashed device fingerprint used to count unique scans. We do not store a customer&rsquo;s name, phone or email from a scan.</li>
           <li><b>Review assistant:</b> if a customer types a few words so the AI can draft a review, we store those words, the draft and the 1&ndash;5 rating they chose. This text is deleted automatically after {i?.review_session_retention_days ?? 90} days; only counts remain.</li>
-          <li><b>Payments:</b> handled by a licensed payment provider (not yet switched on). We keep plan, status and payment references, never card numbers.</li>
+          <li><b>Payments:</b> handled by Cashfree Payments, a licensed payment provider. We keep plan, status and payment references, never card numbers or UPI PINs.</li>
           <li><b>Technical:</b> IP address and browser type for security, rate-limiting and audit logs.</li>
         </ul>
 

@@ -251,6 +251,7 @@ class Settings(BaseSettings):
     # Rate limits (requests per window)
     rate_limit_enabled: bool = True
     rl_auth_per_minute: int = 10
+    rl_register_per_hour: int = 10  # new accounts from one network address; every one also sends a verification email from the shared mailbox
     rl_public_scan_per_minute: int = 60
     rl_link_per_ip_per_minute: int = 60  # tracked-link redirects: per visitor (the address is hashed, never stored) and per link
     rl_link_per_token_per_minute: int = 30
