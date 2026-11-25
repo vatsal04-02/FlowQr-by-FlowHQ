@@ -21,9 +21,8 @@ const STATES = ["Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Prad
 
 type WebsiteInterest = "has_site" | "wants_site" | "not_now";
 const WEBSITE_OPTIONS: { id: WebsiteInterest; title: string; body: string }[] = [
-  { id: "has_site", title: "Yes, I have one", body: "You can add its address." },
-  { id: "wants_site", title: "No, please build one", body: "FlowQR can build a simple website for you." },
-  { id: "not_now", title: "No, not now", body: "Skip this. You can ask later." },
+  { id: "has_site", title: "Yes, I already have a website", body: "Add its address. Nothing new is built." },
+  { id: "wants_site", title: "No, I don’t have a website", body: "FlowQR can build one for you with AI." },
 ];
 
 /**
@@ -48,7 +47,7 @@ function BusinessForm({ tenant, existing, place, onPlace, onDone }: { tenant: Te
   const [softNote, setSoftNote] = useState<string | null>(null);
   const [needsVerify, setNeedsVerify] = useState(false);
   const [resent, setResent] = useState<string | null>(null);
-  const [interest, setInterest] = useState<WebsiteInterest | null>(tenant?.website_interest ?? (tenant?.website ? "has_site" : null));  // "do you have a website?"
+  const [interest, setInterest] = useState<WebsiteInterest | null>(tenant?.website_interest === "not_now" ? null : tenant?.website_interest ?? (tenant?.website ? "has_site" : null));  // "do you have a website?"
   const [interestError, setInterestError] = useState<string | null>(null);
   const tenantMade = useRef(!!tenant);  // the business exists once it has been saved, even if the location then fails: a retry must not create it twice
   const locId = useRef<string | null>(existing?.id ?? null);
@@ -215,7 +214,7 @@ function BusinessForm({ tenant, existing, place, onPlace, onDone }: { tenant: Te
         <Section icon={Globe} title="Do you have a website?" delay={200}>
           <fieldset aria-describedby={interestError ? "interest-err" : undefined}>
             <legend className="sr-only">Do you have a website?</legend>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {WEBSITE_OPTIONS.map((o) => {
                 const on = interest === o.id;
                 return (
@@ -231,7 +230,7 @@ function BusinessForm({ tenant, existing, place, onPlace, onDone }: { tenant: Te
             {interestError && <p id="interest-err" role="alert" className="mt-2 text-[13px] font-medium text-[#B42318]">{interestError}</p>}
           </fieldset>
           {interest === "has_site" && <Input label="Your website address" inputMode="url" autoComplete="url" placeholder="yourbusiness.in" hint="Optional. We show it on your Google profile checks and your review page." {...f.bind("website")} />}
-          {interest === "wants_site" && <p role="status" className="rounded-[14px] bg-m-tint p-3.5 text-[14px] leading-relaxed text-m-ink">Good. Our team will build a simple website for your business and get in touch to go through it with you. Choosing this creates nothing and charges nothing, and you can change your mind any time.</p>}
+          {interest === "wants_site" && <div role="status" className="rounded-[14px] bg-m-tint p-3.5 text-[14px] leading-relaxed text-m-ink"><p className="font-semibold">Let&rsquo;s build your business website with AI.</p><p>Your AI team will understand your business, create your website and prepare it for you. No coding or technical knowledge required. You create it after choosing your plan, and nothing is published until you approve it.</p></div>}
         </Section>
 
         <Section icon={Star} title="Your Google review link" hint="Optional" delay={240}>

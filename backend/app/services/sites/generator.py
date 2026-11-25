@@ -232,7 +232,7 @@ def _section(content: dict, typ: str) -> dict | None:
     return next((s for s in content["sections"] if s["type"] == typ), None)
 
 
-def _ensure_section(content: dict, template: str, typ: str, heading: str, after: str = "hero") -> dict | None:
+def _ensure_section(content: dict, template: str, typ: str, heading: str, after: str = "hero", before: str | None = None) -> dict | None:
     s = _section(content, typ)
     if s is None and typ in C.allowed_sections(template):
         blank = {f["key"]: ([] if f["kind"] in ("list", "strings") else None if f["kind"] == "asset" else False if f["kind"] == "bool" else "") for f in C.SECTION_TYPES[typ]["fields"]}
@@ -241,6 +241,8 @@ def _ensure_section(content: dict, template: str, typ: str, heading: str, after:
         sid = next(f"g{i:02d}" for i in range(1, 60) if f"g{i:02d}" not in used)
         s = {"id": sid, "type": typ, "enabled": False, "data": blank}
         at = next((i + 1 for i, x in enumerate(content["sections"]) if x["type"] == after), len(content["sections"]))
+        if before:  # opening hours and directions belong just above the contact form, not above what the business does
+            at = next((i for i, x in enumerate(content["sections"]) if x["type"] == before), len(content["sections"]))
         content["sections"].insert(at, s)
     return s
 
@@ -356,9 +358,9 @@ def run(db: Session, job_id: uuid.UUID, *, provider=None) -> str:
         elif not typ:
             notes.append("Add your menu with prices: it is never written by the AI.")
         content = json.loads(json.dumps(site.draft_content))
-        if facts["hours"] and (h := _ensure_section(content, template, "hours", "Opening hours", after="about")) is not None:
+        if facts["hours"] and (h := _ensure_section(content, template, "hours", "Opening hours", before="contact")) is not None:
             h["enabled"] = True
-        if facts.get("address") and (l := _ensure_section(content, template, "location", "Find us", after="about")) is not None:
+        if facts.get("address") and (l := _ensure_section(content, template, "location", "Find us", before="contact")) is not None:
             l["data"]["heading"] = l["data"].get("heading") or "Find us"
             l["enabled"] = True
         if (d := _section(content, "disclaimer")) is not None:

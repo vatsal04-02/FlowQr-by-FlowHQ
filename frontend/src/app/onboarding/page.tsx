@@ -35,6 +35,7 @@ export default function Onboarding() {
     if (tenant?.onboarding_completed) { router.replace("/overview"); return; }
     if (step !== null) return;
     if (!tenant) { setStep(0); return; }
+    if (typeof window !== "undefined" && window.location.search.includes("step=launch")) { setStep(3); return; }  // back from the website stage; the launch step still asks the server what is allowed
     api<Location[]>("/locations").then(async (l) => {
       if (!l.length) { setStep(0); return; }
       // an authorisation already started (or finished) with Cashfree, or a return from its checkout: the plan step, which asks the server what happened
@@ -46,6 +47,12 @@ export default function Onboarding() {
 
   if (step === null || !ready) return <div className="grid min-h-dvh place-items-center bg-[#F7F5F2]"><Spinner /></div>;
 
+  /** A business with no website sees it being built before the launch step, when website building is switched on. */
+  async function afterPlan() {
+    const w = await api<{ enabled: boolean; interest?: string | null }>("/website").catch(() => null);
+    if (w?.enabled && w.interest === "wants_site") router.push("/onboarding/website");
+    else setStep(3);
+  }
   async function signOut() { await logout(); router.replace("/login"); }
   const place: PlaceDetails | null = mem.place;
 
@@ -53,7 +60,7 @@ export default function Onboarding() {
     <WizardShell step={step} email={me?.user.email} onSignOut={() => void signOut()} onGo={(i) => i < step && setStep(i)}>
       {step === 0 && <BusinessStep tenant={tenant} place={place} onPlace={(p) => update({ place: p })} onDone={async () => { await refresh(); setStep(1); }} />}
       {step === 1 && <ReviewsStep method={mem.method} onMethod={(m) => update({ method: m })} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
-      {step === 2 && <PlanStep onBack={() => setStep(1)} onDone={() => { setReason(null); setStep(3); }} reason={reason} />}
+      {step === 2 && <PlanStep onBack={() => setStep(1)} onDone={() => { setReason(null); void afterPlan(); }} reason={reason} />}
       {step === 3 && <LaunchStep method={mem.method} businessName={tenant?.name ?? place?.name ?? ""} onBack={() => setStep(2)} onNeedAuthorization={(why) => { setReason(why); setStep(2); }} />}
     </WizardShell>
   );

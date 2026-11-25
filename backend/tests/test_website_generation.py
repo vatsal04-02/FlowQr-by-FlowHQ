@@ -84,6 +84,8 @@ def test_a_business_without_a_website_gets_a_draft_in_the_existing_builder_from_
     assert sec(st, "hero")["data"]["heading"].startswith("Physiotherapy for back")
     assert [i["title"] for i in sec(st, "services")["data"]["items"]] == ["Back care", "Neck pain physiotherapy"]  # the invented service never appears
     assert sec(st, "services")["enabled"] and sec(st, "contact")["enabled"] and sec(st, "disclaimer")["enabled"]
+    order = [s["type"] for s in st["site"]["sections"] if s["enabled"]]
+    assert order.index("services") < order.index("location") < order.index("contact")  # what the business does comes before where it is
     for never in ("credentials", "gallery", "faqs", "trust"):
         assert sec(st, never) is None or sec(st, never)["enabled"] is False
     assert any("photos" in n.lower() for n in st["job"]["notes"])
