@@ -68,6 +68,7 @@ class ReviewDraft(IdMixin, TimestampMixin, Base):
     final_content: Mapped[str | None] = mapped_column(Text)  # the customer's own approved/edited text
     generation_count: Mapped[int] = mapped_column(Integer, default=0)
     ai_writes: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")  # AI-written versions this visit has actually received (migration 0069); capped by REVIEW_MAX_AI_WRITES_PER_SESSION
+    suggestions: Mapped[list | None] = mapped_column(JSONB)  # every AI suggestion shown in the latest round (migration 0072); NULL = just generated_content
     ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

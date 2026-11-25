@@ -4,6 +4,7 @@ tenant data beyond what the customer should see, and customer text only ever sto
 Customer flow: GET page -> POST generate (their words -> draft, or mode "manual") -> POST regenerate (optional) -> POST approve (customer's final
 text) -> POST redirect (record the click, return the Google link). We never post to Google. Every customer gets the same
 flow whatever rating or sentiment they give."""
+import random
 import re
 import time
 from datetime import timedelta
@@ -157,7 +158,7 @@ def _draft_payload(session: ReviewSession | None, draft: ReviewDraft | None, *, 
     return {
         "session_id": session.session_identifier if session else None, "draft": draft.generated_content if draft else None,
         "ai_status": ai_status, "message": message, "retryable": retryable,
-        "generation_count": count, "remaining_drafts": max(0, min(draft_limit(tid) - count, ai_write_limit(tid) - ((draft.ai_writes or 0) if draft else 0))),
+        "suggestions": suggestions_of(draft), "generation_count": count, "remaining_drafts": max(0, min(draft_limit(tid) - count, ai_write_limit(tid) - ((draft.ai_writes or 0) if draft else 0))),
         "style": session.style if session else None, "language": session.language if session else language, "disclaimer": DISCLAIMER,
     }
 
@@ -177,10 +178,13 @@ def recent_reviews(db: Session, tenant, campaign, session: ReviewSession, limit:
     """What other customers of this location were recently given, so each new review can be written to read differently (and is rejected if it is too close). Only drafts built from
     stars and topics are used: a draft that contains someone's own typed words is never sent to the AI as an example for another customer."""
     camp_ids = select(ReviewCampaign.id).where(ReviewCampaign.tenant_id == tenant.id, ReviewCampaign.location_id == campaign.location_id)
-    rows = db.execute(select(ReviewDraft.generated_content, ReviewSession.customer_input).join(ReviewSession, ReviewSession.id == ReviewDraft.session_id)
+    rows = db.execute(select(ReviewDraft.generated_content, ReviewSession.customer_input, ReviewDraft.suggestions).join(ReviewSession, ReviewSession.id == ReviewDraft.session_id)
                       .where(ReviewSession.tenant_id == tenant.id, ReviewSession.campaign_id.in_(camp_ids), ReviewDraft.session_id != session.id,
                              ReviewDraft.generated_content.is_not(None)).order_by(ReviewDraft.updated_at.desc()).limit(limit * 3)).all()
-    out = [text for text, ci in rows if text and not (ci or {}).get("text") and not (ci or {}).get("details")]
+    out: list[str] = []
+    for text, ci, shown in rows:  # every suggestion a customer was shown counts, not just the first, so a business's reviews stay different from each other
+        if text and not (ci or {}).get("text") and not (ci or {}).get("details"):
+            out.extend(s for s in (shown or [text]) if isinstance(s, str) and s)
     return tuple(reversed(out[:limit]))
 
 
@@ -193,6 +197,23 @@ def _context_with_voice(db: Session, tenant, bctx) -> str:
         voice = ""
     voice = " ".join(voice.split())[:120]
     return block + (f"\nOwner's preferred tone (wording style only, never facts): {voice}." if voice else "")
+
+
+def suggestions_of(draft: ReviewDraft | None) -> list[str]:
+    """The suggestions the customer is choosing between: the latest round's list, or the single draft of an older visit."""
+    if draft is None:
+        return []
+    shown = [s for s in (draft.suggestions or []) if isinstance(s, str) and s.strip()]
+    return shown or ([draft.generated_content] if draft.generated_content else [])
+
+
+_STYLE_ORDER = ("natural", "short", "warm", "professional", "detailed")  # most different from each other first
+
+
+def round_styles(base: str, allowed: list[str], n: int) -> list[str]:
+    """The writing style of each suggestion in a round: the customer's/owner's style first, then the other styles the owner allows, so the suggestions differ in tone and length as well as in wording."""
+    others = [s for s in _STYLE_ORDER if s in allowed and s != base]
+    return ([base] + others + [base] * n)[:n]
 
 
 def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, draft: ReviewDraft, *, ip: str, ua: str | None, refine: bool = False) -> dict:
@@ -209,7 +230,7 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
                       topic_notes=tuple(f"{t.en}: {m.about}." + _describing(m.words, sentiment) for t, m in meanings if m),
                       topic_ok=tuple(w for _, m in meanings if m for w in m.words) if sentiment != "okay" else (),  # a neutral review uses no describing words at all
                       topic_hi=tuple(t.hi for t in chosen))
-    previous = () if refine else tuple(p for p in (draft.generated_content,) if p)
+    previous = () if refine else tuple(dict.fromkeys(p for p in (*suggestions_of(draft),) if p))  # everything this customer was already shown
     recent = recent_reviews(db, tenant, campaign, session)
     first = draft.generation_count == 0
 
@@ -235,9 +256,22 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
         return fail("error", UNAVAILABLE_MESSAGE, "unavailable", f"paused: {paused['code']}", False)
     try:
         provider = metered(get_provider(), db, tenant.id, "review_generate")
-        text = generate_review(provider, inp, language=session.language, style=session.style, business_name=tenant.name,
-                               category=tenant.category, location_name=loc.name, previous=previous, recent=recent,
-                               context_text=_context_with_voice(db, tenant, bctx), offered_terms=bctx.offered_terms(), stats=stats)
+        n = max(1, min(3, settings.review_suggestions_per_round))
+        styles = round_styles(session.style, list(Customization.model_validate(campaign.customization or {}).allowed_styles), n)
+        start = random.randrange(1000)  # consecutive "shape" numbers from a random start: no two suggestions in a round are told to open or build sentences the same way
+        common = dict(language=session.language, business_name=tenant.name, category=tenant.category, location_name=loc.name, recent=recent,
+                      context_text=_context_with_voice(db, tenant, bctx), offered_terms=bctx.offered_terms())
+        text = generate_review(provider, inp, style=styles[0], previous=previous, stats=stats, shape=start if n > 1 else None, **common)
+        shown = [text]
+        for i in range(1, n):  # the extra suggestions are bonuses: if one cannot be written faithfully the customer simply sees fewer, never an error
+            try:
+                extra = generate_review(provider, inp, style=styles[i], previous=(*previous, *shown), stats={}, shape=start + i, **common)
+            except (NeedsMoreDetail, ReviewDraftRejected):
+                continue
+            except AIUnavailable:
+                break
+            if extra not in shown:
+                shown.append(extra)
     except NeedsMoreDetail:
         log("needs_more")
         svc.record_event(db, campaign, "needs_more", ip=ip, ua=ua, session=session)
@@ -251,7 +285,7 @@ def _run_generation(db: Session, campaign, tenant, loc, session: ReviewSession, 
         return fail("error", UNAVAILABLE_MESSAGE, "unavailable", f"{exc.code}: {exc}", exc.code in RETRYABLE)
 
     ai_health.clear()
-    draft.generated_content, draft.ai_assisted = text, True
+    draft.generated_content, draft.ai_assisted, draft.suggestions = text, True, shown
     draft.ai_writes = (draft.ai_writes or 0) + 1  # a version the customer actually received (a failed attempt never gets here)
     log("ok", None, len(text))
     if first or not refine:  # a refinement after the first draft is neither a new draft nor a "Regenerate" in the numbers

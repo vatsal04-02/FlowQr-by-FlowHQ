@@ -248,8 +248,17 @@ def _length_hint(inp: ReviewInput) -> str:
             "and never add an unsupported detail to reach a word count.")
 
 
+def _shape_hints(inp: ReviewInput, shape: int | None) -> tuple[str, str]:
+    """The opening and sentence-shape instruction. Alone (shape None) they are chosen at random, as always. When one round writes several suggestions, each gets its own `shape` number
+    (consecutive numbers from a random start), so no two suggestions in the round are told to open or build their sentences the same way."""
+    openings = VARIATION_HINTS + {"good": VARIATION_POSITIVE, "not_good": VARIATION_NEGATIVE}.get(inp.sentiment, ())
+    if shape is None:
+        return random.choice(openings), random.choice(STRUCTURE_HINTS)
+    return openings[shape % len(openings)], STRUCTURE_HINTS[(shape * 3 + 1) % len(STRUCTURE_HINTS)]
+
+
 def _prompt(inp: ReviewInput, *, language: str, style: str, business_name: str, category: str | None,
-            location_name: str | None, previous: tuple[str, ...], retry_reason: str | None, context_text: str = "", recent: tuple[str, ...] = ()) -> str:
+            location_name: str | None, previous: tuple[str, ...], retry_reason: str | None, context_text: str = "", recent: tuple[str, ...] = (), shape: int | None = None) -> str:
     lines = [
         "BUSINESS CONTEXT (background about what the business offers; never evidence of what this customer received)",
         f"Business: {business_name}" + (f", {location_name}" if location_name else ""),  # the business TYPE is withheld here: it lets a model guess the service
@@ -265,7 +274,7 @@ def _prompt(inp: ReviewInput, *, language: str, style: str, business_name: str, 
         (f"The customer rated their visit {inp.rating} out of 5. {RATING_TONE[inp.rating]} Never write the number or the word 'stars'. "
          + (SENTIMENT_RULE[inp.sentiment] if inp.sentiment in SENTIMENT_RULE else "")
          if inp.rating else SENTIMENT_RULE.get(inp.sentiment, SENTIMENT_RULE[None])),
-        random.choice(VARIATION_HINTS + {"good": VARIATION_POSITIVE, "not_good": VARIATION_NEGATIVE}.get(inp.sentiment, ())), random.choice(STRUCTURE_HINTS),
+        *_shape_hints(inp, shape),
     ]
     if inp.topic_alts:
         lines.append("Natural ways to refer to the chosen topics (vary between them; they add no facts): " + "; ".join(inp.topic_alts))
@@ -596,7 +605,7 @@ def _retry_hint(exc: ReviewDraftRejected, hint: str) -> str:
 def generate_review(provider: LLMProvider, inp: ReviewInput, *, language: str, style: str, business_name: str,
                     category: str | None = None, location_name: str | None = None,
                     previous: tuple[str, ...] = (), verify: bool | None = None, context_text: str = "",
-                    offered_terms: tuple[str, ...] = (), stats: dict | None = None, recent: tuple[str, ...] = ()) -> str:
+                    offered_terms: tuple[str, ...] = (), stats: dict | None = None, recent: tuple[str, ...] = (), shape: int | None = None) -> str:
     """One draft grounded in `inp`: generate, run the deterministic checks, then (if enabled) an AI fact-check. A failed check
     triggers one retry that tells the model what was wrong; a second failure raises ReviewDraftRejected."""
     if language not in LANGUAGES or style not in STYLES:
@@ -616,7 +625,7 @@ def generate_review(provider: LLMProvider, inp: ReviewInput, *, language: str, s
     for _ in range(max(1, settings.review_max_attempts)):
         stats["attempts"] += 1
         raw = provider.generate(SYSTEM, _prompt(inp, language=language, style=style, business_name=business_name, category=category,
-                                                location_name=location_name, previous=previous, retry_reason=hint, context_text=context_text, recent=recent),
+                                                location_name=location_name, previous=previous, retry_reason=hint, context_text=context_text, recent=recent, shape=shape),
                                 max_tokens=500, temperature=0.65)  # faithful rewriting, not creative writing; variety comes from the opening hint and earlier drafts
         text = _repair(_clean_output(raw), inp) if language == "en" else _clean_output(raw)
         if re.match(r"^\W*NEEDS[_ ]?MORE\b", text, re.I):  # the model judged the input too thin (_clean_output strips the underscore)

@@ -5,7 +5,7 @@ import { Check, ChevronDown, Clock, Copy, ExternalLink, Globe, Loader2, Pencil, 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LandingFrame } from "@/components/review-growth/LandingFrame";
 import { api, ApiError } from "@/lib/api";
-import { COPY, effectiveBrand, type Background, type Lang, type Rating, type Topic } from "@/lib/review-growth";
+import { COPY, effectiveBrand, optionsOf, type Background, type Lang, type Rating, type Topic } from "@/lib/review-growth";
 
 interface Landing {
   state: "ok";
@@ -21,6 +21,7 @@ interface Landing {
 interface DraftResp {
   session_id: string | null; draft: string | null; ai_status: "ok" | "manual" | "needs_more" | "rejected" | "unavailable"; ask?: "detail";
   retryable: boolean; generation_count: number; remaining_drafts: number; follow_up?: string | null;
+  suggestions?: string[]; // the 2-3 different suggestions of this round (the first is also `draft`)
 }
 /** Where the text in the box came from: a neutral AI opener, a rewrite from the customer's stars/topics, or the customer's own typing. */
 type Origin = "none" | "refined";
@@ -77,6 +78,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
   const [rating, setRating] = useState<Rating | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [text, setText] = useState("");
+  const [options, setOptions] = useState<string[]>([]);  // the suggestions of the latest AI round the customer can start from
   const [aiText, setAiText] = useState("");          // the last text the AI wrote into the box: anything else in there is the customer's own
   const [origin, setOrigin] = useState<Origin>("none");
   const [loading, setLoading] = useState<null | "refine">(null);
@@ -99,6 +101,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
 
   const textRef = useRef(text); textRef.current = text;
   const aiRef = useRef(aiText); aiRef.current = aiText;
+  const undoAi = useRef<string | null>(null);  // the suggestion that was highlighted before a switch, so Undo puts the highlight back too
   const sessionRef = useRef(session); sessionRef.current = session;
   const originRef = useRef(origin); originRef.current = origin;
   const ratingRef = useRef(rating); ratingRef.current = rating;
@@ -191,7 +194,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
       if (r.ai_status === "ok" && r.draft) {
         if (!replaceEdits && textRef.current !== before) { setAsk(true); return; } // they typed while we were writing: never overwrite
         if (mine) setUndo(before); else setUndo(null);
-        setText(r.draft); setAiText(r.draft); setOrigin("refined"); setFollowUp(r.follow_up ?? null); setHandoff(null); trackCard("ai_assist");
+        setText(r.draft); setAiText(r.draft); setOptions(optionsOf(r)); setOrigin("refined"); setFollowUp(r.follow_up ?? null); setHandoff(null); trackCard("ai_assist");
         writtenKey.current = `${rating ?? ""}|${[...picked].sort().join(",")}|${lang}`; setLeft(r.remaining_drafts);
       } else if (r.ai_status === "needs_more") setNotice({ tone: "info", text: t.askMore });
       else if (r.ai_status === "rejected") setNotice({ tone: "error", text: t.rejected, retry: () => void refine(false) });
@@ -278,13 +281,20 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
     pickRating(n);
     requestAnimationFrame(() => starsRef.current?.querySelectorAll<HTMLElement>("[role=radio]")[n - 1]?.focus());
   }
+  /** Start from one of the suggestions. Whatever was in the box before can be brought back with Undo: choosing never throws a customer's own edits away. */
+  function choose(o: string) {
+    if (o.trim() === aiRef.current.trim() && !edited()) return;
+    if (edited()) { setUndo(textRef.current); undoAi.current = aiRef.current; }
+    setText(o); setAiText(o); setOrigin("refined"); setShort(false); setHandoff(null);
+  }
+
   async function another() { // the second (and last) AI version: from their changed picks if they changed them, otherwise a different wording of the same thing
     if (!sessionRef.current || (left !== null && left <= 0)) return;
     if (selKey !== writtenKey.current) { void refine(true); return; }
     setLoading("refine"); setNotice(null);
     try {
       const r = await post<DraftResp>(campaignId, "/regenerate", { session_id: sessionRef.current, language: lang });
-      if (r.ai_status === "ok" && r.draft) { setText(r.draft); setAiText(r.draft); setFollowUp(r.follow_up ?? null); setLeft(r.remaining_drafts); }
+      if (r.ai_status === "ok" && r.draft) { setText(r.draft); setAiText(r.draft); setOptions(optionsOf(r)); setFollowUp(r.follow_up ?? null); setLeft(r.remaining_drafts); }
       else setNotice({ tone: "info", text: t.noOther });
     } catch (e) {
       if (e instanceof ApiError && e.status === 429) { setLeft(0); setNotice({ tone: "info", text: t.usedUp }); }
@@ -422,6 +432,24 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
                 ) : <span />}
                 {showNew && <button type="button" onClick={() => void another()} className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-bold text-[#171A45]"><RefreshCw className="h-4 w-4" aria-hidden />{t.another}</button>}
               </div>
+              {!busy && options.length > 1 && (
+                <div className="mt-2.5" role="radiogroup" aria-label={t.pickTitle} data-testid="options">
+                  <p className="text-[12.5px] font-bold text-ink-500">{t.pickTitle}</p>
+                  <div className="mt-1.5 grid gap-2">
+                    {options.map((o, i) => {
+                      const on = o.trim() === aiText.trim();
+                      return (
+                        <button key={i} type="button" role="radio" aria-checked={on} onClick={() => choose(o)} data-testid="option"
+                          className={clsx("min-h-11 w-full rounded-xl border px-3 py-2.5 text-left transition active:translate-y-px", ring, on ? "border-[color:var(--brand)] bg-[#FFF7F1] ring-1 ring-[color:var(--brand)]" : "border-ink-200 bg-white hover:bg-ink-50")}>
+                          <span className="mb-0.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wide text-ink-500">{on && <Check className="h-3.5 w-3.5" aria-hidden />}{t.optionN} {i + 1}</span>
+                          <span className="line-clamp-3 text-[14.5px] leading-[1.45] text-ink">{o}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] leading-snug text-ink-500">{t.pickHint}</p>
+                </div>
+              )}
               <div className="relative mt-2">
                 <textarea id="review" ref={boxRef} rows={3} value={text} maxLength={max} readOnly={busy || sending} aria-busy={busy || undefined} aria-describedby="review-hint" placeholder={t.editorPh}
                   onChange={(e) => { setText(e.target.value); setShort(false); setUndo(null); if (handoff?.copied === false) setHandoff(null); }}
@@ -442,7 +470,7 @@ export default function ReviewLanding({ campaignId, via }: { campaignId: string;
               <div className="mt-1 flex items-center justify-between gap-3 text-sm">
                 <span className="min-w-0 flex-1 text-[12.5px] leading-snug text-ink-500" aria-live="polite">{noneLeft && origin !== "none" ? t.usedUp : picksChanged && !noneLeft && !isEdited ? t.changed : ""}</span>
                 <div className="flex items-center gap-3">
-                  {!busy && undo && <button type="button" onClick={() => { setText(undo); setUndo(null); setOrigin("none"); }} className="min-h-11 text-[13.5px] font-bold text-[#171A45] hover:underline">{t.undo}</button>}
+                  {!busy && undo && <button type="button" onClick={() => { setText(undo); setUndo(null); setOrigin("none"); if (undoAi.current !== null) { setAiText(undoAi.current); undoAi.current = null; } }} className="min-h-11 text-[13.5px] font-bold text-[#171A45] hover:underline">{t.undo}</button>}
                   {!busy && isEdited && aiText.trim() && !undo && <button type="button" onClick={() => { setText(aiText); setOrigin("refined"); setShort(false); }} className="min-h-11 text-[13.5px] font-bold text-[#9A3412] hover:underline">{t.reset}</button>}
                   <button type="button" onClick={() => { boxRef.current?.focus(); const n = boxRef.current?.value.length ?? 0; boxRef.current?.setSelectionRange(n, n); }} className="inline-flex min-h-11 items-center gap-1.5 text-[13.5px] font-bold text-[#171A45]"><Pencil className="h-3.5 w-3.5" aria-hidden />{t.editBtn}</button>
                 </div>

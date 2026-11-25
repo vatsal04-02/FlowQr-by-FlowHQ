@@ -242,6 +242,7 @@ class Settings(BaseSettings):
     review_max_drafts_per_session: int = 5  # 1 generation + 4 regenerations
     review_max_ai_writes_per_session: int = 2  # REVIEW_MAX_AI_WRITES_PER_SESSION: the most AI-written versions ONE customer visit can ever get, counting the first write, every "New version" and every rewrite after changing picks
     review_ai_writes_overrides: str = ""  # REVIEW_AI_WRITES_OVERRIDES: TESTING ONLY, "<business id>:10" lets that business's customer visits have more AI versions (services/review_limits.py); empty = everyone gets the default
+    review_suggestions_per_round: int = 3  # REVIEW_SUGGESTIONS_PER_ROUND: how many different suggestions one AI round shows (1-3). 1 = the single draft of before. One round counts as ONE AI version for the per-visit and monthly allowances
     review_max_refinements: int = 15  # times a customer can change stars/topics and have the draft rewritten in one session (the page does this automatically)
     # Direct submission to Google from inside FlowQR. NOT AVAILABLE: needs Google partner/API approval that is not publicly obtainable (docs/GOOGLE_DIRECT_REVIEWS.md).
     # Even "approved" does nothing until a real, verified implementation is registered in services/review_submit/google_direct.py.
