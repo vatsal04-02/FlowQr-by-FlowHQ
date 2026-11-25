@@ -134,7 +134,7 @@ def test_a_verified_authorisation_starts_the_seven_day_trial_exactly_once(mandat
     assert abs((row[0] - utcnow()).total_seconds()) < 120 and abs((row[1] - row[0]).total_seconds() / 86400 - settings.trial_days) < 0.01 and row[3] == row[1]
     assert 3600 * 10 < (s["first_charge_at"] - row[1]).total_seconds() < 3600 * 36  # day 8: the first payment follows the 7 trial days
     api = info(biz)
-    assert api["active"] is True and api["status"] == "trialing" and api["billing_state"] == "trialing" and api["trial_days_left"] in (6, 7) and api["limits"]["review_generations"] == 400
+    assert api["active"] is True and api["status"] == "trialing" and api["billing_state"] == "trialing" and api["trial_days_left"] in (6, 7) and api["limits"]["review_generations"] == settings.trial_review_generations
     assert api["trial_started_at"] is not None and api["payment_method"] == "upi" or api["payment_method"] is None
     assert api["next_charge_amount_paise"] == 79900 and api["pending_plan_name"] == "Growth"
     assert events_of(biz).count("trial_started") == 1
@@ -260,7 +260,7 @@ def test_the_whole_gated_journey_authorise_trial_first_charge_second_charge(mand
     mandate.set_status(sid, "ACTIVE", next_charge=utcnow() + timedelta(days=68))
     charge(mandate, biz, sid, 49900, pid="second")
     assert sub_of(biz)["status"] == "active" and events_of(biz).count("activated") == 1 and events_of(biz).count("renewed") == 1
-    assert info(biz)["plan_name"] == "Launch" and info(biz)["limits"]["review_generations"] == 200
+    assert info(biz)["plan_name"] == "Launch" and info(biz)["limits"]["review_generations"] == 150
 
 
 def test_a_failed_card_payment_can_be_retried_by_the_owner_within_cashfrees_limits(mandate):

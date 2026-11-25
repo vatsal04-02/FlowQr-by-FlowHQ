@@ -270,6 +270,8 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
     razorpay_webhook_secret: str = ""
+    trial_review_generations: int = 10  # TRIAL_REVIEW_GENERATIONS: what a free trial may write, whatever the plan whose features it borrows (owner decision 2026-11-25)
+    trial_review_replies: int = 10  # TRIAL_REVIEW_REPLIES
     trial_days: int = 7
     trial_plan: str = "growth"  # trial grants this plan's limits/features
 

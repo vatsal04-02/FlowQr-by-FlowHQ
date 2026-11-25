@@ -58,9 +58,9 @@ export interface Spec {
   campaigns: number | null;
 }
 export const SPEC: Record<string, Spec> = {
-  starter: { position: "Essential review management for small businesses.", writing: 200, replies: 200, analytics: "Basic", localSeo: null, advancedSeo: null, posts: null, campaigns: null },
-  growth: { position: "Review management with local SEO and business growth capabilities.", writing: 400, replies: 400, analytics: "Advanced", localSeo: "Included", advancedSeo: "Included", posts: null, campaigns: null },
-  pro: { position: "Advanced local SEO, AI-powered growth and marketing.", writing: 600, replies: 600, analytics: "Advanced, with ranking insights", localSeo: "Advanced", advancedSeo: "Advanced", posts: 30, campaigns: 5 },
+  starter: { position: "Essential review management for small businesses.", writing: 150, replies: 150, analytics: "Basic", localSeo: null, advancedSeo: null, posts: null, campaigns: null },
+  growth: { position: "Review management with local SEO and business growth capabilities.", writing: 300, replies: 300, analytics: "Advanced", localSeo: "Included", advancedSeo: "Included", posts: null, campaigns: null },
+  pro: { position: "Advanced local SEO, AI-powered growth and marketing.", writing: 500, replies: 500, analytics: "Advanced, with ranking insights", localSeo: "Advanced", advancedSeo: "Advanced", posts: 30, campaigns: 5 },
 };
 /** Specified but not yet an entitlement in the backend: shown with its number AND a "Coming soon" tag, so the page never says it is live. */
 export const NOT_YET_BUILT = new Set(["campaigns"]);

@@ -95,3 +95,6 @@ Legend: **S** = secret (never commit, never log, never send to the browser) · *
 | `GEMINI_API_KEY`, `RANK_PROVIDER_KEY`, `SMTP_PASSWORD`, `GOOGLE_CLIENT_SECRET` | rotate at the provider, update `.env`, restart `api worker beat` | none beyond the restart |
 | `POSTGRES_PASSWORD` / `APP_DB_PASSWORD` | `ALTER ROLE ... PASSWORD`, update `.env` and the URLs, restart | brief downtime |
 | Backup passphrase | create a new one; **old backups need the old one**: keep both until the old backups are past retention | none |
+
+| `TRIAL_REVIEW_GENERATIONS`, `TRIAL_REVIEW_REPLIES` | 10, 10 | What a free trial may write and reply with in AI, whatever the plan whose features it borrows (owner decision 2026-11-25). Paid plans: Launch 150/150, Growth 300/300, Scale 500/500 (migration 0071). |
+| `RL_REGISTER_PER_HOUR` | 10 | New accounts one network address may create per hour. |

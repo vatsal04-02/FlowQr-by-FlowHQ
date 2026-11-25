@@ -63,6 +63,13 @@ def apply_plan(sub: Subscription, plan: BillingPlan) -> None:
     sub.features = list(plan.features or [])
 
 
+def cap_trial_allowance(sub: Subscription) -> None:
+    """A free trial gets the features of `trial_plan` but only a small AI allowance (owner decision 2026-11-25). Never raises a limit that is already lower."""
+    gen = min(sub.review_generations or 0, settings.trial_review_generations)
+    rep = min(sub.review_replies or 0, settings.trial_review_replies)
+    sub.review_generations, sub.review_replies, sub.monthly_ai_generations = gen, rep, gen + rep
+
+
 def start_trial(db: Session, tenant_id: uuid.UUID) -> Subscription:
     plan = db.get(BillingPlan, settings.trial_plan)
     now = utcnow()
@@ -72,6 +79,7 @@ def start_trial(db: Session, tenant_id: uuid.UUID) -> Subscription:
         if plan:
             apply_plan(sub, plan)
             sub.plan = "trial"
+            cap_trial_allowance(sub)
         db.add(sub)
         log_event(db, tenant_id, "signup_awaiting_authorization", source="system", to_status="incomplete", to_plan="trial", meta={"days": settings.trial_days, "features_of": settings.trial_plan})
         return sub
@@ -81,6 +89,7 @@ def start_trial(db: Session, tenant_id: uuid.UUID) -> Subscription:
     if plan:
         apply_plan(sub, plan)
         sub.plan = "trial"
+        cap_trial_allowance(sub)
     db.add(sub)
     log_event(db, tenant_id, "trial_started", source="system", to_status="trialing", to_plan="trial", meta={"days": settings.trial_days, "features_of": settings.trial_plan})
     return sub
