@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.models import AIGenerationLog, GoogleLocation, Location, RetiredCampaignId, ReviewCampaign, ReviewEvent, ReviewSession, Tenant
 from app.models.base import utcnow
 from app.services import cards as cards_svc
-from app.services.review_suggestions import CATALOG, resolve_category, topics_for
+from app.services.review_suggestions import CATALOG, all_topics, resolve_category, topics_for
 
 # Funnel stages. Each is recorded at most once per customer session, so rates between stages never exceed 100%.
 FUNNEL = (
@@ -138,6 +138,7 @@ def topic_popularity(db: Session, ev, tenant: Tenant | None) -> tuple[list[dict]
     if tenant is not None:  # this business's own wording wins where ids are shared between categories
         key = resolve_category(tenant.category, (tenant.review_context or {}).get("category_key"))
         labels.update({t.id: t.en for t in topics_for(key)})
+        labels.update({t.id: t.en for t in all_topics(tenant.review_context, key)})  # and the business's own service chips
     out = [{"id": sid, "label": labels.get(sid, sid.replace("_", " ").capitalize()), "count": n} for sid, n, _ in rows]
     out.sort(key=lambda r: (-r["count"], r["label"]))
     return out, sessions

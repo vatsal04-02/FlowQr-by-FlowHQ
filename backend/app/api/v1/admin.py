@@ -573,6 +573,12 @@ def _email_of(db, user_id) -> str | None:
     return db.scalar(select(User.email).where(User.id == user_id)) if user_id else None
 
 
+def _review_keywords(t: Tenant) -> dict:
+    from app.services import provisioning as prov
+
+    return prov.review_keywords(t)
+
+
 def _provisioning_detail(db, t: Tenant) -> dict:
     """What the Business page adds for admin-managed businesses: the offline agreement record, claim invitations, this month's AI use and cost, and whether claiming is switched on."""
     from app.core.config import settings
@@ -608,7 +614,7 @@ def tenant_detail(tenant_id: uuid.UUID, ctx: AuthContext = Depends(require_platf
     ai_month = db.scalar(select(func.count()).select_from(AIGenerationLog).where(AIGenerationLog.tenant_id == t.id, AIGenerationLog.created_at >= month_start())) or 0
     return {
         "tenant": _tenant_row(db, t, sub, next((u.email for m, u in members if m.role == _R.owner), None)) | {"support_note": t.support_note, "email": t.email, "phone": t.phone, "address": t.address,
-                                                                                                         "website": t.website, "created_by": _email_of(db, t.created_by), "updated_by": _email_of(db, t.updated_by), "updated_at": t.updated_at},
+                                                                                                         "website": t.website, **_review_keywords(t), "created_by": _email_of(db, t.created_by), "updated_by": _email_of(db, t.updated_by), "updated_at": t.updated_at},
         **_provisioning_detail(db, t),
         "subscription": None if not sub else {c: getattr(sub, c) for c in ("plan", "status", "source", "max_locations", "monthly_ai_generations", "max_staff", "features",
                                                                            "trial_ends_at", "current_period_end", "cancel_at_period_end", "past_due_since", "razorpay_subscription_id")},

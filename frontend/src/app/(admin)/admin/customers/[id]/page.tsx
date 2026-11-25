@@ -18,7 +18,7 @@ import { SUB_TONE, type TenantRow } from "@/lib/admin-ui";
 import { WebsiteCard } from "@/components/admin/site/WebsiteCard";
 import { WhatsAppAddonCard } from "@/components/admin/WhatsAppAddonCard";
 import { DataRequestsCard, type DataRequestInfo } from "@/components/admin/DataRequestsCard";
-import { AgreementCard, BusinessDetailsCard, ClaimCard, LocationsCard, ManagedAccessCard, type AgreementInfo, type BusinessInfo, type ClaimInfo, type LocationInfo, type UsageInfo } from "@/components/admin/BusinessPanels";
+import { AgreementCard, BusinessDetailsCard, ClaimCard, KeywordsCard, LocationsCard, ManagedAccessCard, type AgreementInfo, type BusinessInfo, type ClaimInfo, type LocationInfo, type UsageInfo } from "@/components/admin/BusinessPanels";
 
 interface Detail {
   tenant: TenantRow & { support_note: string | null; email: string | null; phone: string | null; address: string | null; website: string | null; created_by: string | null; updated_by: string | null; updated_at: string | null };
@@ -74,6 +74,7 @@ export default function CustomerDetail() {
         <Card><CardHeader title="Team" /><ul className="divide-y divide-ink-100 text-sm">{d.members.length === 0 && <li className="py-2 text-ink-500">No one has a login for this business. Its cards, scans and review page work without one.</li>}{d.members.map((m) => (
           <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><div><p className="font-semibold">{m.full_name} <Badge tone={m.role === "owner" ? "blue" : "gray"}>{m.role}</Badge></p><p className="text-ink-500">{m.email}{!m.email_verified && " · unverified"}</p></div>
             <Button size="sm" variant={m.is_active ? "danger" : "secondary"} onClick={async () => { if (await confirm({ title: `${m.is_active ? "Deactivate" : "Reactivate"} ${m.email}?`, tone: m.is_active ? "danger" : "neutral", confirmLabel: m.is_active ? "Deactivate" : "Reactivate" })) void run(() => api(`/admin/users/${m.user_id}`, { method: "PATCH", body: { is_active: !m.is_active } }), "User updated."); }}>{m.is_active ? "Deactivate" : "Reactivate"}</Button></li>))}</ul></Card>
+        <KeywordsCard b={{ ...t, is_active: t.is_active } as BusinessInfo} reload={reload} />
         <LocationsCard tenantId={id} locations={d.locations} reload={reload} />
         <WebsiteCard tenantId={id} />
         <WhatsAppAddonCard tenantId={id} />

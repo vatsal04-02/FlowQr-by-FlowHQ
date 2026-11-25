@@ -60,14 +60,19 @@ def create_business(body: AdminBusinessIn, request: Request, ctx: AuthContext = 
 def edit_business(tenant_id: uuid.UUID, body: BusinessPatchIn, request: Request, ctx: AuthContext = Depends(require_platform_admin)):
     t = _tenant_or_404(ctx, tenant_id)
     changes = body.model_dump(exclude_unset=True)
+    if "services" in changes:  # the review page's keywords come from this list (services/review_suggestions.all_topics)
+        rc = dict(t.review_context or {})
+        rc["services"] = changes.pop("services") or []
+        t.review_context = rc
+        changes["services"] = None  # recorded in the audit entry by name only
     for k, v in changes.items():
-        if k == "name" and v is None:
+        if k == "services" or (k == "name" and v is None):
             continue
         setattr(t, k, v)
     t.updated_by = ctx.user.id
     audit(ctx.db, action="admin.business_edit", tenant_id=t.id, user_id=ctx.user.id, entity_type="tenant", entity_id=t.id, ip=client_ip(request), meta={"fields": sorted(changes)})
     ctx.db.commit()
-    return {"id": t.id, "name": t.name, "category": t.category, "contact_name": t.contact_name, "phone": t.phone, "email": t.email, "address": t.address, "website": t.website}
+    return {"id": t.id, "name": t.name, "category": t.category, "contact_name": t.contact_name, "phone": t.phone, "email": t.email, "address": t.address, "website": t.website, **prov.review_keywords(t)}
 
 
 @router.post("/tenants/{tenant_id}/locations", status_code=201)

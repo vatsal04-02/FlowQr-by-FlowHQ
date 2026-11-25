@@ -16,7 +16,7 @@ from app.core.rate_limit import client_ip, hit
 from app.models import GoogleConnection, GoogleConnectionStatus, Location, RetiredCampaignId, ReviewCampaign, ReviewSession, Role
 from app.models.base import utcnow
 from app.services.review_suggestions import (
-    CATALOG, LANGUAGES, MAX_DESCRIPTION, MAX_SERVICES, category_options, merged_context, resolve_category, topics_for,
+    CATALOG, LANGUAGES, MAX_DESCRIPTION, MAX_SERVICE_CHIPS, MAX_SERVICES, all_topics, category_options, merged_context, resolve_category, topics_for,
 )
 from app.schemas.review_growth import (
     AITestIn, ContextIn, CampaignCreateIn, CampaignOut, CampaignPatchIn, CampaignStats, Customization, DeactivateCodeIn, OldCode, ReviewUrlIn,
@@ -269,13 +269,15 @@ def analytics(ctx: TenantContext = Depends(get_tenant_context), start: date | No
 def _context_payload(tenant, preview_category: str | None = None) -> dict:
     rc = tenant.review_context or {}
     key = preview_category if preview_category in CATALOG else resolve_category(tenant.category, rc.get("category_key"))  # preview: see another category's topics before saving
+    chips = topics_for(key) if preview_category in CATALOG else all_topics(rc, key)  # the business's own services when it has them, else the category's list
     disabled = set(rc.get("disabled_suggestions") or [])
     languages = [l for l in (rc.get("languages") or LANGUAGES) if l in LANGUAGES] or list(LANGUAGES)
     return {
         "tenant_category": tenant.category, "detected_category": resolve_category(tenant.category), "category_key": key,
         "category_override": rc.get("category_key"), "categories": category_options(),
         "description": rc.get("description", ""), "services": rc.get("services", []), "languages": languages,
-        "suggestions": [{"id": t.id, "en": t.en, "hi": t.hi, "enabled": t.id not in disabled} for t in topics_for(key)],
+        "suggestions": [{"id": t.id, "en": t.en, "hi": t.hi, "enabled": t.id not in disabled} for t in chips],
+        "chips_from_services": rc.get("chips_from_services", True), "chips_source": "services" if chips and chips[0].id.startswith("svc_") else "category", "max_service_chips": MAX_SERVICE_CHIPS,
         "limits": {"description": MAX_DESCRIPTION, "services": MAX_SERVICES},
         "notes": [
             "This tells the AI what your business offers. It is never treated as evidence of what a particular customer experienced.",
@@ -294,11 +296,9 @@ def get_context(preview_category: str | None = None, ctx: TenantContext = Depend
 def put_context(body: ContextIn, request: Request, ctx: TenantContext = Depends(require_role(Role.admin))):
     """Owner-configured business context: category, plain description, services/products, enabled topic chips and supported languages."""
     key = resolve_category(ctx.tenant.category, body.category_key)
-    valid = {t.id for t in topics_for(key)}
-    ctx.tenant.review_context = {
-        "category_key": body.category_key, "description": body.description or "", "services": body.services,
-        "disabled_suggestions": [s for s in body.disabled_suggestions if s in valid], "languages": body.languages,
-    }
+    new_rc = {"category_key": body.category_key, "description": body.description or "", "services": body.services, "languages": body.languages, "chips_from_services": body.chips_from_services}
+    valid = {t.id for t in all_topics(new_rc, key)}  # the chips the business WILL have with these services, so a chip can be switched off in the same save
+    ctx.tenant.review_context = {**new_rc, "disabled_suggestions": [s for s in body.disabled_suggestions if s in valid]}
     audit(ctx.db, action="review_context.update", tenant_id=ctx.tenant_id, user_id=ctx.user.id, entity_type="tenant", entity_id=ctx.tenant_id,
           meta={"category": key, "services": len(body.services), "disabled": len(ctx.tenant.review_context["disabled_suggestions"])}, ip=client_ip(request))
     ctx.db.commit()

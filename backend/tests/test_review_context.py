@@ -103,7 +103,8 @@ def test_context_defaults_are_auto_detected_from_the_business(biz_a):
 def test_owner_can_save_context_and_it_drives_the_customer_page(biz_a, client):
     c = campaign(biz_a)
     body = {"category_key": None, "description": "A small clinic offering exercise-based rehabilitation.", "services": ["Back pain rehabilitation", "Sports injury rehabilitation"],
-            "disabled_suggestions": ["pricing", "appointment", "not_a_topic"], "languages": ["en", "hi"]}
+            "disabled_suggestions": ["pricing", "appointment", "not_a_topic"], "languages": ["en", "hi"],
+            "chips_from_services": False}  # this test is about the STANDARD keywords: with services present the review page would otherwise show the services (tests/test_review_keywords_from_services.py)
     r = biz_a.put("/review-growth/context", json=body)
     assert r.status_code == 200, r.text
     saved = r.json()
@@ -178,7 +179,7 @@ def test_each_qr_shows_chips_for_its_own_business_type(client, llm, category, ex
 def test_two_businesses_never_get_each_others_context(client, llm):
     a, b = biz("Restaurant", "Spice Route"), biz("Dental clinic", "Bright Smile")
     ca, cb = campaign(a), campaign(b)
-    a.put("/review-growth/context", json={"description": "Family restaurant", "services": ["Thali meals"]})
+    a.put("/review-growth/context", json={"description": "Family restaurant", "services": ["Thali meals"], "chips_from_services": False})
     pa, pb = landing(client, ca), landing(client, cb)
     assert pa["business"]["name"] == "Spice Route" and pb["business"]["name"] == "Bright Smile"
     assert "food" in ids(pa) and "food" not in ids(pb) and "comfort" in ids(pb)
@@ -199,7 +200,7 @@ def test_supported_languages_are_owner_controlled(biz_a, client, llm):
 # ================================================================ generation from topics
 
 def test_topics_plus_a_feeling_generate_a_draft_with_context_in_the_prompt(biz_a, client, llm):
-    biz_a.put("/review-growth/context", json={"description": "Exercise-based rehabilitation clinic.", "services": ["Back pain rehabilitation"]})
+    biz_a.put("/review-growth/context", json={"description": "Exercise-based rehabilitation clinic.", "services": ["Back pain rehabilitation"], "chips_from_services": False})
     c = campaign(biz_a)
     llm.texts = ["I was happy with the staff and the explanations I was given."]
     r = go(client, c, suggestions=["staff", "explanations"], sentiment="good")
