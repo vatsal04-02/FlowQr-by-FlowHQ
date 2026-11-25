@@ -181,7 +181,7 @@ def test_the_allowance_resets_each_calendar_month():
 def test_the_reply_endpoint_enforces_the_reply_allowance_on_the_backend(connected, fake, gid, monkeypatch):  # noqa: F811
     from tests.test_agent import add_review
     monkeypatch.setattr("app.api.v1.reviews.get_provider", lambda: StubReplyAI())
-    owner_exec("UPDATE subscriptions SET review_replies = 1, review_generations = 5 WHERE tenant_id = :t", t=connected.tenant_id)
+    owner_exec("UPDATE subscriptions SET status = 'active', plan = 'growth', review_replies = 1, review_generations = 5 WHERE tenant_id = :t", t=connected.tenant_id)  # a paid plan: a free trial has no AI replies
     r1, r2 = add_review(connected, gid), add_review(connected, gid)
     first = connected.post(f"/reviews/{r1}/drafts/generate")
     assert first.status_code in (200, 201), first.text
