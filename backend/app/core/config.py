@@ -270,8 +270,9 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
     razorpay_webhook_secret: str = ""
-    trial_review_generations: int = 10  # TRIAL_REVIEW_GENERATIONS: what a free trial may write, whatever the plan whose features it borrows (owner decision 2026-11-25)
-    trial_review_replies: int = 10  # TRIAL_REVIEW_REPLIES
+    trial_review_generations: int = 15  # TRIAL_REVIEW_GENERATIONS: review writings a free trial may use a month (owner decision 2026-11-25: 10-15)
+    trial_review_replies: int = 0  # TRIAL_REVIEW_REPLIES: AI replies during a trial (owner decision 2026-11-25: review generation only, so none)
+    trial_seo_tips: int = 5  # TRIAL_SEO_TIPS: SEO / growth tips (AI drafts of the 'agent_draft' kind) a free trial may use a month; website building is not counted
     trial_days: int = 7
     trial_plan: str = "growth"  # trial grants this plan's limits/features
 

@@ -386,7 +386,7 @@ def run(db: Session, job_id: uuid.UUID, *, provider=None) -> str:
         _set(db, job, step, "done", "Found: " + (", ".join(have) or "your business name and type") + ".")
 
         step = "analyse"; _set(db, job, step, "running")
-        provider = provider or metered(get_provider(), db, tenant.id, "agent_draft", actor_user_id=job.created_by)
+        provider = provider or metered(get_provider(), db, tenant.id, "site_draft", actor_user_id=job.created_by)
         plan = _plan(provider, facts)
         template = plan.template if plan.template in C.TEMPLATES else C.suggest_template(facts.get("category"))
         _set(db, job, step, "done", plan.audience[:200] or "Audience worked out from your business type.")

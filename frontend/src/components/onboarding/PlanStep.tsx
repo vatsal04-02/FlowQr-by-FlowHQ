@@ -79,7 +79,7 @@ export function PlanStep({ onBack, onDone, reason }: { onBack: () => void; onDon
   if (!mandate) {
     return (
       <StepCard wide>
-        <StepHeading step={2} title={`Start your ${trialDays}-day free trial`}>Your {trialDays}-day free trial starts now and nothing is charged automatically. You choose a plan from Billing whenever you are ready.</StepHeading>
+        <StepHeading step={2} title={`Start your ${trialDays}-day free trial`}>Your {trialDays}-day free trial starts now and nothing is charged automatically. It includes a limited number of AI review writings and SEO tips, and building your website is free. You choose a plan from Billing whenever you are ready.</StepHeading>
         <StepActions onBack={onBack}><Button variant="brand" size="lg" className="w-full sm:w-auto sm:min-w-[220px]" onClick={onDone}>Start my free trial <ArrowRight className="h-4 w-4" aria-hidden /></Button></StepActions>
       </StepCard>
     );

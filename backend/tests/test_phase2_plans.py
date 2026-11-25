@@ -469,7 +469,7 @@ def test_a_free_trial_gets_growth_features_but_only_a_small_ai_allowance():
     sub = biz.get("/billing/subscription").json()
     assert sub["status"] == "trialing"
     lim = biz.get("/billing/subscription").json()["limits"]
-    assert (lim["review_generations"], lim["review_replies"]) == (settings.trial_review_generations, settings.trial_review_replies) == (10, 10)
+    assert (lim["review_generations"], lim["review_replies"]) == (settings.trial_review_generations, settings.trial_review_replies) == (15, 0)
     assert "gbp_posts" in sub["features"] if "features" in sub else True
     plans = {p["code"]: p for p in biz.get("/billing/plans").json()["plans"]}
     assert plans["growth"]["review_generations"] == 300  # the paid plan itself is not capped by the trial rule

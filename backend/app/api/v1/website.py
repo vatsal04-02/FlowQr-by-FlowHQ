@@ -261,7 +261,7 @@ def ask(body: AskIn, request: Request, ctx: TenantContext = Depends(require_role
     user = json.dumps({"request": body.instruction, "facts": {"name": ctx.tenant.name, "category": ctx.tenant.category, "services": kb.get("services"), "description": kb.get("description")},
                        "colours": list(C.ACCENTS), "layouts": list(C.TEMPLATES), "current_layout": site.template_key, "sections": secs}, ensure_ascii=False)
     try:
-        provider = metered(get_provider(), ctx.db, ctx.tenant_id, "agent_draft", actor_user_id=ctx.user.id)
+        provider = metered(get_provider(), ctx.db, ctx.tenant_id, "site_draft", actor_user_id=ctx.user.id)
         plan = Changes.model_validate(generate_json(provider, system, user, max_tokens=900, temperature=0.4))
     except AIUnavailable as exc:
         raise HTTPException(status_code=502, detail=gen.AI_WORDS.get(exc.code, "The AI could not make that change. Try again, or edit the section yourself."))
