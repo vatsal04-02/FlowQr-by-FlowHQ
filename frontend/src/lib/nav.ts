@@ -2,6 +2,7 @@ import { CircleHelp, Sparkles } from "lucide-react";
 import type { ComponentType } from "react";
 import { GbpIcon } from "@/components/icons/Gbp";
 import { ActivityGlyph, BillingGlyph, GrowthGlyph, HomeGlyph, LocationsGlyph, ReviewsGlyph, SettingsGlyph, TasksGlyph, TodayGlyph, WhatsAppGlyph } from "@/components/icons/Nav";
+import { allows, featureFor, type PlanFeatures } from "./nav-features";
 import type { Role } from "./types";
 
 /** One of FlowQR's own glyphs (components/icons/Nav.tsx), a brand mark (GBP), or a lucide icon: all take the same props. */
@@ -121,11 +122,26 @@ export const MORE_GROUPS: { label: string; items: MoreItem[] }[] = [
   ] },
 ];
 
-export function navFor(role: Role | null, flags: NavFlags = {}): Dest[] {
+export function navFor(role: Role | null, flags: NavFlags = {}, features?: PlanFeatures): Dest[] {
   const ok = (only?: Role[]) => !only || (role !== null && only.includes(role));
-  return DESTS.filter((d) => ok(d.only) && (!d.flag || flags[d.flag])).map((d) => (d.children ? { ...d, children: d.children.filter((c) => ok(c.only)).map((c) => (c.tabs ? { ...c, tabs: c.tabs.filter((t) => ok(t.only)) } : c)) } : d));
+  const out: Dest[] = [];
+  for (const d of DESTS) {
+    if (!ok(d.only) || (d.flag && !flags[d.flag])) continue;
+    if (!d.children) { if (allows(features, d.href)) out.push(d); continue; }
+    const children = d.children.filter((c) => ok(c.only) && allows(features, c.href)).map((c) => (c.tabs ? { ...c, tabs: c.tabs.filter((t) => ok(t.only) && allows(features, t.href)) } : c));
+    if (!children.length) continue;   // every page of this destination is outside the plan: the destination is not shown at all
+    // the destination opens on its first page the plan includes
+    out.push({ ...d, href: children.some((c) => c.href === d.href) ? d.href : children[0].href, children });
+  }
+  return out;
 }
-export const moreFor = (role: Role | null, flags: NavFlags = {}) => MORE_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => (!i.only || (role !== null && i.only.includes(role))) && (!i.flag || flags[i.flag])) }));
+export const moreFor = (role: Role | null, flags: NavFlags = {}, features?: PlanFeatures) => MORE_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => (!i.only || (role !== null && i.only.includes(role))) && (!i.flag || flags[i.flag]) && allows(features, i.href)) })).filter((g) => g.items.length > 0);
+
+/** The plan feature the page at this path needs (null: every plan has it). Used to show "not in your plan" instead of a page that would only fail. */
+export function requiredFeature(path: string): string | null {
+  const l = locate(path);
+  return l ? featureFor(l.tab?.href, l.child?.href, l.dest.href) : null;
+}
 
 export type Located = { dest: Dest; child: Child | null; tab: Tab | null; detail: boolean };
 

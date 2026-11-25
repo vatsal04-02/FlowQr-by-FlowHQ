@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { MoreGlyph } from "@/components/icons/Nav";
 import { BOTTOM_IDS, bottomActive, moreFor, type Dest, type MoreTint } from "@/lib/nav";
+import type { PlanFeatures } from "@/lib/nav-features";
 import type { Role } from "@/lib/types";
 
 /** The bar is 72px tall (docs/DESIGN_SETTINGS_MOBILE.md §6); the More sheet sits directly above it, so both read the same number. */
@@ -66,11 +67,11 @@ const TINT: Record<MoreTint, string> = {
  * the bar over a navy scrim, closes with its button, the scrim, Escape or by choosing a page, keeps keyboard focus inside while open and returns focus to the More button.
  * Motion respects the reduced-motion setting (MotionConfig in the app shell).
  */
-export function MoreSheet({ open, onClose, role, whatsapp = false, onSearch, supportEmail }: { open: boolean; onClose: () => void; role: Role | null; whatsapp?: boolean; onSearch: () => void; supportEmail: string | null | undefined }) {
+export function MoreSheet({ open, onClose, role, whatsapp = false, features, onSearch, supportEmail }: { open: boolean; onClose: () => void; role: Role | null; whatsapp?: boolean; features?: PlanFeatures; onSearch: () => void; supportEmail: string | null | undefined }) {
   const panel = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
   const back = useRef<Element | null>(null);
-  const groups = moreFor(role, { whatsapp });
+  const groups = moreFor(role, { whatsapp }, features);
 
   useEffect(() => {
     if (!open) return;

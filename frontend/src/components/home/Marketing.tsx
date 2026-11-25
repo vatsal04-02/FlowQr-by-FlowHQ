@@ -3,6 +3,8 @@ import { AlertTriangle, CalendarDays, CheckCircle2, ImagePlus, Sparkles, Store }
 import Link from "next/link";
 import type { PostItem } from "@/lib/agent";
 import { fmtWhen, type Overview, type Readiness } from "@/lib/marketing";
+import { useAuth } from "@/lib/auth";
+import { usePlanFeatures } from "@/lib/plan-features";
 import { useFetch } from "@/lib/use-api";
 import { Panel } from "@/components/ui/kit";
 
@@ -11,9 +13,13 @@ import { Panel } from "@/components/ui/kit";
  * With no campaigns yet it is one calm invitation instead of a row of zeros.
  */
 export function MarketingBand() {
-  const ov = useFetch<Overview>("/marketing/overview");
-  const posts = useFetch<{ posts: PostItem[]; timezone: string }>("/posts", { status: "scheduled", limit: 20 });
-  const ready = useFetch<Readiness>("/marketing/readiness");
+  const { tenant } = useAuth();
+  const features = usePlanFeatures(tenant?.id, undefined);
+  const on = !features || features.has("gbp_posts");   // Google Posts are not in every plan: without them there is nothing to show and nothing to ask the server
+  const ov = useFetch<Overview>(on ? "/marketing/overview" : null);
+  const posts = useFetch<{ posts: PostItem[]; timezone: string }>(on ? "/posts" : null, { status: "scheduled", limit: 20 });
+  const ready = useFetch<Readiness>(on ? "/marketing/readiness" : null);
+  if (!on) return null;
   if (ov.error || (ov.loading && !ov.data)) return null;
   const o = ov.data!;
   const tz = posts.data?.timezone ?? "Asia/Kolkata";
