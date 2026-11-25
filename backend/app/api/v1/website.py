@@ -88,7 +88,7 @@ def _state(ctx: TenantContext) -> dict:
                "photos": [{"id": str(x.id), "kind": x.kind, "alt": x.alt_text} for x in ctx.db.scalars(select(SiteAsset).where(SiteAsset.site_id == site.id).order_by(SiteAsset.sort_order, SiteAsset.created_at))],
                "sections": [{"id": s["id"], "type": s["type"], "label": C.SECTION_TYPES[s["type"]]["label"], "enabled": s["enabled"], "data": s["data"]} for s in site.draft_content.get("sections", [])]}
     return {"enabled": True, "business": {"name": ctx.tenant.name, "category": ctx.tenant.category}, "interest": ctx.tenant.website_interest, "website_url": ctx.tenant.website,
-            "google": {"connected": gloc is not None, "title": gloc.title if gloc else None}, "job": _job(job), "site": out, "publish": _publish_state(ctx, site),
+            "google": {"connected": gloc is not None, "title": gloc.title if gloc else None}, "job": _job(job), "builds": gen.builds_state(ctx.db, ctx.tenant_id), "site": out, "publish": _publish_state(ctx, site),
             "templates": [{"key": t["key"], "label": t["label"]} for t in C.TEMPLATES.values()], "accents": C.ACCENTS, "section_types": {k: v["fields"] for k, v in C.SECTION_TYPES.items()}}
 
 
@@ -114,12 +114,15 @@ def generate(body: GenerateIn, request: Request, ctx: TenantContext = Depends(re
     rebuilding = body.rebuild and current is not None and current.status == "completed"
     if rebuilding and _owned(ctx).status not in ("draft", "unpublished"):
         raise HTTPException(status_code=409, detail="Take the website offline before building it again.")
+    if (current is None or current.status == "failed" or rebuilding) and gen.builds_used(ctx.db, ctx.tenant_id) >= settings.sites_builds_per_business:
+        raise HTTPException(status_code=409, detail={"code": "builds_used", "message": f"Each business can have its website built {settings.sites_builds_per_business} times: the first time and once more. "
+                                                     "You can still change everything yourself or with \"Improve with AI\", and nothing you have is lost."})
     if current is None or current.status == "failed" or rebuilding:  # every refusal comes before the finished build is touched
         if not hit(f"site-gen:{ctx.tenant_id}", 3, 86400):
             raise HTTPException(status_code=429, detail="A website can be built a few times a day. Edit the current one, or try again tomorrow.")
     if rebuilding:
         current.status = "failed"  # superseded by the new build
-        current.error = "Replaced by a new build."
+        current.error = gen.REPLACED
         ctx.db.commit()
     job, created = _call(lambda: gen.start(ctx.db, ctx.tenant, user_id=ctx.user.id, trigger="owner"))
     if created:

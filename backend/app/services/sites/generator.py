@@ -21,7 +21,7 @@ from urllib.parse import quote, urlsplit
 import httpx
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -198,6 +198,20 @@ def _fail(db: Session, job: SiteGenerationJob, message: str) -> None:
     job.steps = [{**s, "status": "failed" if s["status"] == "running" else s["status"]} for s in job.steps]
     job.status, job.stage, job.error, job.finished_at, job.updated_at = "failed", "FAILED", message[:300], utcnow(), utcnow()
     db.commit()
+
+
+REPLACED = "Replaced by a new build."
+
+
+def builds_used(db: Session, tenant_id: uuid.UUID) -> int:
+    """Builds this business has used: every one that finished or is under way, including one a later build replaced. A build that failed (the AI was unavailable) gave the owner nothing and is not counted."""
+    return db.scalar(select(func.count()).select_from(SiteGenerationJob).where(
+        SiteGenerationJob.tenant_id == tenant_id, (SiteGenerationJob.status.in_(("queued", "running", "completed"))) | (SiteGenerationJob.error == REPLACED))) or 0
+
+
+def builds_state(db: Session, tenant_id: uuid.UUID) -> dict:
+    used = builds_used(db, tenant_id)
+    return {"used": used, "limit": settings.sites_builds_per_business, "left": max(0, settings.sites_builds_per_business - used)}
 
 
 def built_here(db: Session, site: Site) -> bool:

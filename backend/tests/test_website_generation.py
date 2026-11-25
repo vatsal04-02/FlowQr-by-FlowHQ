@@ -189,6 +189,26 @@ def test_a_website_taken_offline_can_be_built_again_but_a_live_one_cannot(biz, o
     assert owner_query("SELECT status, commercial_status FROM sites WHERE tenant_id = :t", t=t)[0] == ("unpublished", "complimentary")
 
 
+def test_a_business_gets_two_builds_the_first_and_one_more(biz, on):
+    first = built(biz)
+    assert first[0] == "completed" and first[1]["builds"] == {"used": 1, "limit": 2, "left": 1}
+    again = biz.post("/website/generate", json={"rebuild": True})
+    assert again.status_code == 200 and biz.get("/website").json()["builds"]["left"] == 0
+    assert work(again.json()["job"]["id"])[0] == "completed"
+    third = biz.post("/website/generate", json={"rebuild": True})
+    assert third.status_code == 409 and third.json()["detail"]["code"] == "builds_used"
+    state = biz.get("/website").json()
+    assert state["job"]["status"] == "completed" and state["site"] is not None and state["builds"] == {"used": 2, "limit": 2, "left": 0}  # the website and its build are untouched
+    assert biz.put(f"/website/sections/{state['site']['sections'][0]['id']}", json={"enabled": True, "data": state["site"]["sections"][0]["data"]}).status_code == 200  # editing stays free
+
+
+def test_a_failed_build_does_not_use_one_of_the_two(biz, on):
+    job = biz.post("/website/generate", json={}).json()["job"]
+    owner_exec("UPDATE site_generation_jobs SET status = 'failed', error = 'The AI was unavailable' WHERE id = :j", j=uuid.UUID(job["id"]))
+    assert biz.get("/website").json()["builds"]["used"] == 0
+    assert biz.post("/website/generate", json={}).status_code == 200
+
+
 def test_a_job_whose_worker_died_is_reported_as_stopped_not_left_spinning(biz, on):
     job = biz.post("/website/generate", json={}).json()["job"]
     owner_exec("UPDATE site_generation_jobs SET status = 'running', updated_at = :u WHERE id = :j", u=utcnow() - timedelta(minutes=20), j=uuid.UUID(job["id"]))

@@ -249,7 +249,8 @@ function Review({ state, setState, onRebuild, rebuilding }: { state: WebsiteStat
           <div className="mt-2 flex flex-wrap gap-2">
             {site.status === "published" && state.publish?.url ? <a href={state.publish.url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-accent-ink">Open my website<ExternalLink className="h-4 w-4" aria-hidden /></a>
               : <Button size="sm" loading={busy === "publish"} disabled={role !== "owner"} onClick={() => void publish()}>{state.publish?.available ? "Publish website" : "Approve for publishing"}</Button>}
-            {(site.status === "draft" || site.status === "unpublished") && <Button size="sm" variant="secondary" loading={rebuilding} disabled={!isAdmin} onClick={onRebuild}>Build again from my latest details</Button>}
+            {(site.status === "draft" || site.status === "unpublished") && <Button size="sm" variant="secondary" loading={rebuilding} disabled={!isAdmin || (state.builds?.left ?? 1) < 1} onClick={onRebuild}>Build again from my latest details{state.builds ? ` (${state.builds.left} left)` : ""}</Button>}
+            {state.builds && state.builds.left < 1 && (site.status === "draft" || site.status === "unpublished") && <p className="w-full text-[12.5px] text-muted">Your website has been built {state.builds.limit} times. You can still change anything yourself or with Improve with AI.</p>}
           </div>
           {site.status === "published" && (
             <div className="mt-2 flex flex-wrap items-center gap-2">

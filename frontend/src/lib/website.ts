@@ -8,7 +8,7 @@ export interface SitePhoto { id: string; kind: string; alt: string }
 export interface SiteInfo { status: string; template: string; template_label: string; accent: string; version: number; address: string; sections: SiteSection[]; photos?: SitePhoto[] }
 export interface WebsiteState {
   enabled: boolean; business?: { name: string; category: string | null }; interest?: string | null; website_url?: string | null; google?: { connected: boolean; title: string | null };
-  job?: Job | null; site?: SiteInfo | null; publish?: { available: boolean; reason: string | null; url: string | null }; templates?: { key: string; label: string }[]; accents?: Record<string, string>; section_types?: Record<string, Field[]>;
+  job?: Job | null; builds?: { used: number; limit: number; left: number }; site?: SiteInfo | null; publish?: { available: boolean; reason: string | null; url: string | null }; templates?: { key: string; label: string }[]; accents?: Record<string, string>; section_types?: Record<string, Field[]>;
 }
 
 export type Phase = "start" | "building" | "failed" | "review";
