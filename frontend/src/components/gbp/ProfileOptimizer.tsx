@@ -2,6 +2,7 @@
 import clsx from "clsx";
 import { AlertCircle, ArrowRight, Check, CircleHelp, PenLine } from "lucide-react";
 import Link from "next/link";
+import { fixHref } from "@/lib/operator";
 import { Ring } from "@/components/charts/Bars";
 import { CountUp } from "@/components/charts/CountUp";
 import { Accordion } from "@/components/ui/Accordion";
@@ -59,8 +60,7 @@ export function ProfileOptimizer({ gid }: { gid: string }) {
                       {c.evidence && Object.entries(c.evidence).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)).length > 0 && (
                         <p className="mt-1 text-muted"><span className="font-semibold text-ink">What we read: </span>{Object.entries(c.evidence).filter(([k, v]) => k !== "read_from_google_at" && v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)).map(([k, v]) => `${k.replaceAll("_", " ")}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`).join("; ")}</p>)}
                     </div></Accordion>)}
-                  {c.action && (c.href ? (c.href.startsWith("#") ? <a href={c.href} className="mt-1 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">{c.action}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></a>
-                    : <Link href={c.href} className="mt-1 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">{c.action}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>) : null)}
+                  {c.action && (() => { const href = fixHref(c.key, c.state, c.href, gid); return href ? <Link href={href} className="mt-1 inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold text-accent-ink hover:underline">{c.action}<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link> : null; })()}
                 </div>
               </li>
             );

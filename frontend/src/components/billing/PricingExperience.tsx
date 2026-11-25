@@ -160,7 +160,7 @@ const FAQ: readonly { q: string; a: ReactNode }[] = [
   { q: "Will my plan renew automatically?", a: "No. Each purchase is a single payment for the term you chose. We do not take any further payment unless you buy again." },
   { q: "Can I choose a longer duration later?", a: "Yes. When your current term ends you can buy any term, longer or shorter. Extending a term that is still running is not available yet." },
   { q: "What happens to unused AI credits?", a: "Your plan's AI allowances renew at the start of every calendar month and do not carry over. Unused allowance from one month is not added to the next, whatever term you bought." },
-  { q: "How do I reach support?", a: <>Open the <Link href="/help" className="font-medium text-ink underline underline-offset-2">Help page</Link> from the menu and send us a message. Include your business name and we will reply there.</> },
+  { q: "How do I reach support?", a: "Choose Help & Support from the menu and send us a message. Include your business name and we will reply." },
 ];
 
 function Questions() {
