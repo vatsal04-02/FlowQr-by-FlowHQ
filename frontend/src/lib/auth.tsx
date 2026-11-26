@@ -5,6 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { api, ApiError } from "./api";
 import type { Me, Role, Tenant } from "./types";
 
+/**
+ * WhatsApp is switched off in the app for everyone (owner decision 2026-11-27): no menu entry, no Settings row, no search result, and a typed /whatsapp address says it is not available.
+ * Every WhatsApp screen already reads me.integrations.whatsapp_enabled, so forcing it off here removes all of them at once. To bring WhatsApp back, set this to false (the server switch
+ * WHATSAPP_ENABLED still decides after that).
+ */
+const WHATSAPP_HIDDEN = true;
+const withoutWhatsApp = (m: Me): Me => (WHATSAPP_HIDDEN ? { ...m, integrations: { ...m.integrations, whatsapp_enabled: false } } : m);
+
 interface AuthState {
   me: Me | null;
   loading: boolean;
@@ -28,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const m = await api<Me>("/auth/me");
+      const m = withoutWhatsApp(await api<Me>("/auth/me"));
       setMe(m);
       return m;
     } catch (e) {

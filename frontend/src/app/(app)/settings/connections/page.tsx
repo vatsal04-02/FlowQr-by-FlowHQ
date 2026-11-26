@@ -56,9 +56,9 @@ export default function Connections() {
               action={g?.tone === "ok"
                 ? <LinkButton href="/settings/connections/google" variant="secondary" className={small}>Manage Google</LinkButton>
                 : <LinkButton href="/settings/connections/google" variant="brand" className={small}>Connect Google</LinkButton>} />
-            <ServiceCard icon={<MessageCircle className="h-[22px] w-[22px]" strokeWidth={1.8} />} title="WhatsApp Business" chip={wa ? OWNER_WORD[wa.status] : null}
+            {waOn && <ServiceCard icon={<MessageCircle className="h-[22px] w-[22px]" strokeWidth={1.8} />} title="WhatsApp Business" chip={wa ? OWNER_WORD[wa.status] : null}
               text={wa?.status === "connected" ? "Customer chats, auto-replies and bookings." : "Customer chats, auto-replies and bookings. Messaging isn't set up yet."}
-              action={waOn ? <LinkButton href="/whatsapp/connect" variant="secondary" className={small}>Open WhatsApp setup</LinkButton> : undefined} />
+              action={<LinkButton href="/whatsapp/connect" variant="secondary" className={small}>Open WhatsApp setup</LinkButton>} />}
             <ServiceCard icon={<Share2 className="h-[22px] w-[22px]" strokeWidth={1.8} />} title="Facebook & Instagram" chip={meta ? OWNER_WORD[meta.status] : null}
               text="Publish approved posts to your pages. Publishing isn't available yet." />
 
