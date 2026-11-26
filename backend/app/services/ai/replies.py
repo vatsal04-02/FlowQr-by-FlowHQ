@@ -20,6 +20,14 @@ HOW TO WRITE IT
 4. 2 to 4 short sentences, plain words, one idea per sentence. Vary your openings; do not begin with "Thank you for your feedback" or "We are thrilled".
 5. Write as the business ("we"), signed by nobody.
 
+BE PRECISE
+- Every fact in the reply must come from the review or the business facts. A number, time, price, name, staff member, date or promised action that is not there is invented: leave it out.
+- You may repeat a detail the reviewer gave (a 40-minute wait, a staff name they used) exactly as they gave it. Do not exaggerate it, soften it or add to it.
+- If the review does not say what went wrong, do not guess. Acknowledge the experience they described and invite them to tell the business directly.
+- Do not promise a specific action or deadline (a call back, a refund, a fix by a date). "We have noted it" and "please contact us" are the safe promises.
+- Do not guess the reviewer's name or gender: no Sir, Madam or Dear Customer.
+- Proofread before you answer: spelling, grammar, one tense, complete sentences, no repeated words, nothing cut off.
+
 NEVER
 - Invent facts, offers, discounts, names, conversations, treatments, results or customer history. If it is not in the business facts or in the review, do not say it.
 - Confirm or discuss a person's medical condition, treatment, appointment or identity; keep health matters private and invite them to contact the business directly.
@@ -63,14 +71,36 @@ def build_prompt(review: Review, tenant: Tenant, location_name: str | None, kb: 
         f"Business instructions: {tenant.ai_instructions or 'None'}")
     if intel and intel.get("reviews", {}).get("concerns"):
         parts.append("Recurring concerns customers raise (be honest about them if the reviewer raises one; never deny or dismiss): " + ", ".join(t for t, _ in intel["reviews"]["concerns"]))
-    parts.append(f"LANGUAGE: {LANGUAGE_INSTRUCTION[lang]} {craft.LANGUAGE_STYLE[lang]}")
+    parts.append(f"LANGUAGE: {LANGUAGE_INSTRUCTION[lang]} {craft.LANGUAGE_STYLE[lang]} {craft.LANGUAGE_PRECISION[lang]}")
     parts.append(f"WHAT KIND OF REVIEW THIS IS ({mood.replace('_', ' ')}): {craft.REPLY_GUIDE[mood]}")
+    ex = craft.reply_example(lang, mood)
+    if ex:  # one worked example of the standard: a different business and review, shown only for its register and care
+        parts.append("EXAMPLE of the standard (a different review for a different business; borrow its care and register, never its wording, facts or structure):\n"
+                     f"<example_review>{ex[1]}</example_review>\n<example_reply>{ex[2]}</example_reply>")
     if recent:
         parts.append("Recent replies from this business. Do NOT reuse their openings, structure or phrases:\n" + "\n".join(f"- {r[:160]}" for r in recent[:4]))
     # The reviewer's NAME is deliberately not sent (privacy finding 26): the reply is written without addressing them by name, and e-mail addresses, phone numbers and links in the text are masked.
     parts.append(f"Star rating: {review.rating} out of 5 (never say this in the reply)\n\n"
                  f"<review>\n{redact(text) if text.strip() else '(rating only, no written text: thank them briefly and warmly, do not invent what they liked)'}\n</review>")
     return "\n\n".join(parts)
+
+
+def _facts_text(tenant: Tenant, location_name: str | None, kb: dict | None) -> str:
+    """Everything a reply is allowed to state besides the review itself, flattened to text so the validator can tell a known number or name from an invented one."""
+    out: list[str] = [tenant.name or "", tenant.category or "", location_name or "", tenant.ai_instructions or ""]
+
+    def walk(v) -> None:
+        if isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, (list, tuple, set)):
+            for x in v:
+                walk(x)
+        elif v is not None and not isinstance(v, bool):
+            out.append(str(v))
+
+    walk(kb)
+    return " ".join(out)
 
 
 def draft_reply(provider: LLMProvider, review: Review, tenant: Tenant, location_name: str | None, kb: dict | None = None,
@@ -94,6 +124,9 @@ def draft_reply_scored(provider: LLMProvider, review: Review, tenant: Tenant, lo
     reasons = assess_review(text, review.rating, tenant.category)
     recent = recent if recent is not None else ((intel or {}).get("recent_replies") or [])
     user = build_prompt(review, tenant, location_name, kb, tone=tone, lang=lang, recent=recent, intel=intel)
+    facts = _facts_text(tenant, location_name, kb)
+    ex = craft.reply_example(lang, craft.sentiment(review.rating, text))
+    avoid_copying = list(recent or []) + ([ex[2]] if ex else [])  # a draft that parrots the worked example in the prompt is as bad as one that repeats a recent reply
 
     def clean(s: str) -> str:
         return s.strip().strip('"').strip()
@@ -103,15 +136,16 @@ def draft_reply_scored(provider: LLMProvider, review: Review, tenant: Tenant, lo
         if kb is not None and out:
             from app.services.agent.safety import check_text
             bad = check_text(out, kb=kb, kind="reply")
-        qa = quality.assess_reply(out, rating=review.rating, review_text=text, lang=lang, recent=recent, name=review.reviewer_name) if out else None
+        qa = (quality.assess_reply(out, rating=review.rating, review_text=text, lang=lang, recent=avoid_copying, name=review.reviewer_name, facts=facts, business=tenant.name)
+              if out else None)
         return bad, qa
 
-    out = clean(provider.generate(SYSTEM, user, max_tokens=400, temperature=0.6))
+    out = clean(provider.generate(SYSTEM, user, max_tokens=500, temperature=0.5))
     bad, qa = judge(out)
     if bad or (qa and qa.retry_reasons):
         why = [b.message for b in bad] + (qa.retry_reasons if qa else [])
         first_out, first_qa = out, qa
-        out = clean(provider.generate(SYSTEM, user + "\n\nYour previous draft was rejected because: " + " ".join(why) + "\nWrite a new reply that fixes all of this.", max_tokens=400, temperature=0.4))
+        out = clean(provider.generate(SYSTEM, user + "\n\nYour previous draft was rejected because: " + " ".join(why) + "\nWrite a new reply that fixes all of this.", max_tokens=500, temperature=0.3))
         bad, qa = judge(out)
         if bad:
             raise AIUnavailable("The draft broke a safety rule twice, so it was not shown", code="rejected")

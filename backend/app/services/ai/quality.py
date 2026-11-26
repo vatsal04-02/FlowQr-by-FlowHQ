@@ -15,6 +15,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from app.services.ai.craft import CONCERN_CUES  # one shared list of concern hints (also drives craft.sentiment)
+
 DEVANAGARI = re.compile(r"[ऀ-ॿ]")
 LATIN = re.compile(r"[A-Za-z]")
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F000-\U0001F2FF]")
@@ -43,7 +45,24 @@ than that the their them then there these they this to too up us very was we wer
 been before being both each get got just like more most much no now only other over really same some such than too via while""".split())
 HINGLISH_MARKERS = set("""hai hain nahi nahin bahut accha acha achha bohot kaafi aur mera meri humne hum aap aapka aapki aapke ka ki ke ko se mein main tha thi bhi kya
 ilaaj dhanyawad shukriya badhiya zabardast thik theek kaam karte karna kiya kiye lekin par toh to wala wali liye rahe raha rahi""".split())
-APOLOGY = re.compile(r"\b(sorry|apolog|regret|disappoint|we hear you|understand|sincerely|upset|frustrat|dukh|khed|maafi|maaf)\w*|खेद|क्षमा|माफ़|माफी|दुख", re.I)
+HINGLISH_MARKERS |= set("aapne aapko humare hamare humari hamari yeh woh toh jyada zyada gaya gayi liya diya bilkul thoda lekin kuch hamesha wala wale".split())  # function words only: detail nouns must stay countable as specifics
+# ---- precision checks for replies (see assess_reply) ----
+DISRESPECT = re.compile(r"\b(tum|tu|tumhara|tumhari|tumhare|tumne|tumhe|tumko|tujhe|tera|teri|tere)\b|(?<![ऀ-ॿ])(?:तुम|तू|तेरा|तेरी|तेरे|तुझे|तुम्हें|तुम्हारा|तुम्हारी|तुम्हारे)(?![ऀ-ॿ])", re.I)  # no \b around Devanagari: its vowel signs are not word characters
+OWNER_I = {"en": re.compile(r"\b(I|I'm|I'll|I've|I'd)\b"), "hinglish": re.compile(r"\b(mujhe|maine|mera|meri|mere)\b", re.I), "hi": re.compile(r"मैं|मैंने|मुझे|मेरा|मेरी|मेरे")}
+GUESSED_ADDRESS = re.compile(r"\b(sir|madam|ma'am|dear (?:customer|valued|sir|madam)|valued customer|sir/madam)\b|श्रीमान|महोदय|महोदया|भाई साहब", re.I)
+PLACEHOLDER = re.compile(r"\[[^\]\n]{1,40}\]|\{[^}\n]{1,40}\}|<[^>\n]{1,40}>|\bxx+\b|lorem ipsum", re.I)
+STIFF_ENGLISH = re.compile(r"\b(do the needful|revert back|prepone|pls|plz|thx|gr8|ur|u r|kindly (?:do|visit|contact|let|revert|co-?operate))\b", re.I)
+MOJIBAKE = re.compile("Ã|â€|�")
+REPEATED_WORD = re.compile(r"\b([A-Za-z]{3,})\s+\1\b", re.I)
+SPELLING_VARIANTS = [{"accha", "acha", "achha"}, {"achhe", "acche", "ache"}, {"achhi", "achi", "acchi"}, {"nahi", "nahin", "nahee"}, {"bahut", "bohot", "bahot"},
+                     {"shukriya", "shukriyaa"}, {"dhanyawad", "dhanyavaad", "dhanyavad"}, {"mehenga", "mehnga"}, {"zyada", "jyada"}, {"theek", "thik"}]
+POSITIVE_APOLOGY = re.compile(r"\b(sorry|apolog\w*|regret\w*|disappoint\w*|afsos|maafi|maaf|khed)\b|खेद|क्षमा|माफ़|माफी|अफसोस", re.I)
+CELEBRATORY = re.compile(r"\b(thrilled|delighted|so happy|happy to hear|glad to hear|pleased to hear|great to hear|wonderful to hear)\b", re.I)
+TITLE_NAME = re.compile(r"\b(?:Dr|Mr|Mrs|Ms|Prof)\.?\s+([A-Z][a-z]{2,})")
+FULL_NAME = re.compile(r"(?<![.!?।]\s)(?<!^)\b([A-Z][a-z]{2,}\s+[A-Z][a-z]{2,})\b")
+KNOWN_CAPS = set("""monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november december diwali holi navratri
+dussehra eid christmas india indian google whatsapp gst hindi english hinglish mother father""".split())
+APOLOGY = re.compile(r"\b(sorry|apolog|regret|disappoint|we hear you|understand|sincerely|upset|frustrat|dukh|khed|maafi|maaf|afsos|kshama|sharminda)\w*|खेद|क्षमा|माफ़|माफी|दुख|अफसोस|अफ़सोस", re.I)
 OFFLINE_INVITE = re.compile(r"\b(contact|reach|call|write|email|message|speak|talk|visit|connect|phone|dm)\b|संपर्क|बात|कॉल|बताइए|बताएं|sampark|baat|bataiye|batayein", re.I)
 
 
@@ -149,10 +168,76 @@ def stuffing(text: str, terms: list[str], *, max_distinct: int | None = 2) -> li
 
 
 # ------------------------------------------------------------------ per-kind assessment
-def assess_reply(text: str, *, rating: int, review_text: str = "", lang: str = "en", recent: list[str] | None = None, name: str | None = None) -> Assessment:
+_DEVANAGARI_DIGITS = {ord(d): str(i) for i, d in enumerate("०१२३४५६७८९")}
+
+
+def _numbers(text: str) -> set[str]:
+    clock = re.sub(r"(\d{1,2}):\d{2}", r"\1", (text or "").translate(_DEVANAGARI_DIGITS))  # "9:00" and "9" are the same hour; "१०" and "10" are the same number
+    return {n.lstrip("0") or "0" for n in re.findall(r"\d+", clock)}
+
+
+def novel_numbers(text: str, source: str) -> list[str]:
+    """Digits in `text` that `source` (the review and the business facts) never contained: an invented price, time, count or percentage."""
+    allowed = _numbers(source)
+    return sorted(n for n in _numbers(text) if n not in allowed)
+
+
+def novel_names(text: str, source: str, business: str = "") -> list[str]:
+    """People named in `text` that the review and the business facts never named: "Dr Sharma" or "Rahul Verma" appearing from nowhere.
+    Deliberately narrow (a title plus a name, or two capitalised words in a row) so ordinary capitalised nouns are not flagged."""
+    ctx = f"{source} {business}".lower()
+    found = [m.group(1) for m in TITLE_NAME.finditer(text or "")] + [m.group(1) for m in FULL_NAME.finditer(text or "")]
+    out = []
+    for f in found:
+        parts = [p for p in f.split() if p.lower() not in KNOWN_CAPS and p.lower() not in EN_STOP]
+        if parts and any(p.lower() not in ctx for p in parts):
+            out.append(f)
+    return sorted(set(out))
+
+
+def spelling_variants(text: str) -> list[str]:
+    """Hinglish has no official spelling, so one text must not spell the same word two ways ("accha" and "achha")."""
+    ws = set(words(text))
+    return ["/".join(sorted(g & ws)) for g in SPELLING_VARIANTS if len(g & ws) > 1]
+
+
+def assess_reply(text: str, *, rating: int, review_text: str = "", lang: str = "en", recent: list[str] | None = None, name: str | None = None,
+                 facts: str = "", business: str = "") -> Assessment:
+    """`facts` = everything the reply may state besides the review (hours, offers, FAQs, services): digits and names outside review + facts are treated as invented."""
     a = Assessment()
     n = len(text or "")
     a.metrics = {"chars": n, "sentences": sentence_count(text), "generic": generic_hits(text), "recent_similarity": round(max_similarity(text, recent or []), 3)}
+    stripped = (text or "").rstrip()
+    if stripped and not re.search(r"[.!?।…)\"'’”]$", stripped) and not EMOJI.search(stripped[-2:]):
+        a.issues.append(Issue("cut_off", "The reply stops mid-sentence. Write a complete reply that ends with a full stop.", True))
+    if MOJIBAKE.search(text or "") or PLACEHOLDER.search(text or ""):
+        a.issues.append(Issue("placeholder", "Remove placeholders, brackets and broken characters: write only the finished reply text.", True))
+    if GUESSED_ADDRESS.search(text or ""):
+        a.issues.append(Issue("guessed_address", "Do not address the reviewer as Sir, Madam or Dear Customer (their gender and name are unknown). Write directly.", True))
+    if lang in ("hi", "hinglish") and DISRESPECT.search(text or ""):
+        a.issues.append(Issue("disrespectful_you", "Address the reviewer only as 'aap' (आप), never tum, tu or tera: it is disrespectful to a customer.", True))
+    if OWNER_I.get(lang) and OWNER_I[lang].search(text or ""):
+        a.issues.append(Issue("owner_i", "Write as the business ('we' / 'hum' / 'हम'), not as one person ('I' / 'main' / 'मैं').", False))
+    if lang != "hi" and STIFF_ENGLISH.search(text or ""):
+        a.issues.append(Issue("stiff_english", "Avoid stiff or texting-style English ('do the needful', 'revert back', 'kindly do', 'pls', 'ur'). Write plain, correct sentences.", True))
+    rep = REPEATED_WORD.search(text or "")
+    if rep:
+        a.issues.append(Issue("repeated_word", f"The word '{rep.group(1)}' is repeated by mistake. Proofread.", True))
+    if lang == "hinglish" and spelling_variants(text):
+        a.issues.append(Issue("inconsistent_spelling", "Spell each Hinglish word one way throughout (" + "; ".join(spelling_variants(text)[:2]) + ").", False))
+    source = f"{review_text} {facts}"
+    nums = novel_numbers(text, source)
+    a.metrics["novel_numbers"] = nums
+    if nums:
+        a.issues.append(Issue("unsupported_numbers", "It states numbers that are in neither the review nor the business facts (" + ", ".join(nums[:3]) + "). Remove them.", True))
+    names = novel_names(text, source, business)
+    a.metrics["novel_names"] = names
+    if names:
+        a.issues.append(Issue("unsupported_names", "It names people who are in neither the review nor the business facts (" + ", ".join(names[:2]) + "). Do not invent or guess names.", True))
+    if rating == 5 and POSITIVE_APOLOGY.search(text or "") and not CONCERN_CUES.search(review_text or ""):
+        a.issues.append(Issue("wrong_mood", "The review is positive: do not apologise. Thank them for the specific thing they praised.", True))  # only 5 stars with no hint of a concern: 4 stars often hide one
+    if rating <= 2 and CELEBRATORY.search(text or ""):
+        a.issues.append(Issue("wrong_mood", "The reviewer is unhappy: do not sound delighted. Acknowledge what went wrong.", True))
     if not language_matches(text, lang):
         a.issues.append(Issue("language", {"hi": "Write in Hindi using Devanagari script.", "hinglish": "Write in Hinglish (Hindi in Roman letters mixed with English), not Devanagari and not pure English.",
                                            "en": "Write in plain English, not Hindi or Hinglish."}[lang], True))

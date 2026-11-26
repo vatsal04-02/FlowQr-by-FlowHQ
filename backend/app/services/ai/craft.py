@@ -164,15 +164,72 @@ def occasions(d: date | None = None) -> list[str]:
 
 
 # ------------------------------------------------------------------ reply guidance
+# Hints that a 4 or 5 star review still carries a concern, in English, Hinglish and Hindi (no \b around Devanagari: its vowel signs are not word characters).
+CONCERN_CUES = re.compile(r"\b(but|however|although|though|except|only issue|could be better|wait\w*|late|slow|expensive|costly|crowd\w*|noisy|parking|problem|issue|dikkat|pareshani|"
+                          r"lekin|magar|par|bas|thoda|thodi|bheed|mehenga|mehnga|intezaar|der|bura|kami)\b|लेकिन|मगर|बस|थोड़ा|थोड़ी|भीड़|परेशानी|दिक्कत|समस्या|इंतजार|इंतज़ार|देर|महंगा", re.I)
+
+
 def sentiment(rating: int, text: str) -> str:
-    t = (text or "").lower()
     if rating <= 2:
         return "negative"
     if rating == 3:
         return "mixed"
-    if rating >= 4 and re.search(r"\b(but|however|although|except|only issue|could be better|wait(ed|ing)?|late|slow|expensive)\b", t):
+    if rating >= 4 and CONCERN_CUES.search(text or ""):
         return "positive_with_a_concern"
     return "positive"
+
+
+# Stricter language rules for REPLIES (the text is public and signed by the business, so small grammar or register mistakes show).
+LANGUAGE_PRECISION = {
+    "en": ("Indian-English spelling (colour, apologise, organise, centre). Complete, grammatical sentences in one tense. No 'kindly', 'do the needful', 'revert back', no abbreviations or texting spellings. "
+           "Say 'we' for the business."),
+    "hinglish": ("HINGLISH RULES. (1) Address the reviewer only as aap / aapka / aapki / aapke / aapne, never tum, tu or tera. (2) The business speaks as 'hum' with plural verbs (note kar rahe hain, dekhenge), never 'main'. "
+                 "(3) Make aapka / aapki / aapke agree with the noun that follows (aapka feedback, aapki baat, aapke bete). (4) Spell each word one way, always: hai, hain, nahi, bahut, accha, acche, shukriya, kharcha, dikkat. "
+                 "(5) Keep everyday English words in English (appointment, booking, clinic, staff, parking, service, wait, feedback, treatment) and service names exactly as given. "
+                 "(6) Match the reviewer's own mix of Hindi and English; do not make it more Hindi or more English than theirs. (7) Plain spoken words, not formal Hindi."),
+    "hi": ("HINDI RULES. Simple spoken Devanagari. Always आप, never तुम or तू; the business says हम and the verbs agree with it (हम ... करेंगे). Correct spelling including nukta and anusvara "
+           "(ज़्यादा, माफ़ी, नहीं, हैं, कृपया). Write numbers as digits, as the reviewer did. Everyday English words people really use (क्लिनिक, स्टाफ, पार्किंग, अपॉइंटमेंट) stay, in Devanagari. "
+           "No English sentences mixed in."),
+}
+
+# Worked examples, one per language and kind of review. They teach register and care, on invented reviews that are NOT in the benchmark. The prompt tells the model never to reuse
+# their wording or facts, and the generation check rejects a draft that copies one. Every example is itself required to pass quality.assess_reply (tests/test_ai_quality.py).
+REPLY_EXAMPLES: dict[str, dict[str, tuple[int, str, str]]] = {
+    "en": {
+        "negative": (1, "The AC was not working and we waited 45 minutes for a simple trim. Nobody even offered us water.",
+                     "A 45-minute wait in a room with no working AC, and nobody looking after you, is not the welcome we want for anyone. We are sorry. Please call us so the team can understand what happened and make it right."),
+        "mixed": (3, "Food was fine for the price but the place was noisy and my order took very long.",
+                  "We are glad the food felt fair for the price. A noisy room and a slow order should not have been part of your visit, and we have noted both."),
+        "positive_with_a_concern": (4, "The trainer was very helpful and explained the machines well. Gets crowded in the evening though.",
+                                    "Glad the trainer took the time to explain the machines. The evening crowd is a fair point and we have noted it."),
+        "positive": (5, "The mechanic showed me the old part and went through the bill line by line. The garage was clean too.",
+                     "Showing you the old part and going through the bill line by line is how it should be done, and we are glad the garage felt clean to you. Your kind words will reach the whole team."),
+    },
+    "hinglish": {
+        "negative": (1, "Phone ka cover maanga to dusra pakda diya, aur exchange karne se bhi mana kar diya.",
+                     "Aapne jo cover maanga woh nahi mila, aur exchange se bhi mana kiya gaya, yeh sahi nahi tha. Humein afsos hai. Aap dukaan par aakar ya call karke humse baat kijiye, hum ise theek karne ki koshish karenge."),
+        "mixed": (3, "Facial achha tha lekin staff thoda busy tha aur wait karna pada.",
+                  "Facial aapko pasand aaya, yeh sunkar accha laga. Wait wali baat hum note kar rahe hain, aur busy time mein aapko pehle se bataya jaye, yeh hum dekhenge."),
+        "positive_with_a_concern": (4, "Trainers helpful hain par evening mein bahut crowded ho jata hai.",
+                                    "Trainers ki madad aapko pasand aayi, yeh jaankar accha laga. Evening ki bheed wali baat sahi hai, hum ise note kar rahe hain."),
+        "positive": (5, "Birthday dinner ke liye gaye the, staff ne cake ke liye table sajaya aur khana garam mila.",
+                     "Birthday dinner mein table sajana aur khana garam milna, yeh sunkar bahut accha laga. Aapke din ko khaas banana hamare liye khushi ki baat thi."),
+    },
+    "hi": {
+        "negative": (1, "दवाई के लिए लाइन में बहुत इंतजार करना पड़ा और काउंटर पर किसी ने सही से बात नहीं की।",
+                     "दवाई के लिए लंबी लाइन में इंतजार और काउंटर पर सही से बात न होना, यह ठीक नहीं है और हमें इसका खेद है। कृपया हमसे संपर्क करके पूरी बात बताइए ताकि हम इसे सुधार सकें।"),
+        "mixed": (3, "टीचर अच्छे हैं लेकिन क्लास का समय स्कूल के बाद थोड़ा देर से है।",
+                  "टीचर आपको अच्छे लगे, यह जानकर खुशी हुई। क्लास का समय देर से होने की बात हमने नोट कर ली है।"),
+        "positive_with_a_concern": (4, "ट्रेनर अच्छे हैं लेकिन शाम को बहुत भीड़ हो जाती है।",
+                                    "ट्रेनर की मदद आपको पसंद आई, यह जानकर अच्छा लगा। शाम की भीड़ वाली बात सही है और हमने इसे नोट कर लिया है।"),
+        "positive": (5, "यहाँ की सफाई बहुत अच्छी है और स्टाफ ने हर चीज़ आराम से समझाई।",
+                     "सफाई और स्टाफ का आराम से हर चीज़ समझाना, यह सुनकर बहुत अच्छा लगा। आपके भरोसे के लिए धन्यवाद।"),
+    },
+}
+
+
+def reply_example(lang: str, mood: str) -> tuple[int, str, str] | None:
+    return REPLY_EXAMPLES.get(lang, {}).get(mood)
 
 
 REPLY_GUIDE = {

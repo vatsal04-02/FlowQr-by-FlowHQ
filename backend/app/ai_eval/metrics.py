@@ -141,7 +141,7 @@ def score(case: Case, text: str, *, batch: list[str] | None = None) -> dict:
         m["helpfulness"] = None
 
     if case.task == "reply":
-        qa = quality.assess_reply(text, rating=case.data["rating"], review_text=case.data["text"], lang=lang)
+        qa = quality.assess_reply(text, rating=case.data["rating"], review_text=case.data["text"], lang=lang, facts=ctx, business=b["name"])
     elif case.task == "post":
         qa = quality.assess_post(text, lang=lang, recent=case.data.get("recent"), business=b["name"], services=b["services"])
     elif case.task == "description":
