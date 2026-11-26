@@ -279,7 +279,7 @@ def test_regenerate_gives_different_wording_from_the_same_facts_and_is_capped(bi
     system, user = llm.calls[-1]
     assert "<earlier_draft>" in user and "back pain physiotherapy" in user  # the same stored facts, never new ones
     assert owner_query("SELECT generation_count FROM review_drafts d JOIN review_sessions s ON s.id=d.session_id WHERE s.session_identifier=:s", s=sid)[0][0] == 3
-    llm.texts = ["I saw the doctor for my back pain physiotherapy and she listened carefully; reception were friendly too.",
+    llm.texts = ["I saw the doctor for my back pain physiotherapy and she listened carefully and reception were friendly too.",
                  "My back pain physiotherapy visit went well. The doctor listened carefully and reception was friendly."]
     codes = [pub(client, "POST", c["public_id"], "/regenerate", json={"session_id": sid}).status_code for _ in range(4)]
     assert 429 in codes  # capped at review_max_drafts_per_session

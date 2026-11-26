@@ -127,7 +127,7 @@ def test_results_and_services_the_customer_never_mentioned_are_rejected():
     validate_draft("The exercises helped my back pain and the staff were friendly.", ReviewInput(note="exercises helped my back pain, friendly staff"), language="en", style="natural", business_name="Acme")
     validate_draft("I waited an hour at Sunrise Physiotherapy and nobody explained the charges.", ReviewInput(note=NEG), language="en", style="natural",
                    business_name="Sunrise Physiotherapy", category="Physiotherapy clinic")
-    validate_draft("I came for physiotherapy; the staff were friendly and explained the exercises.", ReviewInput(note="physiotherapy, friendly staff, explained exercises"),
+    validate_draft("I came for physiotherapy and the staff were friendly and explained the exercises.", ReviewInput(note="physiotherapy, friendly staff, explained exercises"),
                    language="en", style="natural", business_name="Acme", category="Physiotherapy clinic")
 
 

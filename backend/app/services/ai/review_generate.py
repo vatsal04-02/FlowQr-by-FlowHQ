@@ -25,8 +25,8 @@ STYLE_GUIDE = {
     "natural": "Natural and conversational, like someone telling a friend about their visit. The length is set by the detail level below.",
     "short": "Very short and simple: 1 or 2 sentences, under 35 words.",
     "detailed": "Slightly fuller wording, at most 4 sentences, roughly one sentence per fact the customer gave. Never add content to fill space: if they gave few facts, stay brief.",
-    "professional": "Polished and professional, measured tone, 3 to 4 sentences. No slang.",
-    "warm": "Warm and personal, with genuine gratitude where the customer expressed appreciation. 3 to 4 sentences.",
+    "professional": "Clear and measured, in a normal person's everyday words, 3 to 4 sentences. No slang, and no formal phrases such as 'I would like to' or 'I am pleased to'.",
+    "warm": "Warm and friendly, like thanking someone in person, where the customer expressed appreciation. 3 to 4 sentences. No gushing and no flowery praise.",
 }
 MAX_CHARS = {"short": 260, "natural": 800, "warm": 800, "professional": 850, "detailed": 1100}
 LANGUAGE_RULE = {
@@ -44,7 +44,7 @@ VARIATION_HINTS = (  # direction-neutral shapes: they work for a 1-star and a 5-
     "Start with a 'both ... and ...' sentence that pairs two topics.", "Start with the specific detail they typed, if there is one; otherwise with the first topic.",
     "Start with a short, plain sentence about one topic, then connect the others.",
 )
-VARIATION_POSITIVE = ("Start with a first-person verb about the first topic (liked, appreciated, was happy with).", "Start with 'What I liked about ...' and the first topic.")
+VARIATION_POSITIVE = ("Start with a first-person verb about the first topic (liked, was happy with, found it good).", "Start with 'What I liked about ...' and the first topic.")
 VARIATION_NEGATIVE = ("Start with 'I wasn't happy with ...' or 'I didn't find ... good', about the first topic.", "Start with 'What fell short was ...' and the first topic.")
 
 SYSTEM = """You help a real customer put THEIR OWN experience into words for a Google review of a local business.
@@ -53,10 +53,10 @@ HARD RULES:
 - The customer may have written just keywords or fragments ("back pain, friendly staff"), a sentence, a full review, or a mix of English and Hindi (also Hindi typed in English letters). Turn what they wrote into natural, readable sentences in the requested language. Keep their meaning and keep names and numbers as given. Any of their words that are in another language (including Hindi written in English letters, like "bahut accha") must be TRANSLATED, never copied across.
 - Use ONLY what the customer wrote in <customer_answers>. Never add services, treatments, outcomes, staff names, prices, dates, numbers, wait times, promises or any other fact they did not give. If they gave little, write a short review: never pad.
 - The business name and <business_context> are background about what the business OFFERS. They are NOT evidence of what this customer received. Never state or imply what service, treatment, dish or product the customer used (for example "physiotherapy", "dental", "the buffet") unless they wrote it or picked it as a topic. A customer may have come for something else entirely.
-- EXPANDING PICKED TOPICS (this is what makes the review read like a person wrote it). For each topic the customer picked you are told what it is about and which plain describing words fit it. You may put the topic into fuller natural language ("the guidance on the exercises was easy to follow", "I appreciated the way the staff dealt with me"), use those describing words in the direction of the rating, connect related topics into flowing sentences with natural transitions, and say they liked, appreciated or were happy with it (positive) or that it fell short (negative). That is wording, not new information. Do NOT turn a topic into a story: no events, no specific things the staff did or said, no results (recovery, pain relief, fewer symptoms, better health), no punctuality, no specific dishes, products or treatments, no reason WHY they feel that way, no feelings such as relieved or comfortable, no recommendations, plans or closing summary, unless the customer wrote it.
+- EXPANDING PICKED TOPICS (this is what makes the review read like a person wrote it). For each topic the customer picked you are told what it is about and which plain describing words fit it. You may put the topic into fuller natural language ("the guidance on the exercises was easy to follow", "the staff were good with me dealt with me"), use those describing words in the direction of the rating, connect related topics into flowing sentences with natural transitions, and say they liked, appreciated or were happy with it (positive) or that it fell short (negative). That is wording, not new information. Do NOT turn a topic into a story: no events, no specific things the staff did or said, no results (recovery, pain relief, fewer symptoms, better health), no punctuality, no specific dishes, products or treatments, no reason WHY they feel that way, no feelings such as relieved or comfortable, no recommendations, plans or closing summary, unless the customer wrote it.
 - The star rating tells you the DIRECTION and tone of the review (1-2 negative, 3 neutral or mixed, 4-5 positive). It never gives a reason: do not explain or justify the rating with anything the customer did not say.
 - Words and phrases that are REJECTED, so never write them: overall, everything (say "things"), throughout, "a good/great experience", "my experience", "my visit" as a summary, expectations, "made me feel", "made a difference", "which really helped", "setting a positive tone".
-- For each picked topic write a clause that carries its meaning, not just its name: "I appreciated how clearly things were explained" rather than "the explanations were good". Never add a clause about what the topic led to.
+- For each picked topic write a clause that carries its meaning, not just its name: "things were explained clearly" rather than "the explanations were good". Never add a clause about what the topic led to.
 - Do not write one flat sentence per topic. Group related topics, vary sentence length, avoid repeating the same adjective, and do not open with a generic line such as "I had a good experience" or "I recently visited". Do not end with a summary or a stock closing line.
 - Do not state how the customer felt (frustrated, uncertain, upset, comfortable, welcomed, relieved) unless they used that feeling themselves. Do not say anything "helped", "improved", "worked" or was "helpful" unless they said so. Report what happened, in their words, and stop.
 - Do not assume the visit was positive. If their words are negative, neutral or mixed, the review must be too. Never add praise, thanks, recommendations or a positive summary ("overall I was happy") that they did not express.
@@ -64,6 +64,7 @@ HARD RULES:
 - Every sentence must trace back to something the customer wrote. Do NOT add how the visit felt, what happened next, follow-up plans, results, how long anything took, comparisons, hopes, or what they will do in future unless they said it. Do not write "visits" (plural), "again" or "always" unless they did. Nice-sounding filler is invention too.
 - Preserve their sentiment exactly. If they were lukewarm, mixed or negative, keep it that way. Never make it more positive than their words, and never more negative.
 - Write in the first person, as the customer. Sound like a real person: plain words, no marketing language, no slogans, no hashtags, no emojis, no exclamation spam.
+- SOUND LIKE A PERSON TYPING ON THEIR PHONE, NOT LIKE AN AI. Use everyday words and contractions where they come naturally (wasn't, didn't, it's). Short plain sentences are good, and so is an occasional fragment ("Staff were friendly."). Prefer "liked", "good", "happy with", "easy", "quick" to "appreciated", "impressed", "delighted", "exceptional". Never use: seamless, top-notch, exceptional, impeccable, stellar, invaluable, testament, genuinely, truly, "above and beyond", "I would like to", "I must say". No em dashes or en dashes, no semicolons, no list of three with a comma before "and", no "not only ... but also", no neat wrap-up sentence. Do not make every sentence the same length or begin two sentences the same way. It is fine for the review to be plain and a little unpolished: never smooth it into marketing copy.
 - Do not claim medical results, cures or guarantees. Do not call the business "the best". Do not mention discounts, offers or incentives.
 - Never write the star rating or the word "stars".
 - Mention the business name at most once, and only if it reads naturally. Do not stuff keywords. Write it exactly as given (never transliterate or alter it). Do not open with a sentence saying the customer visited or used a service unless they said so: start directly with what they picked or wrote.
@@ -76,7 +77,7 @@ Customer wrote: "service was okay, nothing special"  ->  The service was okay, n
 Customer wrote: "friendly staff, quick appointment"  ->  The staff were friendly and I got an appointment quickly.
 Customer wrote (English requested): "doctor ne dhyan se suna, wait kam tha"  ->  The doctor listened carefully and the wait was short.
 Customer wrote (Hindi requested): "doctor listened carefully, short wait"  ->  डॉक्टर ने ध्यान से सुना और इंतज़ार कम करना पड़ा।
-Topics picked: Staff; Explanations; Exercise guidance. Rating 5 (positive)  ->  I appreciated the way the staff dealt with me, and things were explained in a way that was easy to follow. The guidance on the exercises was clear as well.
+Topics picked: Staff; Explanations; Exercise guidance. Rating 5 (positive)  ->  The staff were good with me and things were explained clearly. The exercise guidance was easy to follow too.
 Topics picked: Food quality; Ambience. Rating 4 (positive). Customer also wrote: "a bit noisy"  ->  The food was tasty and I liked the ambience, although it was a bit noisy.
 Topics picked: Appointments; Treatment. Rating 2 (negative)  ->  I wasn't satisfied with the appointments, and the treatment wasn't good either.
 Topics picked: Staff; Appointments. Rating 3 (neutral)  ->  The staff and the appointments were both okay: neither especially good nor bad.
@@ -412,6 +413,31 @@ _GENERIC_OPEN = re.compile(r"^\W*(?:i (?:had|have had) an? (?:really |very |trul
                            r"it was an? (?:good|great|nice|wonderful|pleasant|amazing) (?:experience|visit)|(?:good|great|nice|wonderful|excellent|amazing) (?:experience|service)\b|my experience (?:was|has been)|overall\b)", re.I)
 
 
+# What gives machine-written text away. None of it is wrong in itself, but together these are the marks a reader spots at once, so a draft that carries one is rewritten.
+_AI_WORDS = re.compile(r"\b(?:seamless(?:ly)?|top[- ]notch|exceptional(?:ly)?|impeccabl[ey]|impeccable|stellar|unparalleled|invaluable|commendabl[ey]|remarkabl[ey]|testament|delve[ds]?|tapestry|"
+                       r"genuinely|truly|kudos|rest assured|a breath of fresh air|above and beyond|i must say|i would like to|i want to (?:thank|express)|to say the least|second to none|hats off|"
+                       r"cannot (?:recommend|praise) .{0,15}enough|can't (?:recommend|praise) .{0,15}enough)\b", re.I)
+_OXFORD_LIST = re.compile(r"\b[\w']+, [\w']+, (?:and|or) [\w']+", re.I)  # "friendly, polite, and attentive": the three-item list with a comma before "and"
+_NOT_ONLY = re.compile(r"\bnot (?:only|just|merely)\b.{0,70}\bbut\b", re.I)
+
+
+def ai_tell(text: str) -> str | None:
+    """The first sign that this reads like AI-written text, or None. Applies to English and Hinglish."""
+    if re.search(r"[\u2014\u2013]", text):
+        return "uses a long dash"
+    if ";" in text:
+        return "uses a semicolon"
+    if text.count("!") > 1:
+        return "uses several exclamation marks"
+    if (m := _AI_WORDS.search(text)):
+        return f"uses the phrase '{m.group().lower()}'"
+    if _OXFORD_LIST.search(text):
+        return "uses a three-item list with a comma before 'and'"
+    if _NOT_ONLY.search(text):
+        return "uses a 'not only ... but' turn"
+    return None
+
+
 _TOKEN = re.compile(r"[a-z0-9\u0900-\u097f']+")
 
 
@@ -565,6 +591,10 @@ def validate_draft(text: str, inp: ReviewInput, *, language: str, style: str, bu
         for adj in ("good", "great", "nice"):  # "good ... good ... good": one adjective doing all the work
             if len(re.findall(rf"\b{adj}\b", text, re.I)) > 2 and inp.sentiment != "not_good":
                 raise ReviewDraftRejected(f"repeats the adjective '{adj}'")
+
+    # It must read like a person typed it, not like an AI wrote it.
+    if language in ("en", "hinglish") and (tell := ai_tell(text)):
+        raise ReviewDraftRejected(f"sounds like AI-written text ({tell})")
 
     # Regeneration and the other suggestions in a round must actually read differently, and every customer's review must read as its own: two people who tap the same stars and
     # topics must not end up posting the same paragraph. Checked last, so when it fires every faithfulness rule above has already passed.
