@@ -1,4 +1,4 @@
-import { Bell, Building2, CreditCard, Database, Globe, History, Link2, MapPin, MessageCircle, Palette, Receipt, Share2, Sparkles, User, Users } from "lucide-react";
+import { Bell, Building2, CreditCard, Database, Globe, History, Link2, MessageCircle, Palette, Receipt, Share2, User, Users } from "lucide-react";
 import type { NavIcon } from "@/lib/nav";
 import type { Role } from "@/lib/types";
 
@@ -24,7 +24,6 @@ export const ROWS: SettingsRow[] = [
   { id: "account", href: "/settings/account", title: "Profile and password", sub: "Your name, email and sign-in", icon: User, group: "account" },
 
   { id: "business", href: "/settings/business", title: "Business profile", sub: "Name, category, contact, logo", icon: Building2, group: "business" },
-  { id: "locations", href: "/gbp/locations", title: "Locations", sub: "Branches, review links, cards", icon: MapPin, group: "business" },
   { id: "team", href: "/settings/team", title: "Team", sub: "Who can sign in, and what they see", icon: Users, group: "business" },
 
   { id: "google", href: "/settings/connections/google", title: "Google Business Profile", sub: "Reviews, replies and your profile", icon: Link2, group: "connect", status: "google", also: ["/gbp/connect"] },
@@ -32,7 +31,6 @@ export const ROWS: SettingsRow[] = [
   { id: "meta", href: "/settings/connections", title: "Facebook and Instagram", sub: "Posting to your pages", icon: Share2, group: "connect", status: "meta" },
 
   { id: "notifications", href: "/settings/notifications", title: "Notifications", sub: "Which emails you get", icon: Bell, group: "prefs" },
-  { id: "ai", href: "/settings/ai/voice", title: "AI and brand voice", sub: "How replies and posts sound", icon: Sparkles, group: "prefs", also: ["/settings/ai"] },
   { id: "appearance", href: "/settings/appearance", title: "Appearance", sub: "Light or dark", icon: Palette, group: "prefs" },
   { id: "region", href: "/settings/region", title: "Language and time zone", sub: "Language, dates, time zone", icon: Globe, group: "prefs" },
 

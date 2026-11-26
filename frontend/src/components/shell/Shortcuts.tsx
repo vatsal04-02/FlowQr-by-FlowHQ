@@ -8,21 +8,16 @@ import { Modal } from "../ui/Modal";
 /** "g" then a letter jumps to a page (like Gmail and Linear). Only pages this person can see are listed. */
 const GO: { key: string; id: string; label: string }[] = [
   { key: "h", id: "home", label: "Home" },
-  { key: "r", id: "reviews", label: "Reviews" },
-  { key: "p", id: "seo", label: "GBP (your Google profile)" },
-  { key: "g", id: "growth", label: "Growth" },
-  { key: "l", id: "locations", label: "Locations" },
-  { key: "a", id: "assistant", label: "AI Assistant" },
-  { key: "t", id: "tasks", label: "Tasks & Approvals" },
+  { key: "a", id: "ai", label: "AI" },
+  { key: "g", id: "google", label: "Google" },
   { key: "s", id: "settings", label: "Settings" },
-  { key: "b", id: "billing", label: "Billing" },
 ];
 
 const Kbd = ({ children }: { children: React.ReactNode }) => <kbd className="inline-grid min-w-6 place-items-center rounded-md bg-surface-2 px-1.5 py-0.5 font-sans text-xs font-semibold text-ink ring-1 ring-line">{children}</kbd>;
 
 /**
  * App-wide keyboard shortcuts, always off while typing in a field or with a dialog open. Ctrl/⌘ K stays in AppShell.
- *   ?  this list    /  search    g then h/r/p/g/l/a/t/s/b  go to a page
+ *   ?  this list    /  search    g then h/a/g/s  go to a page
  */
 export function Shortcuts({ dests, onSearch, helpOpen, onHelpClose, onHelp }: { dests: Dest[]; onSearch: () => void; helpOpen: boolean; onHelp: () => void; onHelpClose: () => void }) {
   const router = useRouter();

@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/auth";
 import { timeAgo } from "@/lib/format";
 
 const OPEN_LINK: Partial<Record<Task["kind"], [string, string]>> = {
-  connect_google: ["/gbp/locations", "Open Google connection"], complete_knowledge: ["/settings/ai/brain", "Open Knowledge Base"], add_photo: ["/gbp/photos", "Open Photos & Media"],
+  connect_google: ["/gbp/locations", "Open Google connection"], complete_knowledge: ["/ai/settings/brain", "Open Knowledge Base"], add_photo: ["/gbp/photos", "Open Photos & Media"],
   profile_fix: ["/gbp/info", "Open Profile Manager"],
 };
 const KIND_ICON: Record<string, [LucideIcon, string]> = {

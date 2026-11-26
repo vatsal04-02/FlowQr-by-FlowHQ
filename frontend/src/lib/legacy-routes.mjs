@@ -28,11 +28,16 @@ export const LEGACY_ROUTES = [
   ["/ai/insights", "/reputation/insights"],
   ["/ai/assistant/settings", "/reputation/assistant/settings"],
   ["/ai/assistant", "/reputation/assistant"],
-  ["/ai/voice", "/settings/ai/voice"],
-  ["/ai/brain", "/settings/ai/brain"],
-  ["/ai/autonomy", "/settings/ai/autonomy"],
-  ["/ai/usage", "/settings/ai/usage"],
-  ["/settings/ai", "/settings/ai/usage"],                  // before the move this URL was the usage page
+  ["/ai/voice", "/ai/settings/voice"],
+  ["/ai/brain", "/ai/settings/brain"],
+  ["/ai/autonomy", "/ai/settings/autonomy"],
+  ["/ai/usage", "/ai/settings/usage"],
+  // the AI settings moved into the AI section (four-place navigation: Home, AI, Google, Settings)
+  ["/settings/ai/voice", "/ai/settings/voice"],
+  ["/settings/ai/brain", "/ai/settings/brain"],
+  ["/settings/ai/autonomy", "/ai/settings/autonomy"],
+  ["/settings/ai/usage", "/ai/settings/usage"],
+  ["/settings/ai", "/ai/settings/usage"],                  // before the first move this URL was the usage page
   // ---- Earlier generation: the pre-redesign URLs, pointed straight at today's pages
   ["/dashboard", "/overview"],
   ["/analytics", "/reputation/insights"],
@@ -62,7 +67,7 @@ export const LEGACY_ROUTES = [
   ["/agent/recommendations", "/ai/tasks"],
   ["/agent/approvals", "/ai/approvals"],
   ["/agent/activity", "/ai/activity"],
-  ["/agent/knowledge", "/settings/ai/brain"],
+  ["/agent/knowledge", "/ai/settings/brain"],
   ["/agent/automations", "/ai/automations"],
   ["/agent", "/ai/today"],
   ["/studio/:path*", "/ai/studio/:path*"],

@@ -1,7 +1,7 @@
-import { CircleHelp, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import type { ComponentType } from "react";
 import { GbpIcon } from "@/components/icons/Gbp";
-import { ActivityGlyph, BillingGlyph, GrowthGlyph, HomeGlyph, LocationsGlyph, ReviewsGlyph, SettingsGlyph, TasksGlyph, TodayGlyph, WhatsAppGlyph } from "@/components/icons/Nav";
+import { HomeGlyph, SettingsGlyph } from "@/components/icons/Nav";
 import { allows, featureFor, type PlanFeatures } from "./nav-features";
 import type { Role } from "./types";
 
@@ -9,118 +9,89 @@ import type { Role } from "./types";
 export type NavIcon = ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean | "true" | "false" }>;
 
 /**
- * One navigation system for the whole app (docs/DESIGN.md). Phones: a bottom bar with Home, Reviews, GBP (Google Business Profile), Growth and More. Tablet and desktop: one left sidebar.
- * Both read this file, so a page is added or renamed in exactly one place. Each owner question has one home: am I getting better (Home), what do people say (Reviews),
- * do people find me on Google (GBP), how do I get more reviews (Growth). Every old URL keeps working through legacy-routes.mjs. Pages for unfinished integrations
- * (WhatsApp inbox, Studio calendar, brand kit, assets, social) are deliberately not listed (their routes and source are untouched).
+ * One navigation system for the whole app (docs/DESIGN.md). Four places, and nothing else to choose from: Home (how am I doing), AI (what the assistant does and how it behaves),
+ * Google (everything about how you show up and are reviewed on Google) and Settings (the business, the team, billing). Phones: a bottom bar with those four. Tablet and desktop: one left
+ * sidebar with the same four, the pages of the current place folding open underneath it. Both read this file, so a page is added or renamed in exactly one place.
+ * Every old URL keeps working through legacy-routes.mjs. Pages for unfinished integrations (Studio calendar, brand kit, assets, social) are deliberately not listed.
  */
 export type Tab = { href: string; label: string; also?: string[]; only?: Role[] };
 export type Child = {
   href: string; label: string;
   /** other paths that belong to this page (detail pages, old pages) so the right tab stays highlighted */
   also?: string[];
-  /** a second row for pages that share a theme; at most four, or it becomes a picker */
+  /** a second row for pages that share a theme */
   tabs?: Tab[];
   only?: Role[];
+  flag?: "whatsapp";
 };
-export type Group = "main" | "marketing" | "business" | "customers" | "assistant" | "account";
+export type Group = "main" | "account";
 export type Dest = { id: string; href: string; label: string; short?: string; desc: string; icon: NavIcon; group: Group; children?: Child[]; also?: string[]; only?: Role[]; flag?: "whatsapp" };
-/** Server switches that show or hide a destination (me.integrations). A switched-off feature has no menu entry at all. */
+/** Server switches that show or hide a destination or a page of one (me.integrations). A switched-off feature has no menu entry at all. */
 export type NavFlags = { whatsapp?: boolean };
 
-/** The sidebar sections, in order. Home stands alone; the rest read as the owner's own job list: market, run the business, hear from customers, get help, administer. */
-export const GROUPS: Group[] = ["main", "marketing", "business", "customers", "assistant", "account"];
-export const GROUP_LABEL: Record<Group, string | null> = { main: null, marketing: "AI Marketing", business: "Business", customers: "Customers & reviews", assistant: "Assistant", account: "Administration" };
+/** The sidebar sections, in order. Home, AI and Google sit together; Settings is set apart at the bottom. Neither has a heading: four items need none. */
+export const GROUPS: Group[] = ["main", "account"];
+export const GROUP_LABEL: Record<Group, string | null> = { main: null, account: null };
 
 export const DESTS: Dest[] = [
   { id: "home", href: "/overview", label: "Home", desc: "Growth score and this week's moves", icon: HomeGlyph, group: "main" },
-  { id: "studio", href: "/gbp/studio", label: "Marketing Studio", short: "Studio", desc: "Campaigns, posts, photos, calendar", icon: Sparkles, group: "marketing", also: ["/gbp/studio/new"], children: [
-    { href: "/gbp/studio", label: "Campaigns", also: ["/gbp/studio/new"] },
-    { href: "/gbp/posts", label: "Posts" },
-    { href: "/gbp/photos", label: "Photos" },
+  { id: "ai", href: "/ai/today", label: "AI", desc: "Your assistant: plan, approvals, studio, WhatsApp and its settings", icon: Sparkles, group: "main", children: [
+    { href: "/ai/today", label: "Today", tabs: [
+      { href: "/ai/today", label: "Plan" }, { href: "/ai/automations", label: "Helpers" }, { href: "/ai/operator", label: "AI Operator" },
+    ] },
+    { href: "/gbp/studio", label: "Studio", also: ["/gbp/studio/new"], tabs: [
+      { href: "/gbp/studio", label: "Campaigns", also: ["/gbp/studio/new"] }, { href: "/ai/studio", label: "Write a post" },
+    ] },
+    { href: "/ai/tasks", label: "To review", tabs: [
+      { href: "/ai/tasks", label: "Tasks" }, { href: "/ai/approvals", label: "Approvals" }, { href: "/ai/changes", label: "Changes" },
+    ] },
+    { href: "/ai/activity", label: "Activity" },
+    { href: "/whatsapp", label: "WhatsApp", flag: "whatsapp", tabs: [
+      { href: "/whatsapp", label: "Overview" },
+      { href: "/whatsapp/setup", label: "Set up" },
+      { href: "/whatsapp/connect", label: "Connect" },
+      { href: "/whatsapp/inbox", label: "Inbox" },
+      { href: "/whatsapp/assistant", label: "Auto-reply" },
+      { href: "/whatsapp/bookings", label: "Bookings" },
+      { href: "/whatsapp/integrations", label: "Integrations" },
+      { href: "/whatsapp/ads", label: "Ad sources" },
+      { href: "/whatsapp/contacts", label: "Customers" },
+      { href: "/whatsapp/optin", label: "Sign-ups" },
+      { href: "/whatsapp/automations", label: "Automations" },
+      { href: "/whatsapp/occasions", label: "Greetings" },
+      { href: "/whatsapp/campaigns", label: "Offers" },
+      { href: "/whatsapp/messages", label: "Messages" },
+    ] },
+    { href: "/ai/settings/voice", label: "AI settings", also: ["/ai/settings"], tabs: [
+      { href: "/ai/settings/voice", label: "Voice" }, { href: "/ai/settings/brain", label: "Brain" },
+      { href: "/ai/settings/autonomy", label: "Autonomy", only: ["owner", "admin"] }, { href: "/ai/settings/usage", label: "Usage", only: ["owner", "admin"] },
+    ] },
   ] },
-  { id: "seo", href: "/seo", label: "GBP", short: "Google", desc: "Google Business Profile: how you show up on Google", icon: GbpIcon, group: "business", children: [
+  { id: "google", href: "/seo", label: "Google", desc: "Reviews, rankings, your profile, posts, photos and locations", icon: GbpIcon, group: "main", children: [
     { href: "/seo", label: "Overview" },
-    { href: "/seo/rankings", label: "Rankings", also: ["/seo/searches", "/seo/competitors"] },
-    { href: "/seo/performance", label: "Performance" },
+    { href: "/gbp/reviews", label: "Reviews", tabs: [
+      { href: "/gbp/reviews", label: "Inbox" }, { href: "/reputation/drafts", label: "Drafts" }, { href: "/reputation/insights", label: "Insights" },
+    ] },
+    { href: "/seo/rankings", label: "Search", also: ["/seo/searches", "/seo/competitors"], tabs: [
+      { href: "/seo/rankings", label: "Rankings", also: ["/seo/searches", "/seo/competitors"] }, { href: "/seo/performance", label: "Performance" },
+    ] },
     { href: "/seo/profile", label: "Profile", tabs: [
-      { href: "/seo/profile", label: "Checklist" }, { href: "/gbp/info", label: "Info", also: ["/gbp/hours"] },
+      { href: "/seo/profile", label: "Checklist" }, { href: "/gbp/info", label: "Info", also: ["/gbp/hours"] }, { href: "/gbp/posts", label: "Posts" }, { href: "/gbp/photos", label: "Photos" },
+    ] },
+    { href: "/growth", label: "Get reviews", also: ["/growth/funnel"], tabs: [
+      { href: "/growth", label: "Goals", also: ["/growth/funnel"] }, { href: "/gbp/cards", label: "Cards" }, { href: "/gbp/cards/designs", label: "Designs" },
+      { href: "/reputation/assistant", label: "Customer page", also: ["/reputation/assistant/settings"] },
+      { href: "/gbp/campaigns", label: "Campaigns" }, { href: "/gbp/campaigns/landing", label: "Page design" }, { href: "/gbp/campaigns/guide", label: "Guide" }, { href: "/growth/reports", label: "Reports" },
+    ] },
+    { href: "/gbp/locations", label: "Locations", tabs: [
+      { href: "/gbp/locations", label: "Locations" }, { href: "/overview/locations", label: "Compare" },
     ] },
   ] },
-  { id: "locations", href: "/gbp/locations", label: "Locations", desc: "Branches and Google connection", icon: LocationsGlyph, group: "business", children: [
-    { href: "/gbp/locations", label: "Locations" },
-    { href: "/overview/locations", label: "Compare" },
-  ] },
-  { id: "reviews", href: "/gbp/reviews", label: "Reviews", desc: "Read, reply, approve", icon: ReviewsGlyph, group: "customers", children: [
-    { href: "/gbp/reviews", label: "Inbox" },
-    { href: "/reputation/drafts", label: "Drafts" },
-    { href: "/reputation/insights", label: "Insights" },
-  ] },
-  { id: "growth", href: "/growth", label: "Growth", desc: "More reviews, every week", icon: GrowthGlyph, group: "customers", children: [
-    { href: "/growth", label: "Goals", also: ["/growth/funnel"] },
-    { href: "/gbp/cards", label: "Cards", tabs: [
-      { href: "/gbp/cards", label: "Cards" }, { href: "/gbp/cards/designs", label: "Designs" }, { href: "/reputation/assistant", label: "Customer page", also: ["/reputation/assistant/settings"] },
-    ] },
-    { href: "/gbp/campaigns", label: "Campaigns", tabs: [
-      { href: "/gbp/campaigns", label: "Campaigns" }, { href: "/gbp/campaigns/landing", label: "Page design" }, { href: "/gbp/campaigns/guide", label: "Guide" },
-    ] },
-    { href: "/growth/reports", label: "Reports" },
-  ] },
-  { id: "whatsapp", href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, group: "customers", flag: "whatsapp", children: [
-    { href: "/whatsapp", label: "Overview" },
-    { href: "/whatsapp/setup", label: "Set up" },
-    { href: "/whatsapp/connect", label: "Connect" },
-    { href: "/whatsapp/inbox", label: "Inbox" },
-    { href: "/whatsapp/assistant", label: "Auto-reply" },
-    { href: "/whatsapp/bookings", label: "Bookings" },
-    { href: "/whatsapp/integrations", label: "Integrations" },
-    { href: "/whatsapp/ads", label: "Ad sources" },
-    { href: "/whatsapp/contacts", label: "Customers" },
-    { href: "/whatsapp/optin", label: "Sign-ups" },
-    { href: "/whatsapp/automations", label: "Automations" },
-    { href: "/whatsapp/occasions", label: "Greetings" },
-    { href: "/whatsapp/campaigns", label: "Offers" },
-    { href: "/whatsapp/messages", label: "Messages" },
-  ] },
-  { id: "assistant", href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph, group: "assistant", children: [
-    { href: "/ai/today", label: "Today" },
-    { href: "/ai/automations", label: "Helpers" },
-    { href: "/ai/studio", label: "Write a post" },
-    { href: "/ai/operator", label: "AI Operator" },
-  ] },
-  { id: "tasks", href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph, group: "assistant", children: [
-    { href: "/ai/tasks", label: "Tasks" },
-    { href: "/ai/approvals", label: "Approvals" },
-    { href: "/ai/changes", label: "Pending changes" },
-  ] },
-  { id: "activity", href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph, group: "assistant" },
-  { id: "settings", href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph, group: "account" },
-  { id: "billing", href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, group: "account", only: ["owner", "admin"] },
+  { id: "settings", href: "/settings", label: "Settings", desc: "Business, team, billing, alerts and help", icon: SettingsGlyph, group: "account" },
 ];
 
-/** The four destinations on the phone's bottom bar, in order (Home, the Marketing Studio, Reviews, Google). The fifth, More, opens the sheet below. */
-export const BOTTOM_IDS = ["home", "studio", "reviews", "seo"] as const;
-
-/** Which group tint a More tile's icon wears (the same five as Settings, docs/DESIGN_SETTINGS_MOBILE.md §2). */
-export type MoreTint = "connect" | "business" | "prefs" | "billing" | "security";
-export type MoreItem = { href: string; label: string; desc: string; icon: NavIcon; tint: MoreTint; only?: Role[]; help?: boolean; flag?: "whatsapp" };
-export const MORE_GROUPS: { label: string; items: MoreItem[] }[] = [
-  { label: "Customers", items: [
-    { href: "/growth", label: "Growth", desc: "More reviews, every week", icon: GrowthGlyph, tint: "business" },
-    { href: "/whatsapp", label: "WhatsApp", desc: "Connect, customers, automations", icon: WhatsAppGlyph, tint: "connect", flag: "whatsapp" },
-    { href: "/gbp/locations", label: "Locations", desc: "Branches and Google", icon: LocationsGlyph, tint: "business" },
-  ] },
-  { label: "Assistant", items: [
-    { href: "/ai/today", label: "AI Assistant", desc: "Today's plan and helpers", icon: TodayGlyph, tint: "prefs" },
-    { href: "/ai/tasks", label: "Tasks & Approvals", desc: "What waits for you", icon: TasksGlyph, tint: "prefs" },
-    { href: "/ai/activity", label: "Activity", desc: "What the assistant did", icon: ActivityGlyph, tint: "prefs" },
-  ] },
-  { label: "Account", items: [
-    { href: "/settings", label: "Settings", desc: "Business, team, alerts", icon: SettingsGlyph, tint: "security" },
-    { href: "/settings/billing", label: "Billing", desc: "Plan and payments", icon: BillingGlyph, tint: "billing", only: ["owner", "admin"] },
-    { href: "/help", label: "Help & Support", desc: "Search, or email us", icon: CircleHelp, tint: "security", help: true },
-  ] },
-];
+/** The destinations on the phone's bottom bar, in order. There is no fifth: nothing is hidden behind a More menu. */
+export const BOTTOM_IDS = ["home", "ai", "google", "settings"] as const;
 
 export function navFor(role: Role | null, flags: NavFlags = {}, features?: PlanFeatures): Dest[] {
   const ok = (only?: Role[]) => !only || (role !== null && only.includes(role));
@@ -128,14 +99,22 @@ export function navFor(role: Role | null, flags: NavFlags = {}, features?: PlanF
   for (const d of DESTS) {
     if (!ok(d.only) || (d.flag && !flags[d.flag])) continue;
     if (!d.children) { if (allows(features, d.href)) out.push(d); continue; }
-    const children = d.children.filter((c) => ok(c.only) && allows(features, c.href)).map((c) => (c.tabs ? { ...c, tabs: c.tabs.filter((t) => ok(t.only) && allows(features, t.href)) } : c));
+    // a page shows when this person's role, the server's switches and the plan allow it; a page with tabs opens on its first tab the plan includes
+    const children = d.children
+      .filter((c) => ok(c.only) && (!c.flag || flags[c.flag]))
+      .map((c): Child | null => {
+        if (!c.tabs) return allows(features, c.href) ? c : null;
+        const tabs = c.tabs.filter((t) => ok(t.only) && allows(features, t.href));
+        if (!tabs.length) return null;
+        return { ...c, href: tabs.some((t) => t.href === c.href) ? c.href : tabs[0].href, tabs };
+      })
+      .filter((c): c is Child => c !== null);
     if (!children.length) continue;   // every page of this destination is outside the plan: the destination is not shown at all
     // the destination opens on its first page the plan includes
     out.push({ ...d, href: children.some((c) => c.href === d.href) ? d.href : children[0].href, children });
   }
   return out;
 }
-export const moreFor = (role: Role | null, flags: NavFlags = {}, features?: PlanFeatures) => MORE_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => (!i.only || (role !== null && i.only.includes(role))) && (!i.flag || flags[i.flag]) && allows(features, i.href)) })).filter((g) => g.items.length > 0);
 
 /** The plan feature the page at this path needs (null: every plan has it). Used to show "not in your plan" instead of a page that would only fail. */
 export function requiredFeature(path: string): string | null {
@@ -166,10 +145,10 @@ export function locate(path: string): Located | null {
   return { dest: best.dest, child: best.child ?? best.dest.children?.find((c) => c.href === best!.dest.href) ?? null, tab: best.tab, detail: !best.exact };
 }
 
+/** Which bottom-bar item a path belongs to; "" for a page outside the four (nothing is highlighted). */
 export function bottomActive(path: string): string {
   const l = locate(path);
-  if (!l) return "more";
-  return (BOTTOM_IDS as readonly string[]).includes(l.dest.id) ? l.dest.id : "more";
+  return l && (BOTTOM_IDS as readonly string[]).includes(l.dest.id) ? l.dest.id : "";
 }
 
 export const APP_PREFIXES = Array.from(new Set(["/admin", ...DESTS.flatMap((d) => hrefs(d).map((x) => x.h))]));

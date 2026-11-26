@@ -1,4 +1,4 @@
-// FlowQR responsive shell test (Playwright). Real browser, real app: navigation on phone / tablet / desktop, the More sheet, the Home page rules, mobile tables and redirects.
+// FlowQR responsive shell test (Playwright). Real browser, real app: navigation on phone / tablet / desktop, the four-place bottom bar, the Home page rules, mobile tables and redirects.
 //
 //   BASE_URL=http://localhost:3000 E2E_SESSION=<flowqr_session cookie> E2E_CSRF=<flowqr_csrf cookie> node e2e/mobile-shell.js
 //
@@ -34,7 +34,7 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
     const bar = page.getByRole('navigation', { name: 'Primary' });
     check(`${tag}: bottom bar is visible`, await bar.isVisible());
     const labels = await bar.locator('a, button').allInnerTexts();
-    check(`${tag}: exactly Home, Studio, Reviews, Google, More`, JSON.stringify(labels.map((t) => t.split(String.fromCharCode(10))[0].trim())) === JSON.stringify(['Home', 'Studio', 'Reviews', 'Google', 'More']), JSON.stringify(labels));
+    check(`${tag}: exactly Home, AI, Google, Settings`, JSON.stringify(labels.map((t) => t.split(String.fromCharCode(10))[0].trim())) === JSON.stringify(['Home', 'AI', 'Google', 'Settings']), JSON.stringify(labels));
     const sizes = await bar.locator('a, button').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
     check(`${tag}: every bottom-bar target is at least 44px`, sizes.every(([w, h]) => w >= 44 && h >= 44), JSON.stringify(sizes));
     const gap = await bar.evaluate((n) => Math.round(window.innerHeight - n.getBoundingClientRect().bottom));
@@ -48,24 +48,13 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
     const clear = await page.evaluate(() => { const last = document.querySelector('#app-main').lastElementChild; const b = document.querySelector('nav[aria-label=Primary]'); return last.getBoundingClientRect().bottom <= b.getBoundingClientRect().top + 1; });
     check(`${tag}: page content ends above the bottom bar`, clear);
 
-    await bar.getByRole('link', { name: 'Reviews' }).click(); await page.waitForURL('**/gbp/reviews**');
-    check(`${tag}: Reviews opens the reviews page`, true);
-    await bar.getByRole('link', { name: /GBP/ }).click(); await page.waitForURL('**/seo');
-    check(`${tag}: GBP is marked current`, (await bar.getByRole('link', { name: /GBP/ }).getAttribute('aria-current')) === 'page');
-
-    // More sheet
-    const more = bar.getByRole('button', { name: 'More' });
-    await more.click();
-    const dlg = page.getByRole('dialog', { name: 'More' });
-    await dlg.waitFor();
-    for (const t of ['Business', 'Assistant', 'Account']) check(`${tag}: More shows the group "${t}"`, await dlg.getByRole('heading', { name: t }).isVisible());
-    for (const t of ['Locations', 'AI Assistant', 'Tasks & Approvals', 'Activity', 'Settings', 'Billing', 'Help & Support']) check(`${tag}: More lists ${t}`, (await dlg.getByText(t, { exact: true }).count()) > 0);
-    const focusInside = await page.evaluate(() => !!document.activeElement.closest('[role=dialog]'));
-    check(`${tag}: focus moves into the sheet`, focusInside);
-    await page.keyboard.press('Escape'); await dlg.waitFor({ state: 'hidden' });
-    check(`${tag}: Escape closes the sheet and focus returns to More`, await page.evaluate(() => document.activeElement && document.activeElement.textContent.includes('More')));
-    await more.click(); await dlg.getByRole('link', { name: /Locations/ }).click(); await page.waitForURL('**/gbp/locations'); await dlg.waitFor({ state: 'hidden' });
-    check(`${tag}: choosing a page closes the sheet and opens it (More stays lit)`, !(await dlg.isVisible().catch(() => false)) && (await more.evaluate((b) => b.className.includes('accent'))));
+    await bar.getByRole('link', { name: 'Google' }).click(); await page.waitForURL('**/seo');
+    check(`${tag}: Google is marked current`, (await bar.getByRole('link', { name: 'Google' }).getAttribute('aria-current')) === 'page');
+    await bar.getByRole('link', { name: 'AI' }).click(); await page.waitForURL('**/ai/**');
+    check(`${tag}: AI is marked current`, (await bar.getByRole('link', { name: 'AI' }).getAttribute('aria-current')) === 'page');
+    await bar.getByRole('link', { name: 'Settings' }).click(); await page.waitForURL('**/settings**');
+    check(`${tag}: Settings is marked current`, (await bar.getByRole('link', { name: 'Settings' }).getAttribute('aria-current')) === 'page');
+    check(`${tag}: there is no More menu`, (await bar.getByRole('button', { name: 'More' }).count()) === 0);
 
     // Home rules
     await page.goto('/overview'); await page.getByRole('heading', { level: 1 }).waitFor(); await page.waitForTimeout(1500);
@@ -112,8 +101,8 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
     check(`${tag}: only one primary navigation (no second pill nav)`, (await page.getByRole('navigation', { name: 'Main', exact: true }).count()) === 0);
     if (vp.width >= 1100) {
       const names = await aside.locator('nav[aria-label=Pages] > div > ul > li > div > a').allInnerTexts();
-      check(`${tag}: sidebar lists Home, Marketing Studio, GBP, Locations, Reviews, Growth, AI Assistant, Tasks & Approvals, Activity, Settings, Billing`,
-        JSON.stringify(names.map((t) => t.trim())) === JSON.stringify(['Home', 'Marketing Studio', 'GBP', 'Locations', 'Reviews', 'Growth', 'AI Assistant', 'Tasks & Approvals', 'Activity', 'Settings', 'Billing']), JSON.stringify(names));
+      check(`${tag}: sidebar lists exactly Home, AI, Google, Settings`,
+        JSON.stringify(names.map((t) => t.trim())) === JSON.stringify(['Home', 'AI', 'Google', 'Settings']), JSON.stringify(names));
       check(`${tag}: the current page is marked`, (await aside.locator('a[aria-current=page]').first().innerText()).trim() === 'Home');
       await aside.getByRole('button', { name: 'Collapse sidebar' }).click(); await page.waitForTimeout(400);
       check(`${tag}: collapses to a 68px rail`, Math.round((await aside.boundingBox()).width) === 68);
@@ -143,9 +132,8 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   {
     const { ctx, page, errors } = await open(browser, { width: 390, height: 844 }, { colorScheme: 'dark', reducedMotion: 'reduce' });
     await page.goto('/overview'); await page.getByRole('heading', { level: 1 }).waitFor();
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'More' }).click();
-    const dlg = page.getByRole('dialog', { name: 'More' }); await dlg.waitFor();
-    check('dark + reduced motion: More sheet opens and shows its groups', await dlg.getByRole('heading', { name: 'Account' }).isVisible());
+    check('dark + reduced motion: the bottom bar shows the four places', (await page.getByRole('navigation', { name: 'Primary' }).getByRole('link').count()) === 4);
+
     const dur = await page.evaluate(() => getComputedStyle(document.querySelector('aside, nav')).transitionDuration);
     check('dark + reduced motion: no console errors', errors.length === 0, errors.slice(0, 2).join(' | '));
     void dur;

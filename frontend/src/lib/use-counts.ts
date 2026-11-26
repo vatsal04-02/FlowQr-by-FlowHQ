@@ -34,14 +34,14 @@ export function useCounts(tenantId: string | undefined): Counts | null {
   return data;
 }
 
-/** What the badge on a sidebar destination says, or null for no badge. Only Tasks & Approvals has one. */
+/** What the badge on a sidebar or bottom-bar destination says, or null for no badge. Only AI has one: the tasks and approvals waiting for the owner. */
 export function badgeFor(destId: string, c: Counts | null): number | null {
-  if (!c || destId !== "tasks") return null;
+  if (!c || destId !== "ai") return null;
   const n = c.tasks + c.approvals;
   return n > 0 ? n : null;
 }
 export function childBadge(href: string, c: Counts | null): number | null {
   if (!c) return null;
-  const n = href === "/ai/tasks" ? c.tasks : href === "/ai/approvals" ? c.approvals : 0;
+  const n = href === "/ai/tasks" ? c.tasks + c.approvals : 0;   // the "To review" page holds tasks, approvals and changes
   return n > 0 ? n : null;
 }

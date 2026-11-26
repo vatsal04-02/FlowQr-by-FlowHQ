@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { Check, ChevronDown, CreditCard, LogOut, ShieldCheck, Users } from "lucide-react";
+import { Check, ChevronDown, CreditCard, HelpCircle, LogOut, ShieldCheck, Users } from "lucide-react";
 import { AnimatePresence, MotionConfig } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -18,7 +18,7 @@ import { useFetch } from "@/lib/use-api";
 import { CommandPalette } from "./shell/CommandPalette";
 import { Shortcuts } from "./shell/Shortcuts";
 import { BellMenu } from "./shell/Bell";
-import { BottomNav, MoreSheet } from "./shell/BottomNav";
+import { BottomNav } from "./shell/BottomNav";
 import { HelpMenu, PopoverButton, SubNav, ThemeToggle, type Notice } from "./shell/parts";
 import { Sidebar, SIDEBAR_W } from "./shell/Sidebar";
 import { TiltEffect } from "./shell/Tilt";
@@ -82,7 +82,6 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [palette, setPalette] = useState(false);
   const [keys, setKeys] = useState(false);
-  const [more, setMore] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [tour, setTour] = useState(false);
   useAppChrome();
@@ -121,7 +120,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  useEffect(() => { setPalette(false); setMore(false); }, [path]);
+  useEffect(() => { setPalette(false); }, [path]);
 
   const s = sub.data;
   // Each page eases in when you move between pages. Keyed by the page (not the full path), so choosing another review or tab on the same page does not remount its list.
@@ -205,6 +204,9 @@ function AppShellInner({ children }: { children: ReactNode }) {
             {canBill && <Link href="/settings/billing" onClick={close} className={rowCls}><CreditCard className="h-4 w-4 text-ink-500" aria-hidden />Plan and billing</Link>}
             <Link href="/settings/team" onClick={close} className={rowCls}><Users className="h-4 w-4 text-ink-500" aria-hidden />Team</Link>
             <Link href="/settings/appearance" onClick={close} className={rowCls}>Appearance</Link>
+            {legal?.support_email
+              ? <a href={`mailto:${legal.support_email}`} onClick={close} className={rowCls}><HelpCircle className="h-4 w-4 text-ink-500" aria-hidden />Help and support</a>
+              : <button type="button" onClick={() => { close(); setPalette(true); }} className={clsx(rowCls, "w-full text-left")}><HelpCircle className="h-4 w-4 text-ink-500" aria-hidden />Help and search</button>}
             <button type="button" onClick={() => { close(); setTour(true); }} className={clsx(rowCls, "hidden w-full text-left md:flex")}><TourIcon className="h-4 w-4 text-ink-500" aria-hidden />Take a quick tour</button>
             {me.user.is_platform_admin && <Link href="/admin" onClick={close} className={rowCls}><ShieldCheck className="h-4 w-4" aria-hidden />Platform admin</Link>}
             <div className="flex min-h-11 items-center justify-between gap-2 px-3"><span className="font-medium">Theme</span><ThemeToggle small /></div>
@@ -251,8 +253,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           <div key={routeKey} className="fq-page">{locked ? <PlanLocked title={at ? (at.child && at.child.href !== at.dest.href ? at.child.label : at.dest.label) : "This page"} feature={needed!} planName={s?.plan_name ?? null} role={role} /> : children}</div>
         </main>
       </div>
-      <BottomNav path={path} dests={dests} moreOpen={more} onMore={setMore} />
-      <MoreSheet open={more} onClose={() => setMore(false)} role={role} whatsapp={waOn} features={features} onSearch={() => setPalette(true)} supportEmail={legal?.support_email} />
+      <BottomNav path={path} dests={dests} counts={counts} />
       <CommandPalette open={palette} onClose={() => setPalette(false)} dests={dests} />
       <Shortcuts dests={dests} onSearch={() => setPalette(true)} helpOpen={keys} onHelp={() => setKeys(true)} onHelpClose={() => setKeys(false)} />
     </div>

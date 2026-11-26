@@ -78,6 +78,33 @@ function Strip({ label, items, current, className }: { label: string; items: { h
   );
 }
 
+/**
+ * The second level: the tabs inside one page (Plan / Helpers / AI Operator). Quiet text with an underline, scrolling sideways when there are many, so it never looks like the
+ * filled pills of the first level above it. The current tab is scrolled into view.
+ */
+function TabRow({ label, items, current }: { label: string; items: { href: string; label: string }[]; current: string | null }) {
+  const on = useRef<HTMLAnchorElement>(null);
+  useEffect(() => { on.current?.scrollIntoView({ block: "nearest", inline: "center" }); }, [current]);
+  return (
+    <nav aria-label={label} className="mb-4">
+      <ul className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:px-0">
+        {items.map((x) => {
+          const active = x.href === current;
+          return (
+            <li key={x.href} className="shrink-0">
+              <Link ref={active ? on : undefined} href={x.href} aria-current={active ? "page" : undefined}
+                className={clsx("relative flex min-h-11 items-center whitespace-nowrap px-3 text-[14px] transition-colors", active ? "font-semibold text-ink" : "font-medium text-muted hover:text-ink")}>
+                {x.label}
+                {active && <span aria-hidden className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-accent" />}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests: Dest[]; hidePrimaryOnWide?: boolean }) {
   const l = locate(path);
   if (!l) return null;
@@ -85,6 +112,7 @@ export function SubNav({ path, dests, hidePrimaryOnWide }: { path: string; dests
   const kids = dest.children ?? [];
   const child = kids.find((c) => c.href === l.child?.href) ?? null;
   const row = (label: string, items: { href: string; label: string }[], current: string | null, small?: boolean, hideWide?: boolean) => {
+    if (small) return <TabRow label={label} items={items} current={current} />;
     if (items.length > 4) {
       return <Strip label={label} items={items} current={current} className={clsx(small ? "mb-3" : "mb-4", hideWide && "md:hidden")} />;
     }

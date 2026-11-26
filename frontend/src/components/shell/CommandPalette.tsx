@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { ROWS } from "@/components/settings/model";
+import { useAuth } from "@/lib/auth";
 import type { Dest } from "@/lib/nav";
 
 type Entry = { key: string; label: string; hint: string; href: string; icon: Dest["icon"] };
@@ -19,12 +20,11 @@ const navPages = (dests: Dest[]): Entry[] => dests.flatMap((d) => [
 ]);
 
 /** The settings pages (the sidebar lists Settings as one item): those this person may open, found by title or what is on them. */
-const settingsPages = (dests: Dest[]): Entry[] => {
-  const admin = dests.some((d) => d.id === "billing");   // billing is listed for owners and admins only, the same people who see the audit log
-  const wa = dests.some((d) => d.id === "whatsapp");
+const settingsPages = (admin: boolean, wa: boolean): Entry[] => {
+  // billing and the audit log are for owners and admins only; WhatsApp shows while the server has it switched on
   return ROWS.filter((r) => (!r.only || admin) && (r.id !== "whatsapp" || wa)).map((r) => ({ key: r.href, label: r.title, hint: `Settings · ${r.sub}`, href: r.href, icon: r.icon }));
 };
-const pagesOf = (dests: Dest[]): Entry[] => [...navPages(dests), ...settingsPages(dests)];
+const pagesOf = (dests: Dest[], admin: boolean, wa: boolean): Entry[] => [...navPages(dests), ...settingsPages(admin, wa)];
 
 /**
  * Ctrl/⌘ K: jump to any page, or search reviews by reviewer or text (opens the reviews inbox with that search). Keyboard first:
@@ -38,7 +38,9 @@ export function CommandPalette({ open, onClose, dests }: { open: boolean; onClos
   const last = useRef<Element | null>(null);
   const listId = useId();
 
-  const all = useMemo(() => pagesOf(dests), [dests]);
+  const { isAdmin, me } = useAuth();
+  const waOn = !!me?.integrations.whatsapp_enabled;
+  const all = useMemo(() => pagesOf(dests, isAdmin, waOn), [dests, isAdmin, waOn]);
   // GET /search (reviews by reviewer or words, locations, cards), 200 ms after typing stops
   const [found, setFound] = useState<Entry[]>([]);
   useEffect(() => {

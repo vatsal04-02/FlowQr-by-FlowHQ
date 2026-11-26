@@ -72,7 +72,7 @@ const n = (v: number, one: string, many: string) => `${v} ${plural(v, one, many)
 
 const TASK_ACTION: Partial<Record<Task["kind"], [string, string]>> = {
   profile_fix: ["/gbp/info", "Fix it"], add_photo: ["/gbp/photos", "Add photos"], connect_google: ["/settings/connections/google", "Connect Google"],
-  complete_knowledge: ["/settings/ai/brain", "Add details"], create_post: ["/ai/tasks", "Write the post"],
+  complete_knowledge: ["/ai/settings/brain", "Add details"], create_post: ["/ai/tasks", "Write the post"],
 };
 
 /**

@@ -26,10 +26,10 @@ test("staff do not see billing or the audit log; owners and admins do", () => {
   assert.ok(ids("staff").includes("notifications"));
 });
 
-test("the longest matching address wins, so Payments is not Plan and AI tabs stay on one row", () => {
+test("the longest matching address wins, so Payments is not Plan, and the AI settings are not a Settings row", () => {
   assert.equal(rowAt("/settings/billing/payments")?.id, "payments");
   assert.equal(rowAt("/settings/billing")?.id, "plan");
-  assert.equal(rowAt("/settings/ai/brain")?.id, "ai");
+  assert.equal(rowAt("/ai/settings/brain"), null);   // the AI settings live in the AI section now
   assert.equal(rowAt("/settings/connections/google")?.id, "google");
   assert.equal(rowAt("/settings/connections")?.id, "meta");
   assert.equal(rowAt("/whatsapp/connect")?.id, "whatsapp");
