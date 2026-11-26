@@ -1,5 +1,6 @@
 "use client";
 import { WebsiteBanner } from "@/components/website/WebsiteBanner";
+import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DoThisWeek, FunnelStrip, Numbers, ScoreCard, WeeklyReviews, type FunnelStep, type GrowthScore } from "@/components/home/v2";
 import { GoogleActions, LatestReviews, RatingMix } from "@/components/home/v3";
@@ -35,15 +36,21 @@ function useGreeting(fullName: string | null | undefined) {
   return { title: name ? `${g.hello}, ${name}` : g.hello, date: g.date };
 }
 
+/** The secondary charts are folded away by default (Home answers two questions first); the choice is remembered on this device. */
+const MORE_KEY = "flowqr:home-more";
+
 /**
- * Home answers "am I getting better, and what do I do this week?" with pictures first. Several charts, each answering a different question and each drawn from numbers the API returned
- * (docs/DESIGN.md §4): the Growth score ring and its five parts; four numbers with a small picture each; reviews by week against the goal; what customers do on Google (stored daily
- * figures, drawn only when Google has shared enough days); how ratings split; the four newest reviews; three moves for the week; the steps from card to Google.
+ * Home answers "am I getting better, and what do I do this week?" and nothing else up front: the Growth score and its parts, the three moves for the week, four numbers, the newest
+ * reviews and the weekly trend. Setup shows only while there is setup left. What customers do on Google, how ratings split, the steps from card to Google and Google marketing sit
+ * behind one "More insight" fold. Every figure is drawn from numbers the API returned (docs/DESIGN.md §4).
  */
 export default function Home() {
   const { tenant, me } = useAuth();
   const greeting = useGreeting(me?.user.full_name);
   const [days, setDays] = useState<Days>(30);
+  const [more, setMore] = useState(false);
+  useEffect(() => { try { setMore(localStorage.getItem(MORE_KEY) === "1"); } catch { /* private mode */ } }, []);
+  const toggleMore = () => setMore((m) => { try { localStorage.setItem(MORE_KEY, m ? "0" : "1"); } catch { /* private mode */ } return !m; });
   const { locationId } = useLocationScope();
   const loc = locationId ?? "";
   const range = useMemo(() => rangeFor(days), [days]);
@@ -83,19 +90,33 @@ export default function Home() {
       <div className="mb-4 sm:mb-5">
         <h1 className="text-[30px] font-bold leading-[36px] tracking-[-.015em] text-ink sm:text-[32px] sm:leading-10 lg:text-[34px]"><span className="sr-only">Home. </span>{greeting.title}</h1>
         <p className="mt-1 min-h-[22px] text-[15px] leading-[22px] text-muted sm:text-base">{greeting.date}{greeting.date && tenant?.name ? " · " : ""}{tenant?.name}</p>
-        <p className="mt-2 max-w-xl text-[15px] font-medium leading-6 text-ink-700 sm:text-base">See the difference FlowQR is making.</p>
       </div>
       {ov.error && <div className="mb-4"><Alert tone="error" title="We couldn't load your numbers" action={<button type="button" onClick={() => { void ov.reload(); void prevOv.reload(); }} className="inline-flex min-h-11 items-center rounded-[10px] bg-surface px-4 text-sm font-semibold text-ink">Try again</button>}>{ov.error}</Alert></div>}
-      <div data-flat className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-stretch lg:gap-3">
+      {/* the order on a phone is the order of the questions: how am I doing, what do I do, the numbers, the newest reviews, the trend. From a laptop up, the score and the moves share a row. */}
+      <div data-flat className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-stretch">
         <Rv d={0} className="lg:order-1 lg:col-span-8"><ScoreCard g={score.data} loading={score.loading && !score.data} days={days} onDays={setDays} /></Rv>
-        <Rv d={70} className="lg:order-3 lg:col-span-12"><Numbers o={o} prev={p} weekly={weekly} loading={loading} days={days} /></Rv>
-        <Rv d={120} className="lg:order-2 lg:col-span-4"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} g={score.data} /></Rv>
-        <Rv d={140} className="lg:order-4 lg:col-span-12"><MarketingBand /></Rv>
-        {/* two columns on a laptop (chart and Google actions | latest reviews and rating mix), balanced so neither card is stretched; on a phone they are simply the same four cards in the same order */}
-        <div className="space-y-3 lg:order-4 lg:col-span-7"><Rv d={150}><WeeklyReviews o={o} prev={p} days={days} goal={goal} loading={loading || (prevOv.loading && !p)} /></Rv><Rv d={200}><GoogleActions m={gm.data} loading={gm.loading} error={gm.error} /></Rv></div>
-        <div className="space-y-3 lg:order-5 lg:col-span-5"><Rv d={130}><LatestReviews items={latest.data?.items ?? null} total={latest.data?.total ?? 0} loading={latest.loading && !latest.data} /></Rv><Rv d={190}><RatingMix o={o} loading={loading} /></Rv></div>
-        <Rv d={240} className="lg:order-6 lg:col-span-6"><FunnelStrip steps={funnel.data?.funnel ?? null} hasCard={hasCard} loading={funnel.loading && !funnel.data} /></Rv>
-        {o && <Rv d={260} className="lg:order-7 lg:col-span-6"><GettingStarted /></Rv>}
+        <Rv d={70} className="lg:order-2 lg:col-span-4"><DoThisWeek todos={todos} hasCard={hasCard} loading={!o && !ov.error} g={score.data} /></Rv>
+        {o && <div className="empty:hidden lg:order-3 lg:col-span-12 [&>section]:mb-0"><GettingStarted /></div>}
+        <Rv d={120} className="lg:order-4 lg:col-span-12"><Numbers o={o} prev={p} weekly={weekly} loading={loading} days={days} /></Rv>
+        <Rv d={160} className="lg:order-6 lg:col-span-5"><LatestReviews items={latest.data?.items.slice(0, 3) ?? null} total={latest.data?.total ?? 0} loading={latest.loading && !latest.data} /></Rv>
+        {/* the trend, and from a laptop up the steps from card to Google under it (on a phone those steps are in "More insight") */}
+        <div className="space-y-3 lg:order-5 lg:col-span-7">
+          <Rv d={200}><WeeklyReviews o={o} prev={p} days={days} goal={goal} loading={loading || (prevOv.loading && !p)} /></Rv>
+          <Rv d={240} className="hidden lg:block"><FunnelStrip steps={funnel.data?.funnel ?? null} hasCard={hasCard} loading={funnel.loading && !funnel.data} /></Rv>
+        </div>
+        <div className="lg:order-7 lg:col-span-12">
+          <button type="button" aria-expanded={more} aria-controls="home-more" onClick={toggleMore}
+            className="mx-auto flex min-h-11 items-center gap-1.5 rounded-full px-4 text-[14px] font-semibold text-ink-700 ring-1 ring-line transition-colors hover:bg-surface hover:text-ink">
+            {more ? "Show less" : "More insight"}<ChevronDown className={`h-4 w-4 transition-transform duration-200 ${more ? "rotate-180" : ""}`} aria-hidden />
+          </button>
+          {more && (
+            <div id="home-more" className="fq-enter mt-3 grid grid-cols-1 gap-3 lg:grid-cols-12">
+              <div className="lg:col-span-12"><MarketingBand /></div>
+              <div className="lg:col-span-7"><GoogleActions m={gm.data} loading={gm.loading} error={gm.error} /></div>
+              <div className="space-y-3 lg:col-span-5"><RatingMix o={o} loading={loading} /><div className="lg:hidden"><FunnelStrip steps={funnel.data?.funnel ?? null} hasCard={hasCard} loading={funnel.loading && !funnel.data} /></div></div>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

@@ -66,7 +66,8 @@ export function ScoreCard({ g, loading, days, onDays }: { g: GrowthScore | null;
             {weak && <Link href={weak.href} className="btn-glass inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold md:min-h-9"><Sparkles className="h-3.5 w-3.5" aria-hidden />Improve {weak.label.toLowerCase()}</Link>}
           </div>
           <div className="min-w-0">
-            <ul className="grid justify-center gap-1 [grid-template-columns:repeat(auto-fit,minmax(58px,96px))] md:gap-3 md:[grid-template-columns:repeat(auto-fit,minmax(64px,116px))]">
+            {/* one row of up to five parts: equal columns, so four never wrap onto a second row on a phone */}
+            <ul className="mx-auto grid max-w-[460px] gap-1 md:gap-3" style={{ gridTemplateColumns: `repeat(${Math.max(1, g.parts.filter((p) => p.available).length)}, minmax(0, 1fr))` }}>
               {g.parts.filter((p) => p.available).map((p) => (
                 <li key={p.key} className="min-w-0">
                   <Link href={p.href} aria-label={`${p.label}: ${p.detail}`} className="group flex flex-col items-center gap-1.5 rounded-[16px] px-0.5 py-2.5 transition-[background-color,transform] duration-200 ease-spring hover:-translate-y-0.5 hover:bg-surface-2/70">
@@ -108,7 +109,7 @@ function Tile({ label, icon, tone, value, visual, foot, href, verdict, ctx }: { 
         <Chip v={verdict ?? null} />
       </span>
       <span className="mt-2 flex items-baseline gap-2"><span className="num text-[28px] font-semibold leading-9 tracking-[-.025em]">{value}</span>{foot}</span>
-      {ctx && <span className="mt-0.5 block truncate text-[13px] leading-4 text-muted">{ctx}</span>}
+      {ctx && <span className="mt-0.5 line-clamp-2 block text-[13px] leading-4 text-muted">{ctx}</span>}
       <span className="mt-auto pt-2">{visual}</span>
     </Link>
   );
